@@ -17,8 +17,6 @@
 html,body{height:100%;overflow:hidden}
 body{font-family:-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Noto Sans KR',sans-serif;
   background:var(--bg);color:var(--text);display:flex;height:100dvh}
-
-/* ── LOGIN ── */
 #login-wrap{position:fixed;inset:0;background:var(--navy);
   display:flex;align-items:center;justify-content:center;z-index:200;padding:20px}
 .login-card{background:#fff;border-radius:20px;padding:32px 28px;width:100%;max-width:340px;
@@ -30,20 +28,15 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Noto Sa
   text-transform:uppercase;display:block;margin-bottom:5px}
 .fg select,.fg input{width:100%;padding:11px 13px;border:1.5px solid var(--border);
   border-radius:10px;font-size:15px;color:var(--text);background:var(--bg);
-  outline:none;-webkit-appearance:none;appearance:none;transition:border .15s;
-  font-family:inherit}
+  outline:none;-webkit-appearance:none;appearance:none;transition:border .15s;font-family:inherit}
 .fg select:focus,.fg input:focus{border-color:var(--navy)}
 .err{font-size:13px;color:var(--red);margin-bottom:10px;display:none}
 .btn-login{width:100%;padding:13px;background:var(--navy);color:#fff;border:none;
   border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;transition:opacity .15s}
 .btn-login:active{opacity:.8}
 .login-hint{font-size:12px;color:var(--text3);text-align:center;margin-top:12px}
-
-/* ── APP ── */
 #app{width:100%;display:none;flex-direction:row;height:100dvh}
 #app.on{display:flex}
-
-/* ── SIDEBAR ── */
 .sidebar{width:190px;background:var(--navy);color:#fff;
   display:flex;flex-direction:column;flex-shrink:0;overflow:hidden}
 .sb-head{padding:16px 14px 12px;border-bottom:1px solid rgba(255,255,255,.07)}
@@ -61,8 +54,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Noto Sa
 .logout-btn{width:100%;padding:8px;background:none;border:1px solid rgba(255,255,255,.14);
   color:rgba(255,255,255,.45);border-radius:7px;font-size:12px;cursor:pointer;transition:all .12s}
 .logout-btn:hover{background:rgba(255,255,255,.07);color:#fff}
-
-/* ── CHAT ── */
 .chat-wrap{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
 .chat-head{padding:13px 16px;background:#fff;border-bottom:1px solid var(--border);
   display:flex;align-items:center;gap:10px;flex-shrink:0}
@@ -81,17 +72,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Noto Sa
   display:flex;align-items:center;gap:4px;white-space:nowrap;transition:all .15s}
 .ai-btn:active{opacity:.8}
 .ai-btn:disabled{opacity:.45;cursor:not-allowed}
-
-/* ── MESSAGES ── */
 .msgs{flex:1;overflow-y:auto;overflow-x:hidden;padding:12px 14px;
   display:flex;flex-direction:column;gap:2px;-webkit-overflow-scrolling:touch}
 .msgs::-webkit-scrollbar{width:3px}
 .msgs::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
-
 .day-div{text-align:center;position:relative;margin:14px 0 8px;flex-shrink:0}
 .day-div::before{content:'';position:absolute;left:0;right:0;top:50%;height:.5px;background:var(--border)}
 .day-div span{background:var(--bg);padding:0 10px;position:relative;font-size:11px;color:var(--text3)}
-
 .msg-group{max-width:100%;flex-shrink:0}
 .msg-group.own{display:flex;flex-direction:column;align-items:flex-end}
 .msg-head{display:flex;align-items:baseline;gap:6px;margin-bottom:3px}
@@ -104,13 +91,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Noto Sa
   max-width:min(520px,85vw);display:inline-block}
 .msg-group.own .msg-body{background:#dbeafe;border-color:#bfdbfe;
   border-radius:12px 3px 12px 12px}
-
-/* AI 정리 결과 박스 */
 .msg-body.ai{
   background:#fff;border:1.5px solid #c4b5fd;border-left:4px solid var(--purple);
   border-radius:4px 12px 12px 12px;font-family:'SF Mono','Fira Code','Courier New',monospace;
-  font-size:12px;line-height:1.8;color:#2d1a5e;max-width:min(640px,92vw);
-  padding:14px 16px;
+  font-size:12px;line-height:1.8;color:#2d1a5e;max-width:min(640px,92vw);padding:14px 16px;
 }
 .ai-header{display:flex;align-items:center;gap:8px;margin-bottom:12px;padding-bottom:10px;
   border-bottom:1px solid #e9d5ff}
@@ -129,11 +113,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Noto Sa
 .ai-mode-tag{font-size:10px;padding:2px 7px;border-radius:99px;font-weight:600;margin-left:auto}
 .ai-mode-tag.pattern{background:#dcfce7;color:#15803d}
 .ai-mode-tag.gemini{background:#dbeafe;color:#1e40af}
-
 .empty-state{flex:1;display:flex;align-items:center;justify-content:center;
   font-size:13px;color:var(--text3);flex-direction:column;gap:8px}
-
-/* ── INPUT ── */
 .input-wrap{padding:10px 12px 12px;background:#fff;border-top:1px solid var(--border);flex-shrink:0}
 .input-row{display:flex;gap:8px;align-items:flex-end}
 .msg-inp{flex:1;padding:10px 13px;border:1.5px solid var(--border);border-radius:10px;
@@ -145,14 +126,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Noto Sa
   border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;
   white-space:nowrap;flex-shrink:0;transition:opacity .15s;min-height:42px}
 .send-btn:active{opacity:.8}
-
-/* ── MODAL ── */
 .overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);
   display:none;align-items:flex-end;justify-content:center;z-index:300;padding:0}
 .overlay.on{display:flex}
 .modal{background:#fff;border-radius:20px 20px 0 0;padding:24px 22px 32px;
-  width:100%;max-width:480px;position:relative;
-  max-height:80dvh;overflow-y:auto}
+  width:100%;max-width:480px;position:relative;max-height:80dvh;overflow-y:auto}
 .modal-title{font-size:16px;font-weight:800;margin-bottom:5px;color:var(--navy)}
 .modal-sub{font-size:13px;color:var(--text2);margin-bottom:18px;line-height:1.6}
 .modal-close{position:absolute;top:16px;right:16px;background:none;border:none;
@@ -169,8 +147,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Noto Sa
 .mode-card-val{font-size:13px;font-weight:700}
 .mode-card-val.pattern{color:var(--green)}
 .mode-card-val.gemini{color:#1e40af}
-
-/* ── MOBILE ── */
 @media(max-width:600px){
   .sidebar{width:46px}
   .sb-head,.sb-user,.room-label,.sb-foot{display:none}
@@ -182,13 +158,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Noto Sa
   .msg-body.ai{font-size:11.5px;max-width:90vw}
   .ai-item{font-size:12px}
   .input-wrap{padding:8px 10px 14px}
-  .msg-inp{font-size:16px}/* iOS zoom 방지 */
+  .msg-inp{font-size:16px}
 }
 </style>
 </head>
 <body>
 
-<!-- 로그인 -->
 <div id="login-wrap">
   <div class="login-card">
     <div class="login-logo">🛞 타이어게러지</div>
@@ -197,9 +172,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Noto Sa
       <label>이름</label>
       <select id="sel-name">
         <option value="">선택하세요</option>
-        <option>이호준</option><option>남성현</option><option>김다영</option>
-        <option>임예지</option><option>이민재</option><option>정지훈</option>
-        <option>이영재</option><option>이정우</option><option>이세진</option><option>손정현</option>
+        <option>이호준</option>
+        <option>남성현</option>
+        <option>김다영</option>
+        <option>임예지</option>
+        <option>이민재</option>
+        <option>정지훈</option>
+        <option>이영재</option>
+        <option>이정우</option>
+        <option>이세진</option>
+        <option>손정현</option>
       </select>
     </div>
     <div class="fg">
@@ -208,15 +190,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Noto Sa
     </div>
     <div class="err" id="login-err"></div>
     <button class="btn-login" onclick="doLogin()">입장하기</button>
-    <div class="login-hint">초기 비밀번호: tg1234</div>
+    <div class="login-hint">비밀번호는 각자 개별 지급</div>
   </div>
 </div>
 
-<!-- 앱 -->
 <div id="app">
   <div class="sidebar">
     <div class="sb-head">
-      <div class="sb-logo">🛞 TG</div>
+      <div class="sb-logo">🛞 타이어게러지모터스</div>
       <div class="sb-user" id="sb-username"></div>
     </div>
     <div class="sb-rooms" id="sb-rooms"></div>
@@ -224,7 +205,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Noto Sa
       <button class="logout-btn" onclick="doLogout()">나가기</button>
     </div>
   </div>
-
   <div class="chat-wrap">
     <div class="chat-head">
       <div class="ch-info">
@@ -250,7 +230,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Noto Sa
   </div>
 </div>
 
-<!-- API 설정 모달 -->
 <div class="overlay" id="api-modal">
   <div class="modal">
     <button class="modal-close" onclick="closeModal()">×</button>
@@ -281,10 +260,20 @@ const SUPA_KEY='sb_publishable_JCYJcVDoQkHXd6SuhtjIAw_Wz44s0Y3';
 const{createClient}=supabase;
 const sb=createClient(SUPA_URL,SUPA_KEY);
 
+// ★ 구성원 & 비밀번호 ★
 const PW={
-  '이호준':'bbangman2','남성현':'tg1234','김다영':'tg1234','임예지':'tg1234','이민재':'tg1234',
-  '정지훈':'tg1234','이영재':'tg1234','이정우':'wowlee1216','이세진':'tg1234','손정현':'tg1234'
+  '이호준':'bbangman2',
+  '남성현':'tg1234',
+  '김다영':'tg1234',
+  '임예지':'tg1234',
+  '이민재':'tg1234',
+  '정지훈':'tg1234',
+  '이영재':'tg1234',
+  '이정우':'wowlee1216',
+  '이세진':'tg1234',
+  '손정현':'tg1234'
 };
+
 const ROOM_META={
   '입고방':{icon:'📦',ai:true,desc:'받아오기 · 거래처 발주 · 물류차 입고'},
   '공지방':{icon:'📢',ai:false,desc:'사장님 공지 및 전달사항'},
@@ -293,7 +282,6 @@ const ROOM_META={
 
 let me=null,rooms=[],curRoom=null,msgs=[],sub=null;
 
-/* ── 로그인 ── */
 async function doLogin(){
   const name=document.getElementById('sel-name').value;
   const pw=document.getElementById('inp-pw').value;
@@ -314,7 +302,6 @@ function doLogout(){
   document.getElementById('login-wrap').style.display='flex';
 }
 
-/* ── 앱 시작 ── */
 async function bootApp(){
   document.getElementById('login-wrap').style.display='none';
   document.getElementById('app').classList.add('on');
@@ -349,7 +336,6 @@ async function selectRoom(room){
     .subscribe();
 }
 
-/* ── 메시지 렌더 ── */
 async function loadMsgs(){
   document.getElementById('msgs').innerHTML='<div class="empty-state"><span>⏳</span><span>불러오는 중...</span></div>';
   const{data}=await sb.from('messages').select('*').eq('room_id',curRoom.id)
@@ -379,11 +365,8 @@ function renderMsgs(){
         <span class="msg-name"${isAI?' style="color:var(--purple)"':''}>${isAI?'✨ AI 정리':esc(msg.user_name||'')}</span>
         <span class="msg-time">${ts}</span></div>`;
     }
-    if(isAI){
-      html+=renderAIBubble(msg.content||'');
-    } else {
-      html+=`<div class="msg-body">${esc(msg.content||'')}</div>`;
-    }
+    if(isAI){html+=renderAIBubble(msg.content||'');}
+    else{html+=`<div class="msg-body">${esc(msg.content||'')}</div>`;}
     html+='</div>';
     lastUser=msg.user_name;lastTime=ts;
   });
@@ -392,35 +375,28 @@ function renderMsgs(){
 }
 
 function renderAIBubble(raw){
-  // 날짜/헤더 줄 추출
-  const firstLine=raw.split('\n')[0]||'';
+  const rawLines=raw.split('\n');
+  const firstLine=(rawLines[0]||'').replace(/^📋\s*/,'').trim();
   const isGemini=firstLine.includes('Gemini');
   const modeTag=isGemini
     ?'<span class="ai-mode-tag gemini">🤖 Gemini</span>'
     :'<span class="ai-mode-tag pattern">📋 패턴</span>';
-
-  // 섹션 파싱
   const sections=parseAISections(raw);
   let html=`<div class="msg-body ai">
     <div class="ai-header">
-      <span class="ai-header-icon">📋</span>
       <span class="ai-header-text">${esc(firstLine)}</span>
       ${modeTag}
     </div>`;
-
   sections.forEach(sec=>{
-    html+=`<div class="ai-section">
-      <div class="ai-section-title">${esc(sec.title)}</div>`;
-    sec.subs.forEach(sub=>{
-      if(sub.title) html+=`<div class="ai-subsection"><div class="ai-subsection-title">${esc(sub.title)}</div>`;
-      sub.items.forEach(item=>{
-        if(item==='(없음)'||item.trim()===''){
-          html+=`<div class="ai-item empty">(없음)</div>`;
-        } else {
-          html+=`<div class="ai-item">${esc(item)}</div>`;
-        }
+    html+=`<div class="ai-section"><div class="ai-section-title">${esc(sec.title)}</div>`;
+    sec.subs.forEach(s=>{
+      if(s.title)html+=`<div class="ai-subsection"><div class="ai-subsection-title">${esc(s.title)}</div>`;
+      s.items.forEach(item=>{
+        html+=item==='(없음)'||!item.trim()
+          ?`<div class="ai-item empty">(없음)</div>`
+          :`<div class="ai-item">${esc(item)}</div>`;
       });
-      if(sub.title) html+=`</div>`;
+      if(s.title)html+=`</div>`;
     });
     html+=`</div><hr class="ai-divider">`;
   });
@@ -434,8 +410,8 @@ function parseAISections(raw){
   let curSec=null,curSub=null;
   for(const line of lines){
     if(!line||/^📋/.test(line))continue;
-    if(/^-{3,}|^={3,}/.test(line))continue;
-    // 섹션 헤더
+    // 순수 구분선만 스킵 (받아오기 등 텍스트 포함 줄은 통과)
+    if(/^[-=]+$/.test(line))continue;
     if(/받아오기/.test(line)||/거래처\s*발주/.test(line)||/물류차\s*입고/.test(line)){
       if(curSec)sections.push(curSec);
       let title='';
@@ -446,53 +422,37 @@ function parseAISections(raw){
       curSub=curSec.subs[0];
       continue;
     }
-    if(!curSec){continue;}
-    // 서브섹션 헤더
+    if(!curSec)continue;
     if(/^\d+\.\s*\[|^\[/.test(line)||/^양주SFP/.test(line)){
       curSub={title:line,items:[]};
       curSec.subs.push(curSub);
       continue;
     }
-    // 아이템
     if(curSub)curSub.items.push(line);
   }
   if(curSec)sections.push(curSec);
   return sections;
 }
 
-/* ── 메시지 전송 ── */
 async function sendMsg(){
   const inp=document.getElementById('msg-inp');
   const txt=(inp.value||'').trim();
   if(!txt||!curRoom||!me)return;
   inp.value='';resize(inp);
   try{
-    await sb.from('messages').insert({
-      room_id:curRoom.id,user_id:me.id,user_name:me.name,content:txt
-    });
-  }catch(e){
-    alert('전송 실패: '+e.message);
-    inp.value=txt;
-  }
+    await sb.from('messages').insert({room_id:curRoom.id,user_id:me.id,user_name:me.name,content:txt});
+  }catch(e){alert('전송 실패: '+e.message);inp.value=txt;}
 }
-function onKey(e){
-  if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMsg();}
-}
-function resize(el){
-  el.style.height='auto';
-  el.style.height=Math.min(el.scrollHeight,100)+'px';
-}
+function onKey(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMsg();}}
+function resize(el){el.style.height='auto';el.style.height=Math.min(el.scrollHeight,100)+'px';}
 function esc(t){
   if(!t)return'';
   return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
 }
 async function postAI(content){
-  await sb.from('messages').insert({
-    room_id:curRoom.id,user_id:me.id,user_name:'AI',content
-  });
+  await sb.from('messages').insert({room_id:curRoom.id,user_id:me.id,user_name:'AI',content});
 }
 
-/* ── AI 정리 메인 ── */
 async function runAI(){
   const key=localStorage.getItem('tg_gemini_key');
   const btn=document.getElementById('ai-btn');
@@ -503,27 +463,22 @@ async function runAI(){
   }catch(err){
     console.error(err);
     btn.innerHTML='⏳ 재시도...';
-    try{await runPattern();}
-    catch(e2){alert('정리 실패: '+e2.message);}
+    try{await runPattern();}catch(e2){alert('정리 실패: '+e2.message);}
   }
   btn.disabled=false;btn.innerHTML='✨ 정리';
 }
 
-/* ── Gemini ── */
 async function runGemini(key){
   const recent=msgs.filter(m=>m&&m.user_name!=='AI').slice(-150);
   const chatTxt=recent.map(m=>`[${m.user_name||'?'}] ${m.content||''}`).join('\n');
   const today=new Date().toLocaleDateString('ko-KR',{year:'numeric',month:'long',day:'numeric'});
-  const prompt=buildPrompt(chatTxt,today);
   const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`,{
     method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({contents:[{parts:[{text:prompt}]}]})
+    body:JSON.stringify({contents:[{parts:[{text:buildPrompt(chatTxt,today)}]}]})
   });
   const data=await res.json();
   if(data.error){
-    if(data.error.code===400||data.error.code===403){
-      localStorage.removeItem('tg_gemini_key');updateBadge();
-    }
+    if(data.error.code===400||data.error.code===403){localStorage.removeItem('tg_gemini_key');updateBadge();}
     throw new Error(data.error.message);
   }
   const result=data.candidates?.[0]?.content?.parts?.[0]?.text||'정리 실패';
@@ -538,78 +493,52 @@ ${chatTxt}
 
 출력 형식 (해당 항목 없으면 섹션 생략):
 ----받아오기----
-
 1. [매일 오후]
 (항목들)
-
 양주SFP
 (항목들)
-
 2. [황제]
 (항목들)
-
 3. [퇴계원]
 (항목들)
-
 --------------------------------------
-
 -----거래처 발주-----
-
 1. [매일 오전]
 (항목들)
-
 2. [넥센]
 (항목들)
-
 3. [한타주문]
 (항목들)
-
 4. [극동]
 (항목들)
-
 -----------------------------------------------
-
 -----물류차 입고-----
-
 [한국]
 (항목들)
-
 [넥센]
 (항목들)
 
 규칙: 중복 제거, 배송방식 유지, 원본 형식 최대한 유지`;
 }
 
-/* ── 패턴 정리 ── */
 async function runPattern(){
   const today=new Date().toDateString();
   let src=msgs.filter(m=>m&&m.user_name!=='AI'&&new Date(m.created_at).toDateString()===today);
   if(src.length<3)src=msgs.filter(m=>m&&m.user_name!=='AI').slice(-200);
-
   const allLines=[];
   src.forEach(m=>{
-    const content=m.content||'';
-    content.split('\n').forEach(l=>{
-      const t=l.trim();
-      if(t)allLines.push(t);
-    });
+    (m.content||'').split('\n').forEach(l=>{const t=l.trim();if(t)allLines.push(t);});
   });
-
   const B={
     recv_maeil:new Map(),recv_yangju:new Map(),recv_hwangje:new Map(),recv_toekyewon:new Map(),
     order_maeil:new Map(),order_nexen:new Map(),order_hanta:new Map(),order_geukdong:new Map(),
     arr_hankook:new Map(),arr_nexen:new Map(),
   };
-
   let zone='recv',sub2='recv_maeil';
-
   for(const line of allLines){
-    // 메인 섹션
     if(/받아오기/.test(line)){zone='recv';sub2='recv_maeil';continue;}
     if(/거래처\s*발주|발주/.test(line)&&!isTireLine(line)){zone='order';sub2='order_maeil';continue;}
     if(/물류차\s*입고|입고/.test(line)&&!isTireLine(line)){zone='arr';sub2='arr_hankook';continue;}
-
-    // 서브섹션
     if(zone==='recv'){
       if(/양주\s*SFP/i.test(line)){sub2='recv_yangju';continue;}
       if(/황제/.test(line)&&!isTireLine(line)){sub2='recv_hwangje';continue;}
@@ -626,69 +555,21 @@ async function runPattern(){
       if(/^\[한국\]$/.test(line)){sub2='arr_hankook';continue;}
       if(/^\[넥센\]$/.test(line)){sub2='arr_nexen';continue;}
     }
-
-    // 구분선/공백 스킵
     if(/^[-=]{3,}$/.test(line))continue;
-
-    // 타이어 라인 판별 후 추가
     if(B[sub2]&&isTireLine(line)){
       const k=tireKey(line);
       if(!B[sub2].has(k))B[sub2].set(k,line);
     }
   }
-
   const fmt=map=>[...map.values()].map(v=>'  '+v).join('\n')||'  (없음)';
   const todayStr=new Date().toLocaleDateString('ko-KR',{year:'numeric',month:'long',day:'numeric'});
-
-  const result=
-`----받아오기----
-
-1. [매일 오후]
-${fmt(B.recv_maeil)}
-
-양주SFP
-${fmt(B.recv_yangju)}
-
-2. [황제]
-${fmt(B.recv_hwangje)}
-
-3. [퇴계원]
-${fmt(B.recv_toekyewon)}
-
---------------------------------------
-
------거래처 발주-----
-
-1. [매일 오전]
-${fmt(B.order_maeil)}
-
-2. [넥센]
-${fmt(B.order_nexen)}
-
-3. [한타주문]
-${fmt(B.order_hanta)}
-
-4. [극동]
-${fmt(B.order_geukdong)}
-
------------------------------------------------
-
------물류차 입고-----
-
-[한국]
-${fmt(B.arr_hankook)}
-
-[넥센]
-${fmt(B.arr_nexen)}`;
-
-  await postAI(`📋 ${todayStr} 자동 정리 (패턴)\n\n${result}`);
+  await postAI(`📋 ${todayStr} 자동 정리 (패턴)\n\n----받아오기----\n\n1. [매일 오후]\n${fmt(B.recv_maeil)}\n\n양주SFP\n${fmt(B.recv_yangju)}\n\n2. [황제]\n${fmt(B.recv_hwangje)}\n\n3. [퇴계원]\n${fmt(B.recv_toekyewon)}\n\n--------------------------------------\n\n-----거래처 발주-----\n\n1. [매일 오전]\n${fmt(B.order_maeil)}\n\n2. [넥센]\n${fmt(B.order_nexen)}\n\n3. [한타주문]\n${fmt(B.order_hanta)}\n\n4. [극동]\n${fmt(B.order_geukdong)}\n\n-----------------------------------------------\n\n-----물류차 입고-----\n\n[한국]\n${fmt(B.arr_hankook)}\n\n[넥센]\n${fmt(B.arr_nexen)}`);
 }
 
 function isTireLine(line){
   if(!line||line.length<4)return false;
   if(/^[-=\[\(（]/.test(line))return false;
   if(/^(받아오기|거래처|물류차|매일|황제|한국타이어|넥센|한국|한타|극동|양주|퇴계원|재고\s*주문|@)/.test(line))return false;
-  // 코드+사이즈 / 브랜드+사이즈 패턴
   return /[A-Za-z가-힣][A-Za-z0-9가-힣\s\+\-]*[\s\/]\d{2,3}[\s\/]\d{2}/.test(line)||
          /\d{3}[\s\/]\d{2}[\s\/]?\d{2}/.test(line);
 }
@@ -696,7 +577,6 @@ function tireKey(line){
   return line.toLowerCase().replace(/\s+/g,' ').trim().split(' ').slice(0,5).join(' ');
 }
 
-/* ── 모달 ── */
 function updateBadge(){
   const key=localStorage.getItem('tg_gemini_key');
   const b=document.getElementById('mode-badge');
@@ -727,7 +607,6 @@ function clearKey(){
   }
 }
 
-/* ── 자동 로그인 ── */
 document.getElementById('inp-pw').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
 const _saved=localStorage.getItem('tg_me');
 if(_saved){try{me=JSON.parse(_saved);bootApp();}catch{localStorage.removeItem('tg_me');}}
