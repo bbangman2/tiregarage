@@ -779,8 +779,9 @@ function PTL(line){
   if(specStart<0)specStart=1;
 
   // 수량: 규격 이후 첫 번째 순수 숫자 또는 숫자+개/본
+  // 수량: specStart 이후에서 뒤에서부터 마지막 순수 숫자
   var qty='',qtyIdx=-1;
-  for(var i=specStart;i<tokens.length;i++){
+  for(var i=tokens.length-1;i>specStart;i--){
     if(/^\d+$/.test(tokens[i])){qty=tokens[i];qtyIdx=i;break;}
     if(/^\d+(개|본)$/.test(tokens[i])){qty=tokens[i].replace(/[개본]/,'');qtyIdx=i;break;}
   }
