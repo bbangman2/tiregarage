@@ -494,7 +494,8 @@ function renderStructuredSummary(data){
     'order_hanta':{l:'📋 거래처 발주 — 한타',c:'#5b35b0'},
     'order_geukdong':{l:'📋 거래처 발주 — 극동',c:'#5b35b0'},
     'arr_hankook':{l:'🚚 물류차 입고 — 한국',c:'#c2410c'},
-    'arr_nexen':{l:'🚚 물류차 입고 — 넥센',c:'#c2410c'}
+    'arr_nexen':{l:'🚚 물류차 입고 — 넥센',c:'#c2410c'},
+    'unknown':{l:'⚠️ 규격 확인 필요',c:'#6b7280'}
   };
   const ds=JSON.stringify(data).replace(/"/g,'&quot;');
   let h='<div class="msg-body ai">'
@@ -537,7 +538,7 @@ function showResultModal(data){
     'recv_hwangje':'📦 받아오기 — 황제','recv_toekyewon':'📦 받아오기 — 퇴계원',
     'order_maeil':'📋 거래처 발주 — 매일 오전','order_nexen':'📋 거래처 발주 — 넥센',
     'order_hanta':'📋 거래처 발주 — 한타','order_geukdong':'📋 거래처 발주 — 극동',
-    'arr_hankook':'🚚 물류차 입고 — 한국','arr_nexen':'🚚 물류차 입고 — 넥센'
+    'arr_hankook':'🚚 물류차 입고 — 한국','arr_nexen':'🚚 물류차 입고 — 넥센','unknown':'⚠️ 규격 확인 필요'
   };
   let html='';
   (data.sections||[]).forEach(function(sec){
@@ -622,6 +623,7 @@ ${chatTxt}
 recv_maeil(받아오기-매일오후) / recv_yangju(받아오기-양주SFP) / recv_hwangje(받아오기-황제) / recv_toekyewon(받아오기-퇴계원)
 order_maeil(거래처발주-매일오전) / order_nexen(거래처발주-넥센) / order_hanta(거래처발주-한타) / order_geukdong(거래처발주-극동)
 arr_hankook(물류차입고-한국) / arr_nexen(물류차입고-넥센)
+unknown(규격/수량 파악 불가 항목)
 
 ## 타이어 라인 구조
 [모델명] [규격] [연도-생략가능] [수량] [용도-생략가능]
@@ -659,44 +661,102 @@ JSON만 출력. 절대 다른 텍스트 포함 금지.`;
 }
 
 async function runPattern(from,to){
-  const filtered=filterMsgsByDate(from,to);if(!filtered.length){alert('해당 날짜에 메시지가 없어요.');return;}
-  const byDate=groupByDate(filtered);const dateLabel=buildDateLabel(from,to);
-  const B={recv_maeil:new Map(),recv_yangju:new Map(),recv_hwangje:new Map(),recv_toekyewon:new Map(),
-    order_maeil:new Map(),order_nexen:new Map(),order_hanta:new Map(),order_geukdong:new Map(),
-    arr_hankook:new Map(),arr_nexen:new Map()};
-  byDate.forEach(function(items){
-    const lines=[];
-    items.forEach(function(m){(m.content||'').split('\n').forEach(function(l){const t=l.trim();if(t)lines.push(t);});});
-    parsePatternInto(lines,B);
+  var filtered=filterMsgsByDate(from,to);
+  if(!filtered.length){alert('해당 날짜에 메시지가 없어요.');return;}
+  var dateLabel=buildDateLabel(from,to);
+
+  // 종합 형식 감지: 섹션 헤더([매일 오후], [황제] 등)가 포함된 메시지
+  var SECTION_HEADER=/받아오기|거래처\s*발주|물류차\s*입고|\[매일|\[황제|\[퇴계원|\[한국|\[넥센|\[극동|\[한타/;
+
+  // 종합 메시지들만 추출
+  var summaryMsgs=filtered.filter(function(m){
+    return SECTION_HEADER.test(m.content||'');
   });
-  const KEYS=['recv_maeil','recv_yangju','recv_hwangje','recv_toekyewon','order_maeil','order_nexen','order_hanta','order_geukdong','arr_hankook','arr_nexen'];
-  const sections=KEYS.filter(function(k){return B[k].size>0;}).map(function(k){return{key:k,items:Array.from(B[k].values())};});
+
+  // 개별 메시지들 (종합 형식 아닌 것)
+  var indivMsgs=filtered.filter(function(m){
+    return !SECTION_HEADER.test(m.content||'');
+  });
+
+  var B={
+    recv_maeil:new Map(),recv_yangju:new Map(),recv_hwangje:new Map(),recv_toekyewon:new Map(),
+    order_maeil:new Map(),order_nexen:new Map(),order_hanta:new Map(),order_geukdong:new Map(),
+    arr_hankook:new Map(),arr_nexen:new Map(),
+    unknown:new Map()
+  };
+
+  if(summaryMsgs.length>0){
+    // 종합 형식: 가장 마지막 종합 메시지만 파싱
+    var lastSummary=summaryMsgs[summaryMsgs.length-1];
+    var lines=[];
+    (lastSummary.content||'').split('\n').forEach(function(l){var t=l.trim();if(t)lines.push(t);});
+    parsePatternInto(lines,B);
+
+    // 개별 메시지에서 추가된 항목도 수집 (종합에 없는 것만)
+    indivMsgs.forEach(function(m){
+      var lines2=[];
+      (m.content||'').split('\n').forEach(function(l){var t=l.trim();if(t)lines2.push(t);});
+      parsePatternInto(lines2,B);
+    });
+  } else {
+    // 전부 개별 형식: 모든 메시지 합산
+    filtered.forEach(function(m){
+      var lines=[];
+      (m.content||'').split('\n').forEach(function(l){var t=l.trim();if(t)lines.push(t);});
+      parsePatternInto(lines,B);
+    });
+  }
+
+  var KEYS=['recv_maeil','recv_yangju','recv_hwangje','recv_toekyewon',
+    'order_maeil','order_nexen','order_hanta','order_geukdong',
+    'arr_hankook','arr_nexen'];
+  var sections=KEYS.filter(function(k){return B[k].size>0;})
+    .map(function(k){return{key:k,items:Array.from(B[k].values())};});
+  if(B.unknown.size>0){
+    sections.push({key:'unknown',items:Array.from(B.unknown.values())});
+  }
+
   await postAI(JSON.stringify({__type:'tire_summary',dateLabel:dateLabel,sections:sections,note:''}));
 }
 function parsePatternInto(lines,B){
-  let zone='recv',sub='recv_maeil';
+  var zone='recv',sub='recv_maeil';
   lines.forEach(function(line){
-    if(/받아오기/.test(line)&&!isTL(line)){zone='recv';sub='recv_maeil';return;}
-    if((/거래처\s*발주|발주/).test(line)&&!isTL(line)){zone='order';sub='order_maeil';return;}
-    if(/물류차\s*입고/.test(line)&&!isTL(line)){zone='arr';sub='arr_hankook';return;}
+    // 섹션 헤더 감지
+    if(/^-+받아오기-+$/.test(line)||(/받아오기/.test(line)&&!isTL(line))){zone='recv';sub='recv_maeil';return;}
+    if(/^-+거래처\s*발주-+$/.test(line)||(/거래처\s*발주|발주/.test(line)&&!isTL(line))){zone='order';sub='order_maeil';return;}
+    if(/^-+물류차\s*입고-+$/.test(line)||(/물류차\s*입고/.test(line)&&!isTL(line))){zone='arr';sub='arr_hankook';return;}
+
     if(zone==='recv'){
-      if(/양주\s*SFP/i.test(line)){sub='recv_yangju';return;}
-      if(/황제/.test(line)&&!isTL(line)){sub='recv_hwangje';return;}
-      if(/퇴계원/.test(line)&&!isTL(line)){sub='recv_toekyewon';return;}
-      if(/매일\s*(오후|타이어|받아오기)|\[매일\s*오후\]/i.test(line)){sub='recv_maeil';return;}
+      if(/양주\s*SFP/i.test(line)&&!isTL(line)){sub='recv_yangju';return;}
+      if(/^\d*\.\s*\[?황제\]?$/.test(line)||(/황제/.test(line)&&!isTL(line))){sub='recv_hwangje';return;}
+      if(/^\d*\.\s*\[?퇴계원\]?$/.test(line)||(/퇴계원/.test(line)&&!isTL(line))){sub='recv_toekyewon';return;}
+      if(/^\d*\.\s*\[?매일\s*(오후|받아오기)?\]?/i.test(line)&&!isTL(line)){sub='recv_maeil';return;}
     }
     if(zone==='order'){
-      if(/매일\s*오전|\[매일\s*오전\]/i.test(line)){sub='order_maeil';return;}
-      if(/\[넥센\]|넥센\s*주문/i.test(line)){sub='order_nexen';return;}
-      if(/한타\s*주문|\[한타/i.test(line)){sub='order_hanta';return;}
-      if(/\[극동\]|극동/.test(line)){sub='order_geukdong';return;}
+      if(/^\d*\.\s*\[?매일\s*오전\]?/i.test(line)&&!isTL(line)){sub='order_maeil';return;}
+      if(/^\d*\.\s*\[?넥센\]?/i.test(line)&&!isTL(line)){sub='order_nexen';return;}
+      if(/^\d*\.\s*\[?한타/i.test(line)&&!isTL(line)){sub='order_hanta';return;}
+      if(/^\d*\.\s*\[?극동\]?/i.test(line)&&!isTL(line)){sub='order_geukdong';return;}
     }
     if(zone==='arr'){
-      if(/^\[한국\]$/.test(line)){sub='arr_hankook';return;}
-      if(/^\[넥센\]$/.test(line)){sub='arr_nexen';return;}
+      if(/^\[?한국\]?$/.test(line.trim())){sub='arr_hankook';return;}
+      if(/^\[?넥센\]?$/.test(line.trim())){sub='arr_nexen';return;}
     }
+
     if(/^[-=]{3,}$/.test(line))return;
-    if(B[sub]&&isTL(line)){const k=TK(line);if(!B[sub].has(k))B[sub].set(k,PTL(line));}
+    if(/^\d+\/\d+$/.test(line.trim()))return;  // 5/22 날짜
+
+    if(isTL(line)){
+      var parsed=PTL(line);
+      var k=TK(line);
+      // 나중에 오는 것으로 항상 덮어씀 (최신 = 최종본)
+      if(parsed.spec&&parsed.qty){
+        B[sub].set(k,parsed);
+      } else {
+        // 규격/수량 파싱 실패 → unknown 섹션
+        B.unknown.set(k,parsed);
+      }
+    }
   });
 }
 function PTL(line){
@@ -773,7 +833,11 @@ function isTL(line){
   var hasKorean=/(파일럿|프라이머시|래티튜드|엔페라|엔프리즈|엔블루|로디안|윈가드|마일캡|사일룬|레이다|킨포레스트|피제로|슈프림|어드밴스|마샬|라우펜|SUPREME|inspire|AGILIS|CROSSCLIMATE|MULTI)/.test(line);
   return hasSpec||hasCode||hasKorean;
 }
-function TK(line){return line.toLowerCase().replace(/\s+/g,' ').trim().split(' ').slice(0,5).join(' ');}
+function TK(line){
+  // 중복 판단 키: 모델명+규격 기준 (용도 달라도 같은 타이어면 최신 것으로 덮어씀)
+  var p=PTL(line);
+  return (p.model+' '+p.spec).toLowerCase().replace(/\s+/g,' ').trim();
+}
 
 function populateAdminSelects(){
   ['del-room-sel','del-room-all-sel'].forEach(function(id){
