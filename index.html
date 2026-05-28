@@ -76,6 +76,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Noto Sa
 .ai-btn:disabled{opacity:.45;cursor:not-allowed}
 .icon-btn{padding:7px 10px;background:var(--bg);color:var(--text2);border:1.5px solid var(--border);
   border-radius:8px;font-size:13px;cursor:pointer}
+.msgs-wrap{flex:1;display:flex;flex-direction:column;overflow:hidden;position:relative}
+.floating-date{position:absolute;top:10px;left:50%;transform:translateX(-50%);
+  background:rgba(26,32,53,.75);color:#fff;font-size:11px;font-weight:600;
+  padding:4px 12px;border-radius:99px;z-index:10;pointer-events:none;
+  opacity:0;transition:opacity .2s;white-space:nowrap;backdrop-filter:blur(4px)}
+.floating-date.show{opacity:1}
 .msgs{flex:1;overflow-y:auto;overflow-x:hidden;padding:12px 14px;
   display:flex;flex-direction:column;gap:2px;-webkit-overflow-scrolling:touch}
 .msgs::-webkit-scrollbar{width:3px}
@@ -244,16 +250,19 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Noto Sa
       </div>
       <div class="head-right">
         <div class="date-picker-wrap" id="date-picker-wrap" style="display:none">
-          <input type="date" id="date-from">
+          <input type="date" id="date-from" onchange="onDateChange()">
           <span class="date-sep" id="date-sep" style="display:none">~</span>
-          <input type="date" id="date-to" style="display:none">
+          <input type="date" id="date-to" style="display:none" onchange="onDateChange()">
           <button class="range-toggle" id="range-toggle" onclick="toggleRange()">범위</button>
         </div>
         <button class="ai-btn" id="ai-btn" style="display:none" onclick="runAI()">✨ 정리</button>
         <button class="icon-btn" id="settings-btn" style="display:none" onclick="openSettings()">⚙️</button>
       </div>
     </div>
-    <div class="msgs" id="msgs"><div class="empty-state"><span>💬</span><span>불러오는 중...</span></div></div>
+    <div class="msgs-wrap">
+      <div class="floating-date" id="floating-date"></div>
+      <div class="msgs" id="msgs"><div class="empty-state"><span>💬</span><span>불러오는 중...</span></div></div>
+    </div>
     <div class="input-wrap">
       <div class="input-row">
         <textarea class="msg-inp" id="msg-inp" placeholder="메시지 입력 (Enter 전송, Shift+Enter 줄바꿈)" rows="1"
@@ -404,11 +413,22 @@ function toggleRange(){
   if(!rangeMode)document.getElementById('date-to').value=document.getElementById('date-from').value;
 }
 function getSelectedRange(){const f=document.getElementById('date-from').value;return{from:f,to:rangeMode?document.getElementById('date-to').value:f};}
+function onDateChange(){if(curRoom&&ROOM_META[curRoom.name]&&ROOM_META[curRoom.name].ai)loadMsgs();}
 
 async function loadMsgs(){
   document.getElementById('msgs').innerHTML='<div class="empty-state"><span>⏳</span><span>불러오는 중...</span></div>';
-  const{data}=await sb.from('messages').select('*').eq('room_id',curRoom.id).order('created_at',{ascending:true}).gte('created_at', new Date(document.getElementById('date-from').value+'T00:00:00+09:00').toISOString()).lte('created_at', new Date((rangeMode?document.getElementById('date-to').value:document.getElementById('date-from').value)+'T23:59:59+09:00').toISOString()).limit(1000);
+  const meta=ROOM_META[curRoom.name]||{};
+  let q=sb.from('messages').select('*').eq('room_id',curRoom.id).order('created_at',{ascending:true});
+  // AI 정리 방이면 날짜 피커 기준으로 필터
+  if(meta.ai){
+    const r=getSelectedRange();
+    const start=new Date(r.from+'T00:00:00+09:00').toISOString();
+    const end=new Date(r.to+'T23:59:59+09:00').toISOString();
+    q=q.gte('created_at',start).lte('created_at',end);
+  }
+  const{data}=await q.limit(2000);
   msgs=data||[];renderMsgs();
+  initScrollDateTracker();
 }
 function renderMsgs(){
   const el=document.getElementById('msgs');
@@ -420,7 +440,7 @@ function renderMsgs(){
     const d=toKST(msg.created_at);
     const ds=fmtDate(d),ts=fmtTime(d);
     const own=msg.user_name===me.name,isAI=msg.user_name==='AI';
-    if(ds!==lastDate){html+='<div class="day-div"><span>'+ds+'</span></div>';lastDate=ds;lastUser='';}
+    if(ds!==lastDate){html+='<div class="day-div" data-date="'+ds+'"><span>'+ds+'</span></div>';lastDate=ds;lastUser='';}
     const showHead=msg.user_name!==lastUser||ts!==lastTime;
     const canDel=isAdmin||own;
     html+='<div class="msg-group'+(own?' own':'')+'">';
@@ -432,6 +452,24 @@ function renderMsgs(){
     lastUser=msg.user_name;lastTime=ts;
   });
   el.innerHTML=html;el.scrollTop=el.scrollHeight;
+  initScrollDateTracker();
+}
+var _scrollTimer=null;
+function initScrollDateTracker(){
+  const el=document.getElementById('msgs');
+  const fd=document.getElementById('floating-date');
+  if(!el||!fd)return;
+  el.onscroll=function(){
+    clearTimeout(_scrollTimer);
+    // 현재 보이는 day-div 찾기
+    const divs=el.querySelectorAll('.day-div');
+    let curLabel='';
+    divs.forEach(function(div){
+      if(div.offsetTop-el.scrollTop<=40)curLabel=div.querySelector('span').textContent;
+    });
+    if(curLabel){fd.textContent=curLabel;fd.classList.add('show');}
+    _scrollTimer=setTimeout(function(){fd.classList.remove('show');},1500);
+  };
 }
 async function deleteMsg(id){
   if(!confirm('이 메시지를 삭제할까요?'))return;
