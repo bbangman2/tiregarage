@@ -700,87 +700,78 @@ function parsePatternInto(lines,B){
   });
 }
 function PTL(line){
-  // 1. 불완전 괄호 제거 (DU05) 같은 케이스 - 괄호만 제거, 내용 유지)
-  let raw=line.replace(/([A-Za-z0-9가-힣])\)\s/g,'$1 ').replace(/\s\(/g,' ').trim();
+  // 앞에 붙은 괄호 용도 ex) (택배)IH01
+  var prefixPurpose='';
+  line=line.replace(/^\(([^)]+)\)\s*/,function(m,p){prefixPurpose=p.trim();return'';}).trim();
+  // 불완전 괄호 제거 ex) DU05) → DU05
+  line=line.replace(/([A-Za-z0-9가-힣])\)\s/g,'$1 ').trim();
 
-  // 2. 용도 추출: 괄호 안 또는 끝에 붙은 키워드
-  const PURPOSE_PAT=/(핑\s*직배송|핑\s*택배|번개\s*택배|직배송|택배|남양주\s*장착|남양주|장착|스토어팜\s*[가-힣\s]*점\s*장착|스토어팜\s*[가-힣\s]*장착|스토어팜|스팜\s*택배|스팜|11번가|전화|렌탈|예약|재고|거래처|오뚜기|지금작업|핑)/i;
-  const pm=raw.match(/\(([^)]+)\)/g);
-  let purpose='';
-  if(pm){purpose=pm.map(function(p){return p.slice(1,-1).trim();}).join(', ');}
-  if(!purpose){
-    const kwm=raw.match(PURPOSE_PAT);
-    if(kwm)purpose=kwm[0].trim();
-  }
-  if(!purpose)purpose='미기입';
+  // 타이어 폭 범위
+  var WIDTHS=/^(1[2-9]\d|2\d{2}|3[0-2]\d|500|550|600|650)$/;
 
-  // 3. 괄호 및 용도 텍스트 제거한 본문
-  let base=raw.replace(/\([^)]*\)/g,'').trim();
-  base=base.replace(PURPOSE_PAT,'').trim();
-  // 미출고건 같은 주석 제거
-  base=base.replace(/[_]\s*\S+미출고\S*/,'').trim();
+  var tokens=line.split(/\s+/).filter(function(t){return t.length>0;});
 
-  const tokens=base.split(/\s+/).filter(function(t){return t.length>0;});
-
-  // 4. 수량: 마지막 순수 숫자 (p수 제외)
-  let qtyIdx=-1;
-  for(var i=tokens.length-1;i>=0;i--){
-    if(/^\d+$/.test(tokens[i])){qtyIdx=i;break;}
-  }
-  const qty=qtyIdx>=0?tokens[qtyIdx]:'';
-
-  // 5. 규격 시작: 3~4자리 숫자 (타이어 폭 범위)
-  const SPEC_WIDTHS=/^(1[2-9]\d|2\d{2}|3[0-2]\d|500|550|600|650|700|750|800)$/;
-  let specStart=-1;
+  // 규격 시작 위치
+  var specStart=-1;
   for(var i=0;i<tokens.length;i++){
-    if(SPEC_WIDTHS.test(tokens[i])||/^\d{3,4}[\/R]/.test(tokens[i])){specStart=i;break;}
+    if(WIDTHS.test(tokens[i])||/^\d{3,4}[\/R]/.test(tokens[i])){specStart=i;break;}
   }
-  if(specStart<0)specStart=Math.max(1,qtyIdx>=0?qtyIdx-2:tokens.length-3);
+  if(specStart<0)specStart=1;
 
-  // 6. 모델명: 규격 시작 전까지 (연도 포함 유지)
-  const modelTokens=tokens.slice(0,specStart);
-  let model=modelTokens.join(' ').replace(/\)$/,'').trim();
+  // 수량: 규격 이후 첫 번째 순수 숫자 또는 숫자+개/본
+  var qty='',qtyIdx=-1;
+  for(var i=specStart;i<tokens.length;i++){
+    if(/^\d+$/.test(tokens[i])){qty=tokens[i];qtyIdx=i;break;}
+    if(/^\d+(개|본)$/.test(tokens[i])){qty=tokens[i].replace(/[개본]/,'');qtyIdx=i;break;}
+  }
 
-  // 7. 규격 토큰: specStart ~ qtyIdx
-  const specEnd=qtyIdx>=0?qtyIdx:tokens.length;
-  const specTokens=tokens.slice(specStart,specEnd);
-  let spec=specTokens.join(' ');
+  // 모델: 규격 시작 전
+  var model=tokens.slice(0,specStart).join(' ').replace(/\)$/,'').trim();
 
-  // 8. 규격 표준화
-  // "245 45 17" → "245/45R17"
+  // 규격: specStart ~ qtyIdx
+  var specEnd=qtyIdx>=0?qtyIdx:tokens.length;
+  var spec=tokens.slice(specStart,specEnd).join(' ');
+
+  // 규격 표준화
   spec=spec.replace(/^(\d{3,4})\s+(\d{2,3})\s+(\d{2})\b/,'$1/$2R$3');
-  // "245/45 17" 또는 "245/45R17" 유지
   spec=spec.replace(/(\d{3,4})\/(\d{2,3})\s+R?\s*(\d{2})\b/,'$1/$2R$3');
-  // 로드인덱스/속도기호 제거 (끝에 오는 102W, 10PR 등)
-  spec=spec.replace(/\s+\d{2,3}[A-Z]{1,2}$/, '').trim();
 
-  // 9. 모델 없으면 첫 토큰
+  // 용도: 수량 이후 나머지 전부 원문 그대로
+  var purposeTokens=qtyIdx>=0?tokens.slice(qtyIdx+1):[];
+  var purpose=purposeTokens.join(' ').trim()||prefixPurpose||'미기입';
+
   if(!model&&tokens.length>0)model=tokens[0];
-  // 영문코드면 대문자, 한글 혼합이면 원본
-  const isCode=/^[A-Za-z0-9\+\-\s]+$/.test(model.trim());
-  const modelFinal=isCode?model.toUpperCase():model;
+  var isCode=/^[A-Za-z0-9+\-\s]+$/.test(model.trim());
+  var modelFinal=isCode?model.toUpperCase():model;
 
   return{model:modelFinal,spec:spec.trim(),qty:qty,purpose:purpose};
 }
 function isTL(line){
+  line=(line||'').trim();
   if(!line||line.length<3)return false;
-  if(/^[-=（]/.test(line))return false;
-  // 섹션 헤더 제외
-  if(/^[\[（]?(받아오기|거래처\s*발주|물류차\s*입고|매일\s*(오전|오후)|황제|한국타이어|넥센|한타\s*주문|극동|양주\s*SFP|퇴계원|재고\s*주문|SFP|매일|한국|한타|극동)[\]）]?$/.test(line.trim()))return false;
-  // 일반 대화 제외
-  if(/^(@|확인|네|감사|ㅎ|ㅋ|안녕|수고|아하|넵|맞아|사장님|이건|받으셨|아직|왔어|다왔|잡아|1등)/.test(line))return false;
-  // 이름이 나갔습니다 등
+  // 날짜 패턴 (5/22, 6/2 등)
+  if(/^\d+\/\d+$/.test(line))return false;
+  // 섹션 번호 헤더
+  if(/^\d+\.\s*[\[（]/.test(line))return false;
+  // 대괄호 헤더
+  if(/^[\[（](매일|한국|넥센|황제|퇴계원|극동|한타|SFP|양주)/.test(line))return false;
+  // 키워드 헤더
+  if(/^(받아오기|거래처\s*발주|물류차\s*입고|황제|한타\s*주문|극동|양주\s*SFP|퇴계원|매일\s*(오전|오후)|SFP|@)/.test(line))return false;
+  // @멘션만 있는 줄
+  if(/^@\S+/.test(line))return false;
+  // 시스템 메시지
   if(/님이\s*(나갔|들어왔)/.test(line))return false;
-  // 타이어 라인 판단
-  // 규격: 3자리숫자 포함 (인치 12~24 또는 p수)
-  const hasSpec=/\d{3,4}[\s\/]\d{2,3}[\s\/R]/.test(line)||
-                /\d{3,4}\s+\d{2,3}\s+\d{2}/.test(line)||
-                /(500|550|145|155|165|175|185|195|205|215|225|235|245|255|265|275|285|295|305|315|325)/.test(line)&&/\d+[pP]/.test(line);
-  // 알려진 모델 코드
-  const hasModelCode=/(KC|TA|KL|KW|CW|WP|WS|AT|HP|VA|MC|TX|VP|VX|KR|MT|RD|RS|AH|DH|RF|RA|RH|RT|RC|VD|VT|LH|IK|IH|IW|EH|DU|K1|K2|K4|H[1-9]|Z0|W3|W6|RW|DW|LD|CP|SV|CV|AN|KO|KM|IQ|NF|GTX|CTX|AT2|SUV)\d*/i.test(line);
-  // 한글 모델명
-  const hasKoreanModel=/(파일럿|프라이머시|래티튜드|엔페라|엔프리즈|엔블루|로디안|윈가드|마일캡|사일룬|레이다|킨포레스트|피제로|슈프림|어드밴스|MULTI|AGILIS|CROSSCLIMATE|inspire|INSPIRE)/.test(line);
-  return hasSpec||hasModelCode||hasKoreanModel;
+  // 일반 대화
+  if(/^(확인|네|감사|ㅎ|ㅋ|안녕|수고|아하|넵|맞아|사장님|이건|받으셨|아직|왔어|다왔|잡아|1등|핑\s*1등)/.test(line))return false;
+
+  // 타이어 판단
+  // 1. 규격 숫자 (타이어 폭)
+  var hasSpec=/\b(1[2-9]\d|2\d{2}|3[0-2]\d|500|550|600|650)\b/.test(line);
+  // 2. 영문 모델 코드
+  var hasCode=/\b(KC|TA|KL|KW|CW|WP|WS|AT|HP|VA|MC|TX|VP|VX|KR|MT|RD|RS|AH|DH|RF|RA|RH|RT|RC|VD|VT|LH|IK|IH|IW|EH|DU|K\d|H\d|Z0|W3|W6|RW|DW|LD|CP|SV|CV|AN|KO|KM|IQ|NF|GTX|CTX|SUR|ATX|AU\d|RO\s|NP\s)\w*/i.test(line);
+  // 3. 한글/외국 모델명
+  var hasKorean=/(파일럿|프라이머시|래티튜드|엔페라|엔프리즈|엔블루|로디안|윈가드|마일캡|사일룬|레이다|킨포레스트|피제로|슈프림|어드밴스|마샬|라우펜|SUPREME|inspire|AGILIS|CROSSCLIMATE|MULTI)/.test(line);
+  return hasSpec||hasCode||hasKorean;
 }
 function TK(line){return line.toLowerCase().replace(/\s+/g,' ').trim().split(' ').slice(0,5).join(' ');}
 
