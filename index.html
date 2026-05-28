@@ -519,10 +519,12 @@ function renderStructuredSummary(data){
 }
 function renderPurposeTags(p){
   if(!p||p==='미기입')return'<span class="tag tag-unknown">미기입</span>';
-  return p.split(/[,·]+/).map(function(t){t=t.trim();if(!t)return'';
-    if(/핑\s*직배송|직배/.test(t))return'<span class="tag tag-ping-direct">'+esc(t)+'</span>';
-    if(/핑\s*택배|택배/.test(t))return'<span class="tag tag-ping-delivery">'+esc(t)+'</span>';
-    if(/스토어팜|장착|스팜/.test(t))return'<span class="tag tag-store">'+esc(t)+'</span>';
+  return p.split(/[,·,]+/).map(function(t){t=t.trim();if(!t)return'';
+    if(/핑\s*직배송|직배송/.test(t))return'<span class="tag tag-ping-direct">'+esc(t)+'</span>';
+    if(/핑\s*택배|번개\s*택배|택배/.test(t))return'<span class="tag tag-ping-delivery">'+esc(t)+'</span>';
+    if(/남양주\s*장착|장착/.test(t))return'<span class="tag tag-store">'+esc(t)+'</span>';
+    if(/남양주/.test(t))return'<span class="tag tag-store">'+esc(t)+'</span>';
+    if(/스토어팜|스팜/.test(t))return'<span class="tag tag-store">'+esc(t)+'</span>';
     if(/거래처|재고|오뚜기/.test(t))return'<span class="tag tag-trade">'+esc(t)+'</span>';
     return'<span class="tag tag-etc">'+esc(t)+'</span>';
   }).join(' ');
@@ -608,7 +610,63 @@ async function runClaude(key,from,to){
   await postAI(JSON.stringify(parsed));
 }
 function buildClaudePrompt(chatTxt,dateLabel){
-  return '당신은 타이어 유통업 사내 입고방 채팅을 정리하는 전문가입니다.\n\n## 채팅 내역\n'+chatTxt+'\n\n## 출력 형식 (순수 JSON만)\n{\n  "sections": [\n    {\n      "key": "recv_maeil",\n      "items": [\n        { "model": "모델명", "spec": "규격", "qty": "수량", "purpose": "용도" }\n      ]\n    }\n  ],\n  "note": "특이사항"\n}\n\n## 섹션 key (해당 항목 있는 것만)\nrecv_maeil / recv_yangju / recv_hwangje / recv_toekyewon\norder_maeil / order_nexen / order_hanta / order_geukdong\narr_hankook / arr_nexen\n\n## 규칙\n1. 모델명 원본 대소문자 정리\n2. 규격 표준화: 225 45 18 → 225/45R18\n3. purpose: 괄호 안 내용 그대로. 없으면 "미기입"\n4. 중복 제거\n5. qty: 숫자만\n6. 일반 대화 무시\n\nJSON만 출력.';
+  return `당신은 타이어 유통업 사내 입고방 채팅을 정리하는 전문가입니다.
+
+## 채팅 내역
+${chatTxt}
+
+## 출력 형식 (순수 JSON만, 마크다운 없이)
+{
+  "sections": [
+    {
+      "key": "섹션키",
+      "items": [
+        { "model": "모델명", "spec": "규격(예:225/45R18)", "qty": "수량", "purpose": "용도" }
+      ]
+    }
+  ],
+  "note": "특이사항 또는 빈문자열"
+}
+
+## 섹션 key (해당 항목 있는 것만 포함)
+출처별로 분류:
+- recv_maeil: 받아오기 > 매일 오후
+- recv_yangju: 받아오기 > 양주SFP
+- recv_hwangje: 받아오기 > 황제
+- recv_toekyewon: 받아오기 > 퇴계원
+- order_maeil: 거래처 발주 > 매일 오전
+- order_nexen: 거래처 발주 > 넥센
+- order_hanta: 거래처 발주 > 한타
+- order_geukdong: 거래처 발주 > 극동
+- arr_hankook: 물류차 입고 > 한국
+- arr_nexen: 물류차 입고 > 넥센
+
+## 모델명 처리 규칙
+알파벳 코드 모델(KC53, TA21, H129A 등)은 대문자로 정리.
+한글 모델명(파일럿 스포츠 4 S, 엔프리즈 AH8, 로디안 GTX 등)은 원본 그대로.
+브랜드명만 있으면(미쉐린, 피렐리, 넥센, 한국 등) 모델란에 브랜드명 기입.
+모델을 확인할 수 없으면 원문 그대로 기입.
+
+## 규격(spec) 처리 규칙
+숫자 나열 → 표준화: "225 45 18" → "225/45R18", "205 65 16" → "205/65R16"
+이미 슬래시 있으면 그대로.
+규격 없으면 빈문자열.
+
+## 용도(purpose) 처리 규칙
+타이어명 오른쪽에 붙은 텍스트나 괄호 안 내용이 용도임.
+예시: "핑택배" "택배" "직배송" "남양주" "장착" "남양주장착" "거래처" "재고" "스토어팜"
+용도가 없으면 반드시 "미기입" 으로 표기.
+여러 용도면 쉼표로 구분.
+
+## 수량(qty) 규칙
+숫자만 기입 (단위 제외). 없으면 빈문자열.
+
+## 일반 규칙
+1. 중복 제거 (같은 모델+규격+수량+용도가 여러 사람에 반복되면 1개만)
+2. 인사말, 확인, 네, 감사합니다 등 일반 대화는 무시
+3. JSON만 출력, 다른 텍스트 절대 포함 금지
+
+JSON만 출력.`;
 }
 async function runPattern(from,to){
   const filtered=filterMsgsByDate(from,to);if(!filtered.length){alert('해당 날짜에 메시지가 없어요.');return;}
@@ -652,21 +710,49 @@ function parsePatternInto(lines,B){
   });
 }
 function PTL(line){
+  // 용도: 괄호 안 또는 끝에 붙은 키워드
+  const PURPOSE_KW=/핑\s*택배|핑\s*직배송|직배송|택배|남양주\s*장착|남양주|장착|스토어팜|스팜|거래처|재고|오뚜기|번개택배|번개/i;
   const pm=line.match(/\(([^)]+)\)/g);
-  const purpose=pm?pm.map(function(p){return p.slice(1,-1);}).join(', '):'미기입';
-  const base=line.replace(/\([^)]*\)/g,'').trim();const parts=base.split(/\s+/);
-  let si=parts.findIndex(function(p){return/^\d{3}/.test(p)||/^\d{2,3}[\/]/.test(p);});if(si<0)si=1;
-  const model=parts.slice(0,si).join(' ')||parts[0];
+  let purpose='';
+  if(pm){purpose=pm.map(function(p){return p.slice(1,-1).trim();}).join(', ');}
+  // 괄호 없으면 끝 단어 키워드 확인
+  if(!purpose){
+    const kwm=line.match(PURPOSE_KW);
+    if(kwm)purpose=kwm[0].trim();
+  }
+  if(!purpose)purpose='미기입';
+  // 괄호 및 용도 키워드 제거한 본문
+  let base=line.replace(/\([^)]*\)/g,'').trim();
+  // 끝에 붙은 용도 키워드 제거
+  base=base.replace(PURPOSE_KW,'').trim();
+  const parts=base.split(/\s+/);
+  // 규격 시작 위치: 3자리 숫자
+  let si=parts.findIndex(function(p){return/^\d{3}/.test(p)||/^\d{2,3}[\/]/.test(p);});
+  if(si<0)si=Math.max(1,parts.length-3);
+  const model=parts.slice(0,si).join(' ')||parts[0]||'';
   const nums=parts.filter(function(p){return/^\d+p?$/i.test(p);});
   const qty=nums.length?nums[nums.length-1]:'';
-  const spec=parts.slice(si,parts.length-(nums.length?1:0)).join(' ');
-  return{model:model.toUpperCase(),spec:spec||base,qty:qty,purpose:purpose};
+  const specParts=parts.slice(si);
+  // 규격 표준화: 세 숫자 → NNN/NNRNN
+  let spec=specParts.join(' ');
+  spec=spec.replace(/(\d{3})\s+(\d{2,3})\s+(\d{2})/g,'$1/$2R$3');
+  spec=spec.replace(/(\d{3})\/(\d{2,3})\s+R?\s*(\d{2})/g,'$1/$2R$3');
+  // 수량 제거
+  if(qty)spec=spec.replace(new RegExp('\\b'+qty+'p?\\b','i'),'').trim();
+  // 모델 대문자 (영문 코드만)
+  const modelFinal=/^[A-Za-z0-9\+\-]+$/.test(model.replace(/\s/g,''))?model.toUpperCase():model;
+  return{model:modelFinal,spec:spec||'',qty:qty,purpose:purpose};
 }
 function isTL(line){
-  if(!line||line.length<4)return false;
-  if(/^[-=\[\(（]/.test(line))return false;
-  if(/^(받아오기|거래처|물류차|매일|황제|한국타이어|넥센|한국|한타|극동|양주|퇴계원|재고\s*주문|@)/.test(line))return false;
-  return/[A-Za-z가-힣][A-Za-z0-9가-힣\s\+\-]*[\s\/]\d{2,3}[\s\/]\d{2}/.test(line)||/\d{3}[\s\/]\d{2}[\s\/]?\d{2}/.test(line);
+  if(!line||line.length<3)return false;
+  if(/^[-=（]/.test(line))return false;
+  if(/^(받아오기|거래처\s*발주|물류차\s*입고|매일\s*(오전|오후)|황제|한국타이어|넥센|한타\s*주문|극동|양주\s*SFP|퇴계원|재고\s*주문|@|확인|네|감사|ㅎ|ㅋ|안녕|수고)/.test(line))return false;
+  if(/^[\[（]?(매일|한국|넥센|황제|퇴계원|극동|한타|SFP)[\]）]?$/.test(line.trim()))return false;
+  // 타이어 라인 판단: 규격숫자 포함 OR 알려진 타이어 모델 코드
+  const hasSpec=/\d{3}[\s\/]\d{2,3}[\s\/R]?\d{0,2}/.test(line);
+  const hasModelCode=/(KC|TA|KL|KW|CW|WP|WS|AT|HP|VA|MC|TX|VP|VX|KR|MT|RD|RS|AH|DH|RF|RA|RH|RT|RC|VD|VT|LH|IK|IH|IW|EH|K4|H[0-9]|K1|K2|Z0|W3|W6|RW|DW|LD|CP|SV|CV|AN|KO|KM)\d/i.test(line);
+  const hasKoreanModel=/(파일럿|프라이머시|래티튜드|엔페라|엔프리즈|엔블루|로디안|윈가드|마일캡|사일룬|레이다|킨포레스트|피제로|MULTI|AGILIS|CROSS|ENERGY|로디안)/.test(line);
+  return hasSpec||hasModelCode||hasKoreanModel;
 }
 function TK(line){return line.toLowerCase().replace(/\s+/g,' ').trim().split(' ').slice(0,5).join(' ');}
 
