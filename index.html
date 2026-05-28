@@ -4,21 +4,18 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>타이어게러지 메신저</title>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"><\/script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 :root{
   --bg:#f2f1ed;--bg2:#fff;--border:rgba(0,0,0,0.09);
   --text:#1a1a1a;--text2:#666;--text3:#bbb;
-  --navy:#1a2035;--purple:#5b35b0;--purple-l:#ede8fb;
+  --navy:#1a2035;--purple:#5b35b0;
   --green:#15803d;--red:#dc2626;--orange:#c2410c;
-  --r:12px;
 }
 html,body{height:100%;overflow:hidden}
 body{font-family:-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Noto Sans KR',sans-serif;
   background:var(--bg);color:var(--text);display:flex;height:100dvh}
-
-/* ── 로그인 ── */
 #login-wrap{position:fixed;inset:0;background:var(--navy);
   display:flex;align-items:center;justify-content:center;z-index:200;padding:20px}
 .login-card{background:#fff;border-radius:20px;padding:32px 28px;width:100%;max-width:340px;
@@ -34,11 +31,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Noto Sa
 .fg select:focus,.fg input:focus{border-color:var(--navy)}
 .err{font-size:13px;color:var(--red);margin-bottom:10px;display:none}
 .btn-login{width:100%;padding:13px;background:var(--navy);color:#fff;border:none;
-  border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;transition:opacity .15s}
-.btn-login:active{opacity:.8}
+  border-radius:10px;font-size:15px;font-weight:700;cursor:pointer}
 .login-hint{font-size:12px;color:var(--text3);text-align:center;margin-top:12px}
-
-/* ── 앱 레이아웃 ── */
 #app{width:100%;display:none;flex-direction:row;height:100dvh}
 #app.on{display:flex}
 .sidebar{width:190px;background:var(--navy);color:#fff;
@@ -54,40 +48,34 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Noto Sa
 .room-btn:hover{background:rgba(255,255,255,.07);color:#fff}
 .room-btn.active{background:rgba(255,255,255,.14);color:#fff}
 .room-icon{font-size:14px;flex-shrink:0}
-.sb-foot{padding:10px;border-top:1px solid rgba(255,255,255,.07)}
+.sb-foot{padding:10px;border-top:1px solid rgba(255,255,255,.07);display:flex;flex-direction:column;gap:6px}
 .logout-btn{width:100%;padding:8px;background:none;border:1px solid rgba(255,255,255,.14);
-  color:rgba(255,255,255,.45);border-radius:7px;font-size:12px;cursor:pointer;transition:all .12s}
+  color:rgba(255,255,255,.45);border-radius:7px;font-size:12px;cursor:pointer}
 .logout-btn:hover{background:rgba(255,255,255,.07);color:#fff}
-
-/* ── 채팅 영역 ── */
+.admin-btn{width:100%;padding:8px;background:rgba(220,38,38,.15);border:1px solid rgba(220,38,38,.3);
+  color:rgba(220,100,100,.9);border-radius:7px;font-size:12px;cursor:pointer}
+.admin-btn:hover{background:rgba(220,38,38,.25);color:#fff}
 .chat-wrap{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
 .chat-head{padding:11px 16px;background:#fff;border-bottom:1px solid var(--border);
   display:flex;align-items:center;gap:10px;flex-shrink:0}
 .ch-info{flex:1;min-width:0}
-.ch-name{font-size:15px;font-weight:700;letter-spacing:-.02em;
-  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.ch-desc{font-size:11px;color:var(--text2);margin-top:1px;
-  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.head-right{display:flex;align-items:center;gap:6px;flex-shrink:0}
-
-/* 날짜 선택 UI */
+.ch-name{font-size:15px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ch-desc{font-size:11px;color:var(--text2);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.head-right{display:flex;align-items:center;gap:6px;flex-shrink:0;flex-wrap:wrap}
 .date-picker-wrap{display:flex;align-items:center;gap:5px;background:var(--bg);
-  border:1.5px solid var(--border);border-radius:9px;padding:5px 9px;flex-shrink:0}
+  border:1.5px solid var(--border);border-radius:9px;padding:5px 9px}
 .date-picker-wrap input[type=date]{border:none;background:transparent;
-  font-size:12px;color:var(--text);outline:none;font-family:inherit;cursor:pointer;
-  -webkit-appearance:none;appearance:none;width:auto}
+  font-size:12px;color:var(--text);outline:none;font-family:inherit;cursor:pointer}
 .date-sep{font-size:11px;color:var(--text3)}
-.date-range-toggle{font-size:11px;color:var(--text2);cursor:pointer;
-  padding:2px 6px;border-radius:5px;border:1px solid var(--border);background:#fff;
-  white-space:nowrap}
-.date-range-toggle.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+.range-toggle{font-size:11px;color:var(--text2);cursor:pointer;
+  padding:2px 7px;border-radius:5px;border:1px solid var(--border);background:#fff;white-space:nowrap}
+.range-toggle.on{background:var(--navy);color:#fff;border-color:var(--navy)}
 .ai-btn{padding:7px 13px;background:var(--navy);color:#fff;border:none;
   border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;
   display:flex;align-items:center;gap:4px;white-space:nowrap;transition:all .15s}
-.ai-btn:active{opacity:.8}
 .ai-btn:disabled{opacity:.45;cursor:not-allowed}
-
-/* ── 메시지 영역 ── */
+.icon-btn{padding:7px 10px;background:var(--bg);color:var(--text2);border:1.5px solid var(--border);
+  border-radius:8px;font-size:13px;cursor:pointer}
 .msgs{flex:1;overflow-y:auto;overflow-x:hidden;padding:12px 14px;
   display:flex;flex-direction:column;gap:2px;-webkit-overflow-scrolling:touch}
 .msgs::-webkit-scrollbar{width:3px}
@@ -95,7 +83,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Noto Sa
 .day-div{text-align:center;position:relative;margin:14px 0 8px;flex-shrink:0}
 .day-div::before{content:'';position:absolute;left:0;right:0;top:50%;height:.5px;background:var(--border)}
 .day-div span{background:var(--bg);padding:0 10px;position:relative;font-size:11px;color:var(--text3)}
-.msg-group{max-width:100%;flex-shrink:0}
+.msg-group{max-width:100%;flex-shrink:0;position:relative}
 .msg-group.own{display:flex;flex-direction:column;align-items:flex-end}
 .msg-head{display:flex;align-items:baseline;gap:6px;margin-bottom:3px}
 .msg-group.own .msg-head{flex-direction:row-reverse}
@@ -105,34 +93,29 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Noto Sa
   border-radius:3px 12px 12px 12px;padding:9px 13px;font-size:14px;
   line-height:1.65;white-space:pre-wrap;word-break:break-word;
   max-width:min(520px,85vw);display:inline-block}
-.msg-group.own .msg-body{background:#dbeafe;border-color:#bfdbfe;
-  border-radius:12px 3px 12px 12px}
+.msg-group.own .msg-body{background:#dbeafe;border-color:#bfdbfe;border-radius:12px 3px 12px 12px}
+.msg-del-btn{position:absolute;top:-6px;right:-6px;width:20px;height:20px;
+  background:var(--red);color:#fff;border:none;border-radius:50%;font-size:11px;
+  cursor:pointer;display:none;align-items:center;justify-content:center;font-weight:700;z-index:10}
+.msg-group:hover .msg-del-btn{display:flex}
 .empty-state{flex:1;display:flex;align-items:center;justify-content:center;
   font-size:13px;color:var(--text3);flex-direction:column;gap:8px}
-
-/* ── AI 버블 ── */
-.msg-body.ai{
-  background:#fafaf8;border:1.5px solid #d1c4f0;border-left:4px solid var(--purple);
+.msg-body.ai{background:#fafaf8;border:1.5px solid #d1c4f0;border-left:4px solid var(--purple);
   border-radius:4px 12px 12px 12px;font-size:13px;line-height:1.75;
-  color:var(--text);max-width:min(680px,94vw);padding:0;overflow:hidden;
-}
+  color:var(--text);max-width:min(680px,94vw);padding:0;overflow:hidden}
 .ai-top-bar{background:var(--navy);color:#fff;padding:10px 14px;
-  display:flex;align-items:center;gap:8px;justify-content:space-between}
+  display:flex;align-items:center;justify-content:space-between}
 .ai-top-title{font-size:12px;font-weight:700;letter-spacing:.04em}
 .ai-top-meta{font-size:11px;opacity:.55}
 .ai-body{padding:14px 16px}
-
-/* 섹션 */
 .ai-section{margin-bottom:18px}
 .ai-section:last-child{margin-bottom:0}
 .ai-sec-header{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;
   color:#fff;background:var(--purple);padding:4px 10px;border-radius:5px;
   display:inline-flex;align-items:center;gap:5px;margin-bottom:10px}
-.ai-subsec{margin-bottom:12px;background:#fff;border:1px solid var(--border);
-  border-radius:8px;overflow:hidden}
+.ai-subsec{margin-bottom:12px;background:#fff;border:1px solid var(--border);border-radius:8px;overflow:hidden}
 .ai-subsec-header{background:#f8f7f4;border-bottom:1px solid var(--border);
-  padding:7px 12px;font-size:12px;font-weight:700;color:var(--navy);
-  display:flex;align-items:center;gap:6px}
+  padding:7px 12px;font-size:12px;font-weight:700;color:var(--navy);display:flex;align-items:center;gap:6px}
 .ai-subsec-header .cnt{font-size:11px;font-weight:600;color:#fff;
   background:var(--navy);border-radius:99px;padding:1px 7px;margin-left:auto}
 .ai-tire-table{width:100%;border-collapse:collapse;font-size:12px}
@@ -146,8 +129,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Noto Sa
 .ai-tire-table td.spec{color:#374151;font-family:'SF Mono','Fira Code',monospace;font-size:11.5px}
 .ai-tire-table td.qty{text-align:center;font-weight:700;color:var(--purple);white-space:nowrap}
 .ai-tire-table td.purpose{color:var(--text2);font-size:11px}
-.ai-tire-table td.purpose .tag{display:inline-block;padding:1px 6px;border-radius:4px;
-  font-size:10px;font-weight:600;margin:1px 2px;white-space:nowrap}
+.tag{display:inline-block;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:600;margin:1px 2px;white-space:nowrap}
 .tag-ping-direct{background:#dcfce7;color:#15803d}
 .tag-ping-delivery{background:#dbeafe;color:#1e40af}
 .tag-store{background:#fef3c7;color:#92400e}
@@ -157,44 +139,48 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Noto Sa
 .ai-empty{color:var(--text3);font-style:italic;font-size:12px;padding:10px 12px}
 .ai-note{background:#fffbeb;border:1px solid #fde68a;border-radius:6px;
   padding:8px 12px;font-size:11px;color:#92400e;margin-top:10px}
-
-/* ── 입력창 ── */
 .input-wrap{padding:10px 12px 12px;background:#fff;border-top:1px solid var(--border);flex-shrink:0}
 .input-row{display:flex;gap:8px;align-items:flex-end}
 .msg-inp{flex:1;padding:10px 13px;border:1.5px solid var(--border);border-radius:10px;
   font-size:15px;resize:none;min-height:42px;max-height:100px;
-  background:var(--bg);color:var(--text);outline:none;font-family:inherit;
-  line-height:1.5;transition:border .15s;-webkit-overflow-scrolling:touch}
+  background:var(--bg);color:var(--text);outline:none;font-family:inherit;line-height:1.5}
 .msg-inp:focus{border-color:var(--navy)}
 .send-btn{padding:10px 16px;background:var(--navy);color:#fff;border:none;
-  border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;
-  white-space:nowrap;flex-shrink:0;transition:opacity .15s;min-height:42px}
-.send-btn:active{opacity:.8}
-
-/* ── 정리 결과 모달 ── */
-.overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);
-  display:none;align-items:flex-start;justify-content:center;z-index:300;
-  padding:20px;overflow-y:auto}
+  border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0;min-height:42px}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;
+  align-items:flex-start;justify-content:center;z-index:300;padding:20px;overflow-y:auto}
 .overlay.on{display:flex}
 .result-modal{background:#fff;border-radius:16px;width:100%;max-width:760px;
   position:relative;overflow:hidden;margin:auto;box-shadow:0 32px 80px rgba(0,0,0,.3)}
 .result-modal-head{background:var(--navy);color:#fff;padding:16px 20px;
   display:flex;align-items:center;justify-content:space-between}
 .result-modal-title{font-size:15px;font-weight:800}
-.result-modal-close{background:none;border:none;color:rgba(255,255,255,.5);
-  font-size:22px;cursor:pointer;line-height:1;padding:4px 8px}
+.result-modal-close{background:none;border:none;color:rgba(255,255,255,.5);font-size:22px;cursor:pointer;padding:4px 8px}
 .result-modal-body{padding:20px;max-height:80dvh;overflow-y:auto}
-
-/* ── API 설정 모달 ── */
+.admin-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);
+  display:none;align-items:flex-end;justify-content:center;z-index:400}
+.admin-overlay.on{display:flex}
+.admin-panel{background:#fff;border-radius:20px 20px 0 0;padding:24px 22px 36px;
+  width:100%;max-width:480px;position:relative;max-height:85dvh;overflow-y:auto}
+.admin-panel-title{font-size:16px;font-weight:800;color:var(--red);margin-bottom:4px}
+.admin-panel-sub{font-size:13px;color:var(--text2);margin-bottom:20px;line-height:1.6}
+.admin-panel-close{position:absolute;top:16px;right:16px;background:none;border:none;font-size:22px;cursor:pointer;color:var(--text3);padding:4px}
+.danger-section{border:1.5px solid #fecaca;border-radius:12px;padding:16px;margin-bottom:14px;background:#fff5f5}
+.danger-title{font-size:13px;font-weight:700;color:var(--red);margin-bottom:12px}
+.del-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
+.del-select{flex:1;min-width:120px;padding:9px 12px;border:1.5px solid var(--border);
+  border-radius:9px;font-size:13px;background:#fff;outline:none;font-family:inherit;-webkit-appearance:none}
+.btn-danger{padding:9px 18px;background:var(--red);color:#fff;border:none;
+  border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap}
+.del-hint{font-size:11px;color:var(--text3);margin-top:4px}
 .settings-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);
-  display:none;align-items:flex-end;justify-content:center;z-index:400;padding:0}
+  display:none;align-items:flex-end;justify-content:center;z-index:400}
 .settings-overlay.on{display:flex}
 .settings-modal{background:#fff;border-radius:20px 20px 0 0;padding:24px 22px 32px;
   width:100%;max-width:480px;position:relative;max-height:80dvh;overflow-y:auto}
 .modal-title{font-size:16px;font-weight:800;margin-bottom:5px;color:var(--navy)}
 .modal-sub{font-size:13px;color:var(--text2);margin-bottom:18px;line-height:1.6}
-.modal-close{position:absolute;top:16px;right:16px;background:none;border:none;
-  font-size:22px;cursor:pointer;color:var(--text3);line-height:1;padding:4px}
+.modal-close{position:absolute;top:16px;right:16px;background:none;border:none;font-size:22px;cursor:pointer;color:var(--text3);padding:4px}
 .hint{font-size:12px;color:var(--text2);margin-top:6px;line-height:1.6}
 .btn-save{margin-top:14px;width:100%;padding:13px;background:var(--purple);color:#fff;
   border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer}
@@ -204,52 +190,38 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Noto Sa
   background:var(--bg);border-radius:10px;padding:11px 13px;margin-bottom:16px}
 .mode-card-label{font-size:13px;color:var(--text2)}
 .mode-card-val{font-size:13px;font-weight:700}
-.mode-card-val.claude{color:var(--orange)}
-
-/* ── 반응형 ── */
 @media(max-width:600px){
   .sidebar{width:46px}
-  .sb-head,.sb-user,.room-label,.sb-foot{display:none}
+  .sb-head,.sb-user,.room-label{display:none}
   .room-btn{justify-content:center;padding:11px 0}
-  .ch-desc{display:none}
-  .date-picker-wrap{display:none}
-  .msgs{padding:10px 10px}
+  .ch-desc,.date-picker-wrap{display:none}
+  .msgs{padding:10px}
   .msg-body{font-size:14px;max-width:82vw}
   .msg-body.ai{font-size:12px;max-width:93vw}
-  .ai-tire-table{font-size:11px}
   .input-wrap{padding:8px 10px 14px}
   .msg-inp{font-size:16px}
 }
 </style>
 </head>
 <body>
-
-<!-- 로그인 -->
 <div id="login-wrap">
   <div class="login-card">
     <div class="login-logo">🛞 타이어게러지</div>
     <div class="login-sub">내부 메신저 — 직원 전용</div>
-    <div class="fg">
-      <label>이름</label>
+    <div class="fg"><label>이름</label>
       <select id="sel-name">
         <option value="">선택하세요</option>
         <option>이호준</option><option>남성현</option><option>김다영</option>
         <option>임예지</option><option>이민재</option><option>정지훈</option>
-        <option>이영재</option><option>이정우</option><option>이세진</option>
-        <option>손정현</option>
-      </select>
-    </div>
-    <div class="fg">
-      <label>비밀번호</label>
-      <input type="password" id="inp-pw" placeholder="비밀번호 입력">
-    </div>
+        <option>이영재</option><option>이정우</option><option>이세진</option><option>손정현</option>
+      </select></div>
+    <div class="fg"><label>비밀번호</label><input type="password" id="inp-pw" placeholder="비밀번호 입력"></div>
     <div class="err" id="login-err"></div>
     <button class="btn-login" onclick="doLogin()">입장하기</button>
     <div class="login-hint">비밀번호는 각자 개별 지급</div>
   </div>
 </div>
 
-<!-- 앱 -->
 <div id="app">
   <div class="sidebar">
     <div class="sb-head">
@@ -258,6 +230,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Noto Sa
     </div>
     <div class="sb-rooms" id="sb-rooms"></div>
     <div class="sb-foot">
+      <div id="admin-sidebar-btn" style="display:none">
+        <button class="admin-btn" onclick="openAdmin()">🗑️ 관리자 삭제</button>
+      </div>
       <button class="logout-btn" onclick="doLogout()">나가기</button>
     </div>
   </div>
@@ -268,24 +243,20 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Noto Sa
         <div class="ch-desc" id="ch-desc"></div>
       </div>
       <div class="head-right">
-        <!-- 날짜 범위 선택 -->
         <div class="date-picker-wrap" id="date-picker-wrap" style="display:none">
-          <input type="date" id="date-from" title="시작일">
+          <input type="date" id="date-from">
           <span class="date-sep" id="date-sep" style="display:none">~</span>
-          <input type="date" id="date-to" style="display:none" title="종료일">
-          <button class="date-range-toggle" id="range-toggle" onclick="toggleRange()" title="범위 선택">범위</button>
+          <input type="date" id="date-to" style="display:none">
+          <button class="range-toggle" id="range-toggle" onclick="toggleRange()">범위</button>
         </div>
         <button class="ai-btn" id="ai-btn" style="display:none" onclick="runAI()">✨ 정리</button>
-        <button class="ai-btn" id="settings-btn" style="display:none;background:rgba(0,0,0,.08);color:var(--text);font-size:12px;padding:7px 10px" onclick="openSettings()">⚙️</button>
+        <button class="icon-btn" id="settings-btn" style="display:none" onclick="openSettings()">⚙️</button>
       </div>
     </div>
-    <div class="msgs" id="msgs">
-      <div class="empty-state"><span>💬</span><span>불러오는 중...</span></div>
-    </div>
+    <div class="msgs" id="msgs"><div class="empty-state"><span>💬</span><span>불러오는 중...</span></div></div>
     <div class="input-wrap">
       <div class="input-row">
-        <textarea class="msg-inp" id="msg-inp"
-          placeholder="메시지 입력 (Enter 전송, Shift+Enter 줄바꿈)" rows="1"
+        <textarea class="msg-inp" id="msg-inp" placeholder="메시지 입력 (Enter 전송, Shift+Enter 줄바꿈)" rows="1"
           onkeydown="onKey(event)" oninput="resize(this)"></textarea>
         <button class="send-btn" onclick="sendMsg()">전송</button>
       </div>
@@ -293,7 +264,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Noto Sa
   </div>
 </div>
 
-<!-- 정리 결과 모달 -->
+<!-- 결과 모달 -->
 <div class="overlay" id="result-overlay" onclick="closeResultIfBg(event)">
   <div class="result-modal">
     <div class="result-modal-head">
@@ -304,21 +275,48 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Noto Sa
   </div>
 </div>
 
-<!-- API 설정 모달 -->
+<!-- 관리자 패널 -->
+<div class="admin-overlay" id="admin-overlay">
+  <div class="admin-panel">
+    <button class="admin-panel-close" onclick="closeAdmin()">×</button>
+    <div class="admin-panel-title">🗑️ 관리자 — 메시지 삭제</div>
+    <div class="admin-panel-sub">이호준 전용 기능입니다. 삭제된 메시지는 복구 불가합니다.</div>
+    <div class="danger-section">
+      <div class="danger-title">📅 날짜별 삭제</div>
+      <div class="del-row">
+        <select class="del-select" id="del-room-sel" onchange="loadAdminDates()">
+          <option value="">방 선택...</option>
+        </select>
+        <select class="del-select" id="del-date-sel"><option value="">날짜 선택...</option></select>
+        <button class="btn-danger" onclick="deleteByDate()">삭제</button>
+      </div>
+      <div class="del-hint">선택 날짜의 모든 메시지(AI 포함)를 삭제합니다.</div>
+    </div>
+    <div class="danger-section">
+      <div class="danger-title">💥 방 전체 초기화</div>
+      <div class="del-row">
+        <select class="del-select" id="del-room-all-sel"><option value="">방 선택...</option></select>
+        <button class="btn-danger" onclick="deleteAllInRoom()">전체 삭제</button>
+      </div>
+      <div class="del-hint">해당 방 전체 메시지를 완전히 초기화합니다. 방 이름 입력으로 재확인합니다.</div>
+    </div>
+    <div id="admin-log" style="font-size:12px;color:var(--text2);margin-top:8px;min-height:20px;padding:4px"></div>
+  </div>
+</div>
+
+<!-- 설정 모달 -->
 <div class="settings-overlay" id="settings-overlay">
   <div class="settings-modal">
     <button class="modal-close" onclick="closeSettings()">×</button>
     <div class="modal-title">⚙️ AI 정리 설정</div>
-    <div class="modal-sub">Claude API 키 등록 시 AI가 직접 정리해줍니다.<br>
-      미등록 시 패턴 자동 정리(무료)로 동작합니다.</div>
+    <div class="modal-sub">Claude API 키 등록 시 AI가 채팅을 직접 이해해서 정리합니다.<br>미등록 시 패턴 자동 정리(무료)로 동작합니다.</div>
     <div class="mode-card">
       <span class="mode-card-label">현재 모드</span>
-      <span class="mode-card-val claude" id="cur-mode-txt">패턴 자동 정리 (무료)</span>
+      <span class="mode-card-val" id="cur-mode-txt" style="color:var(--orange)">패턴 자동 정리 (무료)</span>
     </div>
     <div class="fg">
       <label>Claude API 키 (선택)</label>
-      <input type="text" id="api-key-inp" placeholder="sk-ant-..."
-        style="font-family:monospace;font-size:13px">
+      <input type="text" id="api-key-inp" placeholder="sk-ant-..." style="font-family:monospace;font-size:13px">
       <div class="hint">발급: <b>console.anthropic.com</b> → API Keys<br>이 기기에만 저장됩니다.</div>
     </div>
     <button class="btn-save" onclick="saveKey()">저장</button>
@@ -328,688 +326,342 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Noto Sa
 </div>
 
 <script>
-/* ═══════════════════════════════════
-   CONFIG
-═══════════════════════════════════ */
-const SUPA_URL = 'https://dohspibpjzdrnigphalt.supabase.co';
-const SUPA_KEY = 'sb_publishable_JCYJcVDoQkHXd6SuhtjIAw_Wz44s0Y3';
-const { createClient } = supabase;
-const sb = createClient(SUPA_URL, SUPA_KEY);
-
-const PW = {
-  '이호준':'bbangman2','남성현':'tg1234','김다영':'tg1234','임예지':'tg1234',
+const SUPA_URL='https://dohspibpjzdrnigphalt.supabase.co';
+const SUPA_KEY='sb_publishable_JCYJcVDoQkHXd6SuhtjIAw_Wz44s0Y3';
+const{createClient}=supabase;
+const sb=createClient(SUPA_URL,SUPA_KEY);
+const ADMIN_NAME='이호준';
+const PW={'이호준':'bbangman2','남성현':'tg1234','김다영':'tg1234','임예지':'tg1234',
   '이민재':'tg1234','정지훈':'tg1234','이영재':'tg1234','이정우':'wowlee1216',
-  '이세진':'tg1234','손정현':'tg1234'
+  '이세진':'tg1234','손정현':'tg1234'};
+const ROOM_META={
+  '입고방':{icon:'📦',ai:true,desc:'받아오기 · 거래처 발주 · 물류차 입고'},
+  '공지방':{icon:'📢',ai:false,desc:'사장님 공지 및 전달사항'},
+  '자유방':{icon:'💬',ai:false,desc:'자유로운 대화'},
 };
+let me=null,rooms=[],curRoom=null,msgs=[],sub=null,rangeMode=false;
 
-const ROOM_META = {
-  '입고방':  { icon:'📦', ai:true,  desc:'받아오기 · 거래처 발주 · 물류차 입고' },
-  '공지방':  { icon:'📢', ai:false, desc:'사장님 공지 및 전달사항' },
-  '자유방':  { icon:'💬', ai:false, desc:'자유로운 대화' },
-};
+/* KST */
+function toKST(u){return new Date(new Date(u).getTime()+9*3600*1000);}
+function fmtDate(d){return d.toLocaleDateString('ko-KR',{timeZone:'Asia/Seoul',month:'long',day:'numeric',weekday:'short'});}
+function fmtTime(d){return d.toLocaleTimeString('ko-KR',{timeZone:'Asia/Seoul',hour:'2-digit',minute:'2-digit'});}
+function toDateStr(u){const k=toKST(u);const y=k.getUTCFullYear(),m=String(k.getUTCMonth()+1).padStart(2,'0'),d=String(k.getUTCDate()).padStart(2,'0');return`${y}-${m}-${d}`;}
+function getTodayISO(){const k=new Date(Date.now()+9*3600*1000);return k.toISOString().slice(0,10);}
+function dateToUTCRange(ds){return{start:new Date(ds+'T00:00:00+09:00').toISOString(),end:new Date(ds+'T23:59:59+09:00').toISOString()};}
 
-let me = null, rooms = [], curRoom = null, msgs = [], sub = null;
-let rangeMode = false;
+/* 로그인 */
+async function doLogin(){
+  const name=document.getElementById('sel-name').value;
+  const pw=document.getElementById('inp-pw').value;
+  if(!name){showErr('이름을 선택해주세요');return;}
+  if(!pw){showErr('비밀번호를 입력해주세요');return;}
+  if(PW[name]!==pw){showErr('비밀번호가 틀렸습니다');return;}
+  let{data:user}=await sb.from('users').select('*').eq('name',name).maybeSingle();
+  if(!user){const{data:c}=await sb.from('users').insert({name,password:pw}).select().single();user=c;}
+  me=user;localStorage.setItem('tg_me',JSON.stringify(me));bootApp();
+}
+function showErr(msg){const e=document.getElementById('login-err');e.textContent=msg;e.style.display='block';}
+function doLogout(){me=null;localStorage.removeItem('tg_me');if(sub)sb.removeChannel(sub);document.getElementById('app').classList.remove('on');document.getElementById('login-wrap').style.display='flex';}
 
-/* ═══════════════════════════════════
-   시간 유틸 (KST)
-═══════════════════════════════════ */
-// DB의 UTC 타임스탬프 → KST Date
-function toKST(utcStr) {
-  const d = new Date(utcStr);
-  return new Date(d.getTime() + 9 * 60 * 60 * 1000);
-}
-function fmtDate(d) {
-  return d.toLocaleDateString('ko-KR', {
-    timeZone: 'Asia/Seoul',
-    month: 'long', day: 'numeric', weekday: 'short'
-  });
-}
-function fmtTime(d) {
-  // 오전/오후 H:MM 형식
-  return d.toLocaleTimeString('ko-KR', {
-    timeZone: 'Asia/Seoul',
-    hour: '2-digit', minute: '2-digit'
-  });
-}
-function todayKST() {
-  return new Date().toLocaleDateString('ko', {
-    timeZone: 'Asia/Seoul',
-    year: 'numeric', month: '2-digit', day: '2-digit'
-  }).replace(/\. /g,'-').replace('.','' );
-}
-// YYYY-MM-DD 반환 (KST 기준)
-function toDateStr(utcStr) {
-  const d = toKST(utcStr);
-  return d.toLocaleDateString('ko-KR', {
-    timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit'
-  }).replace(/\. /g, '-').replace('.', '');
-}
-
-/* ═══════════════════════════════════
-   로그인
-═══════════════════════════════════ */
-async function doLogin() {
-  const name = document.getElementById('sel-name').value;
-  const pw   = document.getElementById('inp-pw').value;
-  if (!name) { showErr('이름을 선택해주세요'); return; }
-  if (!pw)   { showErr('비밀번호를 입력해주세요'); return; }
-  if (PW[name] !== pw) { showErr('비밀번호가 틀렸습니다'); return; }
-  let { data: user } = await sb.from('users').select('*').eq('name', name).maybeSingle();
-  if (!user) {
-    const { data: c } = await sb.from('users').insert({ name, password: pw }).select().single();
-    user = c;
-  }
-  me = user;
-  localStorage.setItem('tg_me', JSON.stringify(me));
-  bootApp();
-}
-function showErr(msg) {
-  const e = document.getElementById('login-err');
-  e.textContent = msg; e.style.display = 'block';
-}
-function doLogout() {
-  me = null; localStorage.removeItem('tg_me');
-  if (sub) sb.removeChannel(sub);
-  document.getElementById('app').classList.remove('on');
-  document.getElementById('login-wrap').style.display = 'flex';
-}
-
-/* ═══════════════════════════════════
-   앱 부트
-═══════════════════════════════════ */
-async function bootApp() {
-  document.getElementById('login-wrap').style.display = 'none';
+/* 앱 */
+async function bootApp(){
+  document.getElementById('login-wrap').style.display='none';
   document.getElementById('app').classList.add('on');
-  document.getElementById('sb-username').textContent = me.name;
-  const { data } = await sb.from('rooms').select('*').order('created_at');
-  rooms = data || [];
-  renderSidebar();
-  if (rooms.length) selectRoom(rooms[0]);
+  document.getElementById('sb-username').textContent=me.name;
+  if(me.name===ADMIN_NAME)document.getElementById('admin-sidebar-btn').style.display='block';
+  const{data}=await sb.from('rooms').select('*').order('created_at');
+  rooms=data||[];
+  populateAdminSelects();renderSidebar();
+  if(rooms.length)selectRoom(rooms[0]);
 }
-function renderSidebar() {
-  const el = document.getElementById('sb-rooms');
-  el.innerHTML = rooms.map((r, i) => {
-    const m = ROOM_META[r.name] || { icon: '💬' };
-    return `<button class="room-btn${curRoom?.id === r.id ? ' active' : ''}" onclick="selectRoom(rooms[${i}])">
-      <span class="room-icon">${m.icon}</span>
-      <span class="room-label">${r.name}</span>
-    </button>`;
+function renderSidebar(){
+  const el=document.getElementById('sb-rooms');
+  el.innerHTML=rooms.map((r,i)=>{
+    const m=ROOM_META[r.name]||{icon:'💬'};
+    return`<button class="room-btn${curRoom?.id===r.id?' active':''}" onclick="selectRoom(rooms[${i}])">
+      <span class="room-icon">${m.icon}</span><span class="room-label">${r.name}</span></button>`;
   }).join('');
 }
-async function selectRoom(room) {
-  curRoom = room;
-  const m = ROOM_META[room.name] || { icon: '💬', ai: false, desc: '' };
-  document.getElementById('ch-name').textContent = room.name;
-  document.getElementById('ch-desc').textContent = m.desc || '';
-  const aiBtn  = document.getElementById('ai-btn');
-  const dpWrap = document.getElementById('date-picker-wrap');
-  const stgBtn = document.getElementById('settings-btn');
-  if (m.ai) {
-    aiBtn.style.display  = 'flex';
-    dpWrap.style.display = 'flex';
-    stgBtn.style.display = 'flex';
-    initDatePicker();
-  } else {
-    aiBtn.style.display  = 'none';
-    dpWrap.style.display = 'none';
-    stgBtn.style.display = 'none';
-  }
+async function selectRoom(room){
+  curRoom=room;
+  const m=ROOM_META[room.name]||{icon:'💬',ai:false,desc:''};
+  document.getElementById('ch-name').textContent=room.name;
+  document.getElementById('ch-desc').textContent=m.desc||'';
+  const ai=m.ai;
+  document.getElementById('ai-btn').style.display=ai?'flex':'none';
+  document.getElementById('date-picker-wrap').style.display=ai?'flex':'none';
+  document.getElementById('settings-btn').style.display=ai?'flex':'none';
+  if(ai)initDatePicker();
   renderSidebar();
-  if (sub) sb.removeChannel(sub);
+  if(sub)sb.removeChannel(sub);
   await loadMsgs();
-  sub = sb.channel('room-' + room.id)
-    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `room_id=eq.${room.id}` },
-      p => { msgs.push(p.new); renderMsgs(); })
+  sub=sb.channel('room-'+room.id)
+    .on('postgres_changes',{event:'INSERT',schema:'public',table:'messages',filter:`room_id=eq.${room.id}`},p=>{msgs.push(p.new);renderMsgs();})
+    .on('postgres_changes',{event:'DELETE',schema:'public',table:'messages',filter:`room_id=eq.${room.id}`},p=>{msgs=msgs.filter(m=>m.id!==p.old.id);renderMsgs();})
     .subscribe();
 }
 
-/* ═══════════════════════════════════
-   날짜 피커
-═══════════════════════════════════ */
-function initDatePicker() {
-  const today = getTodayISO(); // YYYY-MM-DD KST 기준
-  document.getElementById('date-from').value = today;
-  document.getElementById('date-to').value   = today;
+/* 날짜 피커 */
+function initDatePicker(){const t=getTodayISO();document.getElementById('date-from').value=t;document.getElementById('date-to').value=t;}
+function toggleRange(){
+  rangeMode=!rangeMode;
+  document.getElementById('range-toggle').classList.toggle('on',rangeMode);
+  document.getElementById('date-sep').style.display=rangeMode?'':'none';
+  document.getElementById('date-to').style.display=rangeMode?'':'none';
+  if(!rangeMode)document.getElementById('date-to').value=document.getElementById('date-from').value;
 }
-function getTodayISO() {
-  const now = new Date();
-  // KST 기준 오늘
-  const kst = new Date(now.getTime() + 9 * 3600 * 1000);
-  return kst.toISOString().slice(0, 10);
-}
-function toggleRange() {
-  rangeMode = !rangeMode;
-  const btn  = document.getElementById('range-toggle');
-  const sep  = document.getElementById('date-sep');
-  const dateTo = document.getElementById('date-to');
-  btn.classList.toggle('on', rangeMode);
-  sep.style.display    = rangeMode ? '' : 'none';
-  dateTo.style.display = rangeMode ? '' : 'none';
-  if (!rangeMode) {
-    // 범위 해제 시 to = from 으로
-    document.getElementById('date-to').value = document.getElementById('date-from').value;
-  }
-}
-function getSelectedRange() {
-  const from = document.getElementById('date-from').value; // YYYY-MM-DD
-  const to   = rangeMode ? document.getElementById('date-to').value : from;
-  return { from, to };
-}
+function getSelectedRange(){const f=document.getElementById('date-from').value;return{from:f,to:rangeMode?document.getElementById('date-to').value:f};}
 
-/* ═══════════════════════════════════
-   메시지 로드/렌더
-═══════════════════════════════════ */
-async function loadMsgs() {
-  document.getElementById('msgs').innerHTML = '<div class="empty-state"><span>⏳</span><span>불러오는 중...</span></div>';
-  const { data } = await sb.from('messages').select('*')
-    .eq('room_id', curRoom.id)
-    .order('created_at', { ascending: true })
-    .limit(300);
-  msgs = data || [];
-  renderMsgs();
+/* 메시지 */
+async function loadMsgs(){
+  document.getElementById('msgs').innerHTML='<div class="empty-state"><span>⏳</span><span>불러오는 중...</span></div>';
+  const{data}=await sb.from('messages').select('*').eq('room_id',curRoom.id).order('created_at',{ascending:true}).limit(500);
+  msgs=data||[];renderMsgs();
 }
-
-function renderMsgs() {
-  const el = document.getElementById('msgs');
-  if (!msgs.length) {
-    el.innerHTML = '<div class="empty-state"><span>💬</span><span>첫 메시지를 보내보세요!</span></div>';
-    return;
-  }
-  let html = '', lastDate = '', lastUser = '', lastTime = '';
-  msgs.forEach(msg => {
-    if (!msg || !msg.created_at) return;
-    const d   = toKST(msg.created_at);
-    const ds  = fmtDate(d);
-    const ts  = fmtTime(d);
-    const own = msg.user_name === me?.name;
-    const isAI = msg.user_name === 'AI';
-    if (ds !== lastDate) {
-      html += `<div class="day-div"><span>${ds}</span></div>`;
-      lastDate = ds; lastUser = '';
-    }
-    const showHead = msg.user_name !== lastUser || ts !== lastTime;
-    html += `<div class="msg-group${own ? ' own' : ''}">`;
-    if (showHead) {
-      html += `<div class="msg-head">
-        <span class="msg-name"${isAI ? ' style="color:var(--purple)"' : ''}>${isAI ? '✨ AI 정리' : esc(msg.user_name || '')}</span>
-        <span class="msg-time">${ts}</span>
-      </div>`;
-    }
-    if (isAI) {
-      html += renderAIBubble(msg.content || '');
-    } else {
-      html += `<div class="msg-body">${esc(msg.content || '')}</div>`;
-    }
-    html += '</div>';
-    lastUser = msg.user_name; lastTime = ts;
+function renderMsgs(){
+  const el=document.getElementById('msgs');
+  if(!msgs.length){el.innerHTML='<div class="empty-state"><span>💬</span><span>첫 메시지를 보내보세요!</span></div>';return;}
+  const isAdmin=me?.name===ADMIN_NAME;
+  let html='',lastDate='',lastUser='',lastTime='';
+  msgs.forEach(msg=>{
+    if(!msg||!msg.created_at)return;
+    const d=toKST(msg.created_at);
+    const ds=fmtDate(d),ts=fmtTime(d);
+    const own=msg.user_name===me?.name,isAI=msg.user_name==='AI';
+    if(ds!==lastDate){html+=`<div class="day-div"><span>${ds}</span></div>`;lastDate=ds;lastUser='';}
+    const showHead=msg.user_name!==lastUser||ts!==lastTime;
+    const canDel=isAdmin||own;
+    html+=`<div class="msg-group${own?' own':''}">`;
+    if(showHead)html+=`<div class="msg-head"><span class="msg-name"${isAI?' style="color:var(--purple)"':''}>${isAI?'✨ AI 정리':esc(msg.user_name||'')}</span><span class="msg-time">${ts}</span></div>`;
+    if(isAI)html+=renderAIBubble(msg.content||'');
+    else html+=`<div class="msg-body">${esc(msg.content||'')}</div>`;
+    if(canDel)html+=`<button class="msg-del-btn" onclick="deleteMsg('${msg.id}')" title="삭제">×</button>`;
+    html+='</div>';
+    lastUser=msg.user_name;lastTime=ts;
   });
-  el.innerHTML = html;
-  el.scrollTop = el.scrollHeight;
+  el.innerHTML=html;el.scrollTop=el.scrollHeight;
+}
+async function deleteMsg(id){
+  if(!confirm('이 메시지를 삭제할까요?'))return;
+  const{error}=await sb.from('messages').delete().eq('id',id);
+  if(error){alert('삭제 오류: '+error.message);return;}
+  msgs=msgs.filter(m=>m.id!==id);renderMsgs();
 }
 
-/* ═══════════════════════════════════
-   AI 버블 렌더 (가독성 개선)
-═══════════════════════════════════ */
-function renderAIBubble(raw) {
-  // raw 가 JSON 파싱 가능한 구조화 데이터인지 확인
-  let parsed = null;
-  try { parsed = JSON.parse(raw); } catch {}
-
-  if (parsed && parsed.__type === 'tire_summary') {
-    return renderStructuredSummary(parsed);
-  }
-  // 레거시: 텍스트 그대로
-  return `<div class="msg-body ai">
-    <div class="ai-top-bar"><span class="ai-top-title">📋 AI 정리</span></div>
-    <div class="ai-body" style="white-space:pre-wrap;font-size:13px">${esc(raw)}</div>
-  </div>`;
+/* AI 버블 */
+function renderAIBubble(raw){
+  let p=null;try{p=JSON.parse(raw);}catch{}
+  if(p&&p.__type==='tire_summary')return renderStructuredSummary(p);
+  return`<div class="msg-body ai"><div class="ai-top-bar"><span class="ai-top-title">📋 AI 정리</span></div><div class="ai-body" style="white-space:pre-wrap;font-size:13px">${esc(raw)}</div></div>`;
 }
-
-function renderStructuredSummary(data) {
-  const { dateLabel, sections, note } = data;
-  let html = `<div class="msg-body ai">
-    <div class="ai-top-bar">
-      <span class="ai-top-title">📋 입고방 정리</span>
-      <span class="ai-top-meta">${esc(dateLabel || '')}</span>
-    </div>
-    <div class="ai-body">`;
-
-  // 결과 팝업 버튼
-  html += `<div style="margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap">
-    <button onclick="showResultModal(${JSON.stringify(data).replace(/"/g,'&quot;')})"
-      style="font-size:11px;padding:5px 12px;border-radius:6px;border:1px solid var(--purple);
-      color:var(--purple);background:#fff;cursor:pointer;font-weight:600">🔍 전체화면으로 보기</button>
-  </div>`;
-
-  const SEC_ICONS = {
-    'recv_maeil':    { label:'📦 받아오기 [매일 오후]',   color:'#1a2035' },
-    'recv_yangju':   { label:'📦 받아오기 [양주 SFP]',    color:'#1a2035' },
-    'recv_hwangje':  { label:'📦 받아오기 [황제]',         color:'#1a2035' },
-    'recv_toekyewon':{ label:'📦 받아오기 [퇴계원]',       color:'#1a2035' },
-    'order_maeil':   { label:'📋 거래처 발주 [매일 오전]', color:'#5b35b0' },
-    'order_nexen':   { label:'📋 거래처 발주 [넥센]',      color:'#5b35b0' },
-    'order_hanta':   { label:'📋 거래처 발주 [한타]',      color:'#5b35b0' },
-    'order_geukdong':{ label:'📋 거래처 발주 [극동]',      color:'#5b35b0' },
-    'arr_hankook':   { label:'🚚 물류차 입고 [한국]',      color:'#c2410c' },
-    'arr_nexen':     { label:'🚚 물류차 입고 [넥센]',      color:'#c2410c' },
-  };
-
-  (sections || []).forEach(sec => {
-    const meta = SEC_ICONS[sec.key] || { label: sec.key, color: '#374151' };
-    const items = sec.items || [];
-    html += `<div class="ai-section">
-      <div class="ai-sec-header" style="background:${meta.color}">${esc(meta.label)}</div>
-      <div class="ai-subsec">`;
-
-    if (!items.length) {
-      html += `<div class="ai-empty">이 날 해당 항목 없음</div>`;
-    } else {
-      html += `<div class="ai-subsec-header">타이어 목록 <span class="cnt">${items.length}건</span></div>
-        <table class="ai-tire-table">
-          <thead><tr>
-            <th>모델</th><th>규격</th><th>수량</th><th>용도/비고</th>
-          </tr></thead>
-          <tbody>`;
-      items.forEach(it => {
-        html += `<tr>
-          <td class="model">${esc(it.model || '')}</td>
-          <td class="spec">${esc(it.spec || '')}</td>
-          <td class="qty">${esc(String(it.qty || ''))}</td>
-          <td class="purpose">${renderPurposeTags(it.purpose)}</td>
-        </tr>`;
-      });
-      html += `</tbody></table>`;
+function renderStructuredSummary(data){
+  const SM={'recv_maeil':{l:'📦 받아오기 — 매일 오후',c:'#1a2035'},'recv_yangju':{l:'📦 받아오기 — 양주 SFP',c:'#1a2035'},'recv_hwangje':{l:'📦 받아오기 — 황제',c:'#1a2035'},'recv_toekyewon':{l:'📦 받아오기 — 퇴계원',c:'#1a2035'},'order_maeil':{l:'📋 거래처 발주 — 매일 오전',c:'#5b35b0'},'order_nexen':{l:'📋 거래처 발주 — 넥센',c:'#5b35b0'},'order_hanta':{l:'📋 거래처 발주 — 한타',c:'#5b35b0'},'order_geukdong':{l:'📋 거래처 발주 — 극동',c:'#5b35b0'},'arr_hankook':{l:'🚚 물류차 입고 — 한국',c:'#c2410c'},'arr_nexen':{l:'🚚 물류차 입고 — 넥센',c:'#c2410c'}};
+  const ds=JSON.stringify(data).replace(/"/g,'&quot;');
+  let h=`<div class="msg-body ai"><div class="ai-top-bar"><span class="ai-top-title">📋 입고방 정리</span><span class="ai-top-meta">${esc(data.dateLabel||'')}</span></div><div class="ai-body"><div style="margin-bottom:12px"><button onclick="showResultModal(JSON.parse(this.dataset.d))" data-d="${ds}" style="font-size:11px;padding:5px 12px;border-radius:6px;border:1px solid var(--purple);color:var(--purple);background:#fff;cursor:pointer;font-weight:600">🔍 전체화면으로 보기</button></div>`;
+  (data.sections||[]).forEach(sec=>{
+    const m=SM[sec.key]||{l:sec.key,c:'#374151'};const items=sec.items||[];
+    h+=`<div class="ai-section"><div class="ai-sec-header" style="background:${m.c}">${esc(m.l)}</div><div class="ai-subsec">`;
+    if(!items.length){h+=`<div class="ai-empty">해당 없음</div>`;}
+    else{
+      h+=`<div class="ai-subsec-header">타이어 목록 <span class="cnt">${items.length}건</span></div><table class="ai-tire-table"><thead><tr><th>모델</th><th>규격</th><th>수량</th><th>용도/비고</th></tr></thead><tbody>`;
+      items.forEach(it=>{h+=`<tr><td class="model">${esc(it.model||'')}</td><td class="spec">${esc(it.spec||'')}</td><td class="qty">${esc(String(it.qty||''))}</td><td class="purpose">${renderPurposeTags(it.purpose)}</td></tr>`;});
+      h+=`</tbody></table>`;
     }
-    html += `</div></div>`;
+    h+=`</div></div>`;
   });
-
-  if (note) {
-    html += `<div class="ai-note">⚠️ ${esc(note)}</div>`;
-  }
-  html += `</div></div>`;
-  return html;
+  h+=`</div></div>`;return h;
 }
-
-function renderPurposeTags(purpose) {
-  if (!purpose || purpose === '미기입') return '<span class="tag tag-unknown">미기입</span>';
-  if (purpose === '알 수 없음') return '<span class="tag tag-unknown">알 수 없음</span>';
-  // 태그 분류
-  const tags = purpose.split(/[,·]+/).map(t => t.trim()).filter(Boolean);
-  return tags.map(t => {
-    if (/핑\s*직배송|직배송/.test(t)) return `<span class="tag tag-ping-direct">${esc(t)}</span>`;
-    if (/핑\s*택배|택배/.test(t))    return `<span class="tag tag-ping-delivery">${esc(t)}</span>`;
-    if (/스토어팜|장착/.test(t))      return `<span class="tag tag-store">${esc(t)}</span>`;
-    if (/거래처|오뚜기|재고/.test(t)) return `<span class="tag tag-trade">${esc(t)}</span>`;
-    return `<span class="tag tag-etc">${esc(t)}</span>`;
+function renderPurposeTags(p){
+  if(!p||p==='미기입')return'<span class="tag tag-unknown">미기입</span>';
+  return p.split(/[,·]+/).map(t=>{t=t.trim();if(!t)return'';
+    if(/핑\s*직배송|직배/.test(t))return`<span class="tag tag-ping-direct">${esc(t)}</span>`;
+    if(/핑\s*택배|택배/.test(t))return`<span class="tag tag-ping-delivery">${esc(t)}</span>`;
+    if(/스토어팜|장착|스팜/.test(t))return`<span class="tag tag-store">${esc(t)}</span>`;
+    if(/거래처|재고|오뚜기/.test(t))return`<span class="tag tag-trade">${esc(t)}</span>`;
+    return`<span class="tag tag-etc">${esc(t)}</span>`;
   }).join(' ');
 }
 
-/* ═══════════════════════════════════
-   결과 팝업 모달
-═══════════════════════════════════ */
-function showResultModal(data) {
-  document.getElementById('result-modal-title').textContent = `📋 ${data.dateLabel || ''} 정리 결과`;
-  const body = document.getElementById('result-modal-body');
-  // 모달 안에 동일 구조 렌더 (테이블 전체)
-  body.innerHTML = buildFullResultHTML(data);
+/* 결과 모달 */
+function showResultModal(data){
+  document.getElementById('result-modal-title').textContent=`📋 ${data.dateLabel||''} 정리 결과`;
+  const SL={'recv_maeil':'📦 받아오기 — 매일 오후','recv_yangju':'📦 받아오기 — 양주 SFP','recv_hwangje':'📦 받아오기 — 황제','recv_toekyewon':'📦 받아오기 — 퇴계원','order_maeil':'📋 거래처 발주 — 매일 오전','order_nexen':'📋 거래처 발주 — 넥센','order_hanta':'📋 거래처 발주 — 한타','order_geukdong':'📋 거래처 발주 — 극동','arr_hankook':'🚚 물류차 입고 — 한국','arr_nexen':'🚚 물류차 입고 — 넥센'};
+  let html='';
+  (data.sections||[]).forEach(sec=>{
+    const lbl=SL[sec.key]||sec.key;const items=sec.items||[];
+    html+=`<div style="margin-bottom:20px"><div style="font-size:13px;font-weight:800;color:var(--navy);margin-bottom:8px;padding-bottom:6px;border-bottom:2px solid var(--border)">${esc(lbl)} <span style="font-size:11px;font-weight:400;color:var(--text3)">(${items.length}건)</span></div>`;
+    if(!items.length)html+=`<div style="font-size:12px;color:var(--text3);font-style:italic;padding:6px 0">해당 없음</div>`;
+    else{
+      html+=`<table class="ai-tire-table" style="width:100%;border:1px solid var(--border);border-radius:8px;overflow:hidden"><thead><tr><th>모델</th><th>규격</th><th>수량</th><th>용도/비고</th></tr></thead><tbody>`;
+      items.forEach(it=>{html+=`<tr><td class="model">${esc(it.model||'')}</td><td class="spec">${esc(it.spec||'')}</td><td class="qty">${esc(String(it.qty||''))}</td><td class="purpose">${renderPurposeTags(it.purpose)}</td></tr>`;});
+      html+=`</tbody></table>`;
+    }
+    html+=`</div>`;
+  });
+  if(data.note)html+=`<div class="ai-note">⚠️ ${esc(data.note)}</div>`;
+  document.getElementById('result-modal-body').innerHTML=html;
   document.getElementById('result-overlay').classList.add('on');
 }
-function buildFullResultHTML(data) {
-  const { sections, note } = data;
-  const SEC_LABELS = {
-    'recv_maeil':    '📦 받아오기 — 매일 오후',
-    'recv_yangju':   '📦 받아오기 — 양주 SFP',
-    'recv_hwangje':  '📦 받아오기 — 황제',
-    'recv_toekyewon':'📦 받아오기 — 퇴계원',
-    'order_maeil':   '📋 거래처 발주 — 매일 오전',
-    'order_nexen':   '📋 거래처 발주 — 넥센',
-    'order_hanta':   '📋 거래처 발주 — 한타',
-    'order_geukdong':'📋 거래처 발주 — 극동',
-    'arr_hankook':   '🚚 물류차 입고 — 한국',
-    'arr_nexen':     '🚚 물류차 입고 — 넥센',
-  };
-  let html = '';
-  (sections || []).forEach(sec => {
-    const label = SEC_LABELS[sec.key] || sec.key;
-    const items = sec.items || [];
-    html += `<div style="margin-bottom:20px">
-      <div style="font-size:13px;font-weight:800;color:var(--navy);margin-bottom:8px;
-        padding-bottom:6px;border-bottom:2px solid var(--border)">${esc(label)} <span style="font-size:11px;font-weight:400;color:var(--text3)">(${items.length}건)</span></div>`;
-    if (!items.length) {
-      html += `<div style="font-size:12px;color:var(--text3);font-style:italic;padding:6px 0">해당 없음</div>`;
-    } else {
-      html += `<table class="ai-tire-table" style="width:100%;border:1px solid var(--border);border-radius:8px;overflow:hidden">
-        <thead><tr><th>모델</th><th>규격</th><th>수량</th><th>용도/비고</th></tr></thead>
-        <tbody>`;
-      items.forEach(it => {
-        html += `<tr>
-          <td class="model">${esc(it.model || '')}</td>
-          <td class="spec">${esc(it.spec || '')}</td>
-          <td class="qty">${esc(String(it.qty || ''))}</td>
-          <td class="purpose">${renderPurposeTags(it.purpose)}</td>
-        </tr>`;
-      });
-      html += `</tbody></table>`;
-    }
-    html += `</div>`;
-  });
-  if (note) html += `<div class="ai-note">⚠️ ${esc(note)}</div>`;
-  return html;
+function closeResult(){document.getElementById('result-overlay').classList.remove('on');}
+function closeResultIfBg(e){if(e.target===document.getElementById('result-overlay'))closeResult();}
+
+/* 전송 */
+async function sendMsg(){
+  const inp=document.getElementById('msg-inp');const txt=(inp.value||'').trim();
+  if(!txt||!curRoom||!me)return;inp.value='';resize(inp);
+  try{await sb.from('messages').insert({room_id:curRoom.id,user_id:me.id,user_name:me.name,content:txt});}
+  catch(e){alert('전송 실패: '+e.message);inp.value=txt;}
 }
-function closeResult() { document.getElementById('result-overlay').classList.remove('on'); }
-function closeResultIfBg(e) { if (e.target === document.getElementById('result-overlay')) closeResult(); }
+function onKey(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMsg();}}
+function resize(el){el.style.height='auto';el.style.height=Math.min(el.scrollHeight,100)+'px';}
+function esc(t){if(!t)return'';return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');}
+async function postAI(c){await sb.from('messages').insert({room_id:curRoom.id,user_id:me.id,user_name:'AI',content:c});}
 
-/* ═══════════════════════════════════
-   메시지 전송
-═══════════════════════════════════ */
-async function sendMsg() {
-  const inp = document.getElementById('msg-inp');
-  const txt = (inp.value || '').trim();
-  if (!txt || !curRoom || !me) return;
-  inp.value = ''; resize(inp);
-  try {
-    await sb.from('messages').insert({
-      room_id: curRoom.id, user_id: me.id, user_name: me.name, content: txt
-    });
-  } catch (e) { alert('전송 실패: ' + e.message); inp.value = txt; }
+/* AI 정리 */
+async function runAI(){
+  const btn=document.getElementById('ai-btn');btn.disabled=true;btn.innerHTML='⏳ 정리 중...';
+  try{const{from,to}=getSelectedRange();const key=localStorage.getItem('tg_claude_key');
+    if(key)await runClaude(key,from,to);else await runPattern(from,to);}
+  catch(err){console.error(err);alert('정리 실패: '+err.message);}
+  btn.disabled=false;btn.innerHTML='✨ 정리';
 }
-function onKey(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMsg(); } }
-function resize(el) { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 100) + 'px'; }
-function esc(t) {
-  if (!t) return '';
-  return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+function filterMsgsByDate(from,to){return msgs.filter(m=>{if(!m||m.user_name==='AI'||!m.created_at)return false;const ds=toDateStr(m.created_at);return ds>=from&&ds<=to;});}
+function buildDateLabel(from,to){
+  if(from===to)return new Date(from+'T00:00:00+09:00').toLocaleDateString('ko-KR',{year:'numeric',month:'long',day:'numeric',weekday:'short'});
+  return new Date(from+'T00:00:00+09:00').toLocaleDateString('ko-KR',{month:'long',day:'numeric'})+' ~ '+new Date(to+'T00:00:00+09:00').toLocaleDateString('ko-KR',{month:'long',day:'numeric'});
 }
-async function postAI(content) {
-  await sb.from('messages').insert({
-    room_id: curRoom.id, user_id: me.id, user_name: 'AI', content
-  });
-}
-
-/* ═══════════════════════════════════
-   AI 정리 실행
-═══════════════════════════════════ */
-async function runAI() {
-  const btn = document.getElementById('ai-btn');
-  btn.disabled = true;
-  btn.innerHTML = '⏳ 정리 중...';
-  try {
-    const { from, to } = getSelectedRange();
-    const key = localStorage.getItem('tg_claude_key');
-    if (key) {
-      await runClaude(key, from, to);
-    } else {
-      await runPattern(from, to);
-    }
-  } catch (err) {
-    console.error(err);
-    alert('정리 실패: ' + err.message);
-  }
-  btn.disabled = false;
-  btn.innerHTML = '✨ 정리';
-}
-
-/* ─── 날짜 범위로 메시지 필터 ─── */
-function filterMsgsByDate(from, to) {
-  // from, to: 'YYYY-MM-DD'
-  return msgs.filter(m => {
-    if (!m || m.user_name === 'AI' || !m.created_at) return false;
-    const ds = toDateStr(m.created_at); // KST 기준 YYYY-MM-DD
-    return ds >= from && ds <= to;
-  });
-}
-
-function buildDateLabel(from, to) {
-  if (from === to) {
-    const d = new Date(from + 'T00:00:00+09:00');
-    return d.toLocaleDateString('ko-KR', { year:'numeric', month:'long', day:'numeric', weekday:'short' });
-  }
-  const df = new Date(from + 'T00:00:00+09:00');
-  const dt = new Date(to   + 'T00:00:00+09:00');
-  return df.toLocaleDateString('ko-KR',{month:'long',day:'numeric'}) + ' ~ ' +
-         dt.toLocaleDateString('ko-KR',{month:'long',day:'numeric'});
-}
-
-/* ─── Claude API 정리 ─── */
-async function runClaude(key, from, to) {
-  const filtered = filterMsgsByDate(from, to);
-  if (!filtered.length) { alert('해당 날짜에 메시지가 없어요.'); return; }
-
-  // 날짜별로 그룹화
-  const byDate = groupByDate(filtered);
-  const dateLabel = buildDateLabel(from, to);
-
-  // 날짜별로 채팅을 문자열로 변환
-  const chatBlocks = [];
-  for (const [ds, items] of byDate) {
-    const d = new Date(ds + 'T00:00:00+09:00');
-    const dl = d.toLocaleDateString('ko-KR', { year:'numeric', month:'long', day:'numeric', weekday:'short' });
-    const lines = items.map(m => `[${m.user_name}] ${m.content}`).join('\n');
-    chatBlocks.push(`▶ ${dl}\n${lines}`);
-  }
-  const chatTxt = chatBlocks.join('\n\n────────────────\n\n');
-
-  const prompt = buildClaudePrompt(chatTxt, dateLabel);
-
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 4000,
-      messages: [{ role: 'user', content: prompt }]
-    })
-  });
-  const data = await res.json();
-  if (data.error) throw new Error(data.error.message);
-  const raw = data.content?.[0]?.text || '';
-  // JSON 추출
-  const jsonMatch = raw.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) throw new Error('AI 응답 파싱 실패');
-  const parsed = JSON.parse(jsonMatch[0]);
-  parsed.__type = 'tire_summary';
-  parsed.dateLabel = dateLabel;
+function groupByDate(messages){const map=new Map();messages.forEach(m=>{const ds=toDateStr(m.created_at);if(!map.has(ds))map.set(ds,[]);map.get(ds).push(m);});return map;}
+async function runClaude(key,from,to){
+  const filtered=filterMsgsByDate(from,to);if(!filtered.length){alert('해당 날짜에 메시지가 없어요.');return;}
+  const byDate=groupByDate(filtered);const dateLabel=buildDateLabel(from,to);
+  const chatTxt=[...byDate].map(([ds,items])=>{
+    const dl=new Date(ds+'T00:00:00+09:00').toLocaleDateString('ko-KR',{year:'numeric',month:'long',day:'numeric',weekday:'short'});
+    return`▶ ${dl}\n${items.map(m=>`[${m.user_name}] ${m.content}`).join('\n')}`;
+  }).join('\n\n────────────────\n\n');
+  const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+    headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01'},
+    body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:4000,messages:[{role:'user',content:buildClaudePrompt(chatTxt,dateLabel)}]})});
+  const data=await res.json();if(data.error)throw new Error(data.error.message);
+  const raw=data.content?.[0]?.text||'';const jm=raw.match(/\{[\s\S]*\}/);if(!jm)throw new Error('AI 응답 파싱 실패');
+  const parsed=JSON.parse(jm[0]);parsed.__type='tire_summary';parsed.dateLabel=dateLabel;
   await postAI(JSON.stringify(parsed));
 }
-
-function buildClaudePrompt(chatTxt, dateLabel) {
-  return `당신은 타이어 유통업 사내 입고방 채팅을 정리하는 전문가입니다.
-
-아래 채팅 내역을 분석하여 JSON으로 정리해주세요.
-
-## 채팅 내역
-${chatTxt}
-
-## 출력 형식 (순수 JSON만, 마크다운 없이)
-{
-  "sections": [
-    {
-      "key": "recv_maeil",
-      "items": [
-        { "model": "모델명", "spec": "규격(예:225/45R18)", "qty": "수량", "purpose": "용도/배송방법" }
-      ]
+function buildClaudePrompt(chatTxt,dateLabel){
+  return`당신은 타이어 유통업 사내 입고방 채팅을 정리하는 전문가입니다.\n\n## 채팅 내역\n${chatTxt}\n\n## 출력 형식 (순수 JSON만, 마크다운 없이)\n{\n  "sections": [\n    {\n      "key": "recv_maeil",\n      "items": [\n        { "model": "모델명", "spec": "규격(예:225/45R18)", "qty": "수량", "purpose": "용도/배송방법" }\n      ]\n    }\n  ],\n  "note": "특이사항"\n}\n\n## 섹션 key (해당 항목 있는 것만)\nrecv_maeil / recv_yangju / recv_hwangje / recv_toekyewon\norder_maeil / order_nexen / order_hanta / order_geukdong\narr_hankook / arr_nexen\n\n## 규칙\n1. 모델명 원본 대소문자 정리 (TA21, KC53 등)\n2. 규격 표준화: 225 45 18 → 225/45R18\n3. purpose: 괄호 안 내용 그대로. 없으면 "미기입"\n4. 중복 제거 (같은 모델+규격+수량 반복 시 대표 1개)\n5. qty: 숫자만\n6. 일반 대화(확인, 네 등) 무시\n\nJSON만 출력하고 다른 텍스트 절대 포함 금지.`;
+}
+async function runPattern(from,to){
+  const filtered=filterMsgsByDate(from,to);if(!filtered.length){alert('해당 날짜에 메시지가 없어요.');return;}
+  const byDate=groupByDate(filtered);const dateLabel=buildDateLabel(from,to);
+  const B={recv_maeil:new Map(),recv_yangju:new Map(),recv_hwangje:new Map(),recv_toekyewon:new Map(),order_maeil:new Map(),order_nexen:new Map(),order_hanta:new Map(),order_geukdong:new Map(),arr_hankook:new Map(),arr_nexen:new Map()};
+  for(const[,items]of byDate){const lines=[];items.forEach(m=>(m.content||'').split('\n').forEach(l=>{const t=l.trim();if(t)lines.push(t);}));parsePatternInto(lines,B);}
+  const KEYS=['recv_maeil','recv_yangju','recv_hwangje','recv_toekyewon','order_maeil','order_nexen','order_hanta','order_geukdong','arr_hankook','arr_nexen'];
+  const sections=KEYS.filter(k=>B[k].size>0).map(k=>({key:k,items:[...B[k].values()]}));
+  await postAI(JSON.stringify({__type:'tire_summary',dateLabel,sections,note:''}));
+}
+function parsePatternInto(lines,B){
+  let zone='recv',sub='recv_maeil';
+  for(const line of lines){
+    if(/받아오기/.test(line)&&!isTL(line)){zone='recv';sub='recv_maeil';continue;}
+    if(/거래처\s*발주|발주/.test(line)&&!isTL(line)){zone='order';sub='order_maeil';continue;}
+    if(/물류차\s*입고/.test(line)&&!isTL(line)){zone='arr';sub='arr_hankook';continue;}
+    if(zone==='recv'){
+      if(/양주\s*SFP/i.test(line)){sub='recv_yangju';continue;}
+      if(/황제/.test(line)&&!isTL(line)){sub='recv_hwangje';continue;}
+      if(/퇴계원/.test(line)&&!isTL(line)){sub='recv_toekyewon';continue;}
+      if(/매일\s*(오후|타이어|받아오기)|\[매일\s*오후\]/i.test(line)){sub='recv_maeil';continue;}
     }
-  ],
-  "note": "특이사항이 있으면 여기에"
-}
-
-## 섹션 key 목록 (해당 항목이 있는 것만 포함)
-- recv_maeil: 받아오기 > 매일 오후
-- recv_yangju: 받아오기 > 양주 SFP
-- recv_hwangje: 받아오기 > 황제
-- recv_toekyewon: 받아오기 > 퇴계원
-- order_maeil: 거래처 발주 > 매일 오전
-- order_nexen: 거래처 발주 > 넥센
-- order_hanta: 거래처 발주 > 한타
-- order_geukdong: 거래처 발주 > 극동
-- arr_hankook: 물류차 입고 > 한국
-- arr_nexen: 물류차 입고 > 넥센
-
-## 규칙
-1. 모델명은 원본 그대로 대소문자 정리 (TA21, KC53 등)
-2. 규격은 표준화 (225 45 18 → 225/45R18, 숫자만 있으면 그대로)
-3. purpose: 괄호 안 내용을 그대로 옮겨라. 없으면 "미기입"
-4. 중복 제거 (같은 모델+규격+수량이 여러 사람에게 반복될 경우 대표 1개)
-5. qty: 숫자만 (단위 없이, 8P는 8p로)
-6. 여러 날짜가 섞인 경우 모두 합쳐서 중복제거 후 정리
-7. 일반 대화(확인, 네, 감사 등)는 무시
-
-JSON만 출력하고 다른 텍스트는 절대 포함하지 마세요.`;
-}
-
-/* ─── 패턴 정리 ─── */
-async function runPattern(from, to) {
-  const filtered = filterMsgsByDate(from, to);
-  if (!filtered.length) { alert('해당 날짜에 메시지가 없어요.'); return; }
-
-  const byDate = groupByDate(filtered);
-  const dateLabel = buildDateLabel(from, to);
-
-  // 날짜별로 파싱 후 합침
-  const allSections = {
-    recv_maeil: new Map(), recv_yangju: new Map(),
-    recv_hwangje: new Map(), recv_toekyewon: new Map(),
-    order_maeil: new Map(), order_nexen: new Map(),
-    order_hanta: new Map(), order_geukdong: new Map(),
-    arr_hankook: new Map(), arr_nexen: new Map(),
-  };
-
-  for (const [, items] of byDate) {
-    const allLines = [];
-    items.forEach(m => {
-      (m.content || '').split('\n').forEach(l => { const t = l.trim(); if (t) allLines.push(t); });
-    });
-    parsePatternInto(allLines, allSections);
+    if(zone==='order'){
+      if(/매일\s*오전|\[매일\s*오전\]/i.test(line)){sub='order_maeil';continue;}
+      if(/\[넥센\]|넥센\s*주문/i.test(line)){sub='order_nexen';continue;}
+      if(/한타\s*주문|\[한타/i.test(line)){sub='order_hanta';continue;}
+      if(/\[극동\]|극동/i.test(line)){sub='order_geukdong';continue;}
+    }
+    if(zone==='arr'){if(/^\[한국\]$/.test(line)){sub='arr_hankook';continue;}if(/^\[넥센\]$/.test(line)){sub='arr_nexen';continue;}}
+    if(/^[-=]{3,}$/.test(line))continue;
+    if(B[sub]&&isTL(line)){const k=TK(line);if(!B[sub].has(k))B[sub].set(k,PTL(line));}
   }
-
-  // 구조화 JSON 생성
-  const SEC_KEYS = ['recv_maeil','recv_yangju','recv_hwangje','recv_toekyewon',
-                    'order_maeil','order_nexen','order_hanta','order_geukdong',
-                    'arr_hankook','arr_nexen'];
-  const sections = SEC_KEYS
-    .filter(k => allSections[k].size > 0)
-    .map(k => ({
-      key: k,
-      items: [...allSections[k].values()]
-    }));
-
-  const payload = {
-    __type: 'tire_summary',
-    dateLabel,
-    sections,
-    note: ''
-  };
-  await postAI(JSON.stringify(payload));
 }
+function PTL(line){
+  const pm=line.match(/\(([^)]+)\)/g);const purpose=pm?pm.map(p=>p.slice(1,-1)).join(', '):'미기입';
+  const base=line.replace(/\([^)]*\)/g,'').trim();const parts=base.split(/\s+/);
+  let si=parts.findIndex(p=>/^\d{3}/.test(p)||/^\d{2,3}[\/]/.test(p));if(si<0)si=1;
+  const model=parts.slice(0,si).join(' ')||parts[0];
+  const nums=parts.filter(p=>/^\d+p?$/i.test(p));const qty=nums.length?nums[nums.length-1]:'';
+  const spec=parts.slice(si,parts.length-(nums.length?1:0)).join(' ');
+  return{model:model.toUpperCase(),spec:spec||base,qty,purpose};
+}
+function isTL(line){
+  if(!line||line.length<4)return false;if(/^[-=\[\(（]/.test(line))return false;
+  if(/^(받아오기|거래처|물류차|매일|황제|한국타이어|넥센|한국|한타|극동|양주|퇴계원|재고\s*주문|@)/.test(line))return false;
+  return/[A-Za-z가-힣][A-Za-z0-9가-힣\s\+\-]*[\s\/]\d{2,3}[\s\/]\d{2}/.test(line)||/\d{3}[\s\/]\d{2}[\s\/]?\d{2}/.test(line);
+}
+function TK(line){return line.toLowerCase().replace(/\s+/g,' ').trim().split(' ').slice(0,5).join(' ');}
 
-function groupByDate(messages) {
-  const map = new Map();
-  messages.forEach(m => {
-    const ds = toDateStr(m.created_at);
-    if (!map.has(ds)) map.set(ds, []);
-    map.get(ds).push(m);
+/* 관리자 */
+function populateAdminSelects(){
+  ['del-room-sel','del-room-all-sel'].forEach(id=>{
+    const s=document.getElementById(id);
+    s.innerHTML='<option value="">방 선택...</option>'+rooms.map(r=>`<option value="${r.id}">${r.name}</option>`).join('');
   });
-  return map;
 }
-
-/* ─── 패턴 파싱 ─── */
-function parsePatternInto(allLines, B) {
-  let zone = 'recv', sub2 = 'recv_maeil';
-  for (const line of allLines) {
-    if (/받아오기/.test(line) && !isTireLine(line)) { zone = 'recv'; sub2 = 'recv_maeil'; continue; }
-    if (/거래처\s*발주|발주/.test(line) && !isTireLine(line)) { zone = 'order'; sub2 = 'order_maeil'; continue; }
-    if (/물류차\s*입고/.test(line) && !isTireLine(line)) { zone = 'arr'; sub2 = 'arr_hankook'; continue; }
-
-    if (zone === 'recv') {
-      if (/양주\s*SFP/i.test(line)) { sub2 = 'recv_yangju'; continue; }
-      if (/황제/.test(line) && !isTireLine(line)) { sub2 = 'recv_hwangje'; continue; }
-      if (/퇴계원/.test(line) && !isTireLine(line)) { sub2 = 'recv_toekyewon'; continue; }
-      if (/매일\s*(오후|타이어|받아오기)|\[매일\s*오후\]/i.test(line)) { sub2 = 'recv_maeil'; continue; }
-    }
-    if (zone === 'order') {
-      if (/매일\s*오전|\[매일\s*오전\]/i.test(line)) { sub2 = 'order_maeil'; continue; }
-      if (/\[넥센\]|넥센\s*주문/i.test(line)) { sub2 = 'order_nexen'; continue; }
-      if (/한타\s*주문|\[한타/i.test(line)) { sub2 = 'order_hanta'; continue; }
-      if (/\[극동\]|극동/i.test(line)) { sub2 = 'order_geukdong'; continue; }
-    }
-    if (zone === 'arr') {
-      if (/^\[한국\]$/.test(line)) { sub2 = 'arr_hankook'; continue; }
-      if (/^\[넥센\]$/.test(line)) { sub2 = 'arr_nexen'; continue; }
-    }
-    if (/^[-=]{3,}$/.test(line)) continue;
-    if (B[sub2] && isTireLine(line)) {
-      const parsed = parseTireLine(line);
-      const k = tireKey(line);
-      if (!B[sub2].has(k)) B[sub2].set(k, parsed);
-    }
-  }
+async function loadAdminDates(){
+  const roomId=document.getElementById('del-room-sel').value;
+  const sel=document.getElementById('del-date-sel');
+  sel.innerHTML='<option value="">날짜 선택...</option>';
+  if(!roomId)return;
+  const{data}=await sb.from('messages').select('created_at').eq('room_id',roomId).order('created_at',{ascending:true});
+  if(!data?.length)return;
+  const ds=[...new Set(data.map(m=>toDateStr(m.created_at)))].sort();
+  ds.forEach(d=>{
+    const opt=document.createElement('option');opt.value=d;
+    opt.textContent=new Date(d+'T00:00:00+09:00').toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'})+` (${d})`;
+    sel.appendChild(opt);
+  });
+  adminLog(`날짜 목록 로드: ${ds.length}개`);
 }
-
-function parseTireLine(line) {
-  // 괄호 안 추출
-  const purposeMatch = line.match(/\(([^)]+)\)/g);
-  const purpose = purposeMatch ? purposeMatch.map(p => p.slice(1,-1)).join(', ') : '미기입';
-  // 괄호 제거
-  const base = line.replace(/\([^)]*\)/g, '').trim();
-  // 모델명 (첫 토큰들)
-  const parts = base.split(/\s+/);
-  // 숫자 패턴 찾기 (규격 시작)
-  let specStart = parts.findIndex(p => /^\d{3}/.test(p) || /^\d{2,3}[\/]/.test(p));
-  if (specStart < 0) specStart = 1;
-  const model = parts.slice(0, specStart).join(' ') || parts[0];
-  // 수량: 보통 마지막 순수 숫자
-  const nums = parts.filter(p => /^\d+p?$/i.test(p));
-  const qty = nums.length ? nums[nums.length - 1] : '';
-  // 규격: 숫자~수량 전
-  const specParts = parts.slice(specStart);
-  const spec = specParts.slice(0, specParts.length - (nums.length ? 1 : 0)).join(' ');
-
-  return { model: model.toUpperCase(), spec: spec || base, qty, purpose };
+async function deleteByDate(){
+  const roomId=document.getElementById('del-room-sel').value;
+  const dv=document.getElementById('del-date-sel').value;
+  if(!roomId){alert('방을 선택하세요');return;}if(!dv){alert('날짜를 선택하세요');return;}
+  const room=rooms.find(r=>r.id===roomId);
+  if(!confirm(`⚠️ [${room?.name}] ${dv} 날짜의 모든 메시지를 삭제하시겠습니까?\n되돌릴 수 없습니다.`))return;
+  const{start,end}=dateToUTCRange(dv);
+  const{error}=await sb.from('messages').delete().eq('room_id',roomId).gte('created_at',start).lte('created_at',end);
+  if(error){alert('삭제 오류: '+error.message);return;}
+  adminLog(`✓ 삭제 완료: [${room?.name}] ${dv}`);
+  if(curRoom?.id===roomId)await loadMsgs();await loadAdminDates();
 }
-
-function isTireLine(line) {
-  if (!line || line.length < 4) return false;
-  if (/^[-=\[\(（]/.test(line)) return false;
-  if (/^(받아오기|거래처|물류차|매일|황제|한국타이어|넥센|한국|한타|극동|양주|퇴계원|재고\s*주문|@)/.test(line)) return false;
-  return /[A-Za-z가-힣][A-Za-z0-9가-힣\s\+\-]*[\s\/]\d{2,3}[\s\/]\d{2}/.test(line) ||
-         /\d{3}[\s\/]\d{2}[\s\/]?\d{2}/.test(line);
+async function deleteAllInRoom(){
+  const roomId=document.getElementById('del-room-all-sel').value;
+  if(!roomId){alert('방을 선택하세요');return;}
+  const room=rooms.find(r=>r.id===roomId);
+  if(!confirm(`⚠️ [${room?.name}] 방의 모든 메시지를 완전히 삭제하시겠습니까?\n이 작업은 절대 되돌릴 수 없습니다.`))return;
+  const confirmed=prompt(`확인을 위해 방 이름을 정확히 입력하세요:\n${room?.name}`);
+  if(confirmed!==room?.name){alert('방 이름이 일치하지 않아 취소됩니다.');return;}
+  const{error}=await sb.from('messages').delete().eq('room_id',roomId);
+  if(error){alert('삭제 오류: '+error.message);return;}
+  adminLog(`💥 전체 삭제 완료: [${room?.name}]`);
+  if(curRoom?.id===roomId)await loadMsgs();
 }
-function tireKey(line) {
-  return line.toLowerCase().replace(/\s+/g,' ').trim().split(' ').slice(0,5).join(' ');
-}
+function adminLog(msg){document.getElementById('admin-log').textContent=msg;}
+function openAdmin(){if(me?.name!==ADMIN_NAME){alert('관리자만 접근 가능합니다');return;}document.getElementById('admin-overlay').classList.add('on');}
+function closeAdmin(){document.getElementById('admin-overlay').classList.remove('on');}
 
-/* ═══════════════════════════════════
-   설정 모달
-═══════════════════════════════════ */
-function openSettings() {
-  const key = localStorage.getItem('tg_claude_key') || '';
-  document.getElementById('api-key-inp').value = key;
-  const mv = document.getElementById('cur-mode-txt');
-  const cb = document.getElementById('clear-btn');
-  if (key) { mv.textContent = 'Claude AI (등록됨)'; cb.style.display = 'block'; }
-  else { mv.textContent = '패턴 자동 정리 (무료)'; cb.style.display = 'none'; }
+/* 설정 */
+function openSettings(){
+  const key=localStorage.getItem('tg_claude_key')||'';document.getElementById('api-key-inp').value=key;
+  const mv=document.getElementById('cur-mode-txt'),cb=document.getElementById('clear-btn');
+  if(key){mv.textContent='Claude AI (등록됨)';cb.style.display='block';}
+  else{mv.textContent='패턴 자동 정리 (무료)';cb.style.display='none';}
   document.getElementById('settings-overlay').classList.add('on');
 }
-function closeSettings() { document.getElementById('settings-overlay').classList.remove('on'); }
-function saveKey() {
-  const k = document.getElementById('api-key-inp').value.trim();
-  if (k) localStorage.setItem('tg_claude_key', k);
-  else localStorage.removeItem('tg_claude_key');
-  closeSettings();
-}
-function clearKey() {
-  if (confirm('API 키를 삭제하고 패턴 모드로 돌아갈까요?')) {
-    localStorage.removeItem('tg_claude_key');
-    closeSettings();
-  }
-}
+function closeSettings(){document.getElementById('settings-overlay').classList.remove('on');}
+function saveKey(){const k=document.getElementById('api-key-inp').value.trim();if(k)localStorage.setItem('tg_claude_key',k);else localStorage.removeItem('tg_claude_key');closeSettings();}
+function clearKey(){if(confirm('API 키를 삭제하고 패턴 모드로 돌아갈까요?')){localStorage.removeItem('tg_claude_key');closeSettings();}}
 
-/* ═══════════════════════════════════
-   초기화
-═══════════════════════════════════ */
-document.getElementById('inp-pw').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
-const _saved = localStorage.getItem('tg_me');
-if (_saved) { try { me = JSON.parse(_saved); bootApp(); } catch { localStorage.removeItem('tg_me'); } }
-</script>
+document.getElementById('inp-pw').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
+const _saved=localStorage.getItem('tg_me');
+if(_saved){try{me=JSON.parse(_saved);bootApp();}catch{localStorage.removeItem('tg_me');}}
+<\/script>
 </body>
 </html>
