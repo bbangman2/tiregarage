@@ -407,7 +407,7 @@ function getSelectedRange(){const f=document.getElementById('date-from').value;r
 
 async function loadMsgs(){
   document.getElementById('msgs').innerHTML='<div class="empty-state"><span>⏳</span><span>불러오는 중...</span></div>';
-  const{data}=await sb.from('messages').select('*').eq('room_id',curRoom.id).order('created_at',{ascending:true}).limit(500);
+  const{data}=await sb.from('messages').select('*').eq('room_id',curRoom.id).order('created_at',{ascending:true}).gte('created_at', new Date(document.getElementById('date-from').value+'T00:00:00+09:00').toISOString()).lte('created_at', new Date((rangeMode?document.getElementById('date-to').value:document.getElementById('date-from').value)+'T23:59:59+09:00').toISOString()).limit(1000);
   msgs=data||[];renderMsgs();
 }
 function renderMsgs(){
