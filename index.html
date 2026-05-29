@@ -708,50 +708,66 @@ async function runPattern(from,to){
   await postAI(JSON.stringify({__type:'tire_summary',dateLabel:dateLabel,sections:sections,note:''}));
 }
 function parsePatternInto(taggedLines,B){
-  var zone='recv',sub='recv_maeil';
+  var sub='recv_maeil';
+
+  // 섹션 이름 → 키 매핑
+  function detectSection(line){
+    var clean=line.replace(/^\s*\d+\.\s*/,'').trim(); // 앞 숫자. 제거
+    clean=clean.replace(/^[\[\(（]+/,'').replace(/[\]\)）]+$/,'').trim(); // 괄호 제거
+    var l=clean.toLowerCase().replace(/\s+/g,'');
+    if(/매일오후|매일타이어|매일받아오기/.test(l))return'recv_maeil';
+    if(/양주sfp|sfp|양주/.test(l))return'recv_yangju';
+    if(/황제/.test(l))return'recv_hwangje';
+    if(/퇴계원/.test(l))return'recv_toekyewon';
+    if(/매일오전/.test(l))return'order_maeil';
+    if(/넥센주문|넥센발주/.test(l))return'order_nexen';
+    if(/한타주문|한타/.test(l))return'order_hanta';
+    if(/극동/.test(l))return'order_geukdong';
+    if(/한국/.test(l))return'arr_hankook';
+    if(/^넥센$/.test(l))return'arr_nexen';
+    if(/매일$/.test(l))return'recv_maeil';
+    // [넥센] 이 물류차 입고 구간이면 arr_nexen, 발주 구간이면 order_nexen
+    // 위치 기반으로 판단 어려우므로 현재 sub 기준
+    if(/넥센/.test(l)){
+      if(/arr/.test(sub))return'arr_nexen';
+      return'order_nexen';
+    }
+    return null;
+  }
+
+  // 섹션 헤더 판단: [단어] 형식 또는 숫자. [단어] 형식
+  function isSectionHeader(line){
+    if(isTL(line))return false;
+    // 숫자. [단어] 형식
+    if(/^\d+\.\s*[\[（]/.test(line))return true;
+    // [단어] 단독 (짧은 라인)
+    if(/^[\[（][가-힣A-Za-z\s]+[\]）]$/.test(line.trim()))return true;
+    // 양주SFP, SFP 단독
+    if(/^(양주\s*SFP|SFP)$/i.test(line.trim()))return true;
+    // (양주SFP) 형식
+    if(/^\(양주\s*SFP\)$/i.test(line.trim()))return true;
+    // ----받아오기---- 등 대시로 감싼 헤더
+    if(/^-{2,}[가-힣\s]+-{2,}$/.test(line))return true;
+    return false;
+  }
 
   taggedLines.forEach(function(item){
     var line=item.line||item;
     var user=item.user||'';
 
-    // 섹션 헤더 감지 (다양한 형식 처리)
-    var clean=line.replace(/^[-\s\[\(（]+/,'').replace(/[-\s\]\)）]+$/,'').trim();
-
-    // 받아오기 섹션
-    if(/^-*받아오기-*$/.test(clean)||/^-+받아오기-+/.test(line)){zone='recv';sub='recv_maeil';return;}
-    // 거래처 발주
-    if(/^-*거래처\s*발주-*$/.test(clean)||/^-+거래처\s*발주-+/.test(line)){zone='order';sub='order_maeil';return;}
-    // 물류차 입고
-    if(/^-*물류차\s*입고-*$/.test(clean)||/^-+물류차\s*입고-+/.test(line)){zone='arr';sub='arr_hankook';return;}
-    // 창고출고
-    if(/창고\s*출고/.test(line)){zone='arr';sub='arr_hankook';return;}
-    // 토요일/특수 입고
-    if(/토요일\s*입고|특수\s*입고/.test(line)){return;}
-    // 구분선
+    // 구분선, 날짜, @멘션 스킵
     if(/^[-=]{3,}$/.test(line))return;
-    // 날짜 표기 (5/11 등)
-    if(/^\d+\/\d+/.test(line)&&line.length<15)return;
-    // @멘션만
+    if(/^\d+\/\d+$/.test(line.trim())&&line.length<15)return;
     if(/^@/.test(line))return;
+    if(/토요일\s*입고|특수\s*입고|-토요일/.test(line))return;
+    if(/님이\s*(나갔|들어왔)/.test(line))return;
+    if(/^(확인|네|감사|수고|넵|ㅎ|ㅋ)/.test(line))return;
 
-    if(zone==='recv'){
-      // 양주SFP - 괄호 포함 다양한 형식
-      if(/양주\s*SFP/i.test(line)&&!isTL(line)){sub='recv_yangju';return;}
-      if(/^\(양주SFP\)$/i.test(line.trim())){sub='recv_yangju';return;}
-      if(/^\d*\.\s*\[?황제\]?$/.test(clean)){sub='recv_hwangje';return;}
-      if(/^\d*\.\s*\[?퇴계원\]?$/.test(clean)){sub='recv_toekyewon';return;}
-      if(/^\d*\.\s*\[?매일/.test(line)&&!isTL(line)){sub='recv_maeil';return;}
-      if(/^SFP$/i.test(clean)){sub='recv_yangju';return;}
-    }
-    if(zone==='order'){
-      if(/^\d*\.\s*\[?매일\s*오전/.test(line)&&!isTL(line)){sub='order_maeil';return;}
-      if(/^\d*\.\s*\[?넥센/.test(line)&&!isTL(line)){sub='order_nexen';return;}
-      if(/^\d*\.\s*\[?한타/.test(line)&&!isTL(line)){sub='order_hanta';return;}
-      if(/^\d*\.\s*\[?극동/.test(line)&&!isTL(line)){sub='order_geukdong';return;}
-    }
-    if(zone==='arr'){
-      if(/^\[?한국\]?$/.test(clean)){sub='arr_hankook';return;}
-      if(/^\[?넥센\]?$/.test(clean)){sub='arr_nexen';return;}
+    // 섹션 헤더 감지
+    if(isSectionHeader(line)){
+      var detected=detectSection(line);
+      if(detected)sub=detected;
+      return;
     }
 
     // 타이어 라인 처리
@@ -760,15 +776,13 @@ function parsePatternInto(taggedLines,B){
       parsed.user=user;
       var k=(parsed.model+' '+parsed.spec).toLowerCase().trim();
       if(parsed.spec&&parsed.qty){
-        // 용도 있는 것 우선, 없으면 최신 것
         var existing=B[sub].get(k);
         if(!existing||parsed.purpose!=='미기입'||existing.purpose==='미기입'){
           B[sub].set(k,parsed);
         }
       } else {
-        // 규격/수량 불명확 → unknown
-        var existing2=B.unknown.get(k||line);
-        if(!existing2)B.unknown.set(k||line,parsed);
+        var uk=k||line;
+        if(!B.unknown.has(uk))B.unknown.set(uk,parsed);
       }
     }
   });
