@@ -767,10 +767,11 @@ function PTL(line){
   line=line.replace(/([A-Za-z0-9가-힣])\)\s/g,'$1 ').trim();
 
   // 화살표 수량변경 처리 ex) 1 -> 5 → 최종수량 5만 남기고 앞 제거
-  line=line.replace(/\d+\s*->\s*(\d+)/g,'$1');
+  line=line.replace(/\d+\s*->\s*(\d+)/g,'$1').replace(/->/g,'');
   // 숫자+한글 붙어있는 경우 분리 ex) 2핑택배 → 2 핑택배
   // 단, 핑택배1처럼 용도+숫자는 분리하지 않음 (한글 뒤 숫자는 그대로)
-  line=line.replace(/(\d+)([가-힣])(?![\d])/g,'$1 $2');
+  // 년/월/일/개/본 앞 숫자는 분리하지 않음
+  line=line.replace(/(\d+)([가-힣])(?![\d])/g,function(m,n,k){return/^(년|월|일|개|본|p|P)$/.test(k)?m:n+' '+k;});
   // 쉼표 뒤 내용은 용도로 분리 ex) 9 핑택배1, 재고 8
   var commaPurpose='';
   var commaIdx=line.indexOf(',');
