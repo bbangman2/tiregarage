@@ -766,46 +766,47 @@ function PTL(line){
   // 불완전 괄호 제거 ex) DU05) → DU05
   line=line.replace(/([A-Za-z0-9가-힣])\)\s/g,'$1 ').trim();
 
-  // 타이어 폭 범위
-  var WIDTHS=/^(1[2-9]\d|2\d{2}|3[0-2]\d|500|550|600|650)$/;
-
+  // 숫자+한글 붙어있는 경우 분리 ex) 2핑택배 → 2 핑택배, 4개 → 4 개
+  line=line.replace(/(\d+)([가-힣핑])/g,'$1 $2');
   var tokens=line.split(/\s+/).filter(function(t){return t.length>0;});
+  if(!tokens.length)return{model:'',spec:'',qty:'',purpose:'미기입'};
 
-  // 규격 시작 위치
-  var specStart=-1;
+  // 1. 첫 번째 숫자 덩어리 위치 찾기 (모델 끝)
+  var firstNumIdx=-1;
   for(var i=0;i<tokens.length;i++){
-    if(WIDTHS.test(tokens[i])||/^\d{3,4}[\/R]/.test(tokens[i])){specStart=i;break;}
+    if(/^\d/.test(tokens[i])){firstNumIdx=i;break;}
   }
-  if(specStart<0)specStart=1;
+  if(firstNumIdx<0)return{model:tokens.join(' '),spec:'',qty:'',purpose:'미기입'};
 
-  // 수량: 규격 이후 첫 번째 순수 숫자 또는 숫자+개/본
-  // 수량: specStart 이후에서 뒤에서부터 마지막 순수 숫자
-  var qty='',qtyIdx=-1;
-  for(var i=tokens.length-1;i>specStart;i--){
-    if(/^\d+$/.test(tokens[i])){qty=tokens[i];qtyIdx=i;break;}
-    if(/^\d+(개|본)$/.test(tokens[i])){qty=tokens[i].replace(/[개본]/,'');qtyIdx=i;break;}
+  // 2. 모델: 첫 숫자 전까지
+  var model=tokens.slice(0,firstNumIdx).join(' ').replace(/\)$/,'').trim();
+
+  // 3. 마지막 순수 숫자 위치 찾기 (수량)
+  var lastNumIdx=-1;
+  for(var i=tokens.length-1;i>=firstNumIdx;i--){
+    if(/^\d+$/.test(tokens[i])||/^\d+(개|본)$/.test(tokens[i])){lastNumIdx=i;break;}
   }
+  if(lastNumIdx<0)lastNumIdx=firstNumIdx;
 
-  // 모델: 규격 시작 전
-  var model=tokens.slice(0,specStart).join(' ').replace(/\)$/,'').trim();
-
-  // 규격: specStart ~ qtyIdx
-  var specEnd=qtyIdx>=0?qtyIdx:tokens.length;
-  var spec=tokens.slice(specStart,specEnd).join(' ');
-
-  // 규격 표준화
-  spec=spec.replace(/^(\d{3,4})\s+(\d{2,3})\s+(\d{2})\b/,'$1/$2R$3');
-  spec=spec.replace(/(\d{3,4})\/(\d{2,3})\s+R?\s*(\d{2})\b/,'$1/$2R$3');
-
-  // 용도: 수량 이후 나머지 전부 원문 그대로
-  var purposeTokens=qtyIdx>=0?tokens.slice(qtyIdx+1):[];
-  var purpose=purposeTokens.join(' ').trim()||prefixPurpose||'미기입';
-
-  if(!model&&tokens.length>0)model=tokens[0];
-  var isCode=/^[A-Za-z0-9+\-\s]+$/.test(model.trim());
-  var modelFinal=isCode?model.toUpperCase():model;
-
-  return{model:modelFinal,spec:spec.trim(),qty:qty,purpose:purpose};
+  // 4. 규격: 첫 숫자 ~ 마지막 숫자 (포함)
+  var qty='';
+  if(lastNumIdx>firstNumIdx){
+    qty=tokens[lastNumIdx].replace(/[개본]/,'');
+    var spec=tokens.slice(firstNumIdx,lastNumIdx).join(' ');
+    // 규격 표준화 NNN NN NN → NNN/NNRnn
+    spec=spec.replace(/^(\d{3,4})\s+(\d{2,3})\s+(\d{2})\b/,'$1/$2R$3');
+    spec=spec.replace(/(\d{3,4})\/(\d{2,3})\s+R?\s*(\d{2})\b/,'$1/$2R$3');
+    var purpose=tokens.slice(lastNumIdx+1).join(' ').trim()||prefixPurpose||'미기입';
+    if(!purpose)purpose='미기입';
+    if(!model)model=tokens[0];
+    var isCode=/^[A-Za-z0-9+\-\s]+$/.test(model.trim());
+    return{model:isCode?model.toUpperCase():model,spec:spec,qty:qty,purpose:purpose};
+  } else {
+    // 숫자가 하나뿐 → 수량만 있거나 규격 첫 번째
+    var purpose=tokens.slice(lastNumIdx+1).join(' ').trim()||prefixPurpose||'미기입';
+    var isCode=/^[A-Za-z0-9+\-\s]+$/.test(model.trim());
+    return{model:isCode?model.toUpperCase():model,spec:tokens[firstNumIdx],qty:'',purpose:purpose||'미기입'};
+  }
 }
 function isTL(line){
   line=(line||'').trim();
