@@ -707,10 +707,7 @@ async function runPattern(from,to){
 
   await postAI(JSON.stringify({__type:'tire_summary',dateLabel:dateLabel,sections:sections,note:''}));
 }
-function parsePatternInto(taggedLines,B){
-  var sub='recv_maeil';
-
-  function detectSection(line){
+function detectSection(line){
     var hasNumber=/^\d+\./.test(line.trim()); // 숫자. 로 시작하는지
     var clean=line.replace(/^\s*\d+\.\s*/,'').trim();
     clean=clean.replace(/^[\[\(（]+/,'').replace(/[\]\)）]+$/,'').trim();
@@ -731,7 +728,7 @@ function parsePatternInto(taggedLines,B){
     return null;
   }
 
-  function isSectionHeader(line){
+function isSectionHeader(line){
     if(isTL(line))return false;
     // 숫자. 로 시작
     if(/^\d+\.\s*/.test(line.trim()))return true;
@@ -949,4 +946,64 @@ var _saved=localStorage.getItem('tg_me');
 if(_saved){try{me=JSON.parse(_saved);bootApp();}catch(e){localStorage.removeItem('tg_me');}}
 </script>
 </body>
-</html>
+</html>function detectSection(line){
+  var hasNumber=/^\d+\./.test(line.trim());
+  var clean=line.replace(/^\s*\d+\.\s*/,'').trim();
+  clean=clean.replace(/^[\[\(（]+/,'').replace(/[\]\)）]+$/,'').trim();
+  var l=clean.toLowerCase().replace(/\s+/g,'');
+  if(/매일오후|매일타이어|매일받아오기|^매일$/.test(l))return'recv_maeil';
+  if(/양주sfp|^sfp$/.test(l))return'recv_yangju';
+  if(/^황제$/.test(l))return'recv_hwangje';
+  if(/^퇴계원$/.test(l))return'recv_toekyewon';
+  if(/매일오전/.test(l))return'order_maeil';
+  if(/한타/.test(l))return'order_hanta';
+  if(/극동/.test(l))return'order_geukdong';
+  if(/^한국$/.test(l))return'arr_hankook';
+  if(/^넥센/.test(l))return hasNumber?'order_nexen':'arr_nexen';
+  return null;
+}
+function isSectionHeader(line){
+  if(isTL(line))return false;
+  if(/^\d+\.\s*/.test(line.trim()))return true;
+  if(/^[\[\(（][가-힣A-Za-z\s0-9]+[\]\)）]$/.test(line.trim()))return true;
+  if(/^[\(\[]?양주\s*SFP[\)\]]?$/i.test(line.trim()))return true;
+  if(/^[\(\[]?SFP[\)\]]?$/i.test(line.trim()))return true;
+  if(/^-{2,}[^-]+-{2,}$/.test(line.trim()))return true;
+  return false;
+}
+function parsePatternInto(taggedLines,B){
+  var sub='recv_maeil';
+  taggedLines.forEach(function(item){
+    var line=item.line||item;
+    var user=item.user||'';
+    if(/^[-=]{3,}$/.test(line.trim()))return;
+    if(/^\d+\/\d+$/.test(line.trim())&&line.trim().length<10)return;
+    if(/^@/.test(line.trim()))return;
+    if(/-토요일|-일요일/.test(line))return;
+    if(/님이\s*(나갔|들어왔)/.test(line))return;
+    if(isSectionHeader(line)){
+      var detected=detectSection(line);
+      if(detected)sub=detected;
+      return;
+    }
+    if(isTL(line)){
+      var parsed=PTL(line);
+      parsed.user=user;
+      var k=(parsed.model+' '+parsed.spec).toLowerCase().trim();
+      if(parsed.spec&&parsed.qty){
+        var existing=B[sub].get(k);
+        if(!existing||parsed.purpose!=='미기입'||existing.purpose==='미기입'){
+          B[sub].set(k,parsed);
+        }
+      } else {
+        var uk=line.trim();
+        if(!B.unknown.has(uk))B.unknown.set(uk,{model:line.trim(),spec:'',qty:'',purpose:'',user:user});
+      }
+    } else {
+      var uk2=line.trim();
+      if(uk2&&!B.unknown.has(uk2)){
+        B.unknown.set(uk2,{model:line.trim(),spec:'',qty:'',purpose:'원문',user:user});
+      }
+    }
+  });
+}
