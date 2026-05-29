@@ -766,8 +766,18 @@ function PTL(line){
   // 불완전 괄호 제거 ex) DU05) → DU05
   line=line.replace(/([A-Za-z0-9가-힣])\)\s/g,'$1 ').trim();
 
-  // 숫자+한글 붙어있는 경우 분리 ex) 2핑택배 → 2 핑택배, 4개 → 4 개
-  line=line.replace(/(\d+)([가-힣핑])/g,'$1 $2');
+  // 화살표 수량변경 처리 ex) 1 -> 5 → 최종수량 5만 남기고 앞 제거
+  line=line.replace(/\d+\s*->\s*(\d+)/g,'$1');
+  // 숫자+한글 붙어있는 경우 분리 ex) 2핑택배 → 2 핑택배
+  // 단, 핑택배1처럼 용도+숫자는 분리하지 않음 (한글 뒤 숫자는 그대로)
+  line=line.replace(/(\d+)([가-힣])(?![\d])/g,'$1 $2');
+  // 쉼표 뒤 내용은 용도로 분리 ex) 9 핑택배1, 재고 8
+  var commaPurpose='';
+  var commaIdx=line.indexOf(',');
+  if(commaIdx>0&&/\d/.test(line.slice(commaIdx+1))){
+    commaPurpose=line.slice(commaIdx+1).trim();
+    line=line.slice(0,commaIdx).trim();
+  }
   var tokens=line.split(/\s+/).filter(function(t){return t.length>0;});
   if(!tokens.length)return{model:'',spec:'',qty:'',purpose:'미기입'};
 
@@ -796,14 +806,14 @@ function PTL(line){
     // 규격 표준화 NNN NN NN → NNN/NNRnn
     spec=spec.replace(/^(\d{3,4})\s+(\d{2,3})\s+(\d{2})\b/,'$1/$2R$3');
     spec=spec.replace(/(\d{3,4})\/(\d{2,3})\s+R?\s*(\d{2})\b/,'$1/$2R$3');
-    var purpose=tokens.slice(lastNumIdx+1).join(' ').trim()||prefixPurpose||'미기입';
+    var purposeParts=[tokens.slice(lastNumIdx+1).join(' ').trim(),commaPurpose,prefixPurpose].filter(Boolean);var purpose=purposeParts.join(', ')||'미기입';
     if(!purpose)purpose='미기입';
     if(!model)model=tokens[0];
     var isCode=/^[A-Za-z0-9+\-\s]+$/.test(model.trim());
     return{model:isCode?model.toUpperCase():model,spec:spec,qty:qty,purpose:purpose};
   } else {
     // 숫자가 하나뿐 → 수량만 있거나 규격 첫 번째
-    var purpose=tokens.slice(lastNumIdx+1).join(' ').trim()||prefixPurpose||'미기입';
+    var purposeParts=[tokens.slice(lastNumIdx+1).join(' ').trim(),commaPurpose,prefixPurpose].filter(Boolean);var purpose=purposeParts.join(', ')||'미기입';
     var isCode=/^[A-Za-z0-9+\-\s]+$/.test(model.trim());
     return{model:isCode?model.toUpperCase():model,spec:tokens[firstNumIdx],qty:'',purpose:purpose||'미기입'};
   }
