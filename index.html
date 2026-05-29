@@ -764,7 +764,7 @@ function PTL(line){
   var prefixPurpose='';
   line=line.replace(/^\(([^)]+)\)\s*/,function(m,p){prefixPurpose=p.trim();return'';}).trim();
   // 불완전 괄호 제거 ex) DU05) → DU05
-  line=line.replace(/([A-Za-z0-9가-힣])\)\s/g,'$1 ').trim();
+  // 괄호 불완전해도 원문 유지 - 용도로 통째로 넘김
 
   // 화살표 수량변경 처리 ex) 1 -> 5 → 최종수량 5만 남기고 앞 제거
   line=line.replace(/\d+\s*->\s*(\d+)/g,'$1').replace(/->/g,'');
