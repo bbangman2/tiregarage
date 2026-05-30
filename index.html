@@ -853,9 +853,7 @@ function PTL(line){
   if(lastNumIdx>firstNumIdx){
     qty=tokens[lastNumIdx].replace(/[개본]/,'');
     var spec=tokens.slice(firstNumIdx,lastNumIdx).join(' ');
-    // 규격 표준화 NNN NN NN → NNN/NNRnn
-    spec=spec.replace(/^(\d{3,4})\s+(\d{2,3})\s+(\d{2})\b/,'$1/$2R$3');
-    spec=spec.replace(/(\d{3,4})\/(\d{2,3})\s+R?\s*(\d{2})\b/,'$1/$2R$3');
+    // 규격은 원문 띄어쓰기 그대로 유지 (변환 안 함)
     var purposeParts=[tokens.slice(lastNumIdx+1).join(' ').trim(),commaPurpose,prefixPurpose].filter(Boolean);var purpose=purposeParts.join(', ')||'미기입';
     if(!purpose)purpose='미기입';
     if(!model)model=tokens[0];
