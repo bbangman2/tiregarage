@@ -727,57 +727,45 @@ function detectSection(line){
     }
     return null;
   }
-
 function isSectionHeader(line){
-    if(isTL(line))return false;
-    // 숫자. 로 시작
-    if(/^\d+\.\s*/.test(line.trim()))return true;
-    // [단어] 단독
-    if(/^[\[\(（][가-힣A-Za-z\s0-9]+[\]\)）]$/.test(line.trim()))return true;
-    // 양주SFP, SFP 단독 또는 괄호
-    if(/^[\(\[]?양주\s*SFP[\)\]]?$/i.test(line.trim()))return true;
-    if(/^[\(\[]?SFP[\)\]]?$/i.test(line.trim()))return true;
-    // ----텍스트---- 형식
-    if(/^-{2,}[^-]+-{2,}$/.test(line.trim()))return true;
-    return false;
-  }
-
+  if(isTL(line))return false;
+  if(/^\d+\.\s*/.test(line.trim()))return true;
+  if(/^[\[\(（][가-힣A-Za-z\s0-9]+[\]\)）]$/.test(line.trim()))return true;
+  if(/^[\(\[]?양주\s*SFP[\)\]]?$/i.test(line.trim()))return true;
+  if(/^[\(\[]?SFP[\)\]]?$/i.test(line.trim()))return true;
+  if(/^-{2,}[^-]+-{2,}$/.test(line.trim()))return true;
+  return false;
+}
+function parsePatternInto(taggedLines,B){
+  var sub='recv_maeil';
   taggedLines.forEach(function(item){
     var line=item.line||item;
     var user=item.user||'';
-
-    // 무조건 스킵
     if(/^[-=]{3,}$/.test(line.trim()))return;
     if(/^\d+\/\d+$/.test(line.trim())&&line.trim().length<10)return;
     if(/^@/.test(line.trim()))return;
-    if(/-토요일|-일요일|-토요일\s*입고/.test(line))return;
+    if(/-토요일|-일요일/.test(line))return;
     if(/님이\s*(나갔|들어왔)/.test(line))return;
-
-    // 섹션 헤더 감지
     if(isSectionHeader(line)){
       var detected=detectSection(line);
-      if(detected){sub=detected;}
-      // detected 없어도 헤더니까 return (타이어 아님)
+      if(detected)sub=detected;
       return;
     }
-
-    // 타이어 라인이면 파싱
     if(isTL(line)){
       var parsed=PTL(line);
       parsed.user=user;
       var k=(parsed.model+' '+parsed.spec).toLowerCase().trim();
-      if(parsed.spec&&parsed.qty){
+      if(parsed.noModel||!parsed.spec||!parsed.qty){
+        // 모델 없거나 규격/수량 불명확 → 확인필요에 원문 그대로
+        var uk=line.trim();
+        if(!B.unknown.has(uk))B.unknown.set(uk,{model:line.trim(),spec:'',qty:'',purpose:'원문',user:user});
+      } else {
         var existing=B[sub].get(k);
         if(!existing||parsed.purpose!=='미기입'||existing.purpose==='미기입'){
           B[sub].set(k,parsed);
         }
-      } else {
-        // 규격/수량 불명확 → unknown에 원문 그대로
-        var uk=line.trim();
-        if(!B.unknown.has(uk))B.unknown.set(uk,{model:line.trim(),spec:'',qty:'',purpose:'',user:user});
       }
     } else {
-      // 타이어도 헤더도 아닌 것 → 전부 확인 필요로
       var uk2=line.trim();
       if(uk2&&!B.unknown.has(uk2)){
         B.unknown.set(uk2,{model:line.trim(),spec:'',qty:'',purpose:'원문',user:user});
@@ -785,6 +773,7 @@ function isSectionHeader(line){
     }
   });
 }
+
 function PTL(line){
   // 앞에 붙은 괄호 용도 ex) (택배)IH01
   var prefixPurpose='';
@@ -795,9 +784,8 @@ function PTL(line){
   // 화살표 수량변경 처리 ex) 1 -> 5 → 최종수량 5만 남기고 앞 제거
   line=line.replace(/\d+\s*->\s*(\d+)/g,'$1').replace(/->/g,'');
   // 숫자+한글 붙어있는 경우 분리 ex) 2핑택배 → 2 핑택배
-  // 단, 핑택배1처럼 용도+숫자는 분리하지 않음 (한글 뒤 숫자는 그대로)
-  // 년/월/일/개/본 앞 숫자는 분리하지 않음
-  line=line.replace(/(\d+)([가-힣])(?![\d])/g,function(m,n,k){return/^(년|월|일|개|본|p|P)$/.test(k)?m:n+' '+k;});
+  // 숫자+용도키워드 붙은 경우만 분리 ex) 2핑택배 → 2 핑택배 (11번가는 유지)
+  line=line.replace(/(\d+)(핑|택배|직배송|재고|장착|스팜)/g,'$1 $2');
   // 쉼표 뒤 내용은 용도로 분리 ex) 9 핑택배1, 재고 8
   var commaPurpose='';
   var commaIdx=line.indexOf(',');
@@ -813,10 +801,12 @@ function PTL(line){
   for(var i=0;i<tokens.length;i++){
     if(/^\d/.test(tokens[i])){firstNumIdx=i;break;}
   }
-  if(firstNumIdx<0)return{model:tokens.join(' '),spec:'',qty:'',purpose:'미기입'};
+  if(firstNumIdx<0)return{model:tokens.join(' '),spec:'',qty:'',purpose:'미기입',noModel:true};
+  // 첫 토큰이 숫자면 모델명 없음 → 확인필요로
+  if(firstNumIdx===0)return{model:'',spec:'',qty:'',purpose:'미기입',noModel:true};
 
-  // 2. 모델: 첫 숫자 전까지
-  var model=tokens.slice(0,firstNumIdx).join(' ').replace(/\)$/,'').trim();
+  // 2. 모델: 첫 숫자 전까지 (괄호 유지)
+  var model=tokens.slice(0,firstNumIdx).join(' ').trim();
 
   // 3. 마지막 순수 숫자 위치 찾기 (수량)
   var lastNumIdx=-1;
@@ -836,12 +826,12 @@ function PTL(line){
     var purposeParts=[tokens.slice(lastNumIdx+1).join(' ').trim(),commaPurpose,prefixPurpose].filter(Boolean);var purpose=purposeParts.join(', ')||'미기입';
     if(!purpose)purpose='미기입';
     if(!model)model=tokens[0];
-    var isCode=/^[A-Za-z0-9+\-\s]+$/.test(model.trim());
+    var isCode=/^[A-Za-z0-9+\-\s\(\)]+$/.test(model.trim());
     return{model:isCode?model.toUpperCase():model,spec:spec,qty:qty,purpose:purpose};
   } else {
     // 숫자가 하나뿐 → 수량만 있거나 규격 첫 번째
     var purposeParts=[tokens.slice(lastNumIdx+1).join(' ').trim(),commaPurpose,prefixPurpose].filter(Boolean);var purpose=purposeParts.join(', ')||'미기입';
-    var isCode=/^[A-Za-z0-9+\-\s]+$/.test(model.trim());
+    var isCode=/^[A-Za-z0-9+\-\s\(\)]+$/.test(model.trim());
     return{model:isCode?model.toUpperCase():model,spec:tokens[firstNumIdx],qty:'',purpose:purpose||'미기입'};
   }
 }
@@ -946,64 +936,4 @@ var _saved=localStorage.getItem('tg_me');
 if(_saved){try{me=JSON.parse(_saved);bootApp();}catch(e){localStorage.removeItem('tg_me');}}
 </script>
 </body>
-</html>function detectSection(line){
-  var hasNumber=/^\d+\./.test(line.trim());
-  var clean=line.replace(/^\s*\d+\.\s*/,'').trim();
-  clean=clean.replace(/^[\[\(（]+/,'').replace(/[\]\)）]+$/,'').trim();
-  var l=clean.toLowerCase().replace(/\s+/g,'');
-  if(/매일오후|매일타이어|매일받아오기|^매일$/.test(l))return'recv_maeil';
-  if(/양주sfp|^sfp$/.test(l))return'recv_yangju';
-  if(/^황제$/.test(l))return'recv_hwangje';
-  if(/^퇴계원$/.test(l))return'recv_toekyewon';
-  if(/매일오전/.test(l))return'order_maeil';
-  if(/한타/.test(l))return'order_hanta';
-  if(/극동/.test(l))return'order_geukdong';
-  if(/^한국$/.test(l))return'arr_hankook';
-  if(/^넥센/.test(l))return hasNumber?'order_nexen':'arr_nexen';
-  return null;
-}
-function isSectionHeader(line){
-  if(isTL(line))return false;
-  if(/^\d+\.\s*/.test(line.trim()))return true;
-  if(/^[\[\(（][가-힣A-Za-z\s0-9]+[\]\)）]$/.test(line.trim()))return true;
-  if(/^[\(\[]?양주\s*SFP[\)\]]?$/i.test(line.trim()))return true;
-  if(/^[\(\[]?SFP[\)\]]?$/i.test(line.trim()))return true;
-  if(/^-{2,}[^-]+-{2,}$/.test(line.trim()))return true;
-  return false;
-}
-function parsePatternInto(taggedLines,B){
-  var sub='recv_maeil';
-  taggedLines.forEach(function(item){
-    var line=item.line||item;
-    var user=item.user||'';
-    if(/^[-=]{3,}$/.test(line.trim()))return;
-    if(/^\d+\/\d+$/.test(line.trim())&&line.trim().length<10)return;
-    if(/^@/.test(line.trim()))return;
-    if(/-토요일|-일요일/.test(line))return;
-    if(/님이\s*(나갔|들어왔)/.test(line))return;
-    if(isSectionHeader(line)){
-      var detected=detectSection(line);
-      if(detected)sub=detected;
-      return;
-    }
-    if(isTL(line)){
-      var parsed=PTL(line);
-      parsed.user=user;
-      var k=(parsed.model+' '+parsed.spec).toLowerCase().trim();
-      if(parsed.spec&&parsed.qty){
-        var existing=B[sub].get(k);
-        if(!existing||parsed.purpose!=='미기입'||existing.purpose==='미기입'){
-          B[sub].set(k,parsed);
-        }
-      } else {
-        var uk=line.trim();
-        if(!B.unknown.has(uk))B.unknown.set(uk,{model:line.trim(),spec:'',qty:'',purpose:'',user:user});
-      }
-    } else {
-      var uk2=line.trim();
-      if(uk2&&!B.unknown.has(uk2)){
-        B.unknown.set(uk2,{model:line.trim(),spec:'',qty:'',purpose:'원문',user:user});
-      }
-    }
-  });
-}
+</html>
