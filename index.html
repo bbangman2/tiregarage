@@ -1462,25 +1462,44 @@ async function confirmPaste(){
   SEG_IDS.forEach(function(id,pos){
     const input=document.getElementById(id);if(!input)return;
     const isSpec=(id==='i-spec');
+
+    // Backspace/Enter는 keydown으로 (모바일에서도 대체로 동작)
     input.addEventListener('keydown',function(e){
-      if(e.key===' '){
-        if(isSpec){
-          const v=input.value;
-          if(v.length>0&&v[v.length-1]===' '){e.preventDefault();input.value=v.replace(/\s+$/,'');updateFilled();segNext(SEG_IDS,pos);return;}
-          return;
-        }else{
-          e.preventDefault();
-          if(id==='i-src'&&input.value.trim()===''&&lastSrc){segNext(SEG_IDS,pos);return;}
-          if(input.value.trim()===''){return;}
-          segNext(SEG_IDS,pos);return;
-        }
-      }
       if(e.key==='Backspace'&&input.value===''){e.preventDefault();segPrev(SEG_IDS,pos);return;}
       if(e.key==='Enter'){e.preventDefault();addItemRow();return;}
     });
+
+    // 스페이스 칸이동은 input 이벤트로 감지 (모바일 IME 대응)
     input.addEventListener('input',function(){
+      const v=input.value;
+      if(isSpec){
+        // 규격칸: 끝에 스페이스 2개 연속 → 다음 칸 (1개는 띄어쓰기 허용)
+        if(/\s{2,}$/.test(v)){
+          input.value=v.replace(/\s+$/,'');
+          updateFilled();
+          document.getElementById('seg-row').classList.toggle('spec-active',input.value.length>0);
+          segNext(SEG_IDS,pos);
+          return;
+        }
+        document.getElementById('seg-row').classList.toggle('spec-active',input.value.length>0);
+      }else{
+        // 일반칸: 끝에 스페이스 1개 → 다음 칸 (단 내용 있을 때, 또는 출처칸+직전출처)
+        if(/\s$/.test(v)){
+          const trimmed=v.replace(/\s+$/,'');
+          if(trimmed===''){
+            // 빈 칸에서 스페이스: 출처칸이면 직전출처로 넘김, 아니면 무시
+            input.value='';
+            if(id==='i-src'&&lastSrc){segNext(SEG_IDS,pos);}
+            updateFilled();
+            return;
+          }
+          input.value=trimmed;
+          updateFilled();
+          segNext(SEG_IDS,pos);
+          return;
+        }
+      }
       updateFilled();
-      if(isSpec)document.getElementById('seg-row').classList.toggle('spec-active',input.value.length>0);
     });
   });
 })();
