@@ -1241,7 +1241,17 @@ function renderItemUser(){
     const rows=groups[who];
     html+='<div class="iby-user"><div class="iby-user-name">'+esc(who)+'<span class="cnt">'+rows.length+'건</span></div>';
     html+='<table class="itbl"><colgroup><col style="width:58px"><col style="width:62px"><col><col style="width:42px"><col></colgroup><thead><tr><th>출처</th><th>모델</th><th>규격</th><th class="qh">수량</th><th>용도</th></tr></thead><tbody>';
-    rows.forEach(function(it){html+='<tr class="'+(it.cancelled?'cancelled':'')+'"><td class="w">'+esc(it.src)+'</td><td class="m">'+esc(it.model)+'</td><td class="s">'+esc(it.spec)+'</td><td class="q">'+it.qty+'</td><td class="u">'+esc(it.use_note||'미기입')+'</td></tr>';});
+    rows.forEach(function(it){
+      let qtyDisp=String(it.qty);
+      if(it.cancel_qty>0)qtyDisp=it.qty+'<br><span style="color:#dc2626;font-size:9px">('+it.cancel_qty+' 취소)</span>';
+      html+='<tr class="'+(it.cancelled?'cancelled':'')+'"><td class="w">'+esc(it.src)+'</td><td class="m">'+esc(it.model)+'</td><td class="s">'+esc(it.spec)+'</td><td class="q">'+qtyDisp+'</td><td class="u">'+esc(it.use_note||'미기입')+'</td></tr>';
+      // 변동 이력 (취소/수정)이 있으면 아래 행에 표시
+      const logs=Array.isArray(it.logs)?it.logs:[];
+      if(logs.length){
+        const logHtml=logs.map(function(lg){return '<div class="icard-log '+(lg.type==='edit'?'edit':'')+'" style="font-size:9.5px">'+esc(lg.text)+'</div>';}).join('');
+        html+='<tr class="logrow"><td colspan="5" style="padding:2px 8px 6px;background:#fafaf8">'+logHtml+'</td></tr>';
+      }
+    });
     html+='</tbody></table></div>';
   });
   el.innerHTML=html;
