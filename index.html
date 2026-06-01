@@ -212,6 +212,18 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Noto Sa
 .item-tabs{display:flex;background:var(--card);border-bottom:1px solid var(--border);flex-shrink:0;overflow-x:auto}
 .item-tab{flex:1;padding:11px 6px;border:none;background:none;font-size:12px;font-weight:600;color:var(--text2);cursor:pointer;border-bottom:2px solid transparent;font-family:inherit;white-space:nowrap}
 .item-tab.active{color:var(--navy);border-bottom-color:var(--navy)}
+/* 용도분류 탭 */
+.ipurp-group{margin-bottom:16px}
+.ipurp-title{font-size:13px;font-weight:800;color:#fff;padding:6px 12px;border-radius:6px;margin-bottom:8px}
+.ipurp-src{font-size:11px;font-weight:700;color:var(--text2);margin:8px 0 4px 2px;padding-left:6px;border-left:3px solid var(--border)}
+.ipurp-card{display:flex;align-items:baseline;gap:8px;background:var(--card);border:1px solid var(--border);border-radius:9px;padding:9px 12px;margin-bottom:5px}
+.ipurp-card .pc-model{font-size:14px;font-weight:800;color:var(--navy)}
+.ipurp-card .pc-spec{font-size:13px;font-family:monospace;color:#374151}
+.ipurp-card .pc-qty{margin-left:auto;font-size:15px;font-weight:800;color:var(--purple);white-space:nowrap}
+.ipurp-card .pc-qty small{font-size:10px;color:var(--text3);font-weight:600}
+/* 받아오기 배너 (종합본 최상단) */
+.recv-banner{background:linear-gradient(135deg,#15803d,#0f6b32);color:#fff;font-size:14px;font-weight:800;padding:9px 14px;border-radius:8px;margin-bottom:10px;text-align:center}
+.isrc-title.recv{background:#15803d}
 .item-body{flex:1;overflow-y:auto;padding:12px;-webkit-overflow-scrolling:touch;min-height:0}
 .isrc-group{margin-bottom:16px}
 .isrc-title{font-size:12px;font-weight:800;color:#fff;background:var(--navy);display:inline-block;padding:3px 10px;border-radius:5px;margin-bottom:8px}
@@ -357,6 +369,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Noto Sa
         <button class="item-tab active" data-tab="list" onclick="switchItemTab('list')">📋 공유목록</button>
         <button class="item-tab" data-tab="sum" onclick="switchItemTab('sum')">📊 종합본</button>
         <button class="item-tab" data-tab="user" onclick="switchItemTab('user')">👤 작성자별</button>
+        <button class="item-tab" data-tab="purpose" onclick="switchItemTab('purpose')">🚚 용도분류</button>
         <button class="item-tab" data-tab="memo" onclick="switchItemTab('memo')">💬 메모</button>
       </div>
       <div class="item-body" id="item-body"></div>
@@ -453,6 +466,15 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Noto Sa
         <button class="btn-danger" onclick="deleteAllInRoom()">전체 삭제</button>
       </div>
       <div class="del-hint">해당 방 전체 메시지를 완전히 초기화합니다.</div>
+    </div>
+    <div class="danger-section" style="border-color:rgba(21,128,61,.3);background:rgba(21,128,61,.06)">
+      <div class="danger-title" style="color:#15803d">받아오기 분류 단어</div>
+      <div class="del-hint" style="margin-bottom:8px">출처에 이 단어가 포함되면 종합본에서 '받아오기'(직접 가져올 것)로 분류돼 맨 위에 모입니다.</div>
+      <div class="del-row">
+        <input id="recv-kw-input" placeholder="예: 양지SFP" style="flex:1;padding:8px 11px;border:1px solid var(--border);border-radius:8px;font-size:14px;outline:none;font-family:inherit">
+        <button class="btn-danger" style="background:#15803d" onclick="addRecvKw()">추가</button>
+      </div>
+      <div id="recv-kw-list" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px"></div>
     </div>
     <div id="admin-log" style="font-size:12px;color:var(--text2);margin-top:8px;min-height:20px;padding:4px"></div>
   </div>
@@ -554,6 +576,7 @@ async function selectRoom(room){
 
   if(isItems){
     initDatePicker();
+    await loadRecvKeywords();
     switchItemTab('list');
     await loadItems();
     await loadItemMemos();
@@ -1119,8 +1142,31 @@ async function deleteAllInRoom(){
   if(curRoom&&curRoom.id===roomId)await loadMsgs();
 }
 function adminLog(msg){document.getElementById('admin-log').textContent=msg;}
-function openAdmin(){if(!me||me.name!==ADMIN_NAME){alert('관리자만 접근 가능합니다');return;}document.getElementById('admin-overlay').classList.add('on');}
+function openAdmin(){if(!me||me.name!==ADMIN_NAME){alert('관리자만 접근 가능합니다');return;}document.getElementById('admin-overlay').classList.add('on');renderRecvKwList();}
 function closeAdmin(){document.getElementById('admin-overlay').classList.remove('on');}
+// 받아오기 키워드 관리 (관리자 전용)
+function renderRecvKwList(){
+  const el=document.getElementById('recv-kw-list');if(!el)return;
+  if(!recvKeywords.length){el.innerHTML='<span style="font-size:12px;color:var(--text3)">단어 없음</span>';return;}
+  el.innerHTML=recvKeywords.map(function(kw){
+    return '<span style="display:inline-flex;align-items:center;gap:5px;background:#15803d;color:#fff;font-size:12px;font-weight:600;padding:4px 8px;border-radius:14px">'+esc(kw)+'<span style="cursor:pointer;font-weight:800" onclick="delRecvKw(\''+esc(kw).replace(/'/g,"")+'\')">×</span></span>';
+  }).join('');
+}
+async function addRecvKw(){
+  const inp=document.getElementById('recv-kw-input');
+  const kw=inp.value.trim();
+  if(!kw)return;
+  if(recvKeywords.indexOf(kw)>=0){alert('이미 있는 단어예요');return;}
+  const arr=recvKeywords.concat([kw]);
+  await saveRecvKeywords(arr);
+  inp.value='';
+  renderRecvKwList();
+}
+async function delRecvKw(kw){
+  const arr=recvKeywords.filter(function(x){return x!==kw;});
+  await saveRecvKeywords(arr);
+  renderRecvKwList();
+}
 
 function openSettings(){
   const key=localStorage.getItem('tg_claude_key')||'';
@@ -1176,11 +1222,34 @@ function switchItemTab(tab){
   if(tab==='list')renderItemList();
   if(tab==='sum')renderItemSum();
   if(tab==='user')renderItemUser();
+  if(tab==='purpose')renderItemPurpose();
   if(tab==='memo')renderItemMemo();
 }
 
 const ISRC_TYPE={'매일오후':'recv','양주sfp':'recv','양주':'recv','sfp':'recv','황제':'recv','퇴계원':'recv','매일오전':'order','넥센':'order','한타':'order','극동':'order','한국':'arr','알수없음':'unknown'};
 function isrcClass(src){return ISRC_TYPE[(src||'').toLowerCase().replace(/\s+/g,'')]||'recv';}
+
+// 받아오기 키워드 (관리자가 settings에서 관리, 기본값 fallback)
+var recvKeywords=['황제','극동','매일오후','SFP'];
+// 출처가 받아오기에 속하는지 (키워드 포함 여부)
+function isRecvSrc(src){
+  var s=(src||'').toLowerCase();
+  return recvKeywords.some(function(kw){return s.indexOf(kw.toLowerCase())>=0;});
+}
+// settings에서 받아오기 키워드 로드
+async function loadRecvKeywords(){
+  try{
+    const {data}=await sb.from('settings').select('value').eq('key','recv_keywords').maybeSingle();
+    if(data&&Array.isArray(data.value))recvKeywords=data.value;
+  }catch(e){/* 실패시 기본값 유지 */}
+}
+// 관리자: 받아오기 키워드 저장
+async function saveRecvKeywords(arr){
+  recvKeywords=arr;
+  try{
+    await sb.from('settings').upsert({key:'recv_keywords',value:arr,updated_at:new Date().toISOString()},{onConflict:'key'});
+  }catch(e){alert('저장 실패: '+e.message);}
+}
 
 function renderItemList(){
   const el=document.getElementById('item-body');
@@ -1221,8 +1290,19 @@ function renderItemSum(){
     g.qty+=(it.qty-(it.cancel_qty||0));
     if(it.use_note&&it.use_note!=='미기입'&&g.uses.indexOf(it.use_note)<0)g.uses.push(it.use_note);
   });
-  Object.keys(groups).forEach(function(src){
-    const cls=isrcClass(src);const rows=Object.values(groups[src]);
+  // 받아오기 출처를 최상단에 정렬 (직원이 직접 가져올 것)
+  const srcKeys=Object.keys(groups).sort(function(a,b){
+    const ra=isRecvSrc(a)?0:1, rb=isRecvSrc(b)?0:1;
+    if(ra!==rb)return ra-rb;
+    return 0;
+  });
+  // 받아오기 묶음이 있으면 큰 타이틀
+  const hasRecv=srcKeys.some(isRecvSrc);
+  let recvShown=false;
+  srcKeys.forEach(function(src){
+    const isRecv=isRecvSrc(src);
+    if(isRecv&&!recvShown){html+='<div class="recv-banner">받아오기 (직접 가져올 타이어)</div>';recvShown=true;}
+    const cls=isRecv?'recv':isrcClass(src);const rows=Object.values(groups[src]);
     html+='<div class="isrc-group"><div class="isrc-title '+cls+'">'+esc(src)+' ('+rows.length+'종)</div>';
     html+='<table class="itbl"><colgroup><col style="width:72px"><col><col style="width:50px"><col></colgroup><thead><tr><th>모델</th><th>규격</th><th class="qh">총수량</th><th>용도</th></tr></thead><tbody>';
     rows.forEach(function(g){html+='<tr><td class="m">'+esc(g.model)+'</td><td class="s">'+esc(g.spec)+'</td><td class="q">'+g.qty+'</td><td class="u">'+esc(g.uses.join(', ')||'미기입')+'</td></tr>';});
@@ -1254,6 +1334,58 @@ function renderItemUser(){
     });
     html+='</tbody></table></div>';
   });
+  el.innerHTML=html;
+}
+
+// 용도분류 탭: 직배송/택배/재고/장착/기타 × 출처별 (취소 제외)
+function renderItemPurpose(){
+  const el=document.getElementById('item-body');
+  let html='<div class="iguide">옮길 타이어를 용도별로 모았어요. 각 용도 안에서 <b>출처별</b>로 나뉘어요(아직 안 온 것 구분용). 취소분은 제외.</div>';
+  const active=itemsCache.filter(function(it){return !it.cancelled;});
+  if(!active.length){el.innerHTML=html+'<div class="iempty">데이터 없음</div>';return;}
+
+  // 용도 그룹 정의 (순서 중요)
+  const GROUPS=[
+    {key:'직배송',label:'📦 직배송',color:'#15803d'},
+    {key:'택배',label:'🚚 택배',color:'#5b35b0'},
+    {key:'재고',label:'📥 재고',color:'#c2410c'},
+    {key:'장착',label:'🔧 장착',color:'#1a2035'}
+  ];
+
+  GROUPS.forEach(function(g){
+    // 이 용도 단어가 포함된 항목 (겹치면 양쪽 다 — 그래서 각 그룹마다 독립 필터)
+    const matched=active.filter(function(it){return (it.use_note||'').indexOf(g.key)>=0;});
+    if(!matched.length)return;
+    html+='<div class="ipurp-group"><div class="ipurp-title" style="background:'+g.color+'">'+g.label+' <span style="opacity:.8;font-weight:400">('+matched.length+')</span></div>';
+    // 출처별로 다시 나눔
+    const bySrc={};
+    matched.forEach(function(it){if(!bySrc[it.src])bySrc[it.src]=[];bySrc[it.src].push(it);});
+    Object.keys(bySrc).forEach(function(src){
+      html+='<div class="ipurp-src">'+esc(src)+'</div>';
+      bySrc[src].forEach(function(it){
+        html+='<div class="ipurp-card"><span class="pc-model">'+esc(it.model)+'</span><span class="pc-spec">'+esc(it.spec)+'</span><span class="pc-qty">'+it.qty+'<small>개</small></span></div>';
+      });
+    });
+    html+='</div>';
+  });
+
+  // 기타: 4개 어디에도 안 걸리는 것
+  const etc=active.filter(function(it){
+    const u=it.use_note||'';
+    return u.indexOf('직배송')<0&&u.indexOf('택배')<0&&u.indexOf('재고')<0&&u.indexOf('장착')<0;
+  });
+  if(etc.length){
+    html+='<div class="ipurp-group"><div class="ipurp-title" style="background:#6b7280">기타 <span style="opacity:.8;font-weight:400">('+etc.length+')</span></div>';
+    const bySrc={};
+    etc.forEach(function(it){if(!bySrc[it.src])bySrc[it.src]=[];bySrc[it.src].push(it);});
+    Object.keys(bySrc).forEach(function(src){
+      html+='<div class="ipurp-src">'+esc(src)+'</div>';
+      bySrc[src].forEach(function(it){
+        html+='<div class="ipurp-card"><span class="pc-model">'+esc(it.model)+'</span><span class="pc-spec">'+esc(it.spec)+'</span><span class="pc-qty">'+it.qty+'<small>개</small> <span style="font-size:10px;color:var(--text3)">'+esc(it.use_note||'미기입')+'</span></span></div>';
+      });
+    });
+    html+='</div>';
+  }
   el.innerHTML=html;
 }
 
@@ -1295,7 +1427,8 @@ function openEdit(id){
   editTarget=itemsCache.find(function(x){return x.id===id;});if(!editTarget)return;
   document.getElementById('edit-title').textContent='\u270F\uFE0F \uC218\uC815';
   document.getElementById('edit-fields').innerHTML=
-    '<label class="pf-label">\uBAA8\uB378</label><input id="e-model" class="pf-input" value="'+esc(editTarget.model)+'" style="margin-bottom:8px">'
+    '<label class="pf-label">\uCD9C\uCC98</label><input id="e-src" class="pf-input" value="'+esc(editTarget.src||'')+'" style="margin-bottom:8px">'
+    +'<label class="pf-label">\uBAA8\uB378</label><input id="e-model" class="pf-input" value="'+esc(editTarget.model)+'" style="margin-bottom:8px">'
     +'<label class="pf-label">\uADDC\uACA9</label><input id="e-spec" class="pf-input" value="'+esc(editTarget.spec)+'" style="margin-bottom:8px">'
     +'<label class="pf-label">\uC218\uB7C9</label><input id="e-qty" class="pf-input" value="'+editTarget.qty+'" inputmode="numeric" style="margin-bottom:8px">'
     +'<label class="pf-label">\uC6A9\uB3C4</label><input id="e-use" class="pf-input" value="'+esc(editTarget.use_note||'')+'">';
@@ -1321,6 +1454,7 @@ function openCancel(id){
 }
 async function confirmEdit(){
   const reason=document.getElementById('edit-reason').value.trim();
+  const nsrc=document.getElementById('e-src').value.trim()||editTarget.src;
   const nm=document.getElementById('e-model').value.trim();
   const ns=document.getElementById('e-spec').value.trim();
   const nq=parseInt(document.getElementById('e-qty').value.trim())||0;
@@ -1328,6 +1462,7 @@ async function confirmEdit(){
   if(nq<=0){alert('\uC218\uB7C9\uC740 1\uAC1C \uC774\uC0C1\uC774\uC5B4\uC57C \uD574\uC694');return;}
   if(editTarget.cancel_qty>0&&nq<editTarget.cancel_qty){alert('\uC774\uBBF8 \uCDE8\uC18C\uB41C \uC218\uB7C9\uBCF4\uB2E4 \uC801\uAC8C \uBC14\uAFC0 \uC218 \uC5C6\uC5B4\uC694');return;}
   const changes=[];
+  if(nsrc!==editTarget.src)changes.push('\uCD9C\uCC98 '+editTarget.src+'\u2192'+nsrc);
   if(nm!==editTarget.model)changes.push('\uBAA8\uB378 '+editTarget.model+'\u2192'+nm);
   if(ns!==editTarget.spec)changes.push('\uADDC\uACA9 '+editTarget.spec+'\u2192'+ns);
   if(nq!==editTarget.qty)changes.push('\uC218\uB7C9 '+editTarget.qty+'\u2192'+nq);
@@ -1336,7 +1471,7 @@ async function confirmEdit(){
   const logs=(Array.isArray(editTarget.logs)?editTarget.logs:[]).slice();
   logs.push({type:'edit',text:'\u270F\uFE0F '+changes.join(', ')+(reason?' ('+reason+')':'')+' -'+me.name,at:Date.now()});
   try{
-    const{error}=await sb.from('items').update({model:nm,spec:ns,qty:nq,use_note:nu,logs:logs}).eq('id',editTarget.id);
+    const{error}=await sb.from('items').update({src:nsrc,model:nm,spec:ns,qty:nq,use_note:nu,logs:logs}).eq('id',editTarget.id);
     if(error)throw error;
   }catch(e){alert('\uC218\uC815 \uC2E4\uD328: '+e.message);return;}
   closeEdit();await loadItems();
