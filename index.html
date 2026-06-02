@@ -245,6 +245,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Noto Sa
 .isrc-title.order{background:#5b35b0}
 .isrc-title.arr{background:#1d4ed8}
 .item-body{flex:1;overflow-y:auto;padding:12px;-webkit-overflow-scrolling:touch;min-height:0}
+.item-search{display:flex;align-items:center;gap:6px;padding:8px 12px;background:#fff;border-bottom:1px solid var(--border);flex-shrink:0}
+.item-search input{flex:1;border:1.5px solid var(--border);border-radius:8px;padding:9px 12px;font-size:14px;outline:none;font-family:inherit;background:var(--bg)}
+.item-search input:focus{border-color:var(--navy);background:#fff}
+.isearch-clear{border:none;background:#eee;color:var(--text2);width:30px;height:30px;border-radius:50%;cursor:pointer;font-size:13px;flex-shrink:0}
+@media(max-width:600px){.item-search input{font-size:16px}}
+@media(min-width:601px){
+  .item-body>*{max-width:880px;margin-left:auto;margin-right:auto}
+  .itbl td.m{font-size:13px}.itbl td.s{font-size:12.5px;letter-spacing:0}.itbl td.u{font-size:12px}
+  .itbl th{font-size:11px;padding:6px 8px}.itbl td{padding:7px 8px}
+}
 .isrc-group{margin-bottom:16px}
 .isrc-title{font-size:12px;font-weight:800;color:#fff;background:var(--navy);display:inline-block;padding:3px 10px;border-radius:5px;margin-bottom:8px}
 .isrc-title.order{background:#5b35b0}.isrc-title.arr{background:#1d4ed8}.isrc-title.unknown{background:#6b7280}
@@ -371,6 +381,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Noto Sa
           <button class="range-toggle" id="range-toggle" onclick="toggleRange()">범위</button>
         </div>
         <button class="ai-btn" id="ai-btn" style="display:none" onclick="runAI()">✨ 정리</button>
+        <button class="icon-btn" id="item-search-btn" style="display:none" onclick="toggleItemSearch()">🔍</button>
         <button class="icon-btn" id="settings-btn" style="display:none" onclick="openSettings()">⚙️</button>
       </div>
     </div>
@@ -394,6 +405,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Noto Sa
         <button class="item-tab" data-tab="user" onclick="switchItemTab('user')">👤 작성자별</button>
         <button class="item-tab" data-tab="purpose" onclick="switchItemTab('purpose')">🚚 용도분류</button>
         <button class="item-tab" data-tab="memo" onclick="switchItemTab('memo')">💬 메모</button>
+      </div>
+      <div class="item-search" id="item-search" style="display:none">
+        <input id="item-search-input" placeholder="🔍 모델·규격·출처·용도 검색" oninput="onSearchInput()">
+        <button class="isearch-clear" id="isearch-clear" onclick="clearItemSearch()" style="display:none">✕</button>
       </div>
       <div class="item-body" id="item-body"></div>
       <!-- 타이어 입력 -->
@@ -623,6 +638,12 @@ async function selectRoom(room){
   document.getElementById('ai-btn').style.display='none';
   document.getElementById('date-picker-wrap').style.display=isItems?'flex':'none';
   document.getElementById('settings-btn').style.display='none';
+  document.getElementById('item-search-btn').style.display=isItems?'flex':'none';
+  // 방 바꾸면 검색 초기화
+  itemSearchQuery='';
+  const sInput=document.getElementById('item-search-input');if(sInput)sInput.value='';
+  document.getElementById('item-search').style.display='none';
+  const sClear=document.getElementById('isearch-clear');if(sClear)sClear.style.display='none';
   renderSidebar();
   if(sub){sb.removeChannel(sub);sub=null;}
   if(itemsSub){sb.removeChannel(itemsSub);itemsSub=null;}
@@ -1289,6 +1310,40 @@ async function loadItemMemos(){
   if(curItemTab==='memo')renderItemMemo();
 }
 
+// ===== 검색 =====
+var itemSearchQuery='';
+function toggleItemSearch(){
+  const box=document.getElementById('item-search');
+  const show=(box.style.display==='none');
+  box.style.display=show?'flex':'none';
+  if(show){document.getElementById('item-search-input').focus();}
+}
+function onSearchInput(){
+  itemSearchQuery=document.getElementById('item-search-input').value.trim().toLowerCase();
+  document.getElementById('isearch-clear').style.display=itemSearchQuery?'block':'none';
+  rerenderCurItemTab();
+}
+function clearItemSearch(){
+  itemSearchQuery='';
+  document.getElementById('item-search-input').value='';
+  document.getElementById('isearch-clear').style.display='none';
+  rerenderCurItemTab();
+}
+// 검색어로 항목 거르기 (모델·규격·출처·용도 포함)
+function matchSearch(it){
+  if(!itemSearchQuery)return true;
+  const hay=((it.src||'')+' '+(it.model||'')+' '+(it.spec||'')+' '+(it.use_note||'')).toLowerCase();
+  return hay.indexOf(itemSearchQuery)>=0;
+}
+function searchedItems(){return itemSearchQuery?itemsCache.filter(matchSearch):itemsCache;}
+function rerenderCurItemTab(){
+  if(curItemTab==='list')renderItemList();
+  else if(curItemTab==='sum')renderItemSum();
+  else if(curItemTab==='user')renderItemUser();
+  else if(curItemTab==='purpose')renderItemPurpose();
+  else if(curItemTab==='memo')renderItemMemo();
+}
+
 function switchItemTab(tab){
   curItemTab=tab;
   document.querySelectorAll('.item-tab').forEach(function(t){t.classList.toggle('active',t.dataset.tab===tab);});
@@ -1410,17 +1465,17 @@ function itemListBySrc(items){
 function renderItemList(){
   const el=document.getElementById('item-body');
   let html='<div class="iguide"><b>입력</b>: 스페이스=다음칸 / 규격칸만 스페이스 2번 / 빈칸 백스페이스=앞칸 / Enter=추가<br><b>취소/수정</b>: 각 카드의 버튼 → 사유 입력 (이력 보존)</div>';
-  if(!itemsCache.length){el.innerHTML=html+'<div class="iempty">아직 추가된 타이어가 없어요.</div>';return;}
+  const list=searchedItems();
+  if(!list.length){el.innerHTML=html+'<div class="iempty">'+(itemSearchQuery?'검색 결과 없음':'아직 추가된 타이어가 없어요.')+'</div>';return;}
   if(isRangeActive()){
-    // 날짜별로 묶기
     const byDate={};
-    itemsCache.forEach(function(it){(byDate[it.date_str]=byDate[it.date_str]||[]).push(it);});
+    list.forEach(function(it){(byDate[it.date_str]=byDate[it.date_str]||[]).push(it);});
     Object.keys(byDate).sort().forEach(function(ds){
       html+='<div class="date-divider">'+fmtDateLabel(ds)+' ('+byDate[ds].length+'건)</div>';
       html+=itemListBySrc(byDate[ds]);
     });
   }else{
-    html+=itemListBySrc(itemsCache);
+    html+=itemListBySrc(list);
   }
   el.innerHTML=html;
 }
@@ -1447,7 +1502,7 @@ function itemSumBody(active){
     const cls=(grp==='recv')?'recv':(grp==='order')?'order':(grp==='arr')?'arr':isrcClass(src);
     const rows=Object.values(groups[src]);
     html+='<div class="isrc-group"><div class="isrc-title '+cls+'">'+esc(src)+' ('+rows.length+'종)</div>';
-    html+='<table class="itbl"><colgroup><col style="width:54px"><col><col style="width:34px"><col style="width:90px"></colgroup><thead><tr><th>모델</th><th>규격</th><th class="qh">수량</th><th>용도</th></tr></thead><tbody>';
+    html+='<table class="itbl"><colgroup><col style="width:16%"><col><col style="width:11%"><col style="width:28%"></colgroup><thead><tr><th>모델</th><th>규격</th><th class="qh">수량</th><th>용도</th></tr></thead><tbody>';
     rows.forEach(function(g){html+='<tr><td class="m">'+esc(g.model)+'</td><td class="s">'+esc(g.spec)+'</td><td class="q">'+g.qty+'</td><td class="u">'+esc(g.uses.join(', ')||'미기입')+'</td></tr>';});
     html+='</tbody></table></div>';
   });
@@ -1456,8 +1511,8 @@ function itemSumBody(active){
 function renderItemSum(){
   const el=document.getElementById('item-body');
   let html='<div class="iguide">같은 출처+모델+규격 수량 합산. 취소분 제외.</div>';
-  const active=itemsCache.filter(function(it){return !it.cancelled;});
-  if(!active.length){el.innerHTML=html+'<div class="iempty">데이터 없음</div>';return;}
+  const active=searchedItems().filter(function(it){return !it.cancelled;});
+  if(!active.length){el.innerHTML=html+'<div class="iempty">'+(itemSearchQuery?'검색 결과 없음':'데이터 없음')+'</div>';return;}
   if(isRangeActive()){
     const byDate={};
     active.forEach(function(it){(byDate[it.date_str]=byDate[it.date_str]||[]).push(it);});
@@ -1478,7 +1533,7 @@ function itemUserBody(items){
   Object.keys(groups).forEach(function(who){
     const rows=groups[who];
     html+='<div class="iby-user"><div class="iby-user-name">'+esc(who)+'<span class="cnt">'+rows.length+'건</span></div>';
-    html+='<table class="itbl"><colgroup><col style="width:48px"><col style="width:52px"><col><col style="width:30px"><col style="width:78px"></colgroup><thead><tr><th>출처</th><th>모델</th><th>규격</th><th class="qh">수량</th><th>용도</th></tr></thead><tbody>';
+    html+='<table class="itbl"><colgroup><col style="width:13%"><col style="width:14%"><col><col style="width:10%"><col style="width:25%"></colgroup><thead><tr><th>출처</th><th>모델</th><th>규격</th><th class="qh">수량</th><th>용도</th></tr></thead><tbody>';
     rows.forEach(function(it){
       let qtyDisp=String(it.qty);
       if(it.cancel_qty>0)qtyDisp=it.qty+'<br><span style="color:#dc2626;font-size:9px">('+it.cancel_qty+' 취소)</span>';
@@ -1496,16 +1551,17 @@ function itemUserBody(items){
 function renderItemUser(){
   const el=document.getElementById('item-body');
   let html='<div class="iguide">누가 무엇을 올렸는지. 수량 합산 안 함(추적용).</div>';
-  if(!itemsCache.length){el.innerHTML=html+'<div class="iempty">데이터 없음</div>';return;}
+  const list=searchedItems();
+  if(!list.length){el.innerHTML=html+'<div class="iempty">'+(itemSearchQuery?'검색 결과 없음':'데이터 없음')+'</div>';return;}
   if(isRangeActive()){
     const byDate={};
-    itemsCache.forEach(function(it){(byDate[it.date_str]=byDate[it.date_str]||[]).push(it);});
+    list.forEach(function(it){(byDate[it.date_str]=byDate[it.date_str]||[]).push(it);});
     Object.keys(byDate).sort().forEach(function(ds){
       html+='<div class="date-divider">'+fmtDateLabel(ds)+'</div>';
       html+=itemUserBody(byDate[ds]);
     });
   }else{
-    html+=itemUserBody(itemsCache);
+    html+=itemUserBody(list);
   }
   el.innerHTML=html;
 }
@@ -1514,8 +1570,8 @@ function renderItemUser(){
 function renderItemPurpose(){
   const el=document.getElementById('item-body');
   let html='<div class="iguide">옮길 타이어를 용도별로 모았어요. 각 용도 안에서 <b>출처별</b>로 나뉘어요(아직 안 온 것 구분용). 취소분은 제외.</div>';
-  const active0=itemsCache.filter(function(it){return !it.cancelled;});
-  if(!active0.length){el.innerHTML=html+'<div class="iempty">데이터 없음</div>';return;}
+  const active0=searchedItems().filter(function(it){return !it.cancelled;});
+  if(!active0.length){el.innerHTML=html+'<div class="iempty">'+(itemSearchQuery?'검색 결과 없음':'데이터 없음')+'</div>';return;}
   if(isRangeActive()){
     const byDate={};
     active0.forEach(function(it){(byDate[it.date_str]=byDate[it.date_str]||[]).push(it);});
@@ -1805,7 +1861,7 @@ function renderPastePreview(){
   const rows=parsePasteLines();
   document.getElementById('preview-count').textContent=rows.length;
   if(!rows.length){document.getElementById('paste-preview').innerHTML='<div class="iempty">\uBD99\uC5EC\uB123\uC73C\uBA74 \uBBF8\uB9AC\uBCF4\uAE30\uAC00 \uB098\uC640\uC694</div>';return;}
-  let html='<table class="itbl"><colgroup><col style="width:48px"><col style="width:52px"><col><col style="width:30px"><col style="width:78px"></colgroup><thead><tr><th>\uCD9C\uCC98</th><th>\uBAA8\uB378</th><th>\uADDC\uACA9</th><th class="qh">\uC218\uB7C9</th><th>\uC6A9\uB3C4</th></tr></thead><tbody>';
+  let html='<table class="itbl"><colgroup><col style="width:13%"><col style="width:14%"><col><col style="width:10%"><col style="width:25%"></colgroup><thead><tr><th>\uCD9C\uCC98</th><th>\uBAA8\uB378</th><th>\uADDC\uACA9</th><th class="qh">\uC218\uB7C9</th><th>\uC6A9\uB3C4</th></tr></thead><tbody>';
   rows.forEach(function(r){
     const dim=r.fail?' style="background:#fef2f2"':'';
     html+='<tr'+dim+'><td class="w">'+esc(r.src)+'</td><td class="m">'+esc(r.model)+'</td><td class="s">'+esc(r.spec)+'</td><td class="q">'+(r.qty||'')+'</td><td class="u">'+esc(r.use)+'</td></tr>';
