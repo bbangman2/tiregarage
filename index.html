@@ -304,6 +304,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Noto Sa
 .seg.f-use{flex:1 1 70px;min-width:56px}.seg.f-chg{flex:1 1 70px;min-width:56px}
 .seg input.filled{color:var(--navy);font-weight:600}
 .seg-row.spec-active .seg.f-spec input{background:#fff5e6}
+/* 출처 드롭다운 */
+.src-dropdown{display:flex;flex-wrap:wrap;gap:5px;padding:8px;background:#f0efec;border-radius:10px;margin-bottom:6px;max-height:130px;overflow-y:auto}
+.sd-item{display:inline-flex;align-items:center;gap:5px;background:#fff;border:1.5px solid var(--border);border-radius:8px;padding:7px 11px;font-size:13px;font-weight:600;color:var(--navy);cursor:pointer;font-family:inherit}
+.sd-item:active{background:var(--navy);color:#fff}
+.sd-num{background:var(--navy);color:#fff;font-size:10px;font-weight:800;width:16px;height:16px;border-radius:4px;display:flex;align-items:center;justify-content:center}
+@media(max-width:600px){.sd-item{font-size:15px;padding:9px 13px}}
 .item-add-row{display:flex;gap:6px}
 .item-add-btn{padding:9px 14px;background:var(--navy);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap}
 .item-add-btn.purple{background:#5b35b0}
@@ -413,6 +419,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Noto Sa
       <div class="item-body" id="item-body"></div>
       <!-- 타이어 입력 -->
       <div class="item-input-zone" id="item-input-zone">
+        <div class="src-dropdown" id="src-dropdown" style="display:none"></div>
         <div class="seg-row" id="seg-row">
           <div class="seg f-src"><span class="seg-label">출처</span><input id="i-src" placeholder="매일오후"></div>
           <div class="seg f-model"><span class="seg-label">모델</span><input id="i-model" placeholder="TA21"></div>
@@ -1310,6 +1317,35 @@ async function loadItemMemos(){
   if(curItemTab==='memo')renderItemMemo();
 }
 
+// ===== 출처 드롭다운 (받아오기+발주+물류차 키워드 자동) =====
+function srcCandidates(){
+  const list=[];
+  // SFP류는 지역명을 앞에 붙여 직접 입력하므로 드롭다운에서 제외
+  function add(k){if(k&&list.indexOf(k)<0&&k.toUpperCase().indexOf('SFP')<0)list.push(k);}
+  recvKeywords.forEach(add);
+  orderKeywords.forEach(add);
+  arrKeywords.forEach(add);
+  return list;
+}
+function renderSrcDropdown(){
+  const dd=document.getElementById('src-dropdown');
+  const cands=srcCandidates();
+  if(!cands.length){dd.style.display='none';return;}
+  dd.innerHTML=cands.map(function(s,i){
+    const num=(i<9)?'<span class="sd-num">'+(i+1)+'</span>':'<span class="sd-num" style="visibility:hidden">·</span>';
+    return '<button class="sd-item" onmousedown="event.preventDefault()" onclick="pickSrc(\''+esc(s).replace(/'/g,"")+'\')">'+num+esc(s)+'</button>';
+  }).join('');
+}
+function showSrcDropdown(){renderSrcDropdown();const dd=document.getElementById('src-dropdown');if(srcCandidates().length)dd.style.display='flex';}
+function hideSrcDropdown(){setTimeout(function(){document.getElementById('src-dropdown').style.display='none';},150);}
+function pickSrc(s){
+  const inp=document.getElementById('i-src');
+  inp.value=s;lastSrc=s;
+  updateFilled();
+  document.getElementById('src-dropdown').style.display='none';
+  segNext(['i-src','i-model','i-spec','i-qty','i-use','i-chg'],0);
+}
+
 // ===== 검색 =====
 var itemSearchQuery='';
 function toggleItemSearch(){
@@ -1888,6 +1924,21 @@ async function confirmPaste(){
   SEG_IDS.forEach(function(id,pos){
     const input=document.getElementById(id);if(!input)return;
     const isSpec=(id==='i-spec');
+    const isDbl=(id==='i-spec'||id==='i-use');  // 규격·용도는 스페이스 2번
+
+    // 출처칸: 포커스 시 드롭다운, 빈 상태에서 1~9 번호키로 선택
+    if(id==='i-src'){
+      input.addEventListener('focus',showSrcDropdown);
+      input.addEventListener('blur',hideSrcDropdown);
+      input.addEventListener('keydown',function(e){
+        // 빈 칸일 때만 숫자키로 출처 선택 (값 입력 중이면 그냥 타이핑)
+        if(input.value===''&&/^[1-9]$/.test(e.key)){
+          const cands=srcCandidates();
+          const idx=parseInt(e.key)-1;
+          if(idx<cands.length){e.preventDefault();pickSrc(cands[idx]);return;}
+        }
+      });
+    }
 
     // Backspace/Enter는 keydown으로 (모바일에서도 대체로 동작)
     input.addEventListener('keydown',function(e){
@@ -1898,16 +1949,16 @@ async function confirmPaste(){
     // 스페이스 칸이동은 input 이벤트로 감지 (모바일 IME 대응)
     input.addEventListener('input',function(){
       const v=input.value;
-      if(isSpec){
-        // 규격칸: 끝에 스페이스 2개 연속 → 다음 칸 (1개는 띄어쓰기 허용)
+      if(isDbl){
+        // 규격·용도칸: 끝에 스페이스 2개 연속 → 다음 칸 (1개는 띄어쓰기 허용)
         if(/\s{2,}$/.test(v)){
           input.value=v.replace(/\s+$/,'');
           updateFilled();
-          document.getElementById('seg-row').classList.toggle('spec-active',input.value.length>0);
+          if(isSpec)document.getElementById('seg-row').classList.toggle('spec-active',input.value.length>0);
           segNext(SEG_IDS,pos);
           return;
         }
-        document.getElementById('seg-row').classList.toggle('spec-active',input.value.length>0);
+        if(isSpec)document.getElementById('seg-row').classList.toggle('spec-active',input.value.length>0);
       }else{
         // 일반칸: 끝에 스페이스 1개 → 다음 칸 (단 내용 있을 때, 또는 출처칸+직전출처)
         if(/\s$/.test(v)){
