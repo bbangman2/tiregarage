@@ -256,6 +256,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Noto Sa
 .dact.confirm-btn{background:var(--navy);color:#fff;border-color:var(--navy)}
 .dact.confirmed{background:#eafaf0;color:var(--green);border-color:#bfe6cd}
 .dact.del-btn{background:#fff;color:var(--red);border-color:#f3b4b4}
+.dact.edit-btn{background:#fff;color:var(--navy);border-color:var(--border)}
+.dcard.cancelled{opacity:.55}
+.dcard.cancelled .dc-tire,.dcard.cancelled .dc-addr,.dcard.cancelled .dc-recv{text-decoration:line-through}
+.dcard.cancelled .dc-num{background:var(--red)}
+.dcancel-badge{font-size:10px;font-weight:800;color:#fff;background:var(--red);padding:2px 8px;border-radius:10px}
 .dc-side{display:flex;flex-direction:column;border-left:1px solid var(--border);flex-shrink:0}
 .dside-btn{flex:1;border:none;background:#f7f6f3;width:44px;font-size:18px;cursor:pointer;color:var(--navy);display:flex;align-items:center;justify-content:center}
 .dside-btn:active{background:var(--navy);color:#fff}
@@ -268,9 +273,35 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Noto Sa
 .dlog-item{font-size:11px;color:var(--text2);padding:5px 0;border-bottom:1px solid #f0eeea;display:flex;justify-content:space-between;gap:8px}
 .dlog-item .who{font-weight:700;color:var(--navy)}.dlog-item .del{color:var(--red);cursor:pointer;flex-shrink:0}
 .dlv-input-zone{background:var(--card);border-top:1px solid var(--border);padding:8px 10px 10px;flex-shrink:0}
+.dlv-fab{position:absolute;right:16px;bottom:16px;width:54px;height:54px;border-radius:50%;background:var(--navy);color:#fff;border:none;font-size:25px;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.3);z-index:20}
+.dlv-sheet-back{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:40}
+.dlv-sheet-back.on{display:block}
+.dlv-sheet{position:fixed;left:0;right:0;bottom:0;background:#fff;border-radius:16px 16px 0 0;padding:14px 12px calc(14px + env(safe-area-inset-bottom));z-index:50;transform:translateY(110%);transition:transform .25s;max-width:760px;margin:0 auto}
+.dlv-sheet.on{transform:translateY(0)}
+.dlv-sheet-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.dlv-sheet-head .t{font-size:14px;font-weight:800;color:var(--navy)}
+.dlv-sheet-head .x{border:none;background:none;font-size:22px;color:var(--text3);cursor:pointer}
 .seg.f-dsrc{flex:0 0 64px}.seg.f-dch{flex:0 0 56px}.seg.f-dtire{flex:1 1 50%}.seg.f-dbrand{flex:0 0 86px}.seg.f-dqty{flex:0 0 46px}
-.seg.f-daddr{flex:1 1 100%}.seg.f-drecv{flex:1 1 50%}.seg.f-dtel{flex:1 1 45%}
+.seg.f-daddr{flex:1 1 100%}.seg.f-drecv{flex:1 1 50%}.seg.f-dtel{flex:1 1 45%}.seg.f-dnote{flex:1 1 100%}
 @media(max-width:480px){.seg.f-dtire,.seg.f-drecv,.seg.f-dtel{flex:1 1 100%}}
+.dc-addr a,.dc-recv a.tel{color:var(--blue);text-decoration:none}
+.dc-note{font-size:11.5px;color:var(--orange);margin-top:3px;background:#fff7ed;padding:3px 8px;border-radius:6px;display:inline-block}
+/* 요약탭 카드 (한 줄 → 펼침) */
+.dscard{background:var(--card);border:1.5px solid var(--border);border-radius:10px;margin-bottom:6px;overflow:hidden}
+.dscard.ping{border-color:#f3b4b4}
+.dscard.done{opacity:.5}.dscard.done .dsrow1{text-decoration:line-through}
+.dsrow1{display:flex;align-items:center;gap:7px;padding:9px 11px;cursor:pointer}
+.dsnum{background:var(--navy);color:#fff;font-size:13px;font-weight:800;min-width:22px;height:22px;border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.dscard.ping .dsnum{background:var(--red)}.dscard.done .dsnum{background:var(--text3)}
+.dssum{flex:1;min-width:0;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dssum .tire{font-weight:700;color:var(--navy)}.dssum .qty{font-weight:800;color:var(--purple)}
+.dsexp{font-size:13px;color:var(--text3);flex-shrink:0}
+.dsdetail{display:none;padding:0 11px 11px 40px}
+.dscard.open .dsdetail{display:block}
+.dscard.open .dsrow1{border-bottom:1px solid #f0eeea}
+.dsd-line{font-size:12px;color:var(--text);margin-bottom:4px;line-height:1.5}
+.dsd-line a{color:var(--blue);text-decoration:none}
+.dsd-acts{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
 .items-screen{display:flex;flex-direction:column;flex:1;min-height:0;background:var(--bg)}
 .item-tabs{display:flex;background:var(--card);border-bottom:1px solid var(--border);flex-shrink:0;overflow-x:auto}
 .item-tab{flex:1;padding:11px 6px;border:none;background:none;font-size:12px;font-weight:600;color:var(--text2);cursor:pointer;border-bottom:2px solid transparent;font-family:inherit;white-space:nowrap}
@@ -504,22 +535,27 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Noto Sa
         <button class="dlv-tab active" data-dtab="deliv" onclick="switchDlvTab('deliv')">직배송 <span class="cnt" id="dcnt-deliv">0</span></button>
         <button class="dlv-tab" data-dtab="hold" onclick="switchDlvTab('hold')">미출고 <span class="cnt" id="dcnt-hold">0</span></button>
         <button class="dlv-tab" data-dtab="parcel" onclick="switchDlvTab('parcel')">택배전환 <span class="cnt" id="dcnt-parcel">0</span></button>
+        <button class="dlv-tab" data-dtab="summary" onclick="switchDlvTab('summary')">📋 요약</button>
       </div>
       <div class="dlv-body" id="dlv-body"></div>
-      <div class="dlv-input-zone" id="dlv-input-zone">
+      <button class="dlv-fab" id="dlv-fab" onclick="openDlvSheet()">➕</button>
+      <div class="dlv-sheet-back" id="dlv-sheet-back" onclick="closeDlvSheet()"></div>
+      <div class="dlv-sheet" id="dlv-sheet">
+        <div class="dlv-sheet-head"><span class="t">🚚 직배송 추가</span><button class="x" onclick="closeDlvSheet()">×</button></div>
         <div class="src-dropdown" id="dlv-src-dd" style="display:none"></div>
         <div class="seg-row" id="dlv-seg-row">
           <div class="seg f-dsrc"><span class="seg-label">입고처</span><input id="d-src" placeholder="황제"></div>
           <div class="seg f-dch"><span class="seg-label">판매처</span><input id="d-ch" placeholder="핑"></div>
-          <div class="seg f-dtire"><span class="seg-label">모델 규격</span><input id="d-tire" placeholder="TA21 205/55 16"></div>
-          <div class="seg f-dbrand"><span class="seg-label">브랜드/년식</span><input id="d-brand" placeholder="한국 2025"></div>
+          <div class="seg f-dtire"><span class="seg-label">모델 규격(2번)</span><input id="d-tire" placeholder="TA21 205/55 16"></div>
+          <div class="seg f-dbrand"><span class="seg-label">브랜드/년식(2번)</span><input id="d-brand" placeholder="한국 2025"></div>
           <div class="seg f-dqty"><span class="seg-label">수량</span><input id="d-qty" placeholder="4" inputmode="numeric"></div>
-          <div class="seg f-daddr"><span class="seg-label">주소</span><input id="d-addr" placeholder="남양주시 ..."></div>
-          <div class="seg f-drecv"><span class="seg-label">받는사람</span><input id="d-recv" placeholder="부국정비"></div>
+          <div class="seg f-daddr"><span class="seg-label">주소(2번)</span><input id="d-addr" placeholder="남양주시 ..."></div>
+          <div class="seg f-drecv"><span class="seg-label">받는사람(2번)</span><input id="d-recv" placeholder="부국정비"></div>
           <div class="seg f-dtel"><span class="seg-label">전화</span><input id="d-tel" placeholder="010..." inputmode="numeric"></div>
+          <div class="seg f-dnote"><span class="seg-label">비고(2번·선택)</span><input id="d-note" placeholder="예: 팀장님 퇴근시 배송"></div>
         </div>
         <div class="item-add-row">
-          <button class="item-add-btn" onclick="addDelivery()">➕ 직배송 추가</button>
+          <button class="item-add-btn" onclick="addDelivery()">➕ 추가</button>
         </div>
       </div>
     </div>
@@ -1443,7 +1479,7 @@ function pickSrc(s){
 
 // ===================== 직배송방 =====================
 var dlvSub=null;
-var deliveriesCache=[], dlvLogsCache=[], dlvLocked=false, dlvSelectedId=null;
+var deliveriesCache=[], dlvLogsCache=[], dlvLocked=false, dlvSelectedId=null, dlvOpenId=null;
 var curDlvTab='deliv';
 const DCH_LABEL={ping:'핑',spam:'스팜',online:'온라인',st11:'11번가'};
 
@@ -1497,46 +1533,96 @@ function switchDlvTab(tab){
   document.querySelectorAll('.dlv-tab').forEach(function(t){t.classList.toggle('active',t.dataset.dtab===tab);});
   renderDelivery();
 }
+function openDlvSheet(){document.getElementById('dlv-sheet-back').classList.add('on');document.getElementById('dlv-sheet').classList.add('on');}
+function closeDlvSheet(){
+  document.getElementById('dlv-sheet-back').classList.remove('on');document.getElementById('dlv-sheet').classList.remove('on');
+  // 수정 모드였으면 제목/버튼 원상복구 (다음에 ➕로 열 때 깔끔하게)
+  if(dlvEditId){dlvEditId=null;
+    const head=document.querySelector('#dlv-sheet .dlv-sheet-head .t');if(head)head.textContent='🚚 직배송 추가';
+    const btn=document.querySelector('#dlv-sheet .item-add-btn');if(btn)btn.textContent='➕ 추가';
+    ['d-src','d-ch','d-tire','d-brand','d-qty','d-addr','d-recv','d-tel','d-note'].forEach(function(id){document.getElementById(id).value='';});
+  }
+}
+function dlvTelLink(t){return (t||'').replace(/[^0-9]/g,'');}
+function dlvMapLink(a){return 'https://map.kakao.com/?q='+encodeURIComponent(a||'');}
 
 function dlvListOf(tab){
-  const arr=deliveriesCache.filter(function(c){return c.tab===tab;});
-  if(tab==='deliv'){
-    arr.sort(function(a,b){if(a.done!==b.done)return a.done?1:-1;return (a.sort_order||0)-(b.sort_order||0);});
-  }else arr.sort(function(a,b){return (a.sort_order||0)-(b.sort_order||0);});
+  const realTab=(tab==='summary')?'deliv':tab;
+  const arr=deliveriesCache.filter(function(c){return c.tab===realTab;});
+  if(realTab==='deliv'){
+    // 취소>완료 순으로 맨 아래, 나머지는 순서대로
+    arr.sort(function(a,b){
+      const ra=a.cancelled?2:(a.done?1:0), rb=b.cancelled?2:(b.done?1:0);
+      if(ra!==rb)return ra-rb;
+      return (a.sort_order||0)-(b.sort_order||0);
+    });
+  }else arr.sort(function(a,b){
+    const ra=a.cancelled?1:0, rb=b.cancelled?1:0;
+    if(ra!==rb)return ra-rb;
+    return (a.sort_order||0)-(b.sort_order||0);
+  });
   return arr;
+}
+// 요약탭 카드 (한 줄 → 탭 펼침, 보기+완료 전용)
+function dlvSummaryCard(c,idx){
+  const op=(c.id===dlvOpenId);
+  let h='<div class="dscard '+(c.channel==='ping'?'ping':'')+(c.done?' done':'')+(op?' open':'')+'">';
+  h+='<div class="dsrow1" onclick="dlvToggleOpen(\''+c.id+'\')">';
+  h+='<span class="dsnum">'+(c.done?'✓':(idx+1))+'</span>';
+  h+='<span class="dtag '+(c.channel||'spam')+'">'+(DCH_LABEL[c.channel]||'스팜')+'</span>';
+  h+='<span class="dssum"><span class="tire">'+esc(c.tire||'')+'</span> · '+esc(c.recv||'')+' · <span class="qty">'+esc(c.qty||'')+'개</span></span>';
+  if(c.need_done&&!c.done)h+='<span class="dneed-badge">완료필요</span>';
+  h+='<span class="dsexp">'+(op?'▲':'▼')+'</span></div>';
+  h+='<div class="dsdetail">';
+  h+='<div class="dsd-line">🚗 '+esc(c.tire||'')+' · '+esc(c.brand||'')+' · '+esc(c.qty||'')+'개 (입고: '+esc(c.src||'-')+')</div>';
+  if(c.addr)h+='<div class="dsd-line">📍 <a href="'+dlvMapLink(c.addr)+'" target="_blank" rel="noopener">'+esc(c.addr)+'</a></div>';
+  h+='<div class="dsd-line">👤 '+esc(c.recv||'')+(c.tel?' · 📞 <a href="tel:'+dlvTelLink(c.tel)+'">'+esc(c.tel)+'</a>':'')+'</div>';
+  if(c.note)h+='<div class="dsd-line">📝 '+esc(c.note)+'</div>';
+  h+='<div class="dsd-acts">';
+  h+=c.done?'<button class="dact undo-btn" onclick="event.stopPropagation();dlvToggleDone(\''+c.id+'\')">완료취소</button>':'<button class="dact done-btn" onclick="event.stopPropagation();dlvToggleDone(\''+c.id+'\')">✓ 완료</button>';
+  h+='<button class="dact copy-btn" onclick="event.stopPropagation();dlvCopy(\''+c.id+'\')">📋 복사</button>';
+  h+='</div></div></div>';
+  return h;
 }
 
 function dlvCardHtml(c,idx,list){
   const sel=(c.id===dlvSelectedId);
-  const movable=(c.tab==='deliv'&&!c.done);
-  const liveCount=list.filter(function(x){return !x.done;}).length;
+  const movable=(c.tab==='deliv'&&!c.done&&!c.cancelled);
+  const liveCount=list.filter(function(x){return !x.done&&!x.cancelled;}).length;
   const upDis=(!movable||idx===0||dlvLocked||!sel)?'disabled':'';
   const downDis=(!movable||dlvLocked||!sel||idx===liveCount-1)?'disabled':'';
-  let h='<div class="dcard '+(c.channel==='ping'?'ping':'')+(sel?' selected':'')+(c.done?' done':'')+'">';
-  h+='<div class="dc-num">'+(c.done?'✓':(idx+1))+'</div>';
+  let h='<div class="dcard '+(c.channel==='ping'?'ping':'')+(sel?' selected':'')+(c.done?' done':'')+(c.cancelled?' cancelled':'')+'">';
+  h+='<div class="dc-num">'+(c.cancelled?'✕':(c.done?'✓':(idx+1)))+'</div>';
   h+='<div class="dc-main" onclick="selectDlvCard(\''+c.id+'\')">';
   h+='<div class="dc-top"><span class="dtag '+(c.channel||'spam')+'">'+(DCH_LABEL[c.channel]||'스팜')+'</span><span class="dc-src">입고: '+esc(c.src||'-')+'</span>';
-  if(c.need_done&&!c.done)h+='<span class="dneed-badge">완료필요</span>';
-  if(sel)h+='<span class="dsel-badge">선택됨</span>';
+  if(c.cancelled)h+='<span class="dcancel-badge">취소됨</span>';
+  else if(c.need_done&&!c.done)h+='<span class="dneed-badge">완료필요</span>';
+  if(sel&&!c.cancelled)h+='<span class="dsel-badge">선택됨</span>';
   h+='</div>';
   h+='<div class="dc-tire">'+esc(c.tire||'')+'<span class="brand">'+esc(c.brand||'')+'</span><span class="qty">'+esc(c.qty||'')+'개</span></div>';
-  if(c.addr)h+='<div class="dc-addr">📍 '+esc(c.addr)+'</div>';
-  h+='<div class="dc-recv"><span class="name">'+esc(c.recv||'')+'</span>'+(c.tel?' · <span class="tel">'+esc(c.tel)+'</span>':'')+'</div>';
+  if(c.addr)h+='<div class="dc-addr">📍 <a href="'+dlvMapLink(c.addr)+'" target="_blank" rel="noopener" onclick="event.stopPropagation()">'+esc(c.addr)+'</a></div>';
+  h+='<div class="dc-recv"><span class="name">'+esc(c.recv||'')+'</span>'+(c.tel?' · <a class="tel" href="tel:'+dlvTelLink(c.tel)+'" onclick="event.stopPropagation()">'+esc(c.tel)+'</a>':'')+'</div>';
+  if(c.note)h+='<div class="dc-note">📝 '+esc(c.note)+'</div>';
   h+='<div class="dc-acts">';
-  if(c.tab==='deliv'){
-    h+=c.done?'<button class="dact undo-btn" onclick="event.stopPropagation();dlvToggleDone(\''+c.id+'\')">완료취소</button>':'<button class="dact done-btn" onclick="event.stopPropagation();dlvToggleDone(\''+c.id+'\')">✓ 완료</button>';
-    h+='<button class="dact" onclick="event.stopPropagation();dlvMoveTab(\''+c.id+'\',\'hold\')">→미출고</button>';
-    h+='<button class="dact" onclick="event.stopPropagation();dlvMoveTab(\''+c.id+'\',\'parcel\')">→택배</button>';
-  }else if(c.tab==='hold'){
-    h+='<button class="dact" onclick="event.stopPropagation();dlvMoveTab(\''+c.id+'\',\'deliv\')">→직배송</button>';
-    h+='<button class="dact" onclick="event.stopPropagation();dlvMoveTab(\''+c.id+'\',\'parcel\')">→택배</button>';
+  if(c.cancelled){
+    h+='<button class="dact" onclick="event.stopPropagation();dlvUncancel(\''+c.id+'\')">취소 되돌리기</button>';
   }else{
-    h+='<button class="dact copy-btn" onclick="event.stopPropagation();dlvCopy(\''+c.id+'\')">📋 복사</button>';
-    h+=c.confirmed?'<button class="dact confirmed" onclick="event.stopPropagation();dlvToggleConfirm(\''+c.id+'\')">✓ 확인됨</button>':'<button class="dact confirm-btn" onclick="event.stopPropagation();dlvToggleConfirm(\''+c.id+'\')">확인</button>';
-    h+='<button class="dact" onclick="event.stopPropagation();dlvMoveTab(\''+c.id+'\',\'deliv\')">→직배송</button>';
-    h+='<button class="dact" onclick="event.stopPropagation();dlvMoveTab(\''+c.id+'\',\'hold\')">→미출고</button>';
+    if(c.tab==='deliv'){
+      h+=c.done?'<button class="dact undo-btn" onclick="event.stopPropagation();dlvToggleDone(\''+c.id+'\')">완료취소</button>':'<button class="dact done-btn" onclick="event.stopPropagation();dlvToggleDone(\''+c.id+'\')">✓ 완료</button>';
+      h+='<button class="dact" onclick="event.stopPropagation();dlvMoveTab(\''+c.id+'\',\'hold\')">→미출고</button>';
+      h+='<button class="dact" onclick="event.stopPropagation();dlvMoveTab(\''+c.id+'\',\'parcel\')">→택배</button>';
+    }else if(c.tab==='hold'){
+      h+='<button class="dact" onclick="event.stopPropagation();dlvMoveTab(\''+c.id+'\',\'deliv\')">→직배송</button>';
+      h+='<button class="dact" onclick="event.stopPropagation();dlvMoveTab(\''+c.id+'\',\'parcel\')">→택배</button>';
+    }else{
+      h+='<button class="dact copy-btn" onclick="event.stopPropagation();dlvCopy(\''+c.id+'\')">📋 복사</button>';
+      h+=c.confirmed?'<button class="dact confirmed" onclick="event.stopPropagation();dlvToggleConfirm(\''+c.id+'\')">✓ 확인됨</button>':'<button class="dact confirm-btn" onclick="event.stopPropagation();dlvToggleConfirm(\''+c.id+'\')">확인</button>';
+      h+='<button class="dact" onclick="event.stopPropagation();dlvMoveTab(\''+c.id+'\',\'deliv\')">→직배송</button>';
+      h+='<button class="dact" onclick="event.stopPropagation();dlvMoveTab(\''+c.id+'\',\'hold\')">→미출고</button>';
+    }
+    h+='<button class="dact edit-btn" onclick="event.stopPropagation();dlvEdit(\''+c.id+'\')">✏️ 수정</button>';
+    h+='<button class="dact del-btn" onclick="event.stopPropagation();dlvCancel(\''+c.id+'\')">취소</button>';
   }
-  h+='<button class="dact del-btn" onclick="event.stopPropagation();dlvDelete(\''+c.id+'\')">삭제</button>';
   h+='</div></div>';
   if(movable){
     h+='<div class="dc-side"><button class="dside-btn" '+upDis+' onclick="dlvMove(\''+c.id+'\',-1)">▲</button><button class="dside-btn" '+downDis+' onclick="dlvMove(\''+c.id+'\',1)">▼</button></div>';
@@ -1552,6 +1638,13 @@ function renderDelivery(){
   const body=document.getElementById('dlv-body');
   const list=dlvListOf(curDlvTab);
   let html='';
+  if(curDlvTab==='summary'){
+    const live=list.filter(function(c){return !c.done;}).length;
+    html+='<div class="dlv-guide">📋 <b>배송 순서 요약</b> · 남은 '+live+'건 / 완료 '+(list.length-live)+'건. 탭하면 주소·전화 펼침, 완료 체크 가능.</div>';
+    html+=(list.length?list.map(function(c,i){return dlvSummaryCard(c,i);}).join(''):'<div class="dlv-empty">직배송 건이 없어요.</div>');
+    body.innerHTML=html;
+    return;
+  }
   if(curDlvTab==='deliv'){
     html+='<div class="dlv-guide"><b>탭하면 선택</b>→ ▲▼로 순서. <b>완료</b>는 취소선+맨아래. 어제 못 끝낸 건 <b style="color:#c2410c">완료필요</b>로 떠요.</div>';
     html+='<div class="dlock-bar"><span class="lbl">순서 변경: <b>'+(dlvLocked?'잠김':'풀림')+'</b></span><button class="dlock-toggle '+(dlvLocked?'locked':'unlocked')+'" onclick="dlvToggleLock()">'+(dlvLocked?'🔒 풀기':'🔓 잠그기')+'</button></div>';
@@ -1570,6 +1663,7 @@ function renderDelivery(){
   }
   body.innerHTML=html;
 }
+function dlvToggleOpen(id){dlvOpenId=(dlvOpenId===id)?null:id;renderDelivery();}
 
 function selectDlvCard(id){dlvSelectedId=(dlvSelectedId===id)?null:id;renderDelivery();}
 
@@ -1605,10 +1699,41 @@ async function dlvMoveTab(id,to){
   try{await sb.from('deliveries').update({tab:to,done:false,need_done:false,sort_order:maxO+1}).eq('id',id);}catch(e){alert('실패: '+e.message);}
   dlvSelectedId=null;await loadDeliveries();
 }
-async function dlvDelete(id){
-  if(!confirm('이 건을 삭제할까요?'))return;
-  try{await sb.from('deliveries').delete().eq('id',id);}catch(e){alert('삭제 실패: '+e.message);}
+async function dlvCancel(id){
+  const c=deliveriesCache.find(function(x){return x.id===id;});if(!c)return;
+  if(!confirm('이 건을 취소할까요? (기록은 남아요)'))return;
+  try{
+    await sb.from('deliveries').update({cancelled:true}).eq('id',id);
+    await sb.from('delivery_logs').insert({room_id:curRoom.id,date_str:dlvDateStr(),text:(me?me.name:'?')+'님이 취소함 ('+(c.recv||c.tire||'')+')',user_name:me?me.name:''});
+  }catch(e){alert('취소 실패: '+e.message);}
   await loadDeliveries();
+}
+async function dlvUncancel(id){
+  const c=deliveriesCache.find(function(x){return x.id===id;});if(!c)return;
+  try{
+    await sb.from('deliveries').update({cancelled:false}).eq('id',id);
+    await sb.from('delivery_logs').insert({room_id:curRoom.id,date_str:dlvDateStr(),text:(me?me.name:'?')+'님이 취소 되돌림 ('+(c.recv||c.tire||'')+')',user_name:me?me.name:''});
+  }catch(e){alert('실패: '+e.message);}
+  await loadDeliveries();
+}
+// 수정: 입력 시트를 그 카드 내용으로 채워 열기
+var dlvEditId=null;
+function dlvEdit(id){
+  const c=deliveriesCache.find(function(x){return x.id===id;});if(!c)return;
+  dlvEditId=id;
+  document.getElementById('d-src').value=c.src||'';
+  document.getElementById('d-ch').value=DCH_LABEL[c.channel]||'';
+  document.getElementById('d-tire').value=c.tire||'';
+  document.getElementById('d-brand').value=c.brand||'';
+  document.getElementById('d-qty').value=c.qty||'';
+  document.getElementById('d-addr').value=c.addr||'';
+  document.getElementById('d-recv').value=c.recv||'';
+  document.getElementById('d-tel').value=c.tel||'';
+  document.getElementById('d-note').value=c.note||'';
+  // 시트 제목/버튼을 수정 모드로
+  const head=document.querySelector('#dlv-sheet .dlv-sheet-head .t');if(head)head.textContent='✏️ 직배송 수정';
+  const btn=document.querySelector('#dlv-sheet .item-add-btn');if(btn)btn.textContent='✏️ 수정 저장';
+  openDlvSheet();
 }
 function dlvCopy(id){
   const c=deliveriesCache.find(function(x){return x.id===id;});if(!c)return;
@@ -1636,26 +1761,43 @@ async function addDelivery(){
   if(!tire){alert('모델/규격은 입력해주세요');return;}
   const chRaw=document.getElementById('d-ch').value.trim();
   let ch='spam';
-  if(chRaw.indexOf('핑')>=0)ch='ping';else if(chRaw.indexOf('온라인')>=0)ch='online';else if(chRaw.indexOf('11')>=0)ch='st11';
+  if(chRaw.indexOf('핑')>=0)ch='ping';else if(chRaw.indexOf('온라인')>=0)ch='online';else if(chRaw.indexOf('11')>=0)ch='st11';else if(chRaw.indexOf('전화')>=0)ch='tel';
+  const fields={
+    channel:ch,
+    src:document.getElementById('d-src').value.trim(),tire:tire,
+    brand:document.getElementById('d-brand').value.trim(),qty:document.getElementById('d-qty').value.trim(),
+    addr:document.getElementById('d-addr').value.trim(),recv:document.getElementById('d-recv').value.trim(),
+    tel:document.getElementById('d-tel').value.trim(),note:document.getElementById('d-note').value.trim()};
+  // 수정 모드
+  if(dlvEditId){
+    try{await sb.from('deliveries').update(fields).eq('id',dlvEditId);}catch(e){alert('수정 실패: '+e.message);return;}
+    dlvEditId=null;
+    resetDlvSheet();
+    await loadDeliveries();
+    return;
+  }
+  // 추가 모드
   const ds=dlvDateStr();
   let sortOrder;
   if(ch==='ping'){
-    // 핑은 등록 시 맨 위 → 기존 직배송들 +1, 얘는 맨 앞(가장 작은 값-1)
     const minO=Math.min(0,...deliveriesCache.filter(function(x){return x.tab==='deliv';}).map(function(x){return x.sort_order||0;}));
     sortOrder=minO-1;
   }else{
     const maxO=Math.max(0,...deliveriesCache.filter(function(x){return x.tab==='deliv';}).map(function(x){return x.sort_order||0;}));
     sortOrder=maxO+1;
   }
-  const row={room_id:curRoom.id,date_str:ds,tab:'deliv',channel:ch,
-    src:document.getElementById('d-src').value.trim(),tire:tire,
-    brand:document.getElementById('d-brand').value.trim(),qty:document.getElementById('d-qty').value.trim(),
-    addr:document.getElementById('d-addr').value.trim(),recv:document.getElementById('d-recv').value.trim(),
-    tel:document.getElementById('d-tel').value.trim(),sort_order:sortOrder,user_name:me?me.name:''};
+  const row=Object.assign({room_id:curRoom.id,date_str:ds,tab:'deliv',sort_order:sortOrder,user_name:me?me.name:''},fields);
   try{await sb.from('deliveries').insert(row);}catch(e){alert('추가 실패: '+e.message);return;}
-  ['d-src','d-ch','d-tire','d-brand','d-qty','d-addr','d-recv','d-tel'].forEach(function(id){document.getElementById(id).value='';});
+  resetDlvSheet();
   curDlvTab='deliv';switchDlvTab('deliv');
   await loadDeliveries();
+}
+function resetDlvSheet(){
+  ['d-src','d-ch','d-tire','d-brand','d-qty','d-addr','d-recv','d-tel','d-note'].forEach(function(id){document.getElementById(id).value='';});
+  dlvEditId=null;
+  const head=document.querySelector('#dlv-sheet .dlv-sheet-head .t');if(head)head.textContent='🚚 직배송 추가';
+  const btn=document.querySelector('#dlv-sheet .item-add-btn');if(btn)btn.textContent='➕ 추가';
+  closeDlvSheet();
 }
 
 // 직배송방 입고처 드롭다운 (입고방 키워드 재활용, SFP 제외)
@@ -1679,6 +1821,25 @@ function dlvPickSrc(s){document.getElementById('d-src').value=s;document.getElem
       if(di.value===''&&/^[1-9]$/.test(e.key)){const cands=srcCandidates();const idx=parseInt(e.key)-1;if(idx<cands.length){e.preventDefault();dlvPickSrc(cands[idx]);}}
     });
   }
+  // 직배송 입력칸 띄어쓰기 이동 (모델규격·브랜드·주소·받는사람=2번, 나머지=1번)
+  const DSEG=['d-src','d-ch','d-tire','d-brand','d-qty','d-addr','d-recv','d-tel','d-note'];
+  const DDBL=['d-tire','d-brand','d-addr','d-recv','d-note'];
+  DSEG.forEach(function(id,pos){
+    const inp=document.getElementById(id);if(!inp)return;
+    const dbl=DDBL.indexOf(id)>=0;
+    inp.addEventListener('keydown',function(e){
+      if(e.key==='Backspace'&&inp.value===''){e.preventDefault();if(pos>0)document.getElementById(DSEG[pos-1]).focus();return;}
+      if(e.key==='Enter'){e.preventDefault();addDelivery();return;}
+    });
+    inp.addEventListener('input',function(){
+      const v=inp.value;
+      if(dbl){
+        if(/\s{2,}$/.test(v)){inp.value=v.replace(/\s+$/,'');if(pos<DSEG.length-1){const n=document.getElementById(DSEG[pos+1]);n.focus();}}
+      }else{
+        if(/\s$/.test(v)){const t=v.replace(/\s+$/,'');if(t===''){inp.value='';return;}inp.value=t;if(pos<DSEG.length-1){const n=document.getElementById(DSEG[pos+1]);n.focus();}}
+      }
+    });
+  });
 })();
 
 // ===== 검색 =====
