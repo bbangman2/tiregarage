@@ -308,18 +308,25 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Noto Sa
 .dc-trade{white-space:normal;line-height:1.6;font-weight:600;color:var(--navy)}
 .dlv-pv-trade{font-size:13px;line-height:1.6;color:var(--navy);font-weight:600;white-space:normal}
 /* 요약탭 카드 (한 줄 → 펼침) */
-.dscard{background:var(--card);border:1.5px solid var(--border);border-radius:10px;margin-bottom:6px;overflow:hidden}
+.dscard{background:var(--card);border:1px solid var(--border);border-radius:7px;margin-bottom:4px;overflow:hidden}
 .dscard.ping{border-color:#f3b4b4}
-.dscard.done{opacity:.5}.dscard.done .dsrow1{text-decoration:line-through}
-.dsrow1{display:flex;align-items:center;gap:7px;padding:9px 11px;cursor:pointer}
-.dsnum{background:var(--navy);color:#fff;font-size:13px;font-weight:800;min-width:22px;height:22px;border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.dscard.done{opacity:.5}.dscard.done .dssum{text-decoration:line-through}
+.dscard.cancelled{opacity:.5}.dscard.cancelled .dssum{text-decoration:line-through}
+.dsrow1{display:flex;align-items:center;gap:6px;padding:5px 9px}
+.dscheck{width:24px;height:24px;border-radius:6px;border:1.5px solid var(--border);background:#fff;color:#fff;font-size:14px;font-weight:800;flex-shrink:0;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}
+.dscheck.on{background:var(--green);border-color:var(--green)}
+.dsbody{display:flex;align-items:center;gap:6px;flex:1;min-width:0;cursor:pointer}
+.dsnum{background:var(--navy);color:#fff;font-size:11px;font-weight:800;min-width:18px;height:18px;border-radius:5px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .dscard.ping .dsnum{background:var(--red)}.dscard.done .dsnum{background:var(--text3)}
-.dssum{flex:1;min-width:0;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.dssum .tire{font-weight:700;color:var(--navy)}.dssum .qty{font-weight:800;color:var(--purple)}
-.dsexp{font-size:13px;color:var(--text3);flex-shrink:0}
-.dsdetail{display:none;padding:0 11px 11px 40px}
+.dssum{flex:1;min-width:0;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dssum .recv{font-weight:700;color:var(--navy)}.dssum .tire{color:var(--text2)}.dssum .qty{font-weight:800;color:var(--purple)}
+.dsside{display:flex;gap:2px;flex-shrink:0}
+.dsside-btn{width:24px;height:24px;border:1px solid var(--border);background:#fff;border-radius:5px;font-size:11px;color:var(--navy);cursor:pointer;padding:0}
+.dsside-btn:disabled{opacity:.25}
+.dsexp{font-size:12px;color:var(--text3);flex-shrink:0;cursor:pointer;padding:0 2px}
+.dsdetail{display:none;padding:0 11px 10px 40px}
 .dscard.open .dsdetail{display:block}
-.dscard.open .dsrow1{border-bottom:1px solid #f0eeea}
+.dscard.open .dsrow1{border-bottom:1px solid #f0eeea;margin-bottom:7px}
 .dsd-line{font-size:12px;color:var(--text);margin-bottom:4px;line-height:1.5}
 .dsd-line a{color:var(--blue);text-decoration:none}
 .dsd-acts{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
@@ -1860,20 +1867,34 @@ function dlvListOf(tab){
   return arr;
 }
 // 요약탭 카드 (한 줄 → 탭 펼침, 보기+완료 전용)
-function dlvSummaryCard(c,idx){
+function dlvSummaryCard(c,idx,list){
   const op=(c.id===dlvOpenId);
-  let h='<div class="dscard '+(c.channel==='ping'?'ping':'')+(c.done?' done':'')+(op?' open':'')+'">';
-  h+='<div class="dsrow1" onclick="dlvToggleOpen(\''+c.id+'\')">';
-  h+='<span class="dsnum">'+(c.done?'✓':(idx+1))+'</span>';
+  const sel=(c.id===dlvSelectedId);
+  const movable=(!c.done&&!c.cancelled);
+  const liveCount=list?list.filter(function(x){return !x.done&&!x.cancelled;}).length:0;
+  const upDis=(!movable||idx===0||dlvLocked)?'disabled':'';
+  const downDis=(!movable||dlvLocked||idx===liveCount-1)?'disabled':'';
+  let h='<div class="dscard '+(c.channel==='ping'?'ping':'')+(c.done?' done':'')+(c.cancelled?' cancelled':'')+(op?' open':'')+(sel?' selected':'')+'">';
+  h+='<div class="dsrow1">';
+  // 완료 체크 (접힌 상태에서 바로, 토글)
+  h+='<button class="dscheck'+(c.done?' on':'')+'" onclick="event.stopPropagation();dlvToggleDone(\''+c.id+'\')">'+(c.done?'✓':'')+'</button>';
+  h+='<span class="dsbody" onclick="dlvToggleOpen(\''+c.id+'\')">';
+  h+='<span class="dsnum">'+(c.cancelled?'✕':(idx+1))+'</span>';
   h+='<span class="dtag '+(c.channel||'spam')+'">'+(DCH_LABEL[c.channel]||'스팜')+'</span>';
   if(c.channel==='trade'){
-    const firstLine=(c.tire||'').split('\n')[0];
-    h+='<span class="dssum"><span class="tire">'+esc(firstLine)+'</span></span>';
+    h+='<span class="dssum"><span class="tire">'+esc((c.tire||'').split('\n')[0])+'</span></span>';
   }else{
-    h+='<span class="dssum"><span class="tire">'+esc(c.tire||'')+'</span> · '+esc(c.recv||'')+' · <span class="qty">'+esc(c.qty||'')+'개</span></span>';
+    h+='<span class="dssum">'+(c.code?'<span class="dc-code">['+esc(c.code)+']</span> ':'')+'<span class="recv">'+esc(c.recv||'')+'</span> · <span class="tire">'+esc(c.tire||'')+'</span> <span class="qty">'+esc(c.qty||'')+'개</span></span>';
   }
-  if(c.need_done&&!c.done)h+='<span class="dneed-badge">완료필요</span>';
-  h+='<span class="dsexp">'+(op?'▲':'▼')+'</span></div>';
+  if(c.cancelled)h+='<span class="dcancel-badge">취소</span>';
+  else if(c.need_done&&!c.done)h+='<span class="dneed-badge">완료필요</span>';
+  h+='</span>';
+  // 순서 ▲▼ (선택 시)
+  if(movable){
+    h+='<span class="dsside"><button class="dsside-btn" '+upDis+' onclick="event.stopPropagation();dlvSelThenMove(\''+c.id+'\',-1)">▲</button><button class="dsside-btn" '+downDis+' onclick="event.stopPropagation();dlvSelThenMove(\''+c.id+'\',1)">▼</button></span>';
+  }
+  h+='<span class="dsexp" onclick="dlvToggleOpen(\''+c.id+'\')">'+(op?'▲':'▼')+'</span></div>';
+  // 펼침
   h+='<div class="dsdetail">';
   if(c.channel==='trade'){
     h+='<div class="dsd-line dc-trade">'+esc(c.tire||'').replace(/\n/g,'<br>')+'</div>';
@@ -1884,8 +1905,16 @@ function dlvSummaryCard(c,idx){
   }
   if(c.note)h+='<div class="dsd-line">📝 '+esc(c.note)+'</div>';
   h+='<div class="dsd-acts">';
-  h+=c.done?'<button class="dact undo-btn" onclick="event.stopPropagation();dlvToggleDone(\''+c.id+'\')">완료취소</button>':'<button class="dact done-btn" onclick="event.stopPropagation();dlvToggleDone(\''+c.id+'\')">✓ 완료</button>';
-  h+='<button class="dact copy-btn" onclick="event.stopPropagation();dlvCopy(\''+c.id+'\')">📋 복사</button>';
+  if(c.cancelled){
+    h+='<button class="dact" onclick="event.stopPropagation();dlvUncancel(\''+c.id+'\')">취소 되돌리기</button>';
+  }else{
+    h+='<button class="dact car-btn" onclick="event.stopPropagation();dlvSetCar(\''+c.id+'\','+((c.car||1)===1?2:1)+')">🚐 '+((c.car||1)===1?2:1)+'호차로</button>';
+    h+='<button class="dact" onclick="event.stopPropagation();dlvMoveTab(\''+c.id+'\',\'hold\')">→미출고</button>';
+    h+='<button class="dact" onclick="event.stopPropagation();dlvMoveTab(\''+c.id+'\',\'parcel\')">→택배</button>';
+    h+='<button class="dact copy-btn" onclick="event.stopPropagation();dlvCopy(\''+c.id+'\')">📋 복사</button>';
+    h+='<button class="dact edit-btn" onclick="event.stopPropagation();dlvEdit(\''+c.id+'\')">✏️ 수정</button>';
+    h+='<button class="dact del-btn" onclick="event.stopPropagation();dlvCancel(\''+c.id+'\')">취소</button>';
+  }
   h+='</div></div></div>';
   return h;
 }
@@ -1977,7 +2006,7 @@ function renderDelivery(){
     const carName=has2?(carNo+'호차'):'요약';
     html+='<div class="dlv-guide">🚐 <b>'+carName+'</b> · 남은 '+cLive+'건. 탭하면 선택→▲▼ 순서. 완료·취소·이동·차량변경 가능.</div>';
     html+='<div class="dlock-bar"><span class="lbl">순서 변경: <b>'+(dlvLocked?'잠김':'풀림')+'</b></span><button class="dlock-toggle '+(dlvLocked?'locked':'unlocked')+'" onclick="dlvToggleLock()">'+(dlvLocked?'🔒 풀기':'🔓 잠그기')+'</button></div>';
-    html+=(clist.length?clist.map(function(c,i){return dlvCardHtml(c,i,clist);}).join(''):'<div class="dlv-empty">'+carName+' 배송 건이 없어요.</div>');
+    html+=(clist.length?clist.map(function(c,i){return dlvSummaryCard(c,i,clist);}).join(''):'<div class="dlv-empty">'+carName+' 배송 건이 없어요.</div>');
     body.innerHTML=html;
     return;
   }
@@ -2003,6 +2032,11 @@ function dlvToggleOpen(id){dlvOpenId=(dlvOpenId===id)?null:id;renderDelivery();}
 
 function selectDlvCard(id){dlvSelectedId=(dlvSelectedId===id)?null:id;renderDelivery();}
 
+async function dlvSelThenMove(id,dir){
+  // 요약/2호차 탭: 선택 없이 바로 순서 이동
+  dlvSelectedId=id;
+  await dlvMove(id,dir);
+}
 async function dlvSetCar(id,carNo){
   const c=deliveriesCache.find(function(x){return x.id===id;});if(!c)return;
   // 옮길 차량의 맨 뒤 순서로
