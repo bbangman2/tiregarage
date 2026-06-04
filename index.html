@@ -677,6 +677,39 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Noto Sa
       </div>
       <div class="del-hint">해당 방 전체 메시지를 완전히 초기화합니다.</div>
     </div>
+    <div class="danger-section" style="border-color:rgba(29,78,216,.3);background:rgba(29,78,216,.06)">
+      <div class="danger-title" style="color:#1d4ed8">💾 백업 (CSV 다운로드)</div>
+      <div class="del-hint" style="margin-bottom:8px">방을 선택해 데이터를 CSV로 저장합니다. 엑셀에서 열 수 있어요.</div>
+      <div class="del-row">
+        <select class="del-select" id="bak-room-sel" onchange="loadBakDates()"><option value="">방 선택...</option></select>
+      </div>
+      <div class="del-row" style="margin-top:7px">
+        <label style="font-size:12px;color:var(--text2);display:flex;align-items:center;gap:5px"><input type="radio" name="bak-mode" value="all" checked onchange="bakModeChange()"> 전체</label>
+        <label style="font-size:12px;color:var(--text2);display:flex;align-items:center;gap:5px"><input type="radio" name="bak-mode" value="range" onchange="bakModeChange()"> 날짜 범위</label>
+      </div>
+      <div class="del-row" id="bak-range-row" style="margin-top:7px;display:none;gap:5px">
+        <select class="del-select" id="bak-date-from"><option value="">시작...</option></select>
+        <span style="align-self:center;color:var(--text3)">~</span>
+        <select class="del-select" id="bak-date-to"><option value="">끝...</option></select>
+      </div>
+      <button class="btn-danger" style="margin-top:8px;width:100%;background:#1d4ed8" onclick="backupCSV()">💾 CSV 다운로드</button>
+    </div>
+    <div class="danger-section" style="border-color:rgba(91,53,176,.3);background:rgba(91,53,176,.06)">
+      <div class="danger-title" style="color:#5b35b0">📤 복원 (CSV 업로드)</div>
+      <div class="del-hint" style="margin-bottom:8px">백업한 CSV를 다시 불러옵니다. 실수로 지운 데이터를 되살릴 때 쓰세요.</div>
+      <div class="del-row">
+        <select class="del-select" id="res-room-sel"><option value="">방 선택...</option></select>
+      </div>
+      <div class="del-row" style="margin-top:7px">
+        <label style="font-size:12px;color:var(--text2);display:flex;align-items:center;gap:5px"><input type="radio" name="res-mode" value="skip" checked> 중복 건너뛰기</label>
+        <label style="font-size:12px;color:var(--text2);display:flex;align-items:center;gap:5px"><input type="radio" name="res-mode" value="overwrite"> 덮어쓰기</label>
+      </div>
+      <div class="del-row" style="margin-top:7px">
+        <input type="file" id="res-file" accept=".csv" style="font-size:12px;flex:1">
+      </div>
+      <button class="btn-danger" style="margin-top:8px;width:100%;background:#5b35b0" onclick="restoreCSV()">📤 복원</button>
+      <div class="del-hint" style="margin-top:6px">건너뛰기=이미 있는 건 그대로 둠 / 덮어쓰기=CSV의 날짜 데이터를 비우고 새로 넣음</div>
+    </div>
     <div class="danger-section" style="border-color:rgba(21,128,61,.3);background:rgba(21,128,61,.06)">
       <div class="danger-title" style="color:#15803d">받아오기 분류 단어</div>
       <div class="del-hint" style="margin-bottom:8px">출처에 이 단어가 포함되면 종합본에서 '받아오기'(직접 가져올 것)로 분류돼 맨 위에 모입니다.</div>
@@ -1355,7 +1388,7 @@ function TK(line){
 }
 
 function populateAdminSelects(){
-  ['del-room-sel','del-room-all-sel'].forEach(function(id){
+  ['del-room-sel','del-room-all-sel','bak-room-sel'].forEach(function(id){
     const s=document.getElementById(id);
     s.innerHTML='<option value="">방 선택...</option>'+rooms.map(function(r){return'<option value="'+r.id+'">'+r.name+'</option>';}).join('');
   });
@@ -1457,6 +1490,79 @@ async function deleteAllInRoom(){
   }
 }
 function adminLog(msg){document.getElementById('admin-log').textContent=msg;}
+
+// ===== 백업 (CSV) =====
+async function loadBakDates(){
+  const roomId=document.getElementById('bak-room-sel').value;
+  const sels=[document.getElementById('bak-date-from'),document.getElementById('bak-date-to')];
+  const labels=['시작...','끝...'];
+  sels.forEach(function(s,i){s.innerHTML='<option value="">'+labels[i]+'</option>';});
+  if(!roomId)return;
+  const info=roomDataInfo(roomId);if(!info)return;
+  let dates=[];
+  try{
+    if(info.dateCol==='date_str'){
+      const{data}=await sb.from(info.tables[0]).select('date_str').eq('room_id',roomId);
+      dates=(data||[]).map(function(x){return x.date_str;});
+    }else{
+      const{data}=await sb.from('messages').select('created_at').eq('room_id',roomId);
+      dates=(data||[]).map(function(x){return toDateStr(x.created_at);});
+    }
+  }catch(e){return;}
+  const ds=Array.from(new Set(dates)).sort();
+  ds.forEach(function(d){
+    const txt=new Date(d+'T00:00:00+09:00').toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'})+' ('+d+')';
+    sels.forEach(function(s){const opt=document.createElement('option');opt.value=d;opt.textContent=txt;s.appendChild(opt);});
+  });
+}
+function bakModeChange(){
+  const mode=document.querySelector('input[name="bak-mode"]:checked').value;
+  document.getElementById('bak-range-row').style.display=(mode==='range')?'flex':'none';
+}
+function csvCell(v){
+  if(v===null||v===undefined)return '';
+  let s=String(v);
+  if(/[",\n]/.test(s))s='"'+s.replace(/"/g,'""')+'"';
+  return s;
+}
+async function backupCSV(){
+  const roomId=document.getElementById('bak-room-sel').value;
+  if(!roomId){alert('방을 선택하세요');return;}
+  const info=roomDataInfo(roomId);if(!info)return;
+  const mode=document.querySelector('input[name="bak-mode"]:checked').value;
+  let fromD,toD,label='전체';
+  if(mode==='range'){
+    fromD=document.getElementById('bak-date-from').value;
+    toD=document.getElementById('bak-date-to').value;
+    if(!fromD||!toD){alert('시작/끝 날짜를 모두 선택하세요');return;}
+    if(fromD>toD){const t=fromD;fromD=toD;toD=t;}
+    label=fromD+'_'+toD;
+  }
+  // 데이터 조회 (첫 번째 테이블 기준 — items/deliveries/messages)
+  const tbl=info.tables[0];
+  let q=sb.from(tbl).select('*').eq('room_id',roomId);
+  try{
+    if(mode==='range'){
+      if(info.dateCol==='date_str')q=q.gte('date_str',fromD).lte('date_str',toD);
+      else{const r1=dateToUTCRange(fromD),r2=dateToUTCRange(toD);q=q.gte('created_at',r1.start).lte('created_at',r2.end);}
+    }
+    const{data}=await q;
+    if(!data||!data.length){alert('백업할 데이터가 없습니다.');return;}
+    // CSV 생성 (컬럼 = 첫 행의 키)
+    const cols=Object.keys(data[0]);
+    let csv=cols.join(',')+'\n';
+    data.forEach(function(row){csv+=cols.map(function(c){return csvCell(row[c]);}).join(',')+'\n';});
+    // BOM 추가 (엑셀 한글 깨짐 방지)
+    const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;a.download=info.room.name+'_'+label+'.csv';
+    document.body.appendChild(a);a.click();document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    adminLog('💾 백업 완료: ['+info.room.name+'] '+label+' ('+data.length+'건)');
+  }catch(e){alert('백업 오류: '+e.message);}
+}
+
 function openAdmin(){if(!me||me.name!==ADMIN_NAME){alert('관리자만 접근 가능합니다');return;}document.getElementById('admin-overlay').classList.add('on');renderRecvKwList();renderOrderKwList();renderArrKwList();renderReturnKwList();}
 function closeAdmin(){document.getElementById('admin-overlay').classList.remove('on');}
 // 키워드 칩 렌더 공통
@@ -1934,12 +2040,24 @@ function dlvPastePreview(){
   const lines=raw.split('\n').map(function(l){return l.replace(/\r/,'');}).filter(function(l){return l.trim();});
   dlvParsed=lines.map(function(line){
     const cols=dlvSplitCols(line);
+    const n=cols.length;
     let d;
     if(dlvPasteFmt==='ping'){
-      d={channel:'ping',code:cols[0]||'',src:cols[2]||'',tire:cols[3]||'',spec:dlvNormSize(cols[4]||''),year:cols[6]||'',brand:cols[7]||'',qty:cols[8]||'',addr:cols[10]||'',recv:cols[11]||'',tel:cols[12]||''};
+      // 핑: (코드) 날짜 출고지 품명 싸이즈 세부 년식 제조사 수량 우편 주소 배송지 연락처
+      // 코드 없으면 12칸(맨앞 코드 빠짐), 있으면 13칸. 코드 뒤는 동일하므로 offset으로 처리
+      const off=(n>=13)?1:0;  // 코드 있으면 1칸 밀림
+      d={channel:'ping',code:off?(cols[0]||''):'',
+        src:cols[off+1]||'',tire:cols[off+2]||'',spec:dlvNormSize(cols[off+3]||''),
+        year:cols[off+5]||'',brand:cols[off+6]||'',qty:cols[off+7]||'',
+        addr:cols[off+9]||'',recv:cols[off+10]||'',tel:cols[off+11]||''};
     }else{
-      d={channel:dlvChFromText(cols[0]),src:cols[2]||'',tire:cols[3]||'',spec:dlvNormSize(cols[4]||''),code:cols[5]||'',year:cols[6]||'',brand:cols[7]||'',qty:cols[8]||'',addr:cols[10]||'',recv:cols[11]||'',tel:cols[12]||''};
+      // 온라인: 판매처 날짜 출고지 품명 싸이즈 코드 DOT 제조사 수량 우편 주소 배송지 연락처
+      // 빈칸도 탭으로 유지되면 항상 13칸 고정. (코드 칸은 비어도 자리 유지)
+      d={channel:dlvChFromText(cols[0]),src:cols[2]||'',tire:cols[3]||'',spec:dlvNormSize(cols[4]||''),
+        code:cols[5]||'',year:cols[6]||'',brand:cols[7]||'',qty:cols[8]||'',
+        addr:cols[10]||'',recv:cols[11]||'',tel:cols[12]||''};
     }
+    d.tire=(d.tire||'').replace(/\s+/g,' ').trim();
     d.brand=((d.brand||'')+' '+(d.year||'')).trim();
     return d;
   });
@@ -2311,7 +2429,7 @@ function itemPurposeBody(active){
   const GROUPS=[
     {key:'직배송',label:'📦 직배송',color:'#15803d'},
     {key:'택배',label:'🚚 택배',color:'#5b35b0'},
-    {key:'재고',label:'📥 재고',color:'#1d4ed8'},
+    {key:'재고',label:'🏬 재고',color:'#1d4ed8'},
     {key:'장착',label:'🔧 장착 (남양주)',color:'#1a2035',match:function(u){return u.indexOf('장착')>=0&&u.indexOf('남양주')>=0;}},
     {key:'타장착',label:'🔧 타장착점',color:'#0e7490',match:function(u){return u.indexOf('장착')>=0&&u.indexOf('남양주')<0;},showNote:true}
   ];
