@@ -238,7 +238,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Noto Sa
 .dc-main{flex:1;padding:10px 12px;min-width:0;cursor:pointer}
 .dc-top{display:flex;align-items:center;gap:6px;margin-bottom:5px;flex-wrap:wrap}
 .dtag{font-size:10px;font-weight:800;padding:2px 8px;border-radius:10px;color:#fff}
-.dtag.ping{background:var(--red)}.dtag.spam{background:var(--purple)}.dtag.online{background:var(--blue)}.dtag.st11{background:var(--orange)}
+.dtag.ping{background:var(--red)}.dtag.spam{background:var(--purple)}.dtag.online{background:var(--blue)}.dtag.st11{background:var(--orange)}.dtag.tel{background:#0891b2}.dtag.trade{background:#0d9488}
 .dc-src{font-size:11px;color:var(--text3);font-weight:600}
 .dneed-badge{font-size:10px;font-weight:800;color:#fff;background:var(--orange);padding:2px 8px;border-radius:10px}
 .dsel-badge{font-size:10px;font-weight:800;color:#fff;background:var(--navy);padding:2px 8px;border-radius:10px;margin-left:auto}
@@ -289,7 +289,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Noto Sa
 .dlv-paste-ta:focus{border-color:var(--navy)}
 .item-add-btn.ghost{background:#eee;color:var(--text2)}
 .dlv-pv-card{background:#fff;border:1px solid var(--border);border-radius:9px;padding:8px 11px;margin-bottom:6px;border-left:4px solid var(--navy)}
-.dlv-pv-card.ping{border-left-color:var(--red)}.dlv-pv-card.spam{border-left-color:var(--purple)}.dlv-pv-card.online{border-left-color:var(--blue)}.dlv-pv-card.st11{border-left-color:var(--orange)}.dlv-pv-card.tel{border-left-color:#0891b2}
+.dlv-pv-card.ping{border-left-color:var(--red)}.dlv-pv-card.spam{border-left-color:var(--purple)}.dlv-pv-card.online{border-left-color:var(--blue)}.dlv-pv-card.st11{border-left-color:var(--orange)}.dlv-pv-card.tel{border-left-color:#0891b2}.dlv-pv-card.trade{border-left-color:#0d9488}
 .dlv-pv-top{display:flex;align-items:center;gap:6px;margin-bottom:3px;flex-wrap:wrap}
 .dlv-pv-tire{font-size:13px;font-weight:700;color:var(--navy)}.dlv-pv-tire .sz{color:var(--purple);font-weight:800;margin-left:5px}.dlv-pv-tire .br{font-size:11px;color:var(--text2);font-weight:500;margin-left:5px}
 .dlv-pv-line{font-size:11.5px;color:var(--text2);margin-top:2px}.dlv-pv-line .nm{font-weight:700;color:var(--navy)}
@@ -558,12 +558,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Noto Sa
       <div class="dlv-sheet" id="dlv-sheet">
         <div class="dlv-sheet-head"><span class="t">🚚 직배송 추가</span><button class="x" onclick="closeDlvSheet()">×</button></div>
         <div class="dlv-fmt-pick">
-          <button class="dlv-fmt-btn on" data-fmt="hana" onclick="pickDlvFmt('hana')">하나씩</button>
-          <button class="dlv-fmt-btn" data-fmt="ping" onclick="pickDlvFmt('ping')">핑 붙여넣기</button>
-          <button class="dlv-fmt-btn" data-fmt="online" onclick="pickDlvFmt('online')">온라인 붙여넣기</button>
+          <button class="dlv-fmt-btn on" data-fmt="ping" onclick="pickDlvFmt('ping')">핑</button>
+          <button class="dlv-fmt-btn" data-fmt="online" onclick="pickDlvFmt('online')">온라인</button>
+          <button class="dlv-fmt-btn" data-fmt="trade" onclick="pickDlvFmt('trade')">거래처</button>
         </div>
         <div class="dlv-fmt-desc" id="dlv-fmt-desc"></div>
-        <div id="dlv-hana-zone">
+        <div id="dlv-hana-zone" style="display:none">
           <div class="src-dropdown" id="dlv-src-dd" style="display:none"></div>
           <div class="seg-row" id="dlv-seg-row">
             <div class="seg f-dsrc"><span class="seg-label">입고처</span><input id="d-src" placeholder="황제"></div>
@@ -578,10 +578,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Noto Sa
             <div class="seg f-dnote"><span class="seg-label">비고(2번·선택)</span><input id="d-note" placeholder="예: 팀장님 퇴근시 배송"></div>
           </div>
           <div class="item-add-row">
-            <button class="item-add-btn" onclick="addDelivery()">➕ 추가</button>
+            <button class="item-add-btn" onclick="addDelivery()">✏️ 수정 저장</button>
           </div>
         </div>
-        <div id="dlv-paste-zone" style="display:none">
+        <div id="dlv-paste-zone">
           <textarea id="dlv-paste" class="dlv-paste-ta" placeholder="스프레드시트에서 복사한 내용을 붙여넣으세요 (여러 줄 = 여러 건)"></textarea>
           <div class="item-add-row">
             <button class="item-add-btn ghost" onclick="document.getElementById('dlv-paste').value='';dlvClearPreview();">지우기</button>
@@ -1388,7 +1388,7 @@ function TK(line){
 }
 
 function populateAdminSelects(){
-  ['del-room-sel','del-room-all-sel','bak-room-sel'].forEach(function(id){
+  ['del-room-sel','del-room-all-sel','bak-room-sel','res-room-sel'].forEach(function(id){
     const s=document.getElementById(id);
     s.innerHTML='<option value="">방 선택...</option>'+rooms.map(function(r){return'<option value="'+r.id+'">'+r.name+'</option>';}).join('');
   });
@@ -1563,6 +1563,90 @@ async function backupCSV(){
   }catch(e){alert('백업 오류: '+e.message);}
 }
 
+// ===== 복원 (CSV 업로드) =====
+function parseCSV(text){
+  // 간단 CSV 파서 (따옴표 처리)
+  const rows=[];let row=[],cell='',inQ=false;
+  text=text.replace(/^\uFEFF/,''); // BOM 제거
+  for(let i=0;i<text.length;i++){
+    const ch=text[i];
+    if(inQ){
+      if(ch==='"'){if(text[i+1]==='"'){cell+='"';i++;}else inQ=false;}
+      else cell+=ch;
+    }else{
+      if(ch==='"')inQ=true;
+      else if(ch===','){row.push(cell);cell='';}
+      else if(ch==='\n'){row.push(cell);rows.push(row);row=[];cell='';}
+      else if(ch==='\r'){}
+      else cell+=ch;
+    }
+  }
+  if(cell!==''||row.length){row.push(cell);rows.push(row);}
+  return rows.filter(function(r){return r.some(function(c){return c.trim()!=='';});});
+}
+async function restoreCSV(){
+  const roomId=document.getElementById('res-room-sel').value;
+  if(!roomId){alert('방을 선택하세요');return;}
+  const info=roomDataInfo(roomId);if(!info)return;
+  const fileInput=document.getElementById('res-file');
+  if(!fileInput.files||!fileInput.files.length){alert('CSV 파일을 선택하세요');return;}
+  const mode=document.querySelector('input[name="res-mode"]:checked').value;
+  // 안전장치
+  const nameChk=prompt('⚠️ ['+info.room.name+']에 CSV를 복원합니다.\n방식: '+(mode==='overwrite'?'덮어쓰기':'중복 건너뛰기')+'\n\n확인을 위해 방 이름을 정확히 입력하세요:\n'+info.room.name);
+  if(nameChk!==info.room.name){alert('방 이름이 일치하지 않아 취소됩니다.');return;}
+  const pwChk=prompt('관리자 비밀번호를 입력하세요:');
+  if(pwChk!==PW[ADMIN_NAME]){alert('비밀번호가 일치하지 않아 취소됩니다.');return;}
+  const file=fileInput.files[0];
+  const reader=new FileReader();
+  reader.onload=async function(e){
+    try{
+      const rows=parseCSV(e.target.result);
+      if(rows.length<2){alert('데이터가 없습니다.');return;}
+      const header=rows[0].map(function(h){return h.trim();});
+      const tbl=info.tables[0];
+      const records=rows.slice(1).map(function(r){
+        const obj={};
+        header.forEach(function(col,i){obj[col]=r[i]!==undefined?r[i]:'';});
+        return obj;
+      });
+      // room_id는 현재 방으로 강제 (다른 방 CSV 잘못 넣어도 안전)
+      records.forEach(function(rec){rec.room_id=roomId;});
+      let inserted=0,skipped=0;
+      if(mode==='overwrite'){
+        // CSV에 든 날짜들의 기존 데이터 삭제 후 삽입
+        const dateField=(info.dateCol==='date_str')?'date_str':null;
+        if(dateField){
+          const dates=Array.from(new Set(records.map(function(r){return r[dateField];}).filter(Boolean)));
+          for(const dt of dates){await sb.from(tbl).delete().eq('room_id',roomId).eq('date_str',dt);}
+        }
+        // id는 새로 발급 (충돌 방지) — 빈 id 제거
+        records.forEach(function(r){delete r.id;});
+        const{error}=await sb.from(tbl).insert(records);
+        if(error)throw error;
+        inserted=records.length;
+      }else{
+        // 건너뛰기: 기존 id 있으면 skip
+        const{data:exist}=await sb.from(tbl).select('id').eq('room_id',roomId);
+        const existIds=new Set((exist||[]).map(function(x){return String(x.id);}));
+        const toInsert=records.filter(function(r){
+          if(r.id&&existIds.has(String(r.id))){skipped++;return false;}
+          return true;
+        });
+        toInsert.forEach(function(r){if(!r.id)delete r.id;});
+        if(toInsert.length){const{error}=await sb.from(tbl).insert(toInsert);if(error)throw error;}
+        inserted=toInsert.length;
+      }
+      adminLog('📤 복원 완료: ['+info.room.name+'] 추가 '+inserted+'건'+(skipped?' / 건너뜀 '+skipped+'건':''));
+      alert('복원 완료\n추가: '+inserted+'건'+(skipped?'\n건너뜀(중복): '+skipped+'건':''));
+      fileInput.value='';
+      if(curRoom&&curRoom.id===roomId){
+        if(info.kind==='items')loadItems();else if(info.kind==='delivery')loadDeliveries();else loadMsgs();
+      }
+    }catch(err){alert('복원 오류: '+err.message);}
+  };
+  reader.readAsText(file);
+}
+
 function openAdmin(){if(!me||me.name!==ADMIN_NAME){alert('관리자만 접근 가능합니다');return;}document.getElementById('admin-overlay').classList.add('on');renderRecvKwList();renderOrderKwList();renderArrKwList();renderReturnKwList();}
 function closeAdmin(){document.getElementById('admin-overlay').classList.remove('on');}
 // 키워드 칩 렌더 공통
@@ -1689,7 +1773,7 @@ function pickSrc(s){
 var dlvSub=null;
 var deliveriesCache=[], dlvLogsCache=[], dlvLocked=false, dlvSelectedId=null, dlvOpenId=null;
 var curDlvTab='deliv';
-const DCH_LABEL={ping:'핑',spam:'스팜',online:'온라인',st11:'11번가'};
+const DCH_LABEL={ping:'핑',spam:'스팜',online:'온라인',st11:'11번가',tel:'전화주문',trade:'거래처'};
 
 function dlvDateStr(){return getSelectedRange().from;}
 
@@ -1741,7 +1825,15 @@ function switchDlvTab(tab){
   document.querySelectorAll('.dlv-tab').forEach(function(t){t.classList.toggle('active',t.dataset.dtab===tab);});
   renderDelivery();
 }
-function openDlvSheet(){document.getElementById('dlv-sheet-back').classList.add('on');document.getElementById('dlv-sheet').classList.add('on');if(typeof pickDlvFmt==='function'&&!document.getElementById('dlv-fmt-desc').innerHTML){pickDlvFmt('hana');}}
+function openDlvSheet(){
+  document.getElementById('dlv-sheet-back').classList.add('on');
+  document.getElementById('dlv-sheet').classList.add('on');
+  // 추가 모드: 형식 선택 보이기 (수정 모드에서 숨겼을 수 있음)
+  document.querySelector('.dlv-fmt-pick').style.display='flex';
+  document.getElementById('dlv-fmt-desc').style.display='block';
+  const head=document.querySelector('#dlv-sheet .dlv-sheet-head .t');if(head)head.textContent='🚚 직배송 추가';
+  if(typeof pickDlvFmt==='function'){pickDlvFmt(dlvPasteFmt||'ping');}
+}
 function closeDlvSheet(){
   document.getElementById('dlv-sheet-back').classList.remove('on');document.getElementById('dlv-sheet').classList.remove('on');
   // 수정 모드였으면 제목/버튼 원상복구 (다음에 ➕로 열 때 깔끔하게)
@@ -1941,8 +2033,13 @@ function dlvEdit(id){
   document.getElementById('d-note').value=c.note||'';
   // 시트 제목/버튼을 수정 모드로
   const head=document.querySelector('#dlv-sheet .dlv-sheet-head .t');if(head)head.textContent='✏️ 직배송 수정';
-  const btn=document.querySelector('#dlv-sheet .item-add-btn');if(btn)btn.textContent='✏️ 수정 저장';
-  openDlvSheet();
+  // 수정은 칸 입력(하나씩) 존 사용, 형식선택/붙여넣기는 숨김
+  document.getElementById('dlv-sheet-back').classList.add('on');
+  document.getElementById('dlv-sheet').classList.add('on');
+  document.querySelector('.dlv-fmt-pick').style.display='none';
+  document.getElementById('dlv-fmt-desc').style.display='none';
+  document.getElementById('dlv-paste-zone').style.display='none';
+  document.getElementById('dlv-hana-zone').style.display='block';
 }
 function dlvCopy(id){
   const c=deliveriesCache.find(function(x){return x.id===id;});if(!c)return;
@@ -2010,19 +2107,22 @@ function resetDlvSheet(){
 }
 
 // ===== 직배송 붙여넣기 (핑/온라인 형식) =====
-var dlvPasteFmt='hana';
+var dlvPasteFmt='ping';
 var dlvParsed=[];
 const DLV_FMT_DESC={
-  hana:'칸으로 직접 입력. 띄어쓰기로 칸 이동(모델규격·주소 등은 스페이스 2번).',
-  ping:'<b>핑 형식</b>(판매처=핑): 출고지·풍명·싸이즈·세부·년식·제조사·수량·우편·주소·배송지·연락처 순. 여러 줄=여러 건.',
-  online:'<b>온라인 형식</b>(스팜/11번가/전화주문 자동인식): 판매처·날짜·출고지·풍명·싸이즈·세부·년식·제조사·수량·우편·주소·배송지·연락처 순.'
+  ping:'<b>핑</b>(판매처=핑): 시트에서 복사해 붙여넣기. 코드 있으면 맨 앞. 여러 줄=여러 건.',
+  online:'<b>온라인</b>(스팜/11번가/전화주문 자동인식): 시트에서 복사해 붙여넣기. 빈 칸도 탭 유지하면 정확.',
+  trade:'<b>거래처</b>: 자유롭게 한 줄씩 적되, <b>맨 앞에 "거래처"</b>를 꼭 쓰세요. 나머지는 그대로 표시됩니다. (한 줄=한 건)'
 };
 function pickDlvFmt(f){
   dlvPasteFmt=f;
   document.querySelectorAll('.dlv-fmt-btn').forEach(function(b){b.classList.toggle('on',b.dataset.fmt===f);});
   document.getElementById('dlv-fmt-desc').innerHTML=DLV_FMT_DESC[f];
-  document.getElementById('dlv-hana-zone').style.display=(f==='hana')?'block':'none';
-  document.getElementById('dlv-paste-zone').style.display=(f==='hana')?'none':'block';
+  // 모든 형식이 붙여넣기존 사용 (하나씩 칸 입력은 수정 전용으로만 숨겨둠)
+  document.getElementById('dlv-hana-zone').style.display='none';
+  document.getElementById('dlv-paste-zone').style.display='block';
+  const ta=document.getElementById('dlv-paste');
+  ta.placeholder=(f==='trade')?'거래처 양식: 맨 앞에 "거래처"\n예) 거래처 가평율길공업사 245 50 20 hp71 2개':'스프레드시트에서 복사한 내용을 붙여넣으세요 (여러 줄 = 여러 건)';
   dlvClearPreview();
 }
 // 사이즈 정리: 숫자 사이의 / R 만 공백, 소수점·P 유지
@@ -2042,6 +2142,12 @@ function dlvPastePreview(){
     const cols=dlvSplitCols(line);
     const n=cols.length;
     let d;
+    if(dlvPasteFmt==='trade'){
+      // 거래처: 맨 앞 "거래처" 떼고 나머지 통째로
+      let rest=line.trim().replace(/^거래처\s*/,'');
+      d={channel:'trade',code:'',src:'',tire:rest,spec:'',year:'',brand:'',qty:'',addr:'',recv:'',tel:''};
+      return d;
+    }
     if(dlvPasteFmt==='ping'){
       // 핑: (코드) 날짜 출고지 품명 싸이즈 세부 년식 제조사 수량 우편 주소 배송지 연락처
       // 코드 없으면 12칸(맨앞 코드 빠짐), 있으면 13칸. 코드 뒤는 동일하므로 offset으로 처리
