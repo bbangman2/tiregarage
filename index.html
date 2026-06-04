@@ -262,6 +262,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Noto Sa
 .dcard.cancelled .dc-num{background:var(--red)}
 .dcancel-badge{font-size:10px;font-weight:800;color:#fff;background:var(--red);padding:2px 8px;border-radius:10px}
 .dc-side{display:flex;flex-direction:column;border-left:1px solid var(--border);flex-shrink:0}
+.dcar-head{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:800;color:#fff;padding:7px 12px;border-radius:9px;margin:10px 0 7px}
+.dcar-head.dcar1{background:#1a2035}.dcar-head.dcar2{background:#0e7490}
+.dcar-cnt{font-size:11px;font-weight:600;opacity:.85}
+.dact.car-btn{background:#ecfeff;color:#0e7490;border-color:#a5f3fc;font-weight:700}
 .dside-btn{flex:1;border:none;background:#f7f6f3;width:44px;font-size:18px;cursor:pointer;color:var(--navy);display:flex;align-items:center;justify-content:center}
 .dside-btn:active{background:var(--navy);color:#fff}
 .dside-btn:disabled{opacity:.25;cursor:default}
@@ -285,7 +289,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Noto Sa
 .dlv-fmt-btn{flex:1;padding:9px 5px;border:1.5px solid var(--border);background:#fff;border-radius:9px;font-size:12.5px;font-weight:700;color:var(--text2);cursor:pointer;font-family:inherit}
 .dlv-fmt-btn.on{border-color:var(--navy);background:var(--navy);color:#fff}
 .dlv-fmt-desc{font-size:11px;color:var(--text2);margin-bottom:9px;line-height:1.5;background:#f7f6f3;border-radius:7px;padding:7px 10px}
-.dlv-paste-ta{width:100%;min-height:110px;border:1.5px solid var(--border);border-radius:10px;padding:10px;font-size:13px;font-family:inherit;resize:vertical;outline:none;margin-bottom:8px}
+.dlv-paste-ta{width:100%;min-height:110px;border:1.5px solid var(--border);border-radius:10px;padding:10px;font-size:16px;font-family:inherit;resize:vertical;outline:none;margin-bottom:8px}
 .dlv-paste-ta:focus{border-color:var(--navy)}
 .item-add-btn.ghost{background:#eee;color:var(--text2)}
 .dlv-pv-card{background:#fff;border:1px solid var(--border);border-radius:9px;padding:8px 11px;margin-bottom:6px;border-left:4px solid var(--navy)}
@@ -440,7 +444,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Noto Sa
   .seg.f-qty{flex:0 0 24%}.seg.f-use{flex:1 1 38%;min-width:0}.seg.f-chg{flex:1 1 38%;min-width:0}
   .seg input{font-size:16px;padding:16px 6px 6px}
   .seg-label{font-size:9px}
-  .pf-input,.paste-text{font-size:16px}
+  .pf-input,.paste-text,.item-memo-input,.del-select{font-size:16px}
 }
 </style>
 </head>
@@ -553,6 +557,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Noto Sa
         <button class="dlv-tab" data-dtab="hold" onclick="switchDlvTab('hold')">미출고 <span class="cnt" id="dcnt-hold">0</span></button>
         <button class="dlv-tab" data-dtab="parcel" onclick="switchDlvTab('parcel')">택배전환 <span class="cnt" id="dcnt-parcel">0</span></button>
         <button class="dlv-tab" data-dtab="summary" onclick="switchDlvTab('summary')">📋 요약</button>
+        <button class="dlv-tab" data-dtab="car2" id="dlv-tab-car2" onclick="switchDlvTab('car2')" style="display:none">🚐 2호차 <span class="cnt" id="dcnt-car2">0</span></button>
       </div>
       <div class="dlv-body" id="dlv-body"></div>
       <button class="dlv-fab" id="dlv-fab" onclick="openDlvSheet()">➕</button>
@@ -1789,6 +1794,7 @@ async function rolloverDeliveries(today){
     const {data}=await sb.from('deliveries').select('*').eq('room_id',curRoom.id).lt('date_str',today);
     if(!data||!data.length)return;
     const toMove=data.filter(function(d){
+      if(d.cancelled)return false;               // 취소된 건 이월 안 함
       if(d.tab==='deliv'&&!d.done)return true;   // 직배송인데 완료 안 됨
       if(d.tab==='hold')return true;             // 미출고
       return false;
@@ -1817,6 +1823,12 @@ function openDlvSheet(){
   document.getElementById('dlv-fmt-desc').style.display='block';
   const head=document.querySelector('#dlv-sheet .dlv-sheet-head .t');if(head)head.textContent='🚚 직배송 추가';
   if(typeof pickDlvFmt==='function'){pickDlvFmt(dlvPasteFmt||'ping');}
+  // 모바일: 입력칸 포커스 시 시트 안에서 보이게 스크롤
+  const ta=document.getElementById('dlv-paste');
+  if(ta&&!ta._scrollBound){
+    ta._scrollBound=true;
+    ta.addEventListener('focus',function(){setTimeout(function(){ta.scrollIntoView({block:'center',behavior:'smooth'});},300);});
+  }
 }
 function closeDlvSheet(){
   document.getElementById('dlv-sheet-back').classList.remove('on');document.getElementById('dlv-sheet').classList.remove('on');
@@ -1831,7 +1843,7 @@ function dlvTelLink(t){return (t||'').replace(/[^0-9]/g,'');}
 function dlvMapLink(a){return 'https://map.kakao.com/?q='+encodeURIComponent(a||'');}
 
 function dlvListOf(tab){
-  const realTab=(tab==='summary')?'deliv':tab;
+  const realTab=(tab==='summary'||tab==='car2')?'deliv':tab;
   const arr=deliveriesCache.filter(function(c){return c.tab===realTab;});
   if(realTab==='deliv'){
     // 취소>완료 순으로 맨 아래, 나머지는 순서대로
@@ -1908,15 +1920,18 @@ function dlvCardHtml(c,idx,list){
   }else{
     if(c.tab==='deliv'){
       h+=c.done?'<button class="dact undo-btn" onclick="event.stopPropagation();dlvToggleDone(\''+c.id+'\')">완료취소</button>':'<button class="dact done-btn" onclick="event.stopPropagation();dlvToggleDone(\''+c.id+'\')">✓ 완료</button>';
+      h+='<button class="dact car-btn" onclick="event.stopPropagation();dlvSetCar(\''+c.id+'\','+((c.car||1)===1?2:1)+')">🚐 '+((c.car||1)===1?2:1)+'호차로</button>';
       h+='<button class="dact" onclick="event.stopPropagation();dlvMoveTab(\''+c.id+'\',\'hold\')">→미출고</button>';
       h+='<button class="dact" onclick="event.stopPropagation();dlvMoveTab(\''+c.id+'\',\'parcel\')">→택배</button>';
     }else if(c.tab==='hold'){
-      h+='<button class="dact" onclick="event.stopPropagation();dlvMoveTab(\''+c.id+'\',\'deliv\')">→직배송</button>';
+      h+='<button class="dact" onclick="event.stopPropagation();dlvMoveTab(\''+c.id+'\',\'deliv\',1)">→직배송</button>';
+      h+='<button class="dact car-btn" onclick="event.stopPropagation();dlvMoveTab(\''+c.id+'\',\'deliv\',2)">→2호차</button>';
       h+='<button class="dact" onclick="event.stopPropagation();dlvMoveTab(\''+c.id+'\',\'parcel\')">→택배</button>';
     }else{
       h+='<button class="dact copy-btn" onclick="event.stopPropagation();dlvCopy(\''+c.id+'\')">📋 복사</button>';
       h+=c.confirmed?'<button class="dact confirmed" onclick="event.stopPropagation();dlvToggleConfirm(\''+c.id+'\')">✓ 확인됨</button>':'<button class="dact confirm-btn" onclick="event.stopPropagation();dlvToggleConfirm(\''+c.id+'\')">확인</button>';
-      h+='<button class="dact" onclick="event.stopPropagation();dlvMoveTab(\''+c.id+'\',\'deliv\')">→직배송</button>';
+      h+='<button class="dact" onclick="event.stopPropagation();dlvMoveTab(\''+c.id+'\',\'deliv\',1)">→직배송</button>';
+      h+='<button class="dact car-btn" onclick="event.stopPropagation();dlvMoveTab(\''+c.id+'\',\'deliv\',2)">→2호차</button>';
       h+='<button class="dact" onclick="event.stopPropagation();dlvMoveTab(\''+c.id+'\',\'hold\')">→미출고</button>';
     }
     h+='<button class="dact edit-btn" onclick="event.stopPropagation();dlvEdit(\''+c.id+'\')">✏️ 수정</button>';
@@ -1934,13 +1949,35 @@ function renderDelivery(){
   ['deliv','hold','parcel'].forEach(function(t){
     const el=document.getElementById('dcnt-'+t);if(el)el.textContent=deliveriesCache.filter(function(c){return c.tab===t;}).length;
   });
+  // 2호차 탭: 2호차 배송 건이 있을 때만 표시
+  const car2List=deliveriesCache.filter(function(c){return c.tab==='deliv'&&(c.car||1)===2;});
+  const car2Tab=document.getElementById('dlv-tab-car2');
+  if(car2Tab){
+    if(car2List.length){
+      car2Tab.style.display='';
+      document.getElementById('dcnt-car2').textContent=car2List.length;
+    }else{
+      car2Tab.style.display='none';
+      // 2호차 탭 보던 중에 비면 요약으로 이동
+      if(curDlvTab==='car2'){curDlvTab='summary';document.querySelectorAll('.dlv-tab').forEach(function(t){t.classList.toggle('active',t.dataset.dtab==='summary');});}
+    }
+  }
+  // 요약 탭 라벨: 2호차 있으면 "1호차"로 보이게
+  const sumTab=document.querySelector('.dlv-tab[data-dtab="summary"]');
+  if(sumTab)sumTab.innerHTML=car2List.length?'🚐 1호차':'📋 요약';
   const body=document.getElementById('dlv-body');
   const list=dlvListOf(curDlvTab);
   let html='';
-  if(curDlvTab==='summary'){
-    const live=list.filter(function(c){return !c.done;}).length;
-    html+='<div class="dlv-guide">📋 <b>배송 순서 요약</b> · 남은 '+live+'건 / 완료 '+(list.length-live)+'건. 탭하면 주소·전화 펼침, 완료 체크 가능.</div>';
-    html+=(list.length?list.map(function(c,i){return dlvSummaryCard(c,i);}).join(''):'<div class="dlv-empty">직배송 건이 없어요.</div>');
+  if(curDlvTab==='summary'||curDlvTab==='car2'){
+    const carNo=(curDlvTab==='car2')?2:1;
+    // 해당 차량 카드만 (취소 포함 — 여기서 되돌리기 가능)
+    const clist=dlvListOf(curDlvTab).filter(function(c){return (c.car||1)===carNo;});
+    const cLive=clist.filter(function(c){return !c.done&&!c.cancelled;}).length;
+    const has2=deliveriesCache.some(function(c){return c.tab==='deliv'&&(c.car||1)===2;});
+    const carName=has2?(carNo+'호차'):'요약';
+    html+='<div class="dlv-guide">🚐 <b>'+carName+'</b> · 남은 '+cLive+'건. 탭하면 선택→▲▼ 순서. 완료·취소·이동·차량변경 가능.</div>';
+    html+='<div class="dlock-bar"><span class="lbl">순서 변경: <b>'+(dlvLocked?'잠김':'풀림')+'</b></span><button class="dlock-toggle '+(dlvLocked?'locked':'unlocked')+'" onclick="dlvToggleLock()">'+(dlvLocked?'🔒 풀기':'🔓 잠그기')+'</button></div>';
+    html+=(clist.length?clist.map(function(c,i){return dlvCardHtml(c,i,clist);}).join(''):'<div class="dlv-empty">'+carName+' 배송 건이 없어요.</div>');
     body.innerHTML=html;
     return;
   }
@@ -1966,9 +2003,22 @@ function dlvToggleOpen(id){dlvOpenId=(dlvOpenId===id)?null:id;renderDelivery();}
 
 function selectDlvCard(id){dlvSelectedId=(dlvSelectedId===id)?null:id;renderDelivery();}
 
+async function dlvSetCar(id,carNo){
+  const c=deliveriesCache.find(function(x){return x.id===id;});if(!c)return;
+  // 옮길 차량의 맨 뒤 순서로
+  const maxO=Math.max(0,...deliveriesCache.filter(function(x){return x.tab==='deliv'&&(x.car||1)===carNo;}).map(function(x){return x.sort_order||0;}));
+  try{
+    await sb.from('deliveries').update({car:carNo,sort_order:maxO+1}).eq('id',id);
+    await sb.from('delivery_logs').insert({room_id:curRoom.id,date_str:dlvDateStr(),text:(me?me.name:'?')+'님이 '+carNo+'호차로 이동 ('+(c.recv||c.tire||'')+')',user_name:me?me.name:''});
+  }catch(e){alert('차량 변경 실패: '+e.message);}
+  dlvSelectedId=null;await loadDeliveries();
+}
 async function dlvMove(id,dir){
   if(dlvLocked)return;
-  const live=dlvListOf('deliv').filter(function(c){return !c.done;});
+  const cur=deliveriesCache.find(function(x){return x.id===id;});if(!cur)return;
+  const myCar=cur.car||1;
+  // 같은 차량의 완료·취소 제외한 카드끼리만 순서 교환
+  const live=dlvListOf('deliv').filter(function(c){return !c.done&&!c.cancelled&&(c.car||1)===myCar;});
   const pos=live.findIndex(function(c){return c.id===id;});
   const swapPos=pos+dir;
   if(swapPos<0||swapPos>=live.length)return;
@@ -1992,10 +2042,13 @@ async function dlvToggleConfirm(id){
   try{await sb.from('deliveries').update({confirmed:!c.confirmed}).eq('id',id);}catch(e){alert('실패: '+e.message);}
   await loadDeliveries();
 }
-async function dlvMoveTab(id,to){
-  // 옮긴 탭 맨 끝 순서
-  const maxO=Math.max(0,...deliveriesCache.filter(function(x){return x.tab===to;}).map(function(x){return x.sort_order||0;}));
-  try{await sb.from('deliveries').update({tab:to,done:false,need_done:false,sort_order:maxO+1}).eq('id',id);}catch(e){alert('실패: '+e.message);}
+async function dlvMoveTab(id,to,carNo){
+  // 옮긴 탭 + 차량의 맨 끝 순서
+  const targetCar=(to==='deliv')?(carNo||1):1;
+  const maxO=Math.max(0,...deliveriesCache.filter(function(x){return x.tab===to&&(to!=='deliv'||(x.car||1)===targetCar);}).map(function(x){return x.sort_order||0;}));
+  const upd={tab:to,done:false,need_done:false,sort_order:maxO+1};
+  if(to==='deliv')upd.car=targetCar; // 직배송으로 가면 지정 차량(기본 1호차)
+  try{await sb.from('deliveries').update(upd).eq('id',id);}catch(e){alert('실패: '+e.message);}
   dlvSelectedId=null;await loadDeliveries();
 }
 async function dlvCancel(id){
@@ -2048,7 +2101,12 @@ function dlvEdit(id){
 }
 function dlvCopy(id){
   const c=deliveriesCache.find(function(x){return x.id===id;});if(!c)return;
-  const txt=(c.recv||'')+'\n'+(c.addr||'')+'\n'+(c.tel||'')+'\n'+(c.tire||'')+' '+(c.brand||'')+' '+(c.qty||'')+'개';
+  let txt;
+  if(c.channel==='trade'){
+    txt='거래처 '+(c.tire||'');
+  }else{
+    txt=(c.recv||'')+'\n'+(c.addr||'')+'\n'+(c.tel||'')+'\n'+(c.tire||'')+' '+(c.brand||'')+' '+(c.qty||'')+'개';
+  }
   if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(txt).then(function(){alert('복사됐어요:\n\n'+txt);},function(){prompt('복사하세요:',txt);});}
   else prompt('복사하세요:',txt);
 }
@@ -2193,7 +2251,7 @@ async function dlvPasteRegister(){
   const rows=dlvParsed.map(function(d){
     let so;
     if(d.channel==='ping'){maxO++;so=maxO;}else{maxO++;so=maxO;}
-    return {room_id:curRoom.id,date_str:ds,tab:'deliv',channel:d.channel,code:d.code||'',
+    return {room_id:curRoom.id,date_str:ds,tab:'deliv',channel:d.channel,code:d.code||'',car:1,
       src:d.src||'',tire:((d.tire||'')+(d.spec?' '+d.spec:'')).trim(),brand:d.brand||'',qty:d.qty||'',
       addr:d.addr||'',recv:d.recv||'',tel:d.tel||'',sort_order:so,user_name:me?me.name:''};
   });
