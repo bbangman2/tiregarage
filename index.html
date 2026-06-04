@@ -276,11 +276,25 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Noto Sa
 .dlv-fab{position:absolute;right:16px;bottom:16px;width:54px;height:54px;border-radius:50%;background:var(--navy);color:#fff;border:none;font-size:25px;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.3);z-index:20}
 .dlv-sheet-back{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:40}
 .dlv-sheet-back.on{display:block}
-.dlv-sheet{position:fixed;left:0;right:0;bottom:0;background:#fff;border-radius:16px 16px 0 0;padding:14px 12px calc(14px + env(safe-area-inset-bottom));z-index:50;transform:translateY(110%);transition:transform .25s;max-width:760px;margin:0 auto}
+.dlv-sheet{position:fixed;left:0;right:0;bottom:0;background:#fff;border-radius:16px 16px 0 0;padding:14px 12px calc(14px + env(safe-area-inset-bottom));z-index:50;transform:translateY(110%);transition:transform .25s;max-width:760px;margin:0 auto;max-height:85dvh;overflow-y:auto;-webkit-overflow-scrolling:touch}
 .dlv-sheet.on{transform:translateY(0)}
-.dlv-sheet-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.dlv-sheet-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;position:sticky;top:0;background:#fff;padding-bottom:6px;z-index:2}
 .dlv-sheet-head .t{font-size:14px;font-weight:800;color:var(--navy)}
 .dlv-sheet-head .x{border:none;background:none;font-size:22px;color:var(--text3);cursor:pointer}
+.dlv-fmt-pick{display:flex;gap:6px;margin-bottom:9px}
+.dlv-fmt-btn{flex:1;padding:9px 5px;border:1.5px solid var(--border);background:#fff;border-radius:9px;font-size:12.5px;font-weight:700;color:var(--text2);cursor:pointer;font-family:inherit}
+.dlv-fmt-btn.on{border-color:var(--navy);background:var(--navy);color:#fff}
+.dlv-fmt-desc{font-size:11px;color:var(--text2);margin-bottom:9px;line-height:1.5;background:#f7f6f3;border-radius:7px;padding:7px 10px}
+.dlv-paste-ta{width:100%;min-height:110px;border:1.5px solid var(--border);border-radius:10px;padding:10px;font-size:13px;font-family:inherit;resize:vertical;outline:none;margin-bottom:8px}
+.dlv-paste-ta:focus{border-color:var(--navy)}
+.item-add-btn.ghost{background:#eee;color:var(--text2)}
+.dlv-pv-card{background:#fff;border:1px solid var(--border);border-radius:9px;padding:8px 11px;margin-bottom:6px;border-left:4px solid var(--navy)}
+.dlv-pv-card.ping{border-left-color:var(--red)}.dlv-pv-card.spam{border-left-color:var(--purple)}.dlv-pv-card.online{border-left-color:var(--blue)}.dlv-pv-card.st11{border-left-color:var(--orange)}.dlv-pv-card.tel{border-left-color:#0891b2}
+.dlv-pv-top{display:flex;align-items:center;gap:6px;margin-bottom:3px;flex-wrap:wrap}
+.dlv-pv-tire{font-size:13px;font-weight:700;color:var(--navy)}.dlv-pv-tire .sz{color:var(--purple);font-weight:800;margin-left:5px}.dlv-pv-tire .br{font-size:11px;color:var(--text2);font-weight:500;margin-left:5px}
+.dlv-pv-line{font-size:11.5px;color:var(--text2);margin-top:2px}.dlv-pv-line .nm{font-weight:700;color:var(--navy)}
+.dlv-pv-warn{color:var(--red);font-size:10.5px;margin-top:2px}
+.dlv-pv-title{font-size:12px;font-weight:800;color:var(--navy);margin:12px 0 7px}
 .seg.f-dsrc{flex:0 0 64px}.seg.f-dch{flex:0 0 56px}.seg.f-dtire{flex:1 1 50%}.seg.f-dbrand{flex:0 0 86px}.seg.f-dqty{flex:0 0 46px}
 .seg.f-daddr{flex:1 1 100%}.seg.f-drecv{flex:1 1 50%}.seg.f-dtel{flex:1 1 45%}.seg.f-dnote{flex:1 1 100%}
 @media(max-width:480px){.seg.f-dtire,.seg.f-drecv,.seg.f-dtel{flex:1 1 100%}}
@@ -542,20 +556,40 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Noto Sa
       <div class="dlv-sheet-back" id="dlv-sheet-back" onclick="closeDlvSheet()"></div>
       <div class="dlv-sheet" id="dlv-sheet">
         <div class="dlv-sheet-head"><span class="t">🚚 직배송 추가</span><button class="x" onclick="closeDlvSheet()">×</button></div>
-        <div class="src-dropdown" id="dlv-src-dd" style="display:none"></div>
-        <div class="seg-row" id="dlv-seg-row">
-          <div class="seg f-dsrc"><span class="seg-label">입고처</span><input id="d-src" placeholder="황제"></div>
-          <div class="seg f-dch"><span class="seg-label">판매처</span><input id="d-ch" placeholder="핑"></div>
-          <div class="seg f-dtire"><span class="seg-label">모델 규격(2번)</span><input id="d-tire" placeholder="TA21 205/55 16"></div>
-          <div class="seg f-dbrand"><span class="seg-label">브랜드/년식(2번)</span><input id="d-brand" placeholder="한국 2025"></div>
-          <div class="seg f-dqty"><span class="seg-label">수량</span><input id="d-qty" placeholder="4" inputmode="numeric"></div>
-          <div class="seg f-daddr"><span class="seg-label">주소(2번)</span><input id="d-addr" placeholder="남양주시 ..."></div>
-          <div class="seg f-drecv"><span class="seg-label">받는사람(2번)</span><input id="d-recv" placeholder="부국정비"></div>
-          <div class="seg f-dtel"><span class="seg-label">전화</span><input id="d-tel" placeholder="010..." inputmode="numeric"></div>
-          <div class="seg f-dnote"><span class="seg-label">비고(2번·선택)</span><input id="d-note" placeholder="예: 팀장님 퇴근시 배송"></div>
+        <div class="dlv-fmt-pick">
+          <button class="dlv-fmt-btn on" data-fmt="hana" onclick="pickDlvFmt('hana')">하나씩</button>
+          <button class="dlv-fmt-btn" data-fmt="ping" onclick="pickDlvFmt('ping')">핑 붙여넣기</button>
+          <button class="dlv-fmt-btn" data-fmt="online" onclick="pickDlvFmt('online')">온라인 붙여넣기</button>
         </div>
-        <div class="item-add-row">
-          <button class="item-add-btn" onclick="addDelivery()">➕ 추가</button>
+        <div class="dlv-fmt-desc" id="dlv-fmt-desc"></div>
+        <div id="dlv-hana-zone">
+          <div class="src-dropdown" id="dlv-src-dd" style="display:none"></div>
+          <div class="seg-row" id="dlv-seg-row">
+            <div class="seg f-dsrc"><span class="seg-label">입고처</span><input id="d-src" placeholder="황제"></div>
+            <div class="seg f-dch"><span class="seg-label">판매처</span><input id="d-ch" placeholder="핑"></div>
+            <div class="seg f-dtire"><span class="seg-label">모델 규격(2번)</span><input id="d-tire" placeholder="TA21 205/55 16"></div>
+            <div class="seg f-dbrand"><span class="seg-label">브랜드/년식(2번)</span><input id="d-brand" placeholder="한국 2025"></div>
+            <div class="seg f-dqty"><span class="seg-label">수량</span><input id="d-qty" placeholder="4" inputmode="numeric"></div>
+            <div class="seg f-daddr"><span class="seg-label">주소(2번)</span><input id="d-addr" placeholder="남양주시 ..."></div>
+            <div class="seg f-drecv"><span class="seg-label">받는사람(2번)</span><input id="d-recv" placeholder="부국정비"></div>
+            <div class="seg f-dtel"><span class="seg-label">전화</span><input id="d-tel" placeholder="010..." inputmode="numeric"></div>
+            <div class="seg f-dnote"><span class="seg-label">비고(2번·선택)</span><input id="d-note" placeholder="예: 팀장님 퇴근시 배송"></div>
+          </div>
+          <div class="item-add-row">
+            <button class="item-add-btn" onclick="addDelivery()">➕ 추가</button>
+          </div>
+        </div>
+        <div id="dlv-paste-zone" style="display:none">
+          <textarea id="dlv-paste" class="dlv-paste-ta" placeholder="스프레드시트에서 복사한 내용을 붙여넣으세요 (여러 줄 = 여러 건)"></textarea>
+          <div class="item-add-row">
+            <button class="item-add-btn ghost" onclick="document.getElementById('dlv-paste').value='';dlvClearPreview();">지우기</button>
+            <button class="item-add-btn" onclick="dlvPastePreview()">미리보기</button>
+          </div>
+          <div id="dlv-pv-area"></div>
+          <div class="item-add-row" id="dlv-reg-row" style="display:none">
+            <button class="item-add-btn ghost" onclick="dlvClearPreview()">취소</button>
+            <button class="item-add-btn" onclick="dlvPasteRegister()">✓ 등록 (<span id="dlv-reg-cnt">0</span>건)</button>
+          </div>
         </div>
       </div>
     </div>
@@ -1533,7 +1567,7 @@ function switchDlvTab(tab){
   document.querySelectorAll('.dlv-tab').forEach(function(t){t.classList.toggle('active',t.dataset.dtab===tab);});
   renderDelivery();
 }
-function openDlvSheet(){document.getElementById('dlv-sheet-back').classList.add('on');document.getElementById('dlv-sheet').classList.add('on');}
+function openDlvSheet(){document.getElementById('dlv-sheet-back').classList.add('on');document.getElementById('dlv-sheet').classList.add('on');if(typeof pickDlvFmt==='function'&&!document.getElementById('dlv-fmt-desc').innerHTML){pickDlvFmt('hana');}}
 function closeDlvSheet(){
   document.getElementById('dlv-sheet-back').classList.remove('on');document.getElementById('dlv-sheet').classList.remove('on');
   // 수정 모드였으면 제목/버튼 원상복구 (다음에 ➕로 열 때 깔끔하게)
@@ -1798,6 +1832,88 @@ function resetDlvSheet(){
   const head=document.querySelector('#dlv-sheet .dlv-sheet-head .t');if(head)head.textContent='🚚 직배송 추가';
   const btn=document.querySelector('#dlv-sheet .item-add-btn');if(btn)btn.textContent='➕ 추가';
   closeDlvSheet();
+}
+
+// ===== 직배송 붙여넣기 (핑/온라인 형식) =====
+var dlvPasteFmt='hana';
+var dlvParsed=[];
+const DLV_FMT_DESC={
+  hana:'칸으로 직접 입력. 띄어쓰기로 칸 이동(모델규격·주소 등은 스페이스 2번).',
+  ping:'<b>핑 형식</b>(판매처=핑): 출고지·풍명·싸이즈·세부·년식·제조사·수량·우편·주소·배송지·연락처 순. 여러 줄=여러 건.',
+  online:'<b>온라인 형식</b>(스팜/11번가/전화주문 자동인식): 판매처·날짜·출고지·풍명·싸이즈·세부·년식·제조사·수량·우편·주소·배송지·연락처 순.'
+};
+function pickDlvFmt(f){
+  dlvPasteFmt=f;
+  document.querySelectorAll('.dlv-fmt-btn').forEach(function(b){b.classList.toggle('on',b.dataset.fmt===f);});
+  document.getElementById('dlv-fmt-desc').innerHTML=DLV_FMT_DESC[f];
+  document.getElementById('dlv-hana-zone').style.display=(f==='hana')?'block':'none';
+  document.getElementById('dlv-paste-zone').style.display=(f==='hana')?'none':'block';
+  dlvClearPreview();
+}
+// 사이즈 정리: 숫자 사이의 / R 만 공백, 소수점·P 유지
+function dlvNormSize(s){if(!s)return'';return s.replace(/(\d)\s*[\/Rr]\s*(\d)/g,'$1 $2').replace(/\s+/g,' ').trim();}
+function dlvChFromText(t){t=(t||'').replace(/\s/g,'');
+  if(t.indexOf('핑')>=0)return'ping';if(t.indexOf('온라인')>=0)return'online';
+  if(t.indexOf('11')>=0)return'st11';if(t.indexOf('전화')>=0)return'tel';
+  if(t.indexOf('스팜')>=0||t.indexOf('스토어')>=0)return'spam';return'spam';}
+function dlvSplitCols(line){
+  if(line.indexOf('\t')>=0)return line.split('\t').map(function(x){return x.trim();});
+  return line.split(/\s{2,}/).map(function(x){return x.trim();});
+}
+function dlvPastePreview(){
+  const raw=document.getElementById('dlv-paste').value;
+  const lines=raw.split('\n').map(function(l){return l.replace(/\r/,'');}).filter(function(l){return l.trim();});
+  dlvParsed=lines.map(function(line){
+    const cols=dlvSplitCols(line);
+    let d;
+    if(dlvPasteFmt==='ping'){
+      d={channel:'ping',src:cols[0]||'',tire:cols[1]||'',spec:dlvNormSize(cols[2]||''),year:cols[4]||'',brand:cols[5]||'',qty:cols[6]||'',addr:cols[8]||'',recv:cols[9]||'',tel:cols[10]||''};
+    }else{
+      d={channel:dlvChFromText(cols[0]),src:cols[2]||'',tire:cols[3]||'',spec:dlvNormSize(cols[4]||''),year:cols[6]||'',brand:cols[7]||'',qty:cols[8]||'',addr:cols[10]||'',recv:cols[11]||'',tel:cols[12]||''};
+    }
+    d.brand=((d.brand||'')+' '+(d.year||'')).trim();
+    return d;
+  });
+  dlvRenderPreview();
+}
+function dlvRenderPreview(){
+  const area=document.getElementById('dlv-pv-area');
+  if(!dlvParsed.length){area.innerHTML='';document.getElementById('dlv-reg-row').style.display='none';return;}
+  let h='<div class="dlv-pv-title">미리보기 ('+dlvParsed.length+'건) — 확인 후 등록</div>';
+  dlvParsed.forEach(function(d){
+    const telOk=/\d{2,4}-?\d{3,4}-?\d{4}/.test(d.tel||'');
+    h+='<div class="dlv-pv-card '+d.channel+'">';
+    h+='<div class="dlv-pv-top"><span class="dtag '+d.channel+'">'+(DCH_LABEL[d.channel]||'스팜')+'</span><span class="dc-src">입고: '+esc(d.src||'-')+'</span></div>';
+    h+='<div class="dlv-pv-tire">'+esc(d.tire||'')+'<span class="sz">'+esc(d.spec||'')+'</span><span class="br">'+esc(d.brand||'')+' · '+esc(d.qty||'?')+'개</span></div>';
+    if(d.addr)h+='<div class="dlv-pv-line">📍 '+esc(d.addr)+'</div>';
+    h+='<div class="dlv-pv-line"><span class="nm">'+esc(d.recv||'')+'</span> · '+esc(d.tel||'')+'</div>';
+    if(!telOk)h+='<div class="dlv-pv-warn">⚠ 전화번호 형식 확인 필요</div>';
+    h+='</div>';
+  });
+  area.innerHTML=h;
+  document.getElementById('dlv-reg-cnt').textContent=dlvParsed.length;
+  document.getElementById('dlv-reg-row').style.display='flex';
+}
+function dlvClearPreview(){dlvParsed=[];const a=document.getElementById('dlv-pv-area');if(a)a.innerHTML='';const r=document.getElementById('dlv-reg-row');if(r)r.style.display='none';}
+async function dlvPasteRegister(){
+  if(!dlvParsed.length)return;
+  const ds=dlvDateStr();
+  // 직배송 탭 맨 끝 순서부터 차례로
+  let maxO=Math.max(0,...deliveriesCache.filter(function(x){return x.tab==='deliv';}).map(function(x){return x.sort_order||0;}));
+  const rows=dlvParsed.map(function(d){
+    // 핑은 맨 위로, 나머지는 뒤로
+    let so;
+    if(d.channel==='ping'){maxO++;so=maxO;}else{maxO++;so=maxO;}
+    return {room_id:curRoom.id,date_str:ds,tab:'deliv',channel:d.channel,
+      src:d.src||'',tire:((d.tire||'')+(d.spec?' '+d.spec:'')).trim(),brand:d.brand||'',qty:d.qty||'',
+      addr:d.addr||'',recv:d.recv||'',tel:d.tel||'',sort_order:so,user_name:me?me.name:''};
+  });
+  try{await sb.from('deliveries').insert(rows);}catch(e){alert('등록 실패: '+e.message);return;}
+  document.getElementById('dlv-paste').value='';
+  dlvClearPreview();
+  closeDlvSheet();
+  curDlvTab='deliv';switchDlvTab('deliv');
+  await loadDeliveries();
 }
 
 // 직배송방 입고처 드롭다운 (입고방 키워드 재활용, SFP 제외)
@@ -2127,11 +2243,15 @@ function itemPurposeBody(active){
     {key:'직배송',label:'📦 직배송',color:'#15803d'},
     {key:'택배',label:'🚚 택배',color:'#5b35b0'},
     {key:'재고',label:'📥 재고',color:'#1d4ed8'},
-    {key:'장착',label:'🔧 장착',color:'#1a2035'}
+    {key:'장착',label:'🔧 장착 (남양주)',color:'#1a2035',match:function(u){return u.indexOf('장착')>=0&&u.indexOf('남양주')>=0;}},
+    {key:'타장착',label:'🔧 타장착점',color:'#0e7490',match:function(u){return u.indexOf('장착')>=0&&u.indexOf('남양주')<0;},showNote:true}
   ];
   let html='';
   GROUPS.forEach(function(g){
-    const matched=active.filter(function(it){return (it.use_note||'').indexOf(g.key)>=0;});
+    const matched=active.filter(function(it){
+      const u=it.use_note||'';
+      return g.match?g.match(u):(u.indexOf(g.key)>=0);
+    });
     if(!matched.length)return;
     html+='<div class="ipurp-group"><div class="ipurp-title" style="background:'+g.color+'">'+g.label+' <span style="opacity:.8;font-weight:400">('+matched.length+')</span></div>';
     const bySrc={};
@@ -2139,7 +2259,8 @@ function itemPurposeBody(active){
     Object.keys(bySrc).forEach(function(src){
       html+='<div class="ipurp-src">'+esc(src)+'</div>';
       bySrc[src].forEach(function(it){
-        html+='<div class="ipurp-card"><span class="pc-model">'+esc(it.model)+'</span><span class="pc-spec">'+esc(it.spec)+'</span><span class="pc-qty">'+it.qty+'<small>개</small></span></div>';
+        const noteHtml=g.showNote?' <span style="font-size:10px;color:var(--text3)">'+esc(it.use_note||'')+'</span>':'';
+        html+='<div class="ipurp-card"><span class="pc-model">'+esc(it.model)+'</span><span class="pc-spec">'+esc(it.spec)+'</span><span class="pc-qty">'+it.qty+'<small>개</small>'+noteHtml+'</span></div>';
       });
     });
     html+='</div>';
