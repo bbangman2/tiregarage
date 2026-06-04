@@ -295,11 +295,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Noto Sa
 .dlv-pv-line{font-size:11.5px;color:var(--text2);margin-top:2px}.dlv-pv-line .nm{font-weight:700;color:var(--navy)}
 .dlv-pv-warn{color:var(--red);font-size:10.5px;margin-top:2px}
 .dlv-pv-title{font-size:12px;font-weight:800;color:var(--navy);margin:12px 0 7px}
-.seg.f-dsrc{flex:0 0 64px}.seg.f-dch{flex:0 0 56px}.seg.f-dtire{flex:1 1 50%}.seg.f-dbrand{flex:0 0 86px}.seg.f-dqty{flex:0 0 46px}
+.seg.f-dsrc{flex:0 0 64px}.seg.f-dch{flex:0 0 56px}.seg.f-dcode{flex:0 0 80px}.seg.f-dtire{flex:1 1 50%}.seg.f-dbrand{flex:0 0 86px}.seg.f-dqty{flex:0 0 46px}
 .seg.f-daddr{flex:1 1 100%}.seg.f-drecv{flex:1 1 50%}.seg.f-dtel{flex:1 1 45%}.seg.f-dnote{flex:1 1 100%}
 @media(max-width:480px){.seg.f-dtire,.seg.f-drecv,.seg.f-dtel{flex:1 1 100%}}
 .dc-addr a,.dc-recv a.tel{color:var(--blue);text-decoration:none}
 .dc-note{font-size:11.5px;color:var(--orange);margin-top:3px;background:#fff7ed;padding:3px 8px;border-radius:6px;display:inline-block}
+.dc-code,.dlv-pv-code{background:#fef3c7;color:#92400e;font-size:11px;font-weight:800;padding:1px 6px;border-radius:5px}
 /* 요약탭 카드 (한 줄 → 펼침) */
 .dscard{background:var(--card);border:1.5px solid var(--border);border-radius:10px;margin-bottom:6px;overflow:hidden}
 .dscard.ping{border-color:#f3b4b4}
@@ -567,6 +568,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Noto Sa
           <div class="seg-row" id="dlv-seg-row">
             <div class="seg f-dsrc"><span class="seg-label">입고처</span><input id="d-src" placeholder="황제"></div>
             <div class="seg f-dch"><span class="seg-label">판매처</span><input id="d-ch" placeholder="핑"></div>
+            <div class="seg f-dcode"><span class="seg-label">코드(선택)</span><input id="d-code" placeholder="피렐리코드"></div>
             <div class="seg f-dtire"><span class="seg-label">모델 규격(2번)</span><input id="d-tire" placeholder="TA21 205/55 16"></div>
             <div class="seg f-dbrand"><span class="seg-label">브랜드/년식(2번)</span><input id="d-brand" placeholder="한국 2025"></div>
             <div class="seg f-dqty"><span class="seg-label">수량</span><input id="d-qty" placeholder="4" inputmode="numeric"></div>
@@ -651,10 +653,21 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Noto Sa
         <select class="del-select" id="del-room-sel" onchange="loadAdminDates()">
           <option value="">방 선택...</option>
         </select>
-        <select class="del-select" id="del-date-sel"><option value="">날짜 선택...</option></select>
-        <button class="btn-danger" onclick="deleteByDate()">삭제</button>
       </div>
-      <div class="del-hint">선택 날짜의 모든 메시지(AI 포함)를 삭제합니다.</div>
+      <div class="del-row" style="margin-top:7px">
+        <label style="font-size:12px;color:var(--text2);display:flex;align-items:center;gap:5px"><input type="radio" name="del-mode" value="single" checked onchange="dlDelModeChange()"> 단일 날짜</label>
+        <label style="font-size:12px;color:var(--text2);display:flex;align-items:center;gap:5px"><input type="radio" name="del-mode" value="range" onchange="dlDelModeChange()"> 날짜 범위</label>
+      </div>
+      <div class="del-row" id="del-single-row" style="margin-top:7px">
+        <select class="del-select" id="del-date-sel"><option value="">날짜 선택...</option></select>
+      </div>
+      <div class="del-row" id="del-range-row" style="margin-top:7px;display:none;gap:5px">
+        <select class="del-select" id="del-date-from"><option value="">시작...</option></select>
+        <span style="align-self:center;color:var(--text3)">~</span>
+        <select class="del-select" id="del-date-to"><option value="">끝...</option></select>
+      </div>
+      <button class="btn-danger" style="margin-top:8px;width:100%" onclick="deleteByDate()">삭제</button>
+      <div class="del-hint">선택한 날짜(들)의 데이터를 삭제합니다. 입고방·직배송방·채팅 모두 해당 방의 데이터를 지웁니다.</div>
     </div>
     <div class="danger-section">
       <div class="danger-title">💥 방 전체 초기화</div>
@@ -1347,46 +1360,101 @@ function populateAdminSelects(){
     s.innerHTML='<option value="">방 선택...</option>'+rooms.map(function(r){return'<option value="'+r.id+'">'+r.name+'</option>';}).join('');
   });
 }
+// 방 종류에 따라 어떤 테이블을 쓰는지
+function roomDataInfo(roomId){
+  const room=rooms.find(function(r){return r.id===roomId;});
+  if(!room)return null;
+  const m=ROOM_META[room.name]||{};
+  if(m.mode==='items')return{room:room,kind:'items',tables:['items'],dateCol:'date_str'};
+  if(m.mode==='delivery')return{room:room,kind:'delivery',tables:['deliveries','delivery_logs'],dateCol:'date_str'};
+  return{room:room,kind:'messages',tables:['messages'],dateCol:'created_at'};
+}
 async function loadAdminDates(){
   const roomId=document.getElementById('del-room-sel').value;
-  const sel=document.getElementById('del-date-sel');
-  sel.innerHTML='<option value="">날짜 선택...</option>';
+  const sels=[document.getElementById('del-date-sel'),document.getElementById('del-date-from'),document.getElementById('del-date-to')];
+  const labels=['날짜 선택...','시작...','끝...'];
+  sels.forEach(function(s,i){s.innerHTML='<option value="">'+labels[i]+'</option>';});
   if(!roomId)return;
-  const{data}=await sb.from('messages').select('created_at').eq('room_id',roomId).order('created_at',{ascending:true});
-  if(!data||!data.length)return;
-  const ds=Array.from(new Set(data.map(function(m){return toDateStr(m.created_at);}))).sort();
+  const info=roomDataInfo(roomId);if(!info)return;
+  let dates=[];
+  try{
+    if(info.dateCol==='date_str'){
+      const{data}=await sb.from(info.tables[0]).select('date_str').eq('room_id',roomId);
+      dates=(data||[]).map(function(x){return x.date_str;});
+    }else{
+      const{data}=await sb.from('messages').select('created_at').eq('room_id',roomId);
+      dates=(data||[]).map(function(x){return toDateStr(x.created_at);});
+    }
+  }catch(e){adminLog('날짜 로드 오류: '+e.message);return;}
+  const ds=Array.from(new Set(dates)).sort();
   ds.forEach(function(d){
-    const opt=document.createElement('option');opt.value=d;
-    opt.textContent=new Date(d+'T00:00:00+09:00').toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'})+' ('+d+')';
-    sel.appendChild(opt);
+    const txt=new Date(d+'T00:00:00+09:00').toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'})+' ('+d+')';
+    sels.forEach(function(s){const opt=document.createElement('option');opt.value=d;opt.textContent=txt;s.appendChild(opt);});
   });
-  adminLog('날짜 목록 로드: '+ds.length+'개');
+  adminLog('날짜 목록 로드: '+ds.length+'개 ('+info.kind+')');
+}
+function dlDelModeChange(){
+  const mode=document.querySelector('input[name="del-mode"]:checked').value;
+  document.getElementById('del-single-row').style.display=(mode==='single')?'flex':'none';
+  document.getElementById('del-range-row').style.display=(mode==='range')?'flex':'none';
 }
 async function deleteByDate(){
   const roomId=document.getElementById('del-room-sel').value;
-  const dv=document.getElementById('del-date-sel').value;
   if(!roomId){alert('방을 선택하세요');return;}
-  if(!dv){alert('날짜를 선택하세요');return;}
-  const room=rooms.find(function(r){return r.id===roomId;});
-  if(!confirm('⚠️ ['+room.name+'] '+dv+' 날짜의 모든 메시지를 삭제하시겠습니까?\n되돌릴 수 없습니다.'))return;
-  const range=dateToUTCRange(dv);
-  const{error}=await sb.from('messages').delete().eq('room_id',roomId).gte('created_at',range.start).lte('created_at',range.end);
-  if(error){alert('삭제 오류: '+error.message);return;}
-  adminLog('✓ 삭제 완료: ['+room.name+'] '+dv);
-  if(curRoom&&curRoom.id===roomId)await loadMsgs();
+  const info=roomDataInfo(roomId);if(!info)return;
+  const mode=document.querySelector('input[name="del-mode"]:checked').value;
+  let fromD,toD,label;
+  if(mode==='single'){
+    fromD=toD=document.getElementById('del-date-sel').value;
+    if(!fromD){alert('날짜를 선택하세요');return;}
+    label=fromD;
+  }else{
+    fromD=document.getElementById('del-date-from').value;
+    toD=document.getElementById('del-date-to').value;
+    if(!fromD||!toD){alert('시작/끝 날짜를 모두 선택하세요');return;}
+    if(fromD>toD){const t=fromD;fromD=toD;toD=t;}
+    label=fromD+' ~ '+toD;
+  }
+  // 안전장치 1: 방 이름 입력
+  const nameChk=prompt('⚠️ ['+info.room.name+'] '+label+' 데이터를 삭제합니다.\n되돌릴 수 없습니다.\n\n확인을 위해 방 이름을 정확히 입력하세요:\n'+info.room.name);
+  if(nameChk!==info.room.name){alert('방 이름이 일치하지 않아 취소됩니다.');return;}
+  // 안전장치 2: 관리자 비밀번호
+  const pwChk=prompt('관리자 비밀번호를 입력하세요:');
+  if(pwChk!==PW[ADMIN_NAME]){alert('비밀번호가 일치하지 않아 취소됩니다.');return;}
+  // 삭제 실행 (방 종류별 테이블)
+  try{
+    for(const tbl of info.tables){
+      if(info.dateCol==='date_str'){
+        await sb.from(tbl).delete().eq('room_id',roomId).gte('date_str',fromD).lte('date_str',toD);
+      }else{
+        const r1=dateToUTCRange(fromD), r2=dateToUTCRange(toD);
+        await sb.from(tbl).delete().eq('room_id',roomId).gte('created_at',r1.start).lte('created_at',r2.end);
+      }
+    }
+  }catch(e){alert('삭제 오류: '+e.message);return;}
+  adminLog('✓ 삭제 완료: ['+info.room.name+'] '+label+' ('+info.kind+')');
+  alert('삭제 완료: ['+info.room.name+'] '+label);
+  if(curRoom&&curRoom.id===roomId){
+    if(info.kind==='items')loadItems();else if(info.kind==='delivery')loadDeliveries();else loadMsgs();
+  }
   await loadAdminDates();
 }
 async function deleteAllInRoom(){
   const roomId=document.getElementById('del-room-all-sel').value;
   if(!roomId){alert('방을 선택하세요');return;}
-  const room=rooms.find(function(r){return r.id===roomId;});
-  if(!confirm('⚠️ ['+room.name+'] 방의 모든 메시지를 완전히 삭제하시겠습니까?\n절대 되돌릴 수 없습니다.'))return;
-  const confirmed=prompt('확인을 위해 방 이름을 정확히 입력하세요:\n'+room.name);
-  if(confirmed!==room.name){alert('방 이름이 일치하지 않아 취소됩니다.');return;}
-  const{error}=await sb.from('messages').delete().eq('room_id',roomId);
-  if(error){alert('삭제 오류: '+error.message);return;}
-  adminLog('💥 전체 삭제 완료: ['+room.name+']');
-  if(curRoom&&curRoom.id===roomId)await loadMsgs();
+  const info=roomDataInfo(roomId);if(!info)return;
+  const nameChk=prompt('⚠️ ['+info.room.name+'] 방의 모든 데이터를 완전히 삭제합니다.\n절대 되돌릴 수 없습니다.\n\n확인을 위해 방 이름을 정확히 입력하세요:\n'+info.room.name);
+  if(nameChk!==info.room.name){alert('방 이름이 일치하지 않아 취소됩니다.');return;}
+  const pwChk=prompt('관리자 비밀번호를 입력하세요:');
+  if(pwChk!==PW[ADMIN_NAME]){alert('비밀번호가 일치하지 않아 취소됩니다.');return;}
+  try{
+    for(const tbl of info.tables){await sb.from(tbl).delete().eq('room_id',roomId);}
+  }catch(e){alert('삭제 오류: '+e.message);return;}
+  adminLog('💥 전체 삭제 완료: ['+info.room.name+'] ('+info.kind+')');
+  alert('전체 삭제 완료: ['+info.room.name+']');
+  if(curRoom&&curRoom.id===roomId){
+    if(info.kind==='items')loadItems();else if(info.kind==='delivery')loadDeliveries();else loadMsgs();
+  }
 }
 function adminLog(msg){document.getElementById('admin-log').textContent=msg;}
 function openAdmin(){if(!me||me.name!==ADMIN_NAME){alert('관리자만 접근 가능합니다');return;}document.getElementById('admin-overlay').classList.add('on');renderRecvKwList();renderOrderKwList();renderArrKwList();renderReturnKwList();}
@@ -1574,7 +1642,7 @@ function closeDlvSheet(){
   if(dlvEditId){dlvEditId=null;
     const head=document.querySelector('#dlv-sheet .dlv-sheet-head .t');if(head)head.textContent='🚚 직배송 추가';
     const btn=document.querySelector('#dlv-sheet .item-add-btn');if(btn)btn.textContent='➕ 추가';
-    ['d-src','d-ch','d-tire','d-brand','d-qty','d-addr','d-recv','d-tel','d-note'].forEach(function(id){document.getElementById(id).value='';});
+    ['d-src','d-ch','d-code','d-tire','d-brand','d-qty','d-addr','d-recv','d-tel','d-note'].forEach(function(id){document.getElementById(id).value='';});
   }
 }
 function dlvTelLink(t){return (t||'').replace(/[^0-9]/g,'');}
@@ -1608,7 +1676,7 @@ function dlvSummaryCard(c,idx){
   if(c.need_done&&!c.done)h+='<span class="dneed-badge">완료필요</span>';
   h+='<span class="dsexp">'+(op?'▲':'▼')+'</span></div>';
   h+='<div class="dsdetail">';
-  h+='<div class="dsd-line">🚗 '+esc(c.tire||'')+' · '+esc(c.brand||'')+' · '+esc(c.qty||'')+'개 (입고: '+esc(c.src||'-')+')</div>';
+  h+='<div class="dsd-line">🚗 '+(c.code?'['+esc(c.code)+'] ':'')+esc(c.tire||'')+' · '+esc(c.brand||'')+' · '+esc(c.qty||'')+'개 (입고: '+esc(c.src||'-')+')</div>';
   if(c.addr)h+='<div class="dsd-line">📍 <a href="'+dlvMapLink(c.addr)+'" target="_blank" rel="noopener">'+esc(c.addr)+'</a></div>';
   h+='<div class="dsd-line">👤 '+esc(c.recv||'')+(c.tel?' · 📞 <a href="tel:'+dlvTelLink(c.tel)+'">'+esc(c.tel)+'</a>':'')+'</div>';
   if(c.note)h+='<div class="dsd-line">📝 '+esc(c.note)+'</div>';
@@ -1633,7 +1701,7 @@ function dlvCardHtml(c,idx,list){
   else if(c.need_done&&!c.done)h+='<span class="dneed-badge">완료필요</span>';
   if(sel&&!c.cancelled)h+='<span class="dsel-badge">선택됨</span>';
   h+='</div>';
-  h+='<div class="dc-tire">'+esc(c.tire||'')+'<span class="brand">'+esc(c.brand||'')+'</span><span class="qty">'+esc(c.qty||'')+'개</span></div>';
+  h+='<div class="dc-tire">'+(c.code?'<span class="dc-code">['+esc(c.code)+']</span> ':'')+esc(c.tire||'')+'<span class="brand">'+esc(c.brand||'')+'</span><span class="qty">'+esc(c.qty||'')+'개</span></div>';
   if(c.addr)h+='<div class="dc-addr">📍 <a href="'+dlvMapLink(c.addr)+'" target="_blank" rel="noopener" onclick="event.stopPropagation()">'+esc(c.addr)+'</a></div>';
   h+='<div class="dc-recv"><span class="name">'+esc(c.recv||'')+'</span>'+(c.tel?' · <a class="tel" href="tel:'+dlvTelLink(c.tel)+'" onclick="event.stopPropagation()">'+esc(c.tel)+'</a>':'')+'</div>';
   if(c.note)h+='<div class="dc-note">📝 '+esc(c.note)+'</div>';
@@ -1757,6 +1825,7 @@ function dlvEdit(id){
   dlvEditId=id;
   document.getElementById('d-src').value=c.src||'';
   document.getElementById('d-ch').value=DCH_LABEL[c.channel]||'';
+  document.getElementById('d-code').value=c.code||'';
   document.getElementById('d-tire').value=c.tire||'';
   document.getElementById('d-brand').value=c.brand||'';
   document.getElementById('d-qty').value=c.qty||'';
@@ -1797,7 +1866,7 @@ async function addDelivery(){
   let ch='spam';
   if(chRaw.indexOf('핑')>=0)ch='ping';else if(chRaw.indexOf('온라인')>=0)ch='online';else if(chRaw.indexOf('11')>=0)ch='st11';else if(chRaw.indexOf('전화')>=0)ch='tel';
   const fields={
-    channel:ch,
+    channel:ch,code:document.getElementById('d-code').value.trim(),
     src:document.getElementById('d-src').value.trim(),tire:tire,
     brand:document.getElementById('d-brand').value.trim(),qty:document.getElementById('d-qty').value.trim(),
     addr:document.getElementById('d-addr').value.trim(),recv:document.getElementById('d-recv').value.trim(),
@@ -1827,7 +1896,7 @@ async function addDelivery(){
   await loadDeliveries();
 }
 function resetDlvSheet(){
-  ['d-src','d-ch','d-tire','d-brand','d-qty','d-addr','d-recv','d-tel','d-note'].forEach(function(id){document.getElementById(id).value='';});
+  ['d-src','d-ch','d-code','d-tire','d-brand','d-qty','d-addr','d-recv','d-tel','d-note'].forEach(function(id){document.getElementById(id).value='';});
   dlvEditId=null;
   const head=document.querySelector('#dlv-sheet .dlv-sheet-head .t');if(head)head.textContent='🚚 직배송 추가';
   const btn=document.querySelector('#dlv-sheet .item-add-btn');if(btn)btn.textContent='➕ 추가';
@@ -1867,9 +1936,9 @@ function dlvPastePreview(){
     const cols=dlvSplitCols(line);
     let d;
     if(dlvPasteFmt==='ping'){
-      d={channel:'ping',src:cols[0]||'',tire:cols[1]||'',spec:dlvNormSize(cols[2]||''),year:cols[4]||'',brand:cols[5]||'',qty:cols[6]||'',addr:cols[8]||'',recv:cols[9]||'',tel:cols[10]||''};
+      d={channel:'ping',code:cols[0]||'',src:cols[2]||'',tire:cols[3]||'',spec:dlvNormSize(cols[4]||''),year:cols[6]||'',brand:cols[7]||'',qty:cols[8]||'',addr:cols[10]||'',recv:cols[11]||'',tel:cols[12]||''};
     }else{
-      d={channel:dlvChFromText(cols[0]),src:cols[2]||'',tire:cols[3]||'',spec:dlvNormSize(cols[4]||''),year:cols[6]||'',brand:cols[7]||'',qty:cols[8]||'',addr:cols[10]||'',recv:cols[11]||'',tel:cols[12]||''};
+      d={channel:dlvChFromText(cols[0]),src:cols[2]||'',tire:cols[3]||'',spec:dlvNormSize(cols[4]||''),code:cols[5]||'',year:cols[6]||'',brand:cols[7]||'',qty:cols[8]||'',addr:cols[10]||'',recv:cols[11]||'',tel:cols[12]||''};
     }
     d.brand=((d.brand||'')+' '+(d.year||'')).trim();
     return d;
@@ -1884,7 +1953,7 @@ function dlvRenderPreview(){
     const telOk=/\d{2,4}-?\d{3,4}-?\d{4}/.test(d.tel||'');
     h+='<div class="dlv-pv-card '+d.channel+'">';
     h+='<div class="dlv-pv-top"><span class="dtag '+d.channel+'">'+(DCH_LABEL[d.channel]||'스팜')+'</span><span class="dc-src">입고: '+esc(d.src||'-')+'</span></div>';
-    h+='<div class="dlv-pv-tire">'+esc(d.tire||'')+'<span class="sz">'+esc(d.spec||'')+'</span><span class="br">'+esc(d.brand||'')+' · '+esc(d.qty||'?')+'개</span></div>';
+    h+='<div class="dlv-pv-tire">'+(d.code?'<span class="dlv-pv-code">['+esc(d.code)+']</span> ':'')+esc(d.tire||'')+'<span class="sz">'+esc(d.spec||'')+'</span><span class="br">'+esc(d.brand||'')+' · '+esc(d.qty||'?')+'개</span></div>';
     if(d.addr)h+='<div class="dlv-pv-line">📍 '+esc(d.addr)+'</div>';
     h+='<div class="dlv-pv-line"><span class="nm">'+esc(d.recv||'')+'</span> · '+esc(d.tel||'')+'</div>';
     if(!telOk)h+='<div class="dlv-pv-warn">⚠ 전화번호 형식 확인 필요</div>';
@@ -1904,7 +1973,7 @@ async function dlvPasteRegister(){
     // 핑은 맨 위로, 나머지는 뒤로
     let so;
     if(d.channel==='ping'){maxO++;so=maxO;}else{maxO++;so=maxO;}
-    return {room_id:curRoom.id,date_str:ds,tab:'deliv',channel:d.channel,
+    return {room_id:curRoom.id,date_str:ds,tab:'deliv',channel:d.channel,code:d.code||'',
       src:d.src||'',tire:((d.tire||'')+(d.spec?' '+d.spec:'')).trim(),brand:d.brand||'',qty:d.qty||'',
       addr:d.addr||'',recv:d.recv||'',tel:d.tel||'',sort_order:so,user_name:me?me.name:''};
   });
@@ -1938,7 +2007,7 @@ function dlvPickSrc(s){document.getElementById('d-src').value=s;document.getElem
     });
   }
   // 직배송 입력칸 띄어쓰기 이동 (모델규격·브랜드·주소·받는사람=2번, 나머지=1번)
-  const DSEG=['d-src','d-ch','d-tire','d-brand','d-qty','d-addr','d-recv','d-tel','d-note'];
+  const DSEG=['d-src','d-ch','d-code','d-tire','d-brand','d-qty','d-addr','d-recv','d-tel','d-note'];
   const DDBL=['d-tire','d-brand','d-addr','d-recv','d-note'];
   DSEG.forEach(function(id,pos){
     const inp=document.getElementById(id);if(!inp)return;
