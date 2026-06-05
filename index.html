@@ -220,7 +220,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Noto Sa
 .dlv-tab .cnt{font-size:10px;background:var(--navy);color:#fff;border-radius:10px;padding:1px 6px;margin-left:3px}
 .dlv-tab:not(.active) .cnt{background:var(--text3)}
 .dlv-body{flex:1;overflow-y:auto;padding:12px;-webkit-overflow-scrolling:touch;min-height:0}
-@media(min-width:601px){.dlv-body>*{width:100%;max-width:880px;margin-left:auto;margin-right:auto}}
 .dlv-guide{background:#fffbe6;border:1px solid #fde68a;border-radius:10px;padding:9px 12px;font-size:11.5px;color:#92400e;line-height:1.6;margin-bottom:12px}
 .dlv-guide b{color:#78350f}
 .dlock-bar{display:flex;align-items:center;justify-content:space-between;background:#fff;border:1px solid var(--border);border-radius:10px;padding:9px 13px;margin-bottom:12px}
@@ -1934,6 +1933,8 @@ function dlvSummaryCard(c,idx,list){
   h+='<div class="dsd-acts">';
   if(c.cancelled){
     h+='<button class="dact" onclick="event.stopPropagation();dlvUncancel(\''+c.id+'\')">취소 되돌리기</button>';
+  }else if(c.done){
+    h+='<button class="dact undo-btn" onclick="event.stopPropagation();dlvToggleDone(\''+c.id+'\')">↩ 완료취소</button>';
   }else{
     h+='<button class="dact due-btn" onclick="event.stopPropagation();dlvSetDue(\''+c.id+'\')">📅 꼭배송</button>';
     h+=dlvDestButtons(c);
@@ -1973,9 +1974,12 @@ function dlvCardHtml(c,idx,list){
   h+='<div class="dc-acts">';
   if(c.cancelled){
     h+='<button class="dact" onclick="event.stopPropagation();dlvUncancel(\''+c.id+'\')">취소 되돌리기</button>';
+  }else if(c.done){
+    // 완료된 건: 완료취소(복구)만 — 실수로 취소되는 것 방지
+    h+='<button class="dact undo-btn" onclick="event.stopPropagation();dlvToggleDone(\''+c.id+'\')">↩ 완료취소</button>';
   }else{
     if(c.tab==='deliv'){
-      h+=c.done?'<button class="dact undo-btn" onclick="event.stopPropagation();dlvToggleDone(\''+c.id+'\')">완료취소</button>':'<button class="dact done-btn" onclick="event.stopPropagation();dlvToggleDone(\''+c.id+'\')">✓ 완료</button>';
+      h+='<button class="dact done-btn" onclick="event.stopPropagation();dlvToggleDone(\''+c.id+'\')">✓ 완료</button>';
       h+='<button class="dact due-btn" onclick="event.stopPropagation();dlvSetDue(\''+c.id+'\')">📅 꼭배송</button>';
     }else if(c.tab==='parcel'){
       h+='<button class="dact copy-btn" onclick="event.stopPropagation();dlvCopy(\''+c.id+'\')">📋 복사</button>';
@@ -2158,12 +2162,15 @@ async function dlvToggleConfirm(id){
 }
 async function dlvMoveTab(id,to,carNo){
   const c=deliveriesCache.find(function(x){return x.id===id;});
-  // 옮긴 탭 + 차량의 맨 끝 순서
   const targetCar=(to==='deliv')?(carNo||1):1;
-  const maxO=Math.max(0,...deliveriesCache.filter(function(x){return x.tab===to&&(to!=='deliv'||(x.car||1)===targetCar);}).map(function(x){return x.sort_order||0;}));
-  const upd={tab:to,done:false,need_done:false,sort_order:maxO+1};
-  if(to==='deliv')upd.car=targetCar; // 직배송으로 가면 지정 차량(기본 1호차)
-  // 이동 위치 이름
+  const upd={tab:to,done:false,need_done:false};
+  if(to==='deliv')upd.car=targetCar; // 직배송으로 가면 지정 차량
+  // 순서: 다른 탭으로 이동할 때만 맨 끝으로. 같은 직배송 탭 안에서 차량만 바꾸면 순서 유지
+  const sameTab=(c&&c.tab===to);
+  if(!sameTab){
+    const maxO=Math.max(0,...deliveriesCache.filter(function(x){return x.tab===to&&(to!=='deliv'||(x.car||1)===targetCar);}).map(function(x){return x.sort_order||0;}));
+    upd.sort_order=maxO+1;
+  }
   const destName=(to==='deliv')?(targetCar+'호차'):(to==='hold'?'미출고':'택배');
   try{
     await sb.from('deliveries').update(upd).eq('id',id);
