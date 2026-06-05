@@ -2001,8 +2001,8 @@ function dlvToggleCancelView(tab){dlvShowCancel[tab]=!dlvShowCancel[tab];renderD
 // 목록을 진행/완료/취소로 나눠 렌더 (완료·취소는 접기)
 function dlvRenderList(arr,tab,cardFn){
   const live=arr.filter(function(c){return !c.done&&!c.cancelled;});
-  const done=arr.filter(function(c){return c.done&&!c.cancelled;});
-  const cancel=arr.filter(function(c){return c.cancelled;});
+  const done=arr.filter(function(c){return c.done&&!c.cancelled;}).sort(function(a,b){return (b.done_at||'').localeCompare(a.done_at||'');});
+  const cancel=arr.filter(function(c){return c.cancelled;}).sort(function(a,b){return (b.cancelled_at||'').localeCompare(a.cancelled_at||'');});
   let h='';
   h+=(live.length?live.map(function(c,i){return cardFn(c,i,live);}).join(''):'');
   if(done.length){
@@ -2147,7 +2147,8 @@ async function dlvMove(id,dir){
 
 async function dlvToggleDone(id){
   const c=deliveriesCache.find(function(x){return x.id===id;});if(!c)return;
-  try{await sb.from('deliveries').update({done:!c.done,need_done:false}).eq('id',id);}catch(e){alert('실패: '+e.message);}
+  const willDone=!c.done;
+  try{await sb.from('deliveries').update({done:willDone,need_done:false,done_at:willDone?new Date().toISOString():null}).eq('id',id);}catch(e){alert('실패: '+e.message);}
   await loadDeliveries();
 }
 async function dlvToggleConfirm(id){
@@ -2174,7 +2175,7 @@ async function dlvCancel(id){
   const c=deliveriesCache.find(function(x){return x.id===id;});if(!c)return;
   if(!confirm('이 건을 취소할까요? (기록은 남아요)'))return;
   try{
-    await sb.from('deliveries').update({cancelled:true}).eq('id',id);
+    await sb.from('deliveries').update({cancelled:true,cancelled_at:new Date().toISOString()}).eq('id',id);
     await sb.from('delivery_logs').insert({room_id:curRoom.id,date_str:dlvDateStr(),text:(me?me.name:'?')+'님이 취소함 ('+(c.recv||c.tire||'')+')',user_name:me?me.name:''});
   }catch(e){alert('취소 실패: '+e.message);}
   await loadDeliveries();
