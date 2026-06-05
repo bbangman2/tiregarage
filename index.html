@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>타이어게러지 메신저</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 :root{
@@ -248,6 +249,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Noto Sa
 @keyframes duePulse{0%,100%{opacity:1}50%{opacity:.55}}
 .dact.due-btn{background:#fffbe6;color:#92400e;border-color:#fde68a;font-weight:700}
 .ddone-toggle{width:100%;padding:9px;margin:6px 0;border:1px dashed var(--border);background:#f7f6f3;border-radius:8px;font-size:12px;font-weight:700;color:var(--text2);cursor:pointer;font-family:inherit}
+.dlv-drag{cursor:grab}
+.dlv-drag.sortable-chosen{opacity:.9;box-shadow:0 4px 16px rgba(0,0,0,.18);border-radius:8px}
+.dlv-drag.sortable-ghost{opacity:.35}
+.dlv-drag.sortable-drag{cursor:grabbing}
 .dc-tire{font-size:14px;font-weight:700;color:var(--navy);margin-bottom:3px}
 .dc-tire .brand{font-size:11px;color:var(--text2);font-weight:500;margin-left:4px}
 .dc-tire .qty{font-weight:800;color:var(--purple);margin-left:4px}
@@ -1830,7 +1835,7 @@ async function rolloverDeliveries(today){
     const newRows=toCopy.map(function(d){
       maxO++;
       const wasDelivUndone=(d.tab==='deliv');
-      return {room_id:curRoom.id,date_str:today,tab:'deliv',channel:d.channel,code:d.code||'',car:d.car||1,
+      return {room_id:curRoom.id,date_str:today,tab:'deliv',channel:d.channel,code:d.code||'',car:1,
         src:d.src||'',tire:d.tire||'',brand:d.brand||'',qty:d.qty||'',addr:d.addr||'',recv:d.recv||'',tel:d.tel||'',
         note:d.note||'',due_date:d.due_date||null,need_done:wasDelivUndone,done:false,cancelled:false,
         sort_order:maxO,user_name:d.user_name||''};
@@ -2008,7 +2013,12 @@ function dlvRenderList(arr,tab,cardFn){
   const done=arr.filter(function(c){return c.done&&!c.cancelled;}).sort(function(a,b){return (b.done_at||'').localeCompare(a.done_at||'');});
   const cancel=arr.filter(function(c){return c.cancelled;}).sort(function(a,b){return (b.cancelled_at||'').localeCompare(a.cancelled_at||'');});
   let h='';
-  h+=(live.length?live.map(function(c,i){return cardFn(c,i,live);}).join(''):'');
+  // 진행(live) 카드만 드래그로 순서 변경 가능. 각 카드를 data-did로 감쌈
+  if(live.length){
+    h+='<div class="dlv-sortable" data-tab="'+tab+'">';
+    h+=live.map(function(c,i){return '<div class="dlv-drag" data-did="'+c.id+'">'+cardFn(c,i,live)+'</div>';}).join('');
+    h+='</div>';
+  }
   if(done.length){
     const open=dlvShowDone[tab];
     h+='<button class="ddone-toggle" onclick="dlvToggleDoneView(\''+tab+'\')">'+(open?'▲ 완료 '+done.length+'건 접기':'▼ 완료 '+done.length+'건 보기')+'</button>';
@@ -2025,11 +2035,11 @@ function dlvRenderList(arr,tab,cardFn){
 function renderDelivery(){
   // 탭 카운트 = 완료·취소 제외한 "남은" 건수
   function liveCnt(filterFn){return deliveriesCache.filter(function(c){return filterFn(c)&&!c.done&&!c.cancelled;}).length;}
-  // 직배송 탭 숫자 = 1호차만 (2호차는 별도 탭). 2호차 없으면 전체 직배송
+  // 직배송 탭 숫자 = 차량 미배정(대기, car=1)
   const car2List=deliveriesCache.filter(function(c){return c.tab==='deliv'&&(c.car||1)===2&&!c.done&&!c.cancelled;});
   const has2=car2List.length>0;
   const elDeliv=document.getElementById('dcnt-deliv');
-  if(elDeliv)elDeliv.textContent=liveCnt(function(c){return c.tab==='deliv'&&(!has2||(c.car||1)===1);});
+  if(elDeliv)elDeliv.textContent=liveCnt(function(c){return c.tab==='deliv'&&(c.car||1)===1;});
   const elHold=document.getElementById('dcnt-hold');if(elHold)elHold.textContent=liveCnt(function(c){return c.tab==='hold';});
   const elParcel=document.getElementById('dcnt-parcel');if(elParcel)elParcel.textContent=liveCnt(function(c){return c.tab==='parcel';});
   // 2호차 탭: 2호차 배송 건이 있을 때만 표시
@@ -2040,35 +2050,38 @@ function renderDelivery(){
       document.getElementById('dcnt-car2').textContent=car2List.length;
     }else{
       car2Tab.style.display='none';
-      // 2호차 탭 보던 중에 비면 요약으로 이동
+      // 2호차 탭 보던 중에 비면 1호차로 이동
       if(curDlvTab==='car2'){curDlvTab='summary';document.querySelectorAll('.dlv-tab').forEach(function(t){t.classList.toggle('active',t.dataset.dtab==='summary');});}
     }
   }
-  // 요약 탭 라벨: 2호차 있으면 "1호차"로, 카운트는 1호차 남은 건수
+  // 1호차 탭 라벨 + 카운트(car=3 남은 건수)
   const sumLabel=document.getElementById('sumtab-label');
   if(sumLabel)sumLabel.textContent='🚐 1호차';
   const elSum=document.getElementById('dcnt-summary');
-  if(elSum)elSum.textContent=liveCnt(function(c){return c.tab==='deliv'&&(!has2||(c.car||1)===1);});
+  if(elSum)elSum.textContent=liveCnt(function(c){return c.tab==='deliv'&&c.car===3;});
   const body=document.getElementById('dlv-body');
   let list=dlvListOf(curDlvTab);
+  // 직배송 탭 = 차량 미배정(대기, car=1)만. 1호차=car3, 2호차=car2는 각 탭에서
+  if(curDlvTab==='deliv')list=list.filter(function(c){return (c.car||1)===1;});
   if(dlvSearchQuery)list=list.filter(dlvMatchSearch);
   let html='';
   if(curDlvTab==='summary'||curDlvTab==='car2'){
-    const carNo=(curDlvTab==='car2')?2:1;
+    const carNo=(curDlvTab==='car2')?2:3;
     // 해당 차량 카드만 (취소 포함 — 여기서 되돌리기 가능)
     let clist=dlvListOf(curDlvTab).filter(function(c){return (c.car||1)===carNo;});
     if(dlvSearchQuery)clist=clist.filter(dlvMatchSearch);
     const cLive=clist.filter(function(c){return !c.done&&!c.cancelled;}).length;
     const has2=deliveriesCache.some(function(c){return c.tab==='deliv'&&(c.car||1)===2;});
-    const carName=carNo+'호차';
+    const carName=(carNo===2)?'2호차':'1호차';
     html+='<div class="dlv-guide">🚐 <b>'+carName+'</b> · 남은 '+cLive+'건. 탭하면 선택→▲▼ 순서. 완료·취소·이동·차량변경 가능.</div>';
     html+='<div class="dlock-bar"><span class="lbl">순서 변경: <b>'+(dlvLocked?'잠김':'풀림')+'</b></span><button class="dlock-toggle '+(dlvLocked?'locked':'unlocked')+'" onclick="dlvToggleLock()">'+(dlvLocked?'🔒 풀기':'🔓 잠그기')+'</button></div>';
     html+=(clist.length?dlvRenderList(clist,curDlvTab,dlvSummaryCard):'<div class="dlv-empty">'+carName+' 배송 건이 없어요.</div>');
     body.innerHTML=html;
+    dlvInitSortable();
     return;
   }
   if(curDlvTab==='deliv'){
-    html+='<div class="dlv-guide"><b>탭하면 선택</b>→ ▲▼로 순서. <b>완료</b>는 취소선+맨아래. 어제 못 끝낸 건 <b style="color:#c2410c">완료필요</b>로 떠요.</div>';
+    html+='<div class="dlv-guide"><b>꾹 눌러 드래그</b>하거나 펼쳐서 ▲▼로 순서 변경. <b>완료</b>는 맨아래. 어제 못 끝낸 건 <b style="color:#c2410c">완료필요</b>로 떠요.</div>';
     html+='<div class="dlock-bar"><span class="lbl">순서 변경: <b>'+(dlvLocked?'잠김':'풀림')+'</b></span><button class="dlock-toggle '+(dlvLocked?'locked':'unlocked')+'" onclick="dlvToggleLock()">'+(dlvLocked?'🔒 풀기':'🔓 잠그기')+'</button></div>';
   }else if(curDlvTab==='hold'){
     html+='<div class="dlv-guide">미출고 = 오늘 안 나감. 다음날 직배송 탭으로 합류해요.</div>';
@@ -2084,6 +2097,7 @@ function renderDelivery(){
     html+='</div>';
   }
   body.innerHTML=html;
+  dlvInitSortable();
 }
 function dlvToggleOpen(id){dlvOpenId=(dlvOpenId===id)?null:id;renderDelivery();}
 
@@ -2098,13 +2112,15 @@ async function dlvSelThenMove(id,dir){
 function dlvDestButtons(c){
   const id=c.id, curCar=c.car||1;
   let h='';
-  // →1호차 (직배송 탭이면서 1호차인 경우만 제외)
-  if(!(c.tab==='deliv'&&curCar===1))h+='<button class="dact" onclick="event.stopPropagation();dlvMoveTab(\''+id+'\',\'deliv\',1)">→1호차</button>';
-  // →2호차 (직배송 탭이면서 2호차인 경우만 제외)
+  // →직배송 (직배송 대기 car=1이 아니면)
+  if(!(c.tab==='deliv'&&curCar===1))h+='<button class="dact" onclick="event.stopPropagation();dlvMoveTab(\''+id+'\',\'deliv\',1)">→직배송</button>';
+  // →1호차 (1호차 car=3이 아니면)
+  if(!(c.tab==='deliv'&&curCar===3))h+='<button class="dact car-btn" onclick="event.stopPropagation();dlvMoveTab(\''+id+'\',\'deliv\',3)">→1호차</button>';
+  // →2호차 (2호차 car=2가 아니면)
   if(!(c.tab==='deliv'&&curCar===2))h+='<button class="dact car-btn" onclick="event.stopPropagation();dlvMoveTab(\''+id+'\',\'deliv\',2)">→2호차</button>';
-  // →미출고 (미출고 탭이 아니면)
+  // →미출고
   if(c.tab!=='hold')h+='<button class="dact" onclick="event.stopPropagation();dlvMoveTab(\''+id+'\',\'hold\')">→미출고</button>';
-  // →택배 (택배 탭이 아니면)
+  // →택배
   if(c.tab!=='parcel')h+='<button class="dact" onclick="event.stopPropagation();dlvMoveTab(\''+id+'\',\'parcel\')">→택배</button>';
   return h;
 }
@@ -2129,6 +2145,39 @@ async function dlvSetCar(id,carNo){
     await sb.from('delivery_logs').insert({room_id:curRoom.id,date_str:dlvDateStr(),text:(me?me.name:'?')+'님이 '+carNo+'호차로 이동 ('+(c.recv||c.tire||'')+')',user_name:me?me.name:''});
   }catch(e){alert('차량 변경 실패: '+e.message);}
   dlvSelectedId=null;await loadDeliveries();
+}
+// 드래그로 순서 변경 (SortableJS)
+function dlvInitSortable(){
+  if(typeof Sortable==='undefined')return; // 라이브러리 못 불러오면 화살표로 (안전)
+  document.querySelectorAll('.dlv-sortable').forEach(function(el){
+    if(el._sortable)return;
+    el._sortable=Sortable.create(el,{
+      animation:150,
+      handle:'.dlv-drag',
+      delay:200,            // 모바일: 0.2초 꾹 눌러야 드래그 (스크롤과 구분)
+      delayOnTouchOnly:true,
+      disabled:dlvLocked,
+      onEnd:function(evt){dlvSaveDragOrder(el);}
+    });
+  });
+}
+async function dlvSaveDragOrder(el){
+  if(dlvLocked)return;
+  // 현재 DOM 순서대로 id 모으기
+  const ids=Array.prototype.map.call(el.querySelectorAll('.dlv-drag'),function(d){return d.getAttribute('data-did');});
+  if(!ids.length)return;
+  // 이 묶음(같은 차량 진행카드)의 기존 sort_order들을 순서대로 재배정
+  const cards=ids.map(function(id){return deliveriesCache.find(function(x){return x.id===id;});}).filter(Boolean);
+  const orders=cards.map(function(c){return c.sort_order||0;}).sort(function(a,b){return a-b;});
+  try{
+    for(let i=0;i<cards.length;i++){
+      if(cards[i].sort_order!==orders[i]){
+        await sb.from('deliveries').update({sort_order:orders[i]}).eq('id',cards[i].id);
+      }
+    }
+    await sb.from('delivery_logs').insert({room_id:curRoom.id,date_str:dlvDateStr(),text:(me?me.name:'?')+'님이 순서 변경(드래그)',user_name:me?me.name:''});
+  }catch(e){alert('순서 저장 실패: '+e.message);}
+  await loadDeliveries();
 }
 async function dlvMove(id,dir){
   if(dlvLocked)return;
@@ -2164,14 +2213,17 @@ async function dlvMoveTab(id,to,carNo){
   const c=deliveriesCache.find(function(x){return x.id===id;});
   const targetCar=(to==='deliv')?(carNo||1):1;
   const upd={tab:to,done:false,need_done:false};
-  if(to==='deliv')upd.car=targetCar; // 직배송으로 가면 지정 차량
-  // 순서: 다른 탭으로 이동할 때만 맨 끝으로. 같은 직배송 탭 안에서 차량만 바꾸면 순서 유지
-  const sameTab=(c&&c.tab===to);
-  if(!sameTab){
+  if(to==='deliv')upd.car=targetCar;
+  // 현재 위치(탭+차량)와 목적지가 같은지 — 직배송 내 car 구분(1대기/3은1호차/2는2호차)도 다른 위치로 본다
+  const curCar=c?(c.car||1):1;
+  const samePlace=(c&&c.tab===to&&(to!=='deliv'||curCar===targetCar));
+  if(!samePlace){
     const maxO=Math.max(0,...deliveriesCache.filter(function(x){return x.tab===to&&(to!=='deliv'||(x.car||1)===targetCar);}).map(function(x){return x.sort_order||0;}));
     upd.sort_order=maxO+1;
   }
-  const destName=(to==='deliv')?(targetCar+'호차'):(to==='hold'?'미출고':'택배');
+  // 위치 이름
+  const carLabel={1:'직배송',3:'1호차',2:'2호차'};
+  const destName=(to==='deliv')?(carLabel[targetCar]||'직배송'):(to==='hold'?'미출고':'택배');
   try{
     await sb.from('deliveries').update(upd).eq('id',id);
     if(c)await sb.from('delivery_logs').insert({room_id:curRoom.id,date_str:dlvDateStr(),text:(me?me.name:'?')+'님이 '+destName+'(으)로 이동 ('+(c.recv||c.tire||'')+')',user_name:me?me.name:''});
