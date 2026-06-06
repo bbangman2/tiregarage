@@ -1827,6 +1827,8 @@ async function loadDeliveries(){
 
 // 이전 날짜의 미완료 직배송 + 미출고를 오늘로 계속 이월 (끝낼 때까지 매일)
 async function rolloverDeliveries(today){
+  // 과거 날짜를 들여다볼 때는 이월하지 않음 (실제 오늘일 때만)
+  if(today!==getTodayISO())return;
   try{
     // 오늘 것 + 이전 것 모두 조회
     const {data}=await sb.from('deliveries').select('*').eq('room_id',curRoom.id).lte('date_str',today);
