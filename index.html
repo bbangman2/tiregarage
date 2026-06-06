@@ -243,6 +243,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Noto Sa
 .dtag.ping{background:var(--red)}.dtag.spam{background:var(--purple)}.dtag.online{background:var(--blue)}.dtag.st11{background:var(--orange)}.dtag.tel{background:#0891b2}.dtag.trade{background:#0d9488}
 .dc-src{font-size:11px;color:var(--text3);font-weight:600}
 .dneed-badge{font-size:10px;font-weight:800;color:#fff;background:var(--orange);padding:2px 8px;border-radius:10px}
+.dold-badge{font-size:10px;font-weight:800;color:#7c2d12;background:#fed7aa;padding:2px 7px;border-radius:10px}
+.dold-badge.hot{color:#fff;background:#ea580c}
 .dsel-badge{font-size:10px;font-weight:800;color:#fff;background:var(--navy);padding:2px 8px;border-radius:10px;margin-left:auto}
 .ddue-badge{font-size:10px;font-weight:800;color:#92400e;background:#fef3c7;padding:2px 7px;border-radius:10px}
 .ddue-badge.urgent{color:#fff;background:var(--red);animation:duePulse 1.5s infinite}
@@ -1792,6 +1794,14 @@ var deliveriesCache=[], dlvLogsCache=[], dlvLocked=false, dlvSelectedId=null, dl
 var curDlvTab='deliv';
 const DCH_LABEL={ping:'핑',spam:'스팜',online:'온라인',st11:'11번가',tel:'전화주문',trade:'거래처'};
 
+// 처음 등록일 기준 며칠째인지 (오늘 포함, 달력 날짜 그대로)
+function dlvDaysOld(c){
+  const first=c.first_date||c.date_str;
+  if(!first)return 1;
+  const a=new Date(first+'T00:00:00'), b=new Date(dlvDateStr()+'T00:00:00');
+  const diff=Math.round((b-a)/86400000);
+  return diff+1; // 등록 당일=1일째
+}
 function dlvDateStr(){return getSelectedRange().from;}
 
 async function loadDeliveries(){
@@ -1815,34 +1825,43 @@ async function loadDeliveries(){
   renderDelivery();
 }
 
-// 어제(이전) 날짜의 미완료 직배송 + 미출고를 오늘로 이월
+// 이전 날짜의 미완료 직배송 + 미출고를 오늘로 계속 이월 (끝낼 때까지 매일)
 async function rolloverDeliveries(today){
-  // 이전 날짜의 미완료 직배송 + 미출고를 오늘로 "복사" (원본은 그날 그대로 보존)
   try{
-    const {data}=await sb.from('deliveries').select('*').eq('room_id',curRoom.id).lt('date_str',today);
+    // 오늘 것 + 이전 것 모두 조회
+    const {data}=await sb.from('deliveries').select('*').eq('room_id',curRoom.id).lte('date_str',today);
     if(!data||!data.length)return;
-    const toCopy=data.filter(function(d){
-      if(d.rolled)return false;                   // 이미 이월(복사)한 건 제외 (중복 방지)
-      if(d.cancelled)return false;                // 취소 제외
-      if(d.done)return false;                     // 완료 제외
-      if(d.tab==='deliv')return true;             // 미완료 직배송
-      if(d.tab==='hold')return true;              // 미출고
-      return false;
+    const todayRows=data.filter(function(d){return d.date_str===today;});
+    const pastRows=data.filter(function(d){return d.date_str<today;});
+    // 오늘 이미 존재하는 "뿌리(origin)" 집합 — 중복 복사 방지
+    const todayOrigins={};
+    todayRows.forEach(function(d){todayOrigins[d.origin_id||d.id]=true;});
+    // 후보: 이전 날짜의 직배송/미출고. 단, 같은 뿌리(origin)의 "가장 최근" 상태로 판단
+    const latestByOrigin={};
+    pastRows.forEach(function(d){
+      if(d.tab!=='deliv'&&d.tab!=='hold')return;
+      const org=d.origin_id||d.id;
+      if(!latestByOrigin[org]||d.date_str>latestByOrigin[org].date_str)latestByOrigin[org]=d;
     });
+    // 가장 최근이 미완료·미취소인 뿌리만 이월 (최근에 완료/취소했으면 중단)
+    const byOrigin={};
+    Object.keys(latestByOrigin).forEach(function(org){
+      const d=latestByOrigin[org];
+      if(!d.done&&!d.cancelled)byOrigin[org]=d;
+    });
+    // 오늘에 아직 없는 뿌리만 복사
+    const toCopy=Object.keys(byOrigin).filter(function(org){return !todayOrigins[org];}).map(function(org){return byOrigin[org];});
     if(!toCopy.length)return;
-    // 오늘 직배송 탭 맨 끝 순서부터
-    let maxO=Math.max(0,...data.filter(function(x){return x.date_str===today&&x.tab==='deliv';}).map(function(x){return x.sort_order||0;}));
+    let maxO=Math.max(0,...todayRows.filter(function(x){return x.tab==='deliv';}).map(function(x){return x.sort_order||0;}));
     const newRows=toCopy.map(function(d){
       maxO++;
-      const wasDelivUndone=(d.tab==='deliv');
       return {room_id:curRoom.id,date_str:today,tab:'deliv',channel:d.channel,code:d.code||'',car:1,
         src:d.src||'',tire:d.tire||'',brand:d.brand||'',qty:d.qty||'',addr:d.addr||'',recv:d.recv||'',tel:d.tel||'',
-        note:d.note||'',due_date:d.due_date||null,need_done:wasDelivUndone,done:false,cancelled:false,
+        note:d.note||'',due_date:d.due_date||null,need_done:true,done:false,cancelled:false,
+        origin_id:(d.origin_id||d.id), first_date:(d.first_date||d.date_str),
         sort_order:maxO,user_name:d.user_name||''};
     });
-    // 복사 삽입 + 원본은 rolled 표시 (날짜·상태 그대로 유지)
     await sb.from('deliveries').insert(newRows);
-    for(const d of toCopy){await sb.from('deliveries').update({rolled:true}).eq('id',d.id);}
   }catch(e){console.error('rollover',e);}
 }
 
@@ -1918,6 +1937,7 @@ function dlvSummaryCard(c,idx,list){
   }
   if(c.cancelled)h+='<span class="dcancel-badge">취소</span>';
   else if(c.need_done&&!c.done)h+='<span class="dneed-badge">완료필요</span>';
+  if(!c.done&&!c.cancelled){var sdold=dlvDaysOld(c);if(sdold>=2)h+='<span class="dold-badge'+(sdold>=3?' hot':'')+'">'+sdold+'일째</span>';}
   if(c.due_date&&!c.done&&!c.cancelled)h+='<span class="ddue-badge urgent">⚠️</span>';
   h+='</span>';
   // 순서 ▲▼ (선택 시)
@@ -1963,6 +1983,7 @@ function dlvCardHtml(c,idx,list){
   h+='<div class="dc-top"><span class="dtag '+(c.channel||'spam')+'">'+(DCH_LABEL[c.channel]||'스팜')+'</span><span class="dc-src">입고: '+esc(c.src||'-')+'</span>';
   if(c.cancelled)h+='<span class="dcancel-badge">취소됨</span>';
   else if(c.need_done&&!c.done)h+='<span class="dneed-badge">완료필요</span>';
+  if(!c.done&&!c.cancelled){var dold=dlvDaysOld(c);if(dold>=2)h+='<span class="dold-badge'+(dold>=3?' hot':'')+'">'+(c.first_date||c.date_str).slice(5)+' 등록 · '+dold+'일째</span>';}
   if(c.due_date&&!c.done&&!c.cancelled)h+='<span class="ddue-badge urgent">⚠️ '+esc(c.due_date)+'</span>';
   if(sel&&!c.cancelled)h+='<span class="dsel-badge">선택됨</span>';
   h+='</div>';
@@ -2154,8 +2175,12 @@ function dlvInitSortable(){
     el._sortable=Sortable.create(el,{
       animation:150,
       handle:'.dlv-drag',
-      delay:200,            // 모바일: 0.2초 꾹 눌러야 드래그 (스크롤과 구분)
-      delayOnTouchOnly:true,
+      // 버튼·체크박스·순서화살표·펼침·링크는 드래그 시작에서 제외 (눌러도 안 끌림)
+      filter:'.dact,.dscheck,.dsside-btn,.dsexp,.dc-side,button,a,input',
+      preventOnFilter:false,
+      delay:180,              // 0.18초 꾹 눌러야 드래그 시작 (탭·스크롤과 구분)
+      delayOnTouchOnly:true,  // 터치(모바일)만 delay, 마우스(PC)는 즉시
+      touchStartThreshold:6,  // 손가락 6px 흔들림은 무시 (오작동 방지)
       disabled:dlvLocked,
       onEnd:function(evt){dlvSaveDragOrder(el);}
     });
@@ -2432,7 +2457,7 @@ async function dlvPasteRegister(){
     if(d.channel==='ping'){maxO++;so=maxO;}else{maxO++;so=maxO;}
     return {room_id:curRoom.id,date_str:ds,tab:'deliv',channel:d.channel,code:d.code||'',car:1,
       src:d.src||'',tire:((d.tire||'')+(d.spec?' '+d.spec:'')).trim(),brand:d.brand||'',qty:d.qty||'',
-      addr:d.addr||'',recv:d.recv||'',tel:d.tel||'',sort_order:so,user_name:me?me.name:''};
+      addr:d.addr||'',recv:d.recv||'',tel:d.tel||'',first_date:ds,sort_order:so,user_name:me?me.name:''};
   });
   try{await sb.from('deliveries').insert(rows);}catch(e){alert('등록 실패: '+e.message);return;}
   document.getElementById('dlv-paste').value='';
