@@ -1836,30 +1836,36 @@ async function rolloverDeliveries(today){
     // 오늘 이미 존재하는 "뿌리(origin)" 집합 — 중복 복사 방지
     const todayOrigins={};
     todayRows.forEach(function(d){todayOrigins[d.origin_id||d.id]=true;});
-    // 후보: 이전 날짜의 직배송/미출고. 단, 같은 뿌리(origin)의 "가장 최근" 상태로 판단
+    // 후보: 이전 날짜의 직배송/미출고/택배. 같은 뿌리(origin)의 "가장 최근" 상태로 판단
     const latestByOrigin={};
     pastRows.forEach(function(d){
-      if(d.tab!=='deliv'&&d.tab!=='hold')return;
+      if(d.tab!=='deliv'&&d.tab!=='hold'&&d.tab!=='parcel')return;
       const org=d.origin_id||d.id;
       if(!latestByOrigin[org]||d.date_str>latestByOrigin[org].date_str)latestByOrigin[org]=d;
     });
-    // 가장 최근이 미완료·미취소인 뿌리만 이월 (최근에 완료/취소했으면 중단)
+    // 이월 조건: 직배송/미출고는 미완료·미취소 / 택배는 미확인(confirmed 아님)·미취소
     const byOrigin={};
     Object.keys(latestByOrigin).forEach(function(org){
       const d=latestByOrigin[org];
-      if(!d.done&&!d.cancelled)byOrigin[org]=d;
+      if(d.cancelled)return;
+      if(d.tab==='parcel'){ if(!d.confirmed)byOrigin[org]=d; }      // 택배: 확인 안 한 것만
+      else { if(!d.done)byOrigin[org]=d; }                          // 직배송/미출고: 완료 안 한 것
     });
     // 오늘에 아직 없는 뿌리만 복사
     const toCopy=Object.keys(byOrigin).filter(function(org){return !todayOrigins[org];}).map(function(org){return byOrigin[org];});
     if(!toCopy.length)return;
-    let maxO=Math.max(0,...todayRows.filter(function(x){return x.tab==='deliv';}).map(function(x){return x.sort_order||0;}));
+    let maxOd=Math.max(0,...todayRows.filter(function(x){return x.tab==='deliv';}).map(function(x){return x.sort_order||0;}));
+    let maxOp=Math.max(0,...todayRows.filter(function(x){return x.tab==='parcel';}).map(function(x){return x.sort_order||0;}));
     const newRows=toCopy.map(function(d){
-      maxO++;
-      return {room_id:curRoom.id,date_str:today,tab:'deliv',channel:d.channel,code:d.code||'',car:1,
+      const isParcel=(d.tab==='parcel');
+      const destTab=isParcel?'parcel':'deliv';
+      let so;
+      if(isParcel){maxOp++;so=maxOp;}else{maxOd++;so=maxOd;}
+      return {room_id:curRoom.id,date_str:today,tab:destTab,channel:d.channel,code:d.code||'',car:1,
         src:d.src||'',tire:d.tire||'',brand:d.brand||'',qty:d.qty||'',addr:d.addr||'',recv:d.recv||'',tel:d.tel||'',
-        note:d.note||'',due_date:d.due_date||null,need_done:true,done:false,cancelled:false,
+        note:d.note||'',due_date:d.due_date||null,need_done:!isParcel,done:false,cancelled:false,confirmed:false,
         origin_id:(d.origin_id||d.id), first_date:(d.first_date||d.date_str),
-        sort_order:maxO,user_name:d.user_name||''};
+        sort_order:so,user_name:d.user_name||''};
     });
     await sb.from('deliveries').insert(newRows);
   }catch(e){console.error('rollover',e);}
