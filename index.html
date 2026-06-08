@@ -2447,7 +2447,6 @@ function dlvCardToText(c){
 function dlvEdit(id){
   const c=deliveriesCache.find(function(x){return x.id===id;});if(!c)return;
   dlvEditId=id;
-  // 그 카드의 형식으로 전환
   const fmt=(c.channel==='trade')?'trade':(c.channel==='ping')?'ping':'online';
   document.getElementById('dlv-sheet-back').classList.add('on');
   document.getElementById('dlv-sheet').classList.add('on');
@@ -2455,9 +2454,15 @@ function dlvEdit(id){
   document.getElementById('dlv-fmt-desc').style.display='block';
   const head=document.querySelector('#dlv-sheet .dlv-sheet-head .t');if(head)head.textContent='✏️ 직배송 수정';
   pickDlvFmt(fmt);
-  // 텍스트 복원해서 넣고 미리보기
+  // 텍스트 칸엔 복원본을 넣어 사용자가 고칠 수 있게 하되,
+  // 미리보기는 원본 카드를 그대로 써서 칸수 오판 방지
   document.getElementById('dlv-paste').value=dlvCardToText(c);
-  dlvPastePreview();
+  if(c.channel==='trade'){
+    dlvParsed=[{channel:'trade',code:'',src:'',tire:c.tire||'',spec:'',year:'',brand:'',qty:'',addr:'',recv:'',tel:'',multiline:true}];
+  }else{
+    dlvParsed=[{channel:c.channel,code:c.code||'',src:c.src||'',tire:c.tire||'',spec:'',year:'',brand:c.brand||'',qty:c.qty||'',addr:c.addr||'',recv:c.recv||'',tel:c.tel||''}];
+  }
+  dlvRenderPreview();
 }
 function dlvCopy(id){
   const c=deliveriesCache.find(function(x){return x.id===id;});if(!c)return;
