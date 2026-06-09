@@ -2621,11 +2621,11 @@ function dlvRenderPreview(){
     h+='</div>';
   });
   area.innerHTML=h;
-  document.getElementById('dlv-reg-cnt').textContent=dlvParsed.length;
+  // 등록 버튼 먼저 표시 (이게 안 뜨던 문제 수정)
   document.getElementById('dlv-reg-row').style.display='flex';
-  // 수정 모드면 버튼 텍스트 변경
+  // 버튼 텍스트 + 건수 한 번에 (수정 모드면 '수정 저장')
   const regBtn=document.querySelector('#dlv-reg-row .item-add-btn:not(.ghost)');
-  if(regBtn)regBtn.innerHTML=dlvEditId?'✏️ 수정 저장':'✓ 등록 (<span id="dlv-reg-cnt">'+dlvParsed.length+'</span>건)';
+  if(regBtn)regBtn.innerHTML=dlvEditId?'✏️ 수정 저장':('✓ 등록 ('+dlvParsed.length+'건)');
 }
 function dlvClearPreview(){dlvParsed=[];const a=document.getElementById('dlv-pv-area');if(a)a.innerHTML='';const r=document.getElementById('dlv-reg-row');if(r)r.style.display='none';}
 async function dlvPasteRegister(){
