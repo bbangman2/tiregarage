@@ -2037,9 +2037,12 @@ async function rolloverDeliveries(today){
     const newRows=toCopy.map(function(d){
       const isParcel=(d.tab==='parcel');
       const destTab=isParcel?'parcel':'deliv';
+      // 직배송(deliv)에 있던 건 차량 유지(1호차=3,2호차=2,대기=1). 미출고(hold)는 직배송 대기(car=1)로.
+      let destCar=1;
+      if(d.tab==='deliv')destCar=(d.car||1);   // 1호차·2호차·대기 그대로 유지
       let so;
       if(isParcel){maxOp++;so=maxOp;}else{maxOd++;so=maxOd;}
-      return {room_id:curRoom.id,date_str:today,tab:destTab,channel:d.channel,code:d.code||'',car:1,
+      return {room_id:curRoom.id,date_str:today,tab:destTab,channel:d.channel,code:d.code||'',car:destCar,
         src:d.src||'',tire:d.tire||'',brand:d.brand||'',qty:d.qty||'',addr:d.addr||'',recv:d.recv||'',tel:d.tel||'',
         note:d.note||'',due_date:d.due_date||null,need_done:!isParcel,done:false,cancelled:false,confirmed:false,
         origin_id:(d.origin_id||d.id), first_date:(d.first_date||d.date_str),
