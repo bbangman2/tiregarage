@@ -35,6 +35,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Noto Sa
   border-radius:10px;font-size:15px;font-weight:700;cursor:pointer}
 .login-hint{font-size:12px;color:var(--text3);text-align:center;margin-top:12px}
 #app{width:100%;display:none;flex-direction:row;height:100dvh}
+.refresh-banner{display:none;position:fixed;top:0;left:0;right:0;z-index:9000;background:var(--red);color:#fff;padding:12px 14px;align-items:center;gap:10px;box-shadow:0 2px 12px rgba(220,38,38,.4)}
+.refresh-banner.on{display:flex}
+.refresh-banner .rb-ic{font-size:20px;flex-shrink:0}
+.refresh-banner .rb-txt{flex:1;min-width:0}
+.refresh-banner .rb-t1{font-size:14px;font-weight:800;line-height:1.3}
+.refresh-banner .rb-t2{font-size:11px;opacity:.92;margin-top:1px}
+.refresh-banner .rb-btn{background:#fff;color:var(--red);border:none;border-radius:8px;padding:9px 15px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;flex-shrink:0}
+body.rb-on #app{padding-top:58px}
 #app.on{display:flex}
 .sidebar{width:190px;background:var(--navy);color:#fff;
   display:flex;flex-direction:column;flex-shrink:0;overflow:hidden}
@@ -508,6 +516,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Noto Sa
 </div>
 
 <div id="app">
+  <div class="refresh-banner" id="refresh-banner">
+    <span class="rb-ic">🔄</span>
+    <div class="rb-txt"><div class="rb-t1">새로고침 필요</div><div class="rb-t2">오후 3시 — 최신 정보로 업데이트하세요</div></div>
+    <button class="rb-btn" onclick="doScheduledRefresh()">새로고침</button>
+  </div>
   <div class="sidebar">
     <div class="sb-head">
       <div class="sb-logo">🛞 타이어게러지</div>
@@ -841,6 +854,22 @@ function fmtDate(d){return d.toLocaleDateString('ko-KR',{timeZone:'Asia/Seoul',m
 function fmtTime(d){return d.toLocaleTimeString('ko-KR',{timeZone:'Asia/Seoul',hour:'2-digit',minute:'2-digit'});}
 function toDateStr(u){const k=toKST(u);const y=k.getUTCFullYear(),m=String(k.getUTCMonth()+1).padStart(2,'0'),d=String(k.getUTCDate()).padStart(2,'0');return y+'-'+m+'-'+d;}
 function getTodayISO(){const k=new Date(Date.now()+9*3600*1000);return k.toISOString().slice(0,10);}
+// ===== 오후 3시 새로고침 알림 =====
+var REFRESH_HOUR=15; // 오후 3시
+function nowKSTHour(){return new Date(Date.now()+9*3600*1000).getUTCHours();}
+function checkScheduledRefresh(){
+  try{
+    if(localStorage.getItem('tg_refresh_done')===getTodayISO())return; // 오늘 이미 함
+    if(nowKSTHour()>=REFRESH_HOUR){
+      document.getElementById('refresh-banner').classList.add('on');
+      document.body.classList.add('rb-on');
+    }
+  }catch(e){}
+}
+function doScheduledRefresh(){
+  try{localStorage.setItem('tg_refresh_done',getTodayISO());}catch(e){}
+  location.reload();
+}
 function dateToUTCRange(ds){return{start:new Date(ds+'T00:00:00+09:00').toISOString(),end:new Date(ds+'T23:59:59+09:00').toISOString()};}
 
 async function doLogin(){
@@ -867,6 +896,8 @@ async function bootApp(){
   rooms=data||[];
   populateAdminSelects();renderSidebar();
   if(rooms.length)selectRoom(rooms[0]);
+  checkScheduledRefresh();
+  setInterval(checkScheduledRefresh,60000); // 1분마다 체크
 }
 function renderSidebar(){
   const el=document.getElementById('sb-rooms');
