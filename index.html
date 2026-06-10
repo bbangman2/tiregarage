@@ -2001,36 +2001,74 @@ async function loadDeliveries(){
   renderDelivery();
 }
 
+// ===== 안전 가드 + 이월 중복방지 헬퍼 =====
+// 오늘 날짜(단일)에서만 편집 가능. 과거/범위는 보기 전용.
+function dlvEditable(){
+  if(rangeMode){var s=getSelectedRange();if(s.to&&s.to!==s.from)return false;}
+  return getSelectedRange().from===getTodayISO();
+}
+function dlvGuardEdit(){
+  if(!dlvEditable()){
+    alert('과거 날짜는 보기 전용입니다.\n오늘 날짜에서만 조작할 수 있어요.\n(복사 버튼으로 클립보드에 담아 오늘 새로 등록하세요.)');
+    return false;
+  }
+  return true;
+}
+// 내용 핑거프린트 (origin_id가 null이어도 중복 이월 방지)
+function dlvFingerprint(d){
+  function nm(x){return (x||'').toString().toLowerCase().replace(/\s+/g,'');}
+  return [d.channel||'spam',nm(d.tire),nm(d.recv),nm(d.tel),nm(d.qty),nm(d.addr)].join('|');
+}
+// 의미있는 카드인지 (전부 빈 카드는 이월 제외)
+function dlvHasContent(d){
+  return !!((d.tire&&d.tire.trim())||(d.recv&&d.recv.trim())||(d.tel&&d.tel.trim()));
+}
+
 // 이전 날짜의 미완료 직배송 + 미출고를 오늘로 계속 이월 (끝낼 때까지 매일)
+var _rollingOver=false; // 동시 실행 방지 잠금 (realtime 콜백 연쇄 차단)
 async function rolloverDeliveries(today){
   // 과거 날짜를 들여다볼 때는 이월하지 않음 (실제 오늘일 때만)
   if(today!==getTodayISO())return;
+  if(_rollingOver)return;        // 이미 이월 진행 중이면 건너뜀
+  _rollingOver=true;
   try{
     // 오늘 것 + 이전 것 모두 조회
     const {data}=await sb.from('deliveries').select('*').eq('room_id',curRoom.id).lte('date_str',today);
     if(!data||!data.length)return;
     const todayRows=data.filter(function(d){return d.date_str===today;});
     const pastRows=data.filter(function(d){return d.date_str<today;});
-    // 오늘 이미 존재하는 "뿌리(origin)" 집합 — 중복 복사 방지
-    const todayOrigins={};
-    todayRows.forEach(function(d){todayOrigins[d.origin_id||d.id]=true;});
+    // 오늘 이미 존재하는 것 — 뿌리(origin) + 내용지문(fingerprint) 둘 다 모음
+    const todayOrigins={}, todayFps={};
+    todayRows.forEach(function(d){
+      todayOrigins[d.origin_id||d.id]=true;
+      todayFps[dlvFingerprint(d)]=true;
+    });
     // 후보: 이전 날짜의 직배송/미출고/택배. 같은 뿌리(origin)의 "가장 최근" 상태로 판단
     const latestByOrigin={};
     pastRows.forEach(function(d){
       if(d.tab!=='deliv'&&d.tab!=='hold'&&d.tab!=='parcel')return;
       const org=d.origin_id||d.id;
-      if(!latestByOrigin[org]||d.date_str>latestByOrigin[org].date_str)latestByOrigin[org]=d;
+      const prev=latestByOrigin[org];
+      if(!prev||d.date_str>prev.date_str||(d.date_str===prev.date_str&&(d.created_at||'')>(prev.created_at||''))){
+        latestByOrigin[org]=d;
+      }
     });
     // 이월 조건: 직배송/미출고는 미완료·미취소 / 택배는 미확인(confirmed 아님)·미취소
     const byOrigin={};
     Object.keys(latestByOrigin).forEach(function(org){
       const d=latestByOrigin[org];
       if(d.cancelled)return;
+      if(!dlvHasContent(d))return;                                  // 빈 카드는 이월 제외
       if(d.tab==='parcel'){ if(!d.confirmed)byOrigin[org]=d; }      // 택배: 확인 안 한 것만
       else { if(!d.done)byOrigin[org]=d; }                          // 직배송/미출고: 완료 안 한 것
     });
-    // 오늘에 아직 없는 뿌리만 복사
-    const toCopy=Object.keys(byOrigin).filter(function(org){return !todayOrigins[org];}).map(function(org){return byOrigin[org];});
+    // 오늘에 아직 없는 것만 복사 (뿌리 기준 AND 내용지문 기준 둘 다 통과)
+    const toCopy=Object.keys(byOrigin).map(function(org){return byOrigin[org];})
+      .filter(function(d){
+        if(todayOrigins[d.origin_id||d.id])return false;   // 같은 뿌리 이미 있음
+        if(todayFps[dlvFingerprint(d)])return false;        // 같은 내용 이미 있음(수동입력 포함)
+        return true;
+      });
     if(!toCopy.length)return;
     let maxOd=Math.max(0,...todayRows.filter(function(x){return x.tab==='deliv';}).map(function(x){return x.sort_order||0;}));
     let maxOp=Math.max(0,...todayRows.filter(function(x){return x.tab==='parcel';}).map(function(x){return x.sort_order||0;}));
@@ -2048,8 +2086,10 @@ async function rolloverDeliveries(today){
         origin_id:(d.origin_id||d.id), first_date:(d.first_date||d.date_str),
         sort_order:so,user_name:d.user_name||''};
     });
-    await sb.from('deliveries').insert(newRows);
+    // upsert + 중복무시: DB 유니크 제약(room_id,date_str,origin_id)과 함께 동시실행 중복 차단
+    await sb.from('deliveries').upsert(newRows,{onConflict:'room_id,date_str,origin_id',ignoreDuplicates:true});
   }catch(e){console.error('rollover',e);}
+  finally{_rollingOver=false;}
 }
 
 function switchDlvTab(tab){
@@ -2058,6 +2098,7 @@ function switchDlvTab(tab){
   renderDelivery();
 }
 function openDlvSheet(){
+  if(!dlvGuardEdit())return;
   document.getElementById('dlv-sheet-back').classList.add('on');
   document.getElementById('dlv-sheet').classList.add('on');
   // 추가 모드: 형식 선택 보이기 (수정 모드에서 숨겼을 수 있음)
@@ -2145,8 +2186,10 @@ function dlvSummaryCard(c,idx,list){
   h+='<div class="dsd-acts">';
   if(c.cancelled){
     h+='<button class="dact" onclick="event.stopPropagation();dlvUncancel(\''+c.id+'\')">취소 되돌리기</button>';
+    h+='<button class="dact copy-btn" onclick="event.stopPropagation();dlvCopy(\''+c.id+'\')">📋 복사</button>';
   }else if(c.done){
     h+='<button class="dact undo-btn" onclick="event.stopPropagation();dlvToggleDone(\''+c.id+'\')">↩ 완료취소</button>';
+    h+='<button class="dact copy-btn" onclick="event.stopPropagation();dlvCopy(\''+c.id+'\')">📋 복사</button>';
   }else{
     h+='<button class="dact due-btn" onclick="event.stopPropagation();dlvSetDue(\''+c.id+'\')">📅 꼭배송</button>';
     h+=dlvDestButtons(c);
@@ -2187,17 +2230,19 @@ function dlvCardHtml(c,idx,list){
   h+='<div class="dc-acts">';
   if(c.cancelled){
     h+='<button class="dact" onclick="event.stopPropagation();dlvUncancel(\''+c.id+'\')">취소 되돌리기</button>';
+    h+='<button class="dact copy-btn" onclick="event.stopPropagation();dlvCopy(\''+c.id+'\')">📋 복사</button>';
   }else if(c.done){
-    // 완료된 건: 완료취소(복구)만 — 실수로 취소되는 것 방지
+    // 완료된 건: 완료취소(복구) + 복사 — 실수로 취소되는 것 방지
     h+='<button class="dact undo-btn" onclick="event.stopPropagation();dlvToggleDone(\''+c.id+'\')">↩ 완료취소</button>';
+    h+='<button class="dact copy-btn" onclick="event.stopPropagation();dlvCopy(\''+c.id+'\')">📋 복사</button>';
   }else{
     if(c.tab==='deliv'){
       h+='<button class="dact done-btn" onclick="event.stopPropagation();dlvToggleDone(\''+c.id+'\')">✓ 완료</button>';
       h+='<button class="dact due-btn" onclick="event.stopPropagation();dlvSetDue(\''+c.id+'\')">📅 꼭배송</button>';
     }else if(c.tab==='parcel'){
-      h+='<button class="dact copy-btn" onclick="event.stopPropagation();dlvCopy(\''+c.id+'\')">📋 복사</button>';
       h+=c.confirmed?'<button class="dact confirmed" onclick="event.stopPropagation();dlvToggleConfirm(\''+c.id+'\')">✓ 확인됨</button>':'<button class="dact confirm-btn" onclick="event.stopPropagation();dlvToggleConfirm(\''+c.id+'\')">확인</button>';
     }
+    h+='<button class="dact copy-btn" onclick="event.stopPropagation();dlvCopy(\''+c.id+'\')">📋 복사</button>';
     h+=dlvDestButtons(c);
     h+='<button class="dact edit-btn" onclick="event.stopPropagation();dlvEdit(\''+c.id+'\')">✏️ 수정</button>';
     h+='<button class="dact del-btn" onclick="event.stopPropagation();dlvCancel(\''+c.id+'\')">취소</button>';
@@ -2250,15 +2295,16 @@ function renderDelivery(){
   if(elDeliv)elDeliv.textContent=liveCnt(function(c){return c.tab==='deliv'&&(c.car||1)===1;});
   const elHold=document.getElementById('dcnt-hold');if(elHold)elHold.textContent=liveCnt(function(c){return c.tab==='hold';});
   const elParcel=document.getElementById('dcnt-parcel');if(elParcel)elParcel.textContent=liveCnt(function(c){return c.tab==='parcel';});
-  // 2호차 탭: 2호차 배송 건이 있을 때만 표시
+  // 2호차 탭: car=2 카드가 하나라도 있으면(완료·취소 포함) 표시 — 완료 후에도 목록 접근 가능
+  const anyCar2=deliveriesCache.some(function(c){return c.tab==='deliv'&&(c.car||1)===2;});
   const car2Tab=document.getElementById('dlv-tab-car2');
   if(car2Tab){
-    if(car2List.length){
+    if(anyCar2){
       car2Tab.style.display='';
-      document.getElementById('dcnt-car2').textContent=car2List.length;
+      document.getElementById('dcnt-car2').textContent=car2List.length; // 숫자는 남은(미완료) 건수 그대로
     }else{
       car2Tab.style.display='none';
-      // 2호차 탭 보던 중에 비면 1호차로 이동
+      // 2호차 카드가 아예 없으면(완료·취소 포함 0) 1호차로 이동
       if(curDlvTab==='car2'){curDlvTab='summary';document.querySelectorAll('.dlv-tab').forEach(function(t){t.classList.toggle('active',t.dataset.dtab==='summary');});}
     }
   }
@@ -2271,11 +2317,16 @@ function renderDelivery(){
   const _sel=getSelectedRange();
   const _isRange=(rangeMode&&_sel.to&&_sel.to!==_sel.from);
   if(_isRange){ dlvRenderRange(body,_sel); return; }
+  // 과거 단일 날짜 = 보기 전용: FAB(추가 버튼) 숨김
+  const _editable=dlvEditable();
+  const _fab=document.getElementById('dlv-fab');
+  if(_fab)_fab.style.display=_editable?'':'none';
   let list=dlvListOf(curDlvTab);
   // 직배송 탭 = 차량 미배정(대기, car=1)만. 1호차=car3, 2호차=car2는 각 탭에서
   if(curDlvTab==='deliv')list=list.filter(function(c){return (c.car||1)===1;});
   if(dlvSearchQuery)list=list.filter(dlvMatchSearch);
   let html='';
+  if(!_editable)html+='<div class="dlv-viewonly">👁 과거 날짜 — 보기 전용 (복사 버튼만 가능)</div>';
   if(curDlvTab==='summary'||curDlvTab==='car2'){
     const carNo=(curDlvTab==='car2')?2:3;
     // 해당 차량 카드만 (취소 포함 — 여기서 되돌리기 가능)
@@ -2336,6 +2387,7 @@ function dlvDestButtons(c){
   return h;
 }
 async function dlvSetDue(id){
+  if(!dlvGuardEdit())return;
   const c=deliveriesCache.find(function(x){return x.id===id;});if(!c)return;
   const cur=c.due_date||'';
   const v=prompt('⚠️ 꼭 배송 메모 (자유롭게)\n예: 오늘 오전까지 / 내일 꼭 / 급함\n\n비우고 확인하면 해제됩니다.',cur);
@@ -2348,6 +2400,7 @@ async function dlvSetDue(id){
   await loadDeliveries();
 }
 async function dlvSetCar(id,carNo){
+  if(!dlvGuardEdit())return;
   const c=deliveriesCache.find(function(x){return x.id===id;});if(!c)return;
   // 옮길 차량의 맨 뒤 순서로
   const maxO=Math.max(0,...deliveriesCache.filter(function(x){return x.tab==='deliv'&&(x.car||1)===carNo;}).map(function(x){return x.sort_order||0;}));
@@ -2377,6 +2430,7 @@ function dlvInitSortable(){
   });
 }
 async function dlvSaveDragOrder(el){
+  if(!dlvGuardEdit())return;
   if(dlvLocked)return;
   // 현재 DOM 순서대로 id 모으기
   const ids=Array.prototype.map.call(el.querySelectorAll('.dlv-drag'),function(d){return d.getAttribute('data-did');});
@@ -2395,6 +2449,7 @@ async function dlvSaveDragOrder(el){
   await loadDeliveries();
 }
 async function dlvMove(id,dir){
+  if(!dlvGuardEdit())return;
   if(dlvLocked)return;
   const cur=deliveriesCache.find(function(x){return x.id===id;});if(!cur)return;
   const myCar=cur.car||1;
@@ -2414,17 +2469,20 @@ async function dlvMove(id,dir){
 }
 
 async function dlvToggleDone(id){
+  if(!dlvGuardEdit())return;
   const c=deliveriesCache.find(function(x){return x.id===id;});if(!c)return;
   const willDone=!c.done;
   try{await sb.from('deliveries').update({done:willDone,need_done:false,done_at:willDone?new Date().toISOString():null}).eq('id',id);}catch(e){alert('실패: '+e.message);}
   await loadDeliveries();
 }
 async function dlvToggleConfirm(id){
+  if(!dlvGuardEdit())return;
   const c=deliveriesCache.find(function(x){return x.id===id;});if(!c)return;
   try{await sb.from('deliveries').update({confirmed:!c.confirmed}).eq('id',id);}catch(e){alert('실패: '+e.message);}
   await loadDeliveries();
 }
 async function dlvMoveTab(id,to,carNo){
+  if(!dlvGuardEdit())return;
   const c=deliveriesCache.find(function(x){return x.id===id;});
   const targetCar=(to==='deliv')?(carNo||1):1;
   const upd={tab:to,done:false,need_done:false};
@@ -2446,6 +2504,7 @@ async function dlvMoveTab(id,to,carNo){
   dlvSelectedId=null;await loadDeliveries();
 }
 async function dlvCancel(id){
+  if(!dlvGuardEdit())return;
   const c=deliveriesCache.find(function(x){return x.id===id;});if(!c)return;
   if(!confirm('이 건을 취소할까요? (기록은 남아요)'))return;
   try{
@@ -2455,6 +2514,7 @@ async function dlvCancel(id){
   await loadDeliveries();
 }
 async function dlvUncancel(id){
+  if(!dlvGuardEdit())return;
   const c=deliveriesCache.find(function(x){return x.id===id;});if(!c)return;
   try{
     await sb.from('deliveries').update({cancelled:false}).eq('id',id);
@@ -2479,6 +2539,7 @@ function dlvCardToText(c){
   return [DCH_LABEL[c.channel]||'스팜', '', c.src||'', c.tire||'', '', c.code||'', '', c.brand||'', c.qty||'', '', c.addr||'', c.recv||'', c.tel||''].join('\t');
 }
 function dlvEdit(id){
+  if(!dlvGuardEdit())return;
   const c=deliveriesCache.find(function(x){return x.id===id;});if(!c)return;
   dlvEditId=id;
   const fmt=(c.channel==='trade')?'trade':(c.channel==='ping')?'ping':'online';
@@ -2500,25 +2561,25 @@ function dlvEdit(id){
 }
 function dlvCopy(id){
   const c=deliveriesCache.find(function(x){return x.id===id;});if(!c)return;
-  let txt;
-  if(c.channel==='trade'){
-    txt='거래처 '+(c.tire||'');
-  }else{
-    txt=(c.recv||'')+'\n'+(c.addr||'')+'\n'+(c.tel||'')+'\n'+(c.tire||'')+' '+(c.brand||'')+' '+(c.qty||'')+'개';
-  }
-  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(txt).then(function(){alert('복사됐어요:\n\n'+txt);},function(){prompt('복사하세요:',txt);});}
-  else prompt('복사하세요:',txt);
+  const txt=dlvCardToText(c); // 핑/온라인/거래처 각 등록 양식 그대로
+  function done(){alert('복사됐어요. 입력칸에 붙여넣기(Ctrl+V)하면 같은 양식으로 등록돼요.\n\n'+txt);}
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(txt).then(done,function(){prompt('복사하세요:',txt);});
+  }else prompt('복사하세요:',txt);
 }
 async function dlvToggleLock(){
+  if(!dlvGuardEdit())return;
   dlvLocked=!dlvLocked;
   try{await sb.from('settings').upsert({key:'dlv_lock_'+curRoom.id,value:{locked:dlvLocked},updated_at:new Date().toISOString()},{onConflict:'key'});}catch(e){}
   renderDelivery();
 }
 async function delDlvLog(id){
+  if(!dlvGuardEdit())return;
   try{await sb.from('delivery_logs').delete().eq('id',id);}catch(e){}
   await loadDeliveries();
 }
 async function clearDlvLogs(){
+  if(!dlvGuardEdit())return;
   if(!confirm('순서 변경 기록을 전부 지울까요?'))return;
   try{await sb.from('delivery_logs').delete().eq('room_id',curRoom.id).eq('date_str',dlvDateStr());}catch(e){}
   await loadDeliveries();
@@ -2629,6 +2690,7 @@ function dlvRenderPreview(){
 }
 function dlvClearPreview(){dlvParsed=[];const a=document.getElementById('dlv-pv-area');if(a)a.innerHTML='';const r=document.getElementById('dlv-reg-row');if(r)r.style.display='none';}
 async function dlvPasteRegister(){
+  if(!dlvGuardEdit())return;
   if(!dlvParsed.length)return;
   const ds=dlvDateStr();
   // 수정 모드: 첫 번째 항목으로 update
