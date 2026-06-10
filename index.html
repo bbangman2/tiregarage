@@ -365,6 +365,18 @@ body.rb-on #app{padding-top:58px}
 .dsside-btn{width:24px;height:24px;border:1px solid var(--border);background:#fff;border-radius:5px;font-size:11px;color:var(--navy);cursor:pointer;padding:0}
 .dsside-btn:disabled{opacity:.25}
 .dsexp{font-size:12px;color:var(--text3);flex-shrink:0;cursor:pointer;padding:0 2px}
+/* ── 1·2호차 카드 v2: 주소 우선 / 주소만·줄나눔 전환 ── */
+.dstext{flex:1;min-width:0;line-height:1.45;word-break:keep-all;overflow-wrap:break-word;font-size:12px}
+.dstext .dsnum{display:inline-flex;width:18px;min-width:18px;max-width:18px;height:18px;vertical-align:-4px;margin-right:3px}
+.dstext .dtag{display:inline-block;vertical-align:1px;margin-right:2px}
+.dsaddr{font-weight:800;color:var(--navy)}
+.dssub{color:var(--text2);display:none}
+#dlv-body.card-split .dssub{display:block;margin-top:2px}
+.dssub .recv{font-weight:700;color:var(--text)}
+.dssub .qty{font-weight:800;color:var(--purple)}
+.dscard.done .dsaddr,.dscard.cancelled .dsaddr{text-decoration:line-through}
+.dsbadges{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:6px}
+.dsmode-btn{font-size:11px;font-weight:700;padding:4px 9px;border-radius:7px;border:1px solid var(--border);background:#fff;color:var(--navy);margin-left:6px;cursor:pointer}
 .dsdetail{display:none;padding:0 11px 10px 40px}
 .dscard.open .dsdetail{display:block}
 .dscard.open .dsrow1{border-bottom:1px solid #f0eeea;margin-bottom:7px}
@@ -2001,6 +2013,14 @@ async function loadDeliveries(){
   renderDelivery();
 }
 
+// ── 1·2호차 카드 표시 모드: 'addr'=주소만(기본) / 'split'=정보 같이 ──
+var dlvCardMode=(function(){try{return localStorage.getItem('tg_card_mode')||'addr';}catch(e){return 'addr';}})();
+function dlvToggleCardMode(){
+  dlvCardMode=(dlvCardMode==='addr')?'split':'addr';
+  try{localStorage.setItem('tg_card_mode',dlvCardMode);}catch(e){}
+  renderDelivery();
+}
+
 // ===== 안전 가드 + 이월 중복방지 헬퍼 =====
 // 오늘 날짜(단일)에서만 편집 가능. 과거/범위는 보기 전용.
 function dlvEditable(){
@@ -2156,25 +2176,29 @@ function dlvSummaryCard(c,idx,list){
   // 완료 체크 (접힌 상태에서 바로, 토글)
   h+='<button class="dscheck'+(c.done?' on':'')+'" onclick="event.stopPropagation();dlvToggleDone(\''+c.id+'\')">'+(c.done?'✓':'')+'</button>';
   h+='<span class="dsbody" onclick="dlvToggleOpen(\''+c.id+'\')">';
-  h+='<span class="dsnum">'+(c.cancelled?'✕':(idx+1))+'</span>';
-  h+='<span class="dtag '+(c.channel||'spam')+'">'+(DCH_LABEL[c.channel]||'스팜')+'</span>';
+  // 접힘: [번호·채널] 주소(크게) — 모드에 따라 보조정보(받는이·품명·수량) 줄 표시
+  var _addrMain,_subHtml;
   if(c.channel==='trade'){
-    h+='<span class="dssum"><span class="tire">'+esc((c.tire||'').split('\n')[0])+'</span></span>';
+    var _tl=(c.tire||'').split('\n');
+    _addrMain=_tl[0]||'';
+    _subHtml=esc(_tl.slice(1).join(' · '));
   }else{
-    h+='<span class="dssum">'+(c.code?'<span class="dc-code">['+esc(c.code)+']</span> ':'')+'<span class="recv">'+esc(c.recv||'')+'</span> · <span class="tire">'+esc(c.tire||'')+'</span> <span class="qty">'+esc(c.qty||'')+'개</span></span>';
+    _addrMain=c.addr||c.recv||'';
+    _subHtml=(c.code?'<span class="dc-code">['+esc(c.code)+']</span> ':'')+'<span class="recv">'+esc(c.recv||'')+'</span> · '+esc(c.tire||'')+' <span class="qty">'+esc(c.qty||'')+'개</span>';
   }
-  if(c.cancelled)h+='<span class="dcancel-badge">취소</span>';
-  else if(c.need_done&&!c.done)h+='<span class="dneed-badge">완료필요</span>';
-  if(!c.done&&!c.cancelled){var sdold=dlvDaysOld(c);if(sdold>=2)h+='<span class="dold-badge'+(sdold>=3?' hot':'')+'">'+sdold+'일째</span>';}
-  if(c.due_date&&!c.done&&!c.cancelled)h+='<span class="ddue-badge urgent">⚠️</span>';
-  h+='</span>';
-  // 순서 ▲▼ (선택 시)
-  if(movable){
-    h+='<span class="dsside"><button class="dsside-btn" '+upDis+' onclick="event.stopPropagation();dlvSelThenMove(\''+c.id+'\',-1)">▲</button><button class="dsside-btn" '+downDis+' onclick="event.stopPropagation();dlvSelThenMove(\''+c.id+'\',1)">▼</button></span>';
-  }
-  h+='<span class="dsexp" onclick="dlvToggleOpen(\''+c.id+'\')">'+(op?'▲':'▼')+'</span></div>';
-  // 펼침
+  h+='<span class="dstext">';
+  h+='<span class="dsnum">'+(c.cancelled?'✕':(idx+1))+'</span><span class="dtag '+(c.channel||'spam')+'">'+(DCH_LABEL[c.channel]||'스팜')+'</span> ';
+  h+='<span class="dsaddr">'+esc(_addrMain)+'</span>';
+  h+='<span class="dssub">'+_subHtml+'</span>';
+  h+='</span></span></div>';
+  // 펼침 — 배지(취소/완료필요/N일째/⚠️)는 펼쳤을 때만
   h+='<div class="dsdetail">';
+  var _bdg='';
+  if(c.cancelled)_bdg+='<span class="dcancel-badge">취소</span>';
+  else if(c.need_done&&!c.done)_bdg+='<span class="dneed-badge">완료필요</span>';
+  if(!c.done&&!c.cancelled){var sdold=dlvDaysOld(c);if(sdold>=2)_bdg+='<span class="dold-badge'+(sdold>=3?' hot':'')+'">'+sdold+'일째</span>';}
+  if(c.due_date&&!c.done&&!c.cancelled)_bdg+='<span class="ddue-badge urgent">⚠️ 꼭배송</span>';
+  if(_bdg)h+='<div class="dsbadges">'+_bdg+'</div>';
   if(c.channel==='trade'){
     h+='<div class="dsd-line dc-trade">'+esc(c.tire||'').replace(/\n/g,'<br>')+'</div>';
   }else{
@@ -2319,6 +2343,7 @@ function renderDelivery(){
   if(_isRange){ dlvRenderRange(body,_sel); return; }
   // 과거 단일 날짜 = 보기 전용: FAB(추가 버튼) 숨김
   const _editable=dlvEditable();
+  body.classList.toggle('card-split',dlvCardMode==='split');
   const _fab=document.getElementById('dlv-fab');
   if(_fab)_fab.style.display=_editable?'':'none';
   let list=dlvListOf(curDlvTab);
@@ -2336,7 +2361,7 @@ function renderDelivery(){
     const has2=deliveriesCache.some(function(c){return c.tab==='deliv'&&(c.car||1)===2;});
     const carName=(carNo===2)?'2호차':'1호차';
     html+='<div class="dlv-guide">🚐 <b>'+carName+'</b> · 남은 '+cLive+'건. 탭하면 선택→▲▼ 순서. 완료·취소·이동·차량변경 가능.</div>';
-    html+='<div class="dlock-bar"><span class="lbl">순서 변경: <b>'+(dlvLocked?'잠김':'풀림')+'</b></span><button class="dlock-toggle '+(dlvLocked?'locked':'unlocked')+'" onclick="dlvToggleLock()">'+(dlvLocked?'🔒 풀기':'🔓 잠그기')+'</button></div>';
+    html+='<div class="dlock-bar"><span class="lbl">순서 변경: <b>'+(dlvLocked?'잠김':'풀림')+'</b></span><button class="dlock-toggle '+(dlvLocked?'locked':'unlocked')+'" onclick="dlvToggleLock()">'+(dlvLocked?'🔒 풀기':'🔓 잠그기')+'</button><button class="dsmode-btn" onclick="dlvToggleCardMode()">'+(dlvCardMode==='addr'?'📋 정보 같이 보기':'📃 주소만 보기')+'</button></div>';
     html+=(clist.length?dlvRenderList(clist,curDlvTab,dlvSummaryCard):'<div class="dlv-empty">'+carName+' 배송 건이 없어요.</div>');
     body.innerHTML=html;
     dlvInitSortable();
