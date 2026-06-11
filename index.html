@@ -2668,8 +2668,11 @@ function dlvPastePreview(){
       // 핑: (코드) 날짜 출고지 품명 싸이즈 세부 년식 제조사 수량 우편 주소 배송지 연락처
       // 코드 없으면 12칸(맨앞 코드 빠짐), 있으면 13칸. 코드 뒤는 동일하므로 offset으로 처리
       const off=(n>=13)?1:0;  // 코드 있으면 1칸 밀림
+      // 세부 칸(싸이즈 다음: P수·로드인덱스·차종메모)을 버리지 않고 싸이즈에 합침
+      const _detail=(cols[off+4]||'').trim();
       d={channel:'ping',code:off?(cols[0]||''):'',
-        src:cols[off+1]||'',tire:cols[off+2]||'',spec:dlvNormSize(cols[off+3]||''),
+        src:cols[off+1]||'',tire:cols[off+2]||'',
+        spec:(dlvNormSize(cols[off+3]||'')+(_detail?' '+_detail:'')).trim(),
         year:cols[off+5]||'',brand:cols[off+6]||'',qty:cols[off+7]||'',
         addr:cols[off+9]||'',recv:cols[off+10]||'',tel:cols[off+11]||''};
     }else{
@@ -2678,6 +2681,8 @@ function dlvPastePreview(){
       d={channel:dlvChFromText(cols[0]),src:cols[2]||'',tire:cols[3]||'',spec:dlvNormSize(cols[4]||''),
         code:cols[5]||'',year:cols[6]||'',brand:cols[7]||'',qty:cols[8]||'',
         addr:cols[10]||'',recv:cols[11]||'',tel:cols[12]||''};
+      // 코드 칸에 P수(예: 12P)가 들어온 경우 → 싸이즈로 이동 (시트 줄마다 P수 위치가 달라서)
+      if(/^\d+P$/i.test(d.code)){d.spec=(d.spec+' '+d.code).trim();d.code='';}
     }
     d.tire=(d.tire||'').replace(/\s+/g,' ').trim();
     d.brand=((d.brand||'')+' '+(d.year||'')).trim();
