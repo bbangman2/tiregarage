@@ -3968,7 +3968,7 @@ function stkRenderMapResults(q,m){
   });
   if(!results.length){box.style.display='block';box.innerHTML='<div class="mapres-empty">검색 결과 없음 — 창고에 이 재고가 없습니다</div>';return;}
   box.style.display='block';
-  var canDrag=stkIsAdmin()&&!stkLocked;
+  var canDrag=!stkLocked; // 잠금만 안 걸리면 누구나 드래그 가능 (지도 칸 이동과 동일 권한)
   box.innerHTML='<div class="mapres-tit">🔍 '+results.length+'건 — '+(canDrag?'아래 지도 칸으로 드래그하거나 📍 탭하면 이동':'📍 탭하면 그 칸으로 이동')+'</div>'+
     results.slice(0,30).map(function(r){
       var loc=r.l.loc==='U'?'미배치':r.l.loc;
