@@ -301,9 +301,11 @@ body.rb-on #app{padding-top:58px}
 @keyframes stkfl{50%{background:#fde68a}}
 .cell.dragover{border-color:#0c447c;background:#eef4fb}
 .cell .code{font-family:Consolas,monospace;font-size:9px;color:#bbb}
-.cell .it{font-size:10px;line-height:1.25;overflow:hidden}
-.cell .it b{font-weight:800;color:#5b35b0;font-size:10.5px}
-.cell .more2{font-size:9.5px;font-weight:800;color:#0c447c}
+.cell .it{font-size:10px;line-height:1.3;overflow:hidden;display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 4px}
+.cell .it .itcode{font-weight:800;color:#0c447c;font-size:10px;order:1}
+.cell .it .itsize{font-weight:800;color:#5b35b0;font-size:10.5px;order:2}
+.cell .it .qty{order:3;margin-left:auto}
+.cell .it .more{order:4;flex-basis:100%}
 .cell .qty{color:#15803d;font-family:Consolas,monospace;font-weight:700}
 .cell .more{font-size:9px;color:#bbb}
 .cell .emptytxt{font-size:9px;text-align:center;color:#bbb}
@@ -365,6 +367,16 @@ body.rb-on #app{padding-top:58px}
 .logcard .who{font-weight:800;color:#0c447c}
 .logfilter{padding:6px 12px;border:1px solid rgba(0,0,0,.12);border-radius:9px;background:#fff;font-size:12px;font-weight:700;color:#666;cursor:pointer}
 .logfilter.on{background:#1a2035;color:#fff;border-color:#1a2035}
+
+#stk-mapresults{background:#fff;border:1px solid rgba(0,0,0,.1);border-radius:10px;margin-bottom:8px;overflow:hidden;max-height:40vh;overflow-y:auto}
+.mapres-tit{font-size:12px;font-weight:800;color:#0c447c;padding:8px 12px;background:#eef4fb;position:sticky;top:0}
+.mapres-row{display:flex;align-items:center;gap:8px;padding:8px 12px;border-top:1px solid #f0eeea;cursor:pointer}
+.mapres-row:active{background:#fff8e1}
+.mapres-loc{font-weight:800;color:#15803d;font-size:12px;white-space:nowrap}
+.mapres-nm{flex:1;font-size:12px;color:#1a2035;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mapres-nm b{color:#0c447c}
+.mapres-q{font-weight:800;font-size:12px;white-space:nowrap}
+.mapres-empty{padding:10px 12px;color:#999;font-size:12px;text-align:center}
 .stktoast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#1a2035;color:#fff;padding:11px 18px;border-radius:9px;font-size:13px;opacity:0;transition:.2s;pointer-events:none;z-index:99;max-width:92%;text-align:center}
 .stktoast.show{opacity:1}
 .stklog{font-size:11px;color:#999;margin-top:10px;background:#fff;border:1px dashed rgba(0,0,0,.12);border-radius:8px;padding:8px 11px;line-height:1.6}
@@ -777,6 +789,7 @@ body.rb-on #app{padding-top:58px}
       <button onclick="stkUpOpen('in')">📥 입고 업로드</button>
       <button onclick="stkUpOpen('price')">📋 가격 갱신</button>
       <button onclick="stkUpOpen('new')">➕ 신규 상품</button>
+      <button onclick="stkResetOpen()" style="background:#fef2f2;border-color:#fecaca;color:#dc2626">🔄 전체 초기화</button>
     </div>
     <div id="stk-dlbar" style="display:none;margin-bottom:8px">
       <button onclick="stkDownload()" style="width:100%;padding:9px;border:1px solid #cfe0f5;background:#eef4fb;color:#0c447c;border-radius:9px;font-size:13px;font-weight:800">📥 재고목록 다운로드 (위치 포함 · 백업용)</button>
@@ -787,6 +800,7 @@ body.rb-on #app{padding-top:58px}
   </div>
   <div class="stk-pane" id="stk-pane1">
     <div class="mapsearch"><input id="stk-mapq" placeholder="🔍 타이어 검색 → 모든 층에서 위치 찾기" oninput="stkRenderMap()"></div>
+    <div id="stk-mapresults" style="display:none"></div>
     <div class="maphint">▸ <b>📱폰</b>: [📍이동]·[✂분리] 버튼 또는 <b>집기 모드</b>(아래) · <b>🖱PC</b>: 드래그로 이동/합치기 · 칸 탭=상세</div>
     <div id="stk-pickbar" style="display:none;background:#fff7ed;border:1px solid #fcd9b6;border-radius:9px;padding:8px 11px;margin-bottom:8px;font-size:12px;color:#9a3412;align-items:center;gap:8px;flex-wrap:wrap">
       <span id="stk-pickmsg">📦 집은 재고 — 옮길 칸을 탭하세요</span>
@@ -810,6 +824,9 @@ body.rb-on #app{padding-top:58px}
     <div class="stklog" id="stk-log">📜 <b>이동/출고 기록</b><br>불러오는 중…</div>
   </div>
   <div class="stk-pane" id="stk-pane2">
+    <div id="stk-logrestorebar" style="display:none;margin-bottom:8px">
+      <button onclick="stkLogRestoreOpen()" style="width:100%;padding:8px;border:1px solid #cfe0f5;background:#eef4fb;color:#0c447c;border-radius:9px;font-size:12px;font-weight:800">📂 백업에서 출고기록 복원 (재고는 안 건드림)</button>
+    </div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px" id="stk-logfilters"></div>
     <input id="stk-logq" placeholder="🔍 상품·주문번호·담당자·판매처 검색" oninput="stkRenderLogTab()" style="width:100%;height:40px;border:1.5px solid rgba(0,0,0,.12);border-radius:10px;padding:0 12px;font-size:16px;background:#fff;margin-bottom:8px">
     <div id="stk-logtab"><div class="stk-empty">불러오는 중…</div></div>
@@ -3679,9 +3696,63 @@ async function stkLoad(){
     stkP=prods.map(function(p){var o={id:p.id,br:p.brand,name:p.name,code:p.code||'',size:p.size,price:p.price,inst:p.inst_price,memo:p.memo||'',lots:[]};byId[p.id]=o;return o});
     lots.forEach(function(l){var p=byId[l.product_id];if(p)p.lots.push({id:l.id,dot:l.dot||'',q:l.qty,loc:l.loc||'U',price:l.price,src_in:l.src_in||'',due_date:l.due_date||''})});
   }catch(e){stkToast('재고 불러오기 실패: '+e.message);return}
+  await stkConsolidate();
   await stkLoadLock();
   await stkLoadLogs();
   stkRenderSearch();stkRenderMap();
+}
+var __stkConsolidating=false;
+// 특정 칸(loc)의 lot들을 즉시 합침 (이동/분리/드롭 직후 호출) — 같은 상품+연식+출처
+async function stkConsolidateCell(loc){
+  if(!loc)return;
+  var _nm=function(v){return (v===null||v===undefined?'':String(v)).trim();};
+  for(var pi=0;pi<stkP.length;pi++){
+    var p=stkP[pi];
+    var groups={};
+    p.lots.forEach(function(l){
+      if(_nm(l.loc)!==_nm(loc))return;
+      var key=_nm(l.dot)+'|'+_nm(l.src_in);
+      (groups[key]=groups[key]||[]).push(l);
+    });
+    var keys=Object.keys(groups);
+    for(var ki=0;ki<keys.length;ki++){
+      var g=groups[keys[ki]];
+      if(g.length<2)continue;
+      var keep=g[0], sum=g.reduce(function(s,l){return s+l.q;},0);
+      try{
+        await sb.from('stock_lots').update({qty:sum,updated_at:new Date().toISOString()}).eq('id',keep.id);
+        for(var ri=1;ri<g.length;ri++){await sb.from('stock_lots').delete().eq('id',g[ri].id);}
+      }catch(e){continue;}
+      keep.q=sum;
+      var removeIds={};for(var ri2=1;ri2<g.length;ri2++)removeIds[g[ri2].id]=1;
+      p.lots=p.lots.filter(function(l){return !removeIds[l.id];});
+    }
+  }
+}
+async function stkConsolidate(){
+  if(__stkConsolidating)return;
+  var merges=[];
+  stkP.forEach(function(p){
+    var groups={};
+    p.lots.forEach(function(l){var norm=function(v){return (v===null||v===undefined?'':String(v)).trim();};var key=norm(l.loc)+'|'+norm(l.dot)+'|'+norm(l.src_in);(groups[key]=groups[key]||[]).push(l);});
+    Object.keys(groups).forEach(function(key){
+      var g=groups[key];
+      if(g.length>1){var keep=g[0],sum=g.reduce(function(s,l){return s+l.q;},0);merges.push({keep:keep,remove:g.slice(1),sum:sum});}
+    });
+  });
+  if(!merges.length)return;
+  __stkConsolidating=true;
+  try{
+    for(var i=0;i<merges.length;i++){
+      var mg=merges[i];
+      await sb.from('stock_lots').update({qty:mg.sum,updated_at:new Date().toISOString()}).eq('id',mg.keep.id);
+      for(var j=0;j<mg.remove.length;j++){await sb.from('stock_lots').delete().eq('id',mg.remove[j].id);}
+    }
+    var lr=await sb.from('stock_lots').select('*');
+    var byId={};stkP.forEach(function(p){p.lots=[];byId[p.id]=p;});
+    (lr.data||[]).forEach(function(l){var p=byId[l.product_id];if(p)p.lots.push({id:l.id,dot:l.dot||'',q:l.qty,loc:l.loc||'U',price:l.price,src_in:l.src_in||'',due_date:l.due_date||''})});
+  }catch(e){}
+  __stkConsolidating=false;
 }
 async function stkLoadLock(){
   try{var r=await sb.from('stock_settings').select('*').eq('key','locked');
@@ -3694,6 +3765,8 @@ async function stkLoadLock(){
   if(dlbar)dlbar.style.display=stkLocked?'none':'block'; // 잠금 아니면 누구나 다운로드
   var ab=document.getElementById('stk-adminbar');
   if(ab)ab.style.display=stkIsAdmin()?'flex':'none';
+  var rb=document.getElementById('stk-logrestorebar');
+  if(rb)rb.style.display=stkIsAdmin()?'block':'none';
 }
 async function stkLoadLogs(){
   try{var r=await sb.from('stock_logs').select('*').order('ts',{ascending:false}).limit(6);
@@ -3856,6 +3929,31 @@ function stkRenderSearch(){
 // ── 지도 렌더 ──
 function stkHits(){var q=(document.getElementById('stk-mapq')||{}).value||'';var h={};if(!q.trim())return h;
   stkP.filter(function(p){return stkMatch(p,q)}).forEach(function(p){p.lots.forEach(function(l){if(l.q>0)h[l.loc]=true})});return h}
+function stkRenderMapResults(q,m){
+  var box=document.getElementById('stk-mapresults');if(!box)return;
+  if(!q.trim()){box.style.display='none';box.innerHTML='';return;}
+  // 매칭되는 상품의 위치들 수집
+  var results=[];
+  stkP.forEach(function(p){
+    if(!stkMatch(p,q))return;
+    p.lots.forEach(function(l){
+      if(l.q===0)return;
+      results.push({p:p,l:l});
+    });
+  });
+  if(!results.length){box.style.display='block';box.innerHTML='<div class="mapres-empty">검색 결과 없음 — 창고에 이 재고가 없습니다</div>';return;}
+  box.style.display='block';
+  box.innerHTML='<div class="mapres-tit">🔍 '+results.length+'건 — 탭하면 그 칸으로 이동</div>'+
+    results.slice(0,30).map(function(r){
+      var loc=r.l.loc==='U'?'미배치':r.l.loc;
+      var neg=r.l.q<0;
+      return '<div class="mapres-row" onclick="stkGoto(\''+r.l.loc+'\')">'+
+        '<span class="mapres-loc">📍'+loc+'</span>'+
+        '<span class="mapres-nm">'+stkEsc(r.p.br+' '+r.p.name)+(r.p.code?' <b>'+stkEsc(r.p.code)+'</b>':'')+' '+stkEsc(r.p.size)+'</span>'+
+        '<span class="mapres-q"'+(neg?' style="color:#dc2626"':'')+'>'+r.l.q+'개'+(neg?' ⏳':'')+'</span>'+
+        '</div>';
+    }).join('')+(results.length>30?'<div class="mapres-empty">+'+(results.length-30)+'건 더</div>':'');
+}
 function stkUaList(){var rows=[];stkP.forEach(function(p){p.lots.forEach(function(l){if(l.q>0&&l.loc==='U')rows.push({p:p,l:l})})});return rows}
 var stkDrag=null;
 var stkDragging=false, stkRenderPending=false;
@@ -3922,6 +4020,7 @@ function stkRenderMap(){
   var g=document.getElementById('stk-grid');if(!g)return;
   if(stkDragging){stkRenderPending=true;return;} // 드래그 중엔 DOM 갈아엎지 않음(드롭 대상 보존)
   var m=stkCellMap(),q=(document.getElementById('stk-mapq')||{}).value||'',hits=stkHits();
+  stkRenderMapResults(q,m);
   // 층 탭
   var ft=document.getElementById('stk-fltabs');ft.innerHTML='';
   ['A','B','Y'].forEach(function(f){
@@ -4017,7 +4116,7 @@ function stkRenderUnassigned(){
     var lid=r.l.id;
     var bd=document.createElement('span');bd.className='bdot';bd.style.background=STK_BC[r.p.br]||'#888';bd.draggable=false;
     var nm=document.createElement('span');nm.className='nm';nm.draggable=false;
-    nm.innerHTML='<b>'+stkEsc(r.p.br+' '+r.p.name)+'</b> '+stkEsc(r.p.size)+' <span style="color:'+(r.l.dot?'#bbb':'#dc2626')+';font-size:11px">'+(r.l.dot||'DOT누락')+'</span>';
+    nm.innerHTML='<b>'+stkEsc(r.p.br+' '+r.p.name)+'</b>'+(r.p.code?' <span class="pcode">'+stkEsc(r.p.code)+'</span>':'')+' <span style="color:#5b35b0;font-weight:800">'+stkEsc(r.p.size)+'</span> <span style="color:'+(r.l.dot?'#bbb':'#dc2626')+';font-size:11px">'+(r.l.dot||'DOT누락')+'</span>';
     Array.prototype.forEach.call(nm.querySelectorAll('*'),function(x){x.draggable=false;});
     var q2=document.createElement('span');q2.className='q2';q2.textContent=r.l.q+'개';q2.draggable=false;
     var btn=document.createElement('button');btn.className='mvbtn';btn.textContent='📍 집기';btn.draggable=false;
@@ -4038,6 +4137,7 @@ function stkRefreshCell(code){
   var old=document.getElementById('stk-cell-'+code);
   if(!old)return; // 화면에 없으면(다른 층) 무시 — 다음 렌더 때 반영
   var m=stkCellMap(),q=(document.getElementById('stk-mapq')||{}).value||'',hits=stkHits();
+  stkRenderMapResults(q,m);
   var Z=STK_ZOOM[stkZi];
   var fresh=stkCellEl(code,m,hits,Z);
   // 크기 스타일 보존
@@ -4074,9 +4174,9 @@ function stkCellEl(code,m,hits,Z){
     if(items.length){
       items.slice(0,2).forEach(function(it){
         var label=it.p.code?it.p.code:(it.p.name||'').split(' ').slice(0,2).join(' ');
-        inner+='<div class="it"><b>'+stkEsc(it.p.size)+'</b> <span class="qty">'+it.l.q+'</span>'+
-          '<br><span class="more2">'+stkEsc(label)+'</span>'+
-          (Z.m>=2?' <span class="more">'+(it.l.dot||'<span style="color:#dc2626">DOT?</span>')+'</span>':'')+'</div>'});
+        // 한 줄: [코드/패턴] [사이즈] [수량] — 좁으면 자동으로 줄바꿈(패턴 위, 사이즈 아래)
+        inner+='<div class="it"><span class="itcode">'+stkEsc(label)+'</span> <span class="itsize">'+stkEsc(it.p.size)+'</span> <span class="qty">'+it.l.q+'</span>'+
+          (Z.m>=2&&it.l.dot?' <span class="more">'+stkEsc(it.l.dot)+'</span>':(Z.m>=2&&!it.l.dot?' <span class="more" style="color:#dc2626">DOT?</span>':''))+'</div>'});
       if(items.length>2)inner+='<div class="more">+'+(items.length-2)+'종</div>';
     }else inner+='<div class="emptytxt">빈 칸</div>';
   }
@@ -4108,17 +4208,39 @@ async function stkMoveLot(lotId,toLoc,n){
   if(!found)return;
   n=Math.min(n||found.q,found.q);
   var from=found.loc;
+  // 도착지에 같은 상품+같은 DOT lot이 있으면 합칠 대상
+  var mergeTo=null;
+  var _nm=function(v){return (v===null||v===undefined?'':String(v)).trim();};
+  fp.lots.forEach(function(l){if(l.id!==lotId&&l.loc===toLoc&&_nm(l.dot)===_nm(found.dot)&&_nm(l.src_in)===_nm(found.src_in))mergeTo=l;});
   try{
-    if(n>=found.q){await sb.from('stock_lots').update({loc:toLoc,updated_at:new Date().toISOString()}).eq('id',lotId);
-      found.loc=toLoc;
+    if(n>=found.q){
+      // 전량 이동
+      if(mergeTo){
+        // 합치기: 도착 lot에 수량 더하고, 원본 lot 삭제
+        await sb.from('stock_lots').update({qty:mergeTo.q+found.q,updated_at:new Date().toISOString()}).eq('id',mergeTo.id);
+        await sb.from('stock_lots').delete().eq('id',lotId);
+        mergeTo.q+=found.q;
+        fp.lots=fp.lots.filter(function(l){return l.id!==lotId;});
+      }else{
+        await sb.from('stock_lots').update({loc:toLoc,updated_at:new Date().toISOString()}).eq('id',lotId);
+        found.loc=toLoc;
+      }
     }else{
+      // 일부 분리
       await sb.from('stock_lots').update({qty:found.q-n,updated_at:new Date().toISOString()}).eq('id',lotId);
-      var ins=await sb.from('stock_lots').insert({product_id:fp.id,dot:found.dot,qty:n,loc:toLoc,price:found.price}).select();
       found.q-=n;
-      var newId=(ins.data&&ins.data[0]&&ins.data[0].id)||('tmp'+Date.now());
-      fp.lots.push({id:newId,dot:found.dot,q:n,loc:toLoc,price:found.price});
+      if(mergeTo){
+        await sb.from('stock_lots').update({qty:mergeTo.q+n,updated_at:new Date().toISOString()}).eq('id',mergeTo.id);
+        mergeTo.q+=n;
+      }else{
+        var ins=await sb.from('stock_lots').insert({product_id:fp.id,dot:found.dot,qty:n,loc:toLoc,price:found.price}).select();
+        var newId=(ins.data&&ins.data[0]&&ins.data[0].id)||('tmp'+Date.now());
+        fp.lots.push({id:newId,dot:found.dot,q:n,loc:toLoc,price:found.price});
+      }
     }
   }catch(e){stkToast('이동 실패: '+e.message);return}
+  await stkConsolidateCell(toLoc); // 도착칸에 같은 상품 있으면 즉시 합치기
+  if(from!==toLoc)await stkConsolidateCell(from);
   stkRefreshCell(from);stkRefreshCell(toLoc);stkRefreshStatAndUnassigned();stkRenderSearch();
   stkToast('이동 완료');
   stkLog('📍이동',fp.name+' '+n+'개 '+(from==='U'?'미배치':from)+'→'+(toLoc==='U'?'미배치':toLoc),{product_id:fp.id,dot:found.dot,qty:n,from_loc:from,to_loc:toLoc});
@@ -4140,6 +4262,7 @@ async function stkDrop(destCode){
       await sb.from('stock_lots').update({loc:destCode,updated_at:new Date().toISOString()}).eq('id',items[i].l.id);
     }catch(e){stkToast('실패: '+e.message);stkDrag=null;return}
     items.forEach(function(it){it.l.loc=destCode;}); // 메모리 직접 수정
+    await stkConsolidateCell(destCode); // 도착칸 같은 상품 합치기
     stkRefreshCell(from);stkRefreshCell(destCode);stkRefreshStatAndUnassigned();stkRenderSearch();
     stkToast(from+' → '+destCode+(merge?' 합치기':' 이동'));
     stkLog('📍'+(merge?'합치기':'이동'),from+'→'+destCode+' ('+items.length+'종)',{from_loc:from,to_loc:destCode});
@@ -4175,7 +4298,7 @@ function stkOpenCell(code){
       ? '<input type="number" value="'+it.l.q+'" min="0" onchange="stkAdjQty(\''+it.l.id+'\',this.value)">개'
       : '<b style="font-size:15px;color:#15803d">'+it.l.q+'</b>개';
     var actCell=editable
-      ? '<button class="btn-sm2 btn-mv2" onclick="stkCloseDlg();stkPickStart({type:\'cell\',code:\''+code+'\'},\''+code+' 재고\')">📍 집기</button>'
+      ? '<button class="btn-sm2 btn-mv2" onclick="stkCloseDlg();stkPickStart({type:\'lot\',id:\''+it.l.id+'\'},\''+stkEsc(it.p.name)+' '+it.l.q+'개\')">📍 집기</button>'
       : '';
     return '<tr><td><span class="bdot" style="display:inline-block;background:'+(STK_BC[it.p.br]||'#888')+';margin-right:5px"></span><b>'+stkEsc(it.p.br+' '+it.p.name)+'</b><br><span style="font-size:11px;color:#666">'+stkEsc(it.p.size)+' · '+(it.l.dot?it.l.dot+'년식':'<span style="color:#dc2626">DOT누락</span>')+(stkLotPrice(it.p,it.l)?' · '+stkWon(stkLotPrice(it.p,it.l)):'')+'</span></td>'+
       '<td style="text-align:right">'+qtyCell+'</td>'+
@@ -4412,18 +4535,104 @@ async function stkDownload(){
     lots.forEach(function(l){if(l.q<0&&l.src_in)memo=(memo?memo+' / ':'')+'입고예정:'+l.src_in+(l.due_date?'('+l.due_date+')':'');});
     aoa2.push([p.br,p.name,p.code||'',p.size,tot,status,locs,dots,p.price||'',p.inst||'',memo]);
   });
+  // ── 시트3: 전체 기록 (출고기록 포함 — 복원/백업용) ──
+  // DB에서 전체 로그 조회 (탭 캐시 말고 최신 전체)
+  var allLogs=[];
+  try{var lr=await sb.from('stock_logs').select('*').order('ts',{ascending:true}).limit(5000);allLogs=lr.data||[];}catch(e){}
+  var aoa3=[['ts','user_name','action','note','product_id','dot','qty','from_loc','to_loc','channel','ref']];
+  allLogs.forEach(function(g){
+    aoa3.push([g.ts||'',g.user_name||'',g.action||'',g.note||'',g.product_id||'',g.dot||'',g.qty===null||g.qty===undefined?'':g.qty,g.from_loc||'',g.to_loc||'',g.channel||'',g.ref||'']);
+  });
   var wb=XLSX.utils.book_new();
   var ws1=XLSX.utils.aoa_to_sheet(aoa1);
   var ws2=XLSX.utils.aoa_to_sheet(aoa2);
+  var ws3=XLSX.utils.aoa_to_sheet(aoa3);
   ws1['!cols']=[{wch:8},{wch:18},{wch:10},{wch:12},{wch:9},{wch:6},{wch:8},{wch:8},{wch:20}];
   ws2['!cols']=[{wch:8},{wch:18},{wch:10},{wch:12},{wch:7},{wch:12},{wch:24},{wch:16},{wch:9},{wch:9},{wch:20}];
+  ws3['!cols']=[{wch:20},{wch:8},{wch:9},{wch:30},{wch:14},{wch:8},{wch:5},{wch:8},{wch:8},{wch:8},{wch:14}];
   XLSX.utils.book_append_sheet(wb,ws1,'① 입고양식(위치포함)');
   XLSX.utils.book_append_sheet(wb,ws2,'② 현황리포트');
+  XLSX.utils.book_append_sheet(wb,ws3,'③ 전체기록(복원용)');
   var now=new Date(new Date().getTime()+9*3600*1000);
-  var fn='재고목록_'+now.toISOString().slice(0,10)+'.xlsx';
+  var fn='재고백업_'+now.toISOString().slice(0,10)+'.xlsx';
   XLSX.writeFile(wb,fn);
-  stkToast('재고목록 다운로드: '+fn);
-  stkLog('📥다운로드','재고목록 내려받기 ('+(aoa1.length-1)+'행)',{});
+  stkToast('백업 다운로드: '+fn+' (재고+기록 포함)');
+  stkLog('📥다운로드','재고+기록 백업 ('+(aoa1.length-1)+'행, 기록 '+(aoa3.length-1)+'건)',{});
+}
+var STK_RESET_PW='tg1234';
+// ── 전체 초기화 (백업 유도 + 비번 + 이중확인) ──
+async function stkResetOpen(){
+  if(!stkIsAdmin()){stkToast('관리자 전용입니다');return}
+  if(!confirm('⚠️ 전체 초기화\n\n재고·상품·기록이 모두 삭제됩니다.\n(창고 실물은 그대로, DB 데이터만 비움)\n\n먼저 백업을 받으시겠어요?\n[확인]=백업 받고 진행 / [취소]=중단'))return;
+  // 1) 백업 먼저
+  await stkDownload();
+  await new Promise(function(r){setTimeout(r,800);});
+  // 2) 비번
+  var pw=prompt('초기화 비밀번호를 입력하세요\n(백업 파일이 잘 받아졌는지 먼저 확인하세요!)');
+  if(pw===null)return;
+  if(pw!==STK_RESET_PW){stkToast('비밀번호가 틀렸습니다');return}
+  // 3) 마지막 확인
+  if(!confirm('정말 전체 초기화할까요?\n이 작업은 되돌릴 수 없습니다.\n(백업 파일로만 복구 가능)'))return;
+  // 4) 삭제 실행
+  try{
+    await sb.from('stock_lots').delete().neq('id','00000000-0000-0000-0000-000000000000');
+    await sb.from('stock_products').delete().neq('id','00000000-0000-0000-0000-000000000000');
+    await sb.from('stock_logs').delete().neq('id',0);
+  }catch(e){stkToast('초기화 실패: '+e.message);return}
+  stkLog('🔄전체초기화','재고·상품·기록 전체 삭제 (백업함)',{});
+  stkToast('✓ 초기화 완료 — 이제 새 재고를 업로드하세요');
+  await stkLoad();
+}
+// ── 출고기록 복원 (백업 엑셀의 ③시트 → stock_logs, 재고 안 건드림) ──
+function stkLogRestoreOpen(){
+  if(!stkIsAdmin()){stkToast('관리자 전용입니다');return}
+  document.getElementById('stk-logRestoreFile').click();
+}
+async function stkLogRestoreFile(file){
+  if(!file)return;
+  if(!confirm('백업 파일의 출고기록을 복원합니다.\n(현재 기록에 "추가"됩니다. 재고는 안 건드립니다.)\n계속할까요?'))return;
+  try{await stkLoadXLSX();}catch(e){stkToast(e.message);return}
+  var XLSX=window.XLSX;
+  try{
+    var buf=await file.arrayBuffer();
+    var wb=XLSX.read(new Uint8Array(buf),{type:'array'});
+    // ③ 전체기록 시트 탐지
+    var sheetName=null;
+    wb.SheetNames.forEach(function(n){if(n.indexOf('기록')>=0||n.indexOf('③')>=0)sheetName=n;});
+    if(!sheetName){stkToast('백업 파일에 기록 시트가 없습니다');return}
+    var rows=XLSX.utils.sheet_to_json(wb.Sheets[sheetName],{header:1,defval:''});
+    if(rows.length<2){stkToast('기록이 비어 있습니다');return}
+    var header=rows[0].map(function(h){return String(h).trim();});
+    var ci={};header.forEach(function(h,i){ci[h]=i;});
+    // 필수 컬럼 확인
+    if(ci['action']===undefined||ci['ts']===undefined){stkToast('기록 형식이 맞지 않습니다 (ts/action 없음)');return}
+    var batch=[];
+    for(var r=1;r<rows.length;r++){
+      var row=rows[r];if(!row||!row.length)continue;
+      var rec={ts:row[ci['ts']]||new Date().toISOString(),
+        user_name:row[ci['user_name']]||'',action:row[ci['action']]||'',note:row[ci['note']]||''};
+      if(ci['product_id']!==undefined&&row[ci['product_id']])rec.product_id=row[ci['product_id']];
+      if(ci['dot']!==undefined)rec.dot=row[ci['dot']]||'';
+      if(ci['qty']!==undefined&&row[ci['qty']]!=='')rec.qty=parseInt(row[ci['qty']])||null;
+      if(ci['from_loc']!==undefined)rec.from_loc=row[ci['from_loc']]||'';
+      if(ci['to_loc']!==undefined)rec.to_loc=row[ci['to_loc']]||'';
+      if(ci['channel']!==undefined)rec.channel=row[ci['channel']]||'';
+      if(ci['ref']!==undefined)rec.ref=row[ci['ref']]||'';
+      if(rec.action)batch.push(rec);
+    }
+    if(!batch.length){stkToast('복원할 기록이 없습니다');return}
+    // 400건씩 나눠 insert
+    var done=0;
+    for(var i=0;i<batch.length;i+=400){
+      var chunk=batch.slice(i,i+400);
+      var res=await sb.from('stock_logs').insert(chunk);
+      if(res&&res.error){stkToast('복원 중 오류: '+res.error.message);break}
+      done+=chunk.length;
+    }
+    stkLog('📂기록복원','출고기록 '+done+'건 복원',{});
+    stkToast('✓ 출고기록 '+done+'건 복원 완료');
+    stkLoadLogTab();
+  }catch(e){stkToast('복원 실패: '+e.message);}
 }
 function stkLoadXLSX(){
   return new Promise(function(res,rej){
@@ -4574,10 +4783,10 @@ async function stkUpRun(){
 }
 
 </script>
-<div class="stkdlgbg" id="stk-dlgCell"><div class="stkdlg">
+<div class="stkdlgbg" id="stk-dlgCell" onclick="if(event.target===this)stkCloseDlg()"><div class="stkdlg">
   <h3 id="stk-cdName"></h3><div class="sub2" id="stk-cdSub"></div>
-  <table class="cdlg-tbl" id="stk-cdTbl"></table>
   <div id="stk-cdSplit"></div>
+  <table class="cdlg-tbl" id="stk-cdTbl"></table>
   <div class="stkacts"><button class="stk-no" onclick="stkCloseDlg()">닫기</button></div>
 </div></div>
 <div class="stkdlgbg" id="stk-dlgOut"><div class="stkdlg">
@@ -4623,6 +4832,7 @@ async function stkUpRun(){
   <div class="sub2" id="stk-upHint"></div>
   <label style="display:block;border:2px dashed rgba(0,0,0,.18);border-radius:9px;padding:13px;text-align:center;font-size:12px;color:#666;cursor:pointer;margin-bottom:8px">📂 엑셀 파일 선택 (.xlsx — 시트 자동 인식)
     <input type="file" id="stk-upFile" accept=".xlsx,.xls" style="display:none" onchange="stkUpFile(this.files[0])"></label>
+<input type="file" id="stk-logRestoreFile" accept=".xlsx,.xls" style="display:none" onchange="stkLogRestoreFile(this.files[0])">
   <div style="font-size:11px;color:#bbb;text-align:center;margin-bottom:6px">— 또는 아래에 행 붙여넣기 —</div>
   <textarea id="stk-upTa" rows="5" placeholder="엑셀에서 행들을 복사해 붙여넣으세요 (헤더 행 포함돼도 자동 제외)"></textarea>
   <div class="upbox" id="stk-upPrev" style="display:none"></div>
