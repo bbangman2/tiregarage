@@ -297,8 +297,17 @@ body.rb-on #app{padding-top:58px}
 .cell:hover{box-shadow:0 2px 8px rgba(0,0,0,.12)}
 .cell.empty{background:#e9e7e1;border-style:dashed;color:#bbb;border-left-color:rgba(0,0,0,.1)!important}
 .cell.hit{outline:3px solid #ffd54a;outline-offset:1px;z-index:2}
-.cell.flash{animation:stkfl 1s 3}
-@keyframes stkfl{50%{background:#fde68a}}
+
+.cell.gotomark{outline:3px solid #f59e0b;outline-offset:1px;box-shadow:0 0 0 2px #fde68a inset;z-index:3}
+
+.unassigned .urow.gotomark-row{background:#fff8e1;outline:3px solid #f59e0b;border-radius:7px;padding:6px 8px}
+.unassigned .urow.row-flash{animation:rowFlash 0.5s 3}
+@keyframes rowFlash{0%,100%{background:#fff8e1}50%{background:#fbbf24}}
+.unassigned.gotomark-ua{outline:3px solid #f59e0b;outline-offset:2px;border-color:#f59e0b}
+.unassigned.ua-flash{animation:uaFlash 0.5s 3}
+@keyframes uaFlash{0%,100%{background:#fff}50%{background:#fde68a}}
+.cell.flash{animation:stkfl 0.5s 3}
+@keyframes stkfl{0%,100%{background:#fff}50%{background:#fbbf24}}
 .cell.dragover{border-color:#0c447c;background:#eef4fb}
 .cell .code{font-family:Consolas,monospace;font-size:9px;color:#bbb}
 .cell .it{font-size:10px;line-height:1.3;overflow:hidden;display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 4px}
@@ -368,8 +377,19 @@ body.rb-on #app{padding-top:58px}
 .logfilter{padding:6px 12px;border:1px solid rgba(0,0,0,.12);border-radius:9px;background:#fff;font-size:12px;font-weight:700;color:#666;cursor:pointer}
 .logfilter.on{background:#1a2035;color:#fff;border-color:#1a2035}
 
+
+.inline-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(58px,1fr));gap:4px}
+.inline-cell{border:1px solid #e0ddd5;border-radius:6px;min-height:38px;padding:3px 4px;font-size:9px;display:flex;flex-direction:column;background:#fff;position:relative}
+.inline-cell.has{background:#eef4fb;border-color:#cfe0f5}
+.inline-cell.dragover{outline:2px solid #0c447c;background:#dbeafe}
+.inline-cell .ic-code{font-weight:800;color:#666}
+.inline-cell .ic-q{font-weight:800;color:#15803d;position:absolute;top:2px;right:4px}
+.inline-cell .ic-lbl{color:#0c447c;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lotrow.lotdrag{cursor:grab}
+.lotrow.lotdrag:active{cursor:grabbing}
 #stk-mapresults{background:#fff;border:1px solid rgba(0,0,0,.1);border-radius:10px;margin-bottom:8px;overflow:hidden;max-height:40vh;overflow-y:auto}
 .mapres-tit{font-size:12px;font-weight:800;color:#0c447c;padding:8px 12px;background:#eef4fb;position:sticky;top:0}
+.mapres-drag{cursor:grab}.mapres-drag:active{cursor:grabbing}.mapres-row .mapres-loc{cursor:pointer}
 .mapres-row{display:flex;align-items:center;gap:8px;padding:8px 12px;border-top:1px solid #f0eeea;cursor:pointer}
 .mapres-row:active{background:#fff8e1}
 .mapres-loc{font-weight:800;color:#15803d;font-size:12px;white-space:nowrap}
@@ -1908,28 +1928,33 @@ async function backupCSV(){
     if(fromD>toD){const t=fromD;fromD=toD;toD=t;}
     label=fromD+'_'+toD;
   }
-  // 데이터 조회 (첫 번째 테이블 기준 — items/deliveries/messages)
-  const tbl=info.tables[0];
-  let q=sb.from(tbl).select('*').eq('room_id',roomId);
+  // 데이터 조회 — 방의 모든 테이블 각각 백업 (직배송방은 deliveries + delivery_logs 둘 다)
   try{
-    if(mode==='range'){
-      if(info.dateCol==='date_str')q=q.gte('date_str',fromD).lte('date_str',toD);
-      else{const r1=dateToUTCRange(fromD),r2=dateToUTCRange(toD);q=q.gte('created_at',r1.start).lte('created_at',r2.end);}
+    var totalRows=0, savedAny=false;
+    for(var ti=0;ti<info.tables.length;ti++){
+      var tbl=info.tables[ti];
+      var q=sb.from(tbl).select('*').eq('room_id',roomId);
+      if(mode==='range'){
+        if(info.dateCol==='date_str')q=q.gte('date_str',fromD).lte('date_str',toD);
+        else{const r1=dateToUTCRange(fromD),r2=dateToUTCRange(toD);q=q.gte('created_at',r1.start).lte('created_at',r2.end);}
+      }
+      const res=await q; const data=res.data;
+      if(!data||!data.length)continue;
+      savedAny=true; totalRows+=data.length;
+      const cols=Object.keys(data[0]);
+      let csv=cols.join(',')+'\n';
+      data.forEach(function(row){csv+=cols.map(function(c){return csvCell(row[c]);}).join(',')+'\n';});
+      const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement('a');
+      // 테이블이 여러 개면 파일명에 테이블명 붙임
+      var suffix=info.tables.length>1?('_'+tbl):'';
+      a.href=url;a.download=info.room.name+suffix+'_'+label+'.csv';
+      document.body.appendChild(a);a.click();document.body.removeChild(a);
+      URL.revokeObjectURL(url);
     }
-    const{data}=await q;
-    if(!data||!data.length){alert('백업할 데이터가 없습니다.');return;}
-    // CSV 생성 (컬럼 = 첫 행의 키)
-    const cols=Object.keys(data[0]);
-    let csv=cols.join(',')+'\n';
-    data.forEach(function(row){csv+=cols.map(function(c){return csvCell(row[c]);}).join(',')+'\n';});
-    // BOM 추가 (엑셀 한글 깨짐 방지)
-    const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});
-    const url=URL.createObjectURL(blob);
-    const a=document.createElement('a');
-    a.href=url;a.download=info.room.name+'_'+label+'.csv';
-    document.body.appendChild(a);a.click();document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    adminLog('💾 백업 완료: ['+info.room.name+'] '+label+' ('+data.length+'건)');
+    if(!savedAny){alert('백업할 데이터가 없습니다.');return;}
+    adminLog('💾 백업 완료: ['+info.room.name+'] '+label+' ('+totalRows+'건)');
   }catch(e){alert('백업 오류: '+e.message);}
 }
 
@@ -3901,7 +3926,7 @@ function stkRenderSearch(){
         return '<div class="lotrow"'+(isMinus?' style="background:#fef2f2;border-radius:6px"':'')+'><span class="ldot'+(l.dot?'':' miss')+'">'+(l.dot?stkEsc(l.dot)+'년식':'DOT누락 ⚠')+'</span>'+
           '<span class="lotprice">'+(stkLotPrice(p,l)?stkWon(stkLotPrice(p,l)):'가격 미정')+'</span>'+
           '<span class="lotq"'+(isMinus?' style="color:#dc2626"':'')+'>'+(isMinus?l.q+'개 ⏳':l.q+'개')+'</span>'+
-          '<span class="lotloc" onclick="event.stopPropagation();stkGoto(\''+l.loc+'\')">📍'+(l.loc==='U'?'미배치':l.loc)+'</span>'+
+          '<span class="lotloc" onclick="event.stopPropagation();stkGoto(\''+l.loc+'\',\''+l.id+'\')">📍'+(l.loc==='U'?'미배치':l.loc)+'</span>'+
           '<button class="lotbtn" onclick="event.stopPropagation();stkOpenOut(\''+l.id+'\')">📦 출고</button>'+srcLine+'</div>';
       }).join('')||'<div class="lotrow" style="color:#bbb">창고 재고 없음 — 출고하면 입고예정(마이너스)으로 잡힙니다</div>';
     var instLine=p.inst?'<div style="font-size:11px;color:#666;padding:2px 0">🔧 장착가 <b style="color:#c2410c">'+stkWon(p.inst)+'</b></div>':'';
@@ -3943,16 +3968,28 @@ function stkRenderMapResults(q,m){
   });
   if(!results.length){box.style.display='block';box.innerHTML='<div class="mapres-empty">검색 결과 없음 — 창고에 이 재고가 없습니다</div>';return;}
   box.style.display='block';
-  box.innerHTML='<div class="mapres-tit">🔍 '+results.length+'건 — 탭하면 그 칸으로 이동</div>'+
+  var canDrag=stkIsAdmin()&&!stkLocked;
+  box.innerHTML='<div class="mapres-tit">🔍 '+results.length+'건 — '+(canDrag?'아래 지도 칸으로 드래그하거나 📍 탭하면 이동':'📍 탭하면 그 칸으로 이동')+'</div>'+
     results.slice(0,30).map(function(r){
       var loc=r.l.loc==='U'?'미배치':r.l.loc;
       var neg=r.l.q<0;
-      return '<div class="mapres-row" onclick="stkGoto(\''+r.l.loc+'\')">'+
-        '<span class="mapres-loc">📍'+loc+'</span>'+
+      var drag=(canDrag&&r.l.q>0)?' draggable="true" data-lotid="'+r.l.id+'" data-lotlabel="'+stkEsc(r.p.name)+' '+r.l.q+'개"':'';
+      return '<div class="mapres-row'+(canDrag&&r.l.q>0?' mapres-drag':'')+'"'+drag+'>'+
+        '<span class="mapres-loc" onclick="stkGoto(\''+r.l.loc+'\',\''+r.l.id+'\')">📍'+loc+'</span>'+
         '<span class="mapres-nm">'+stkEsc(r.p.br+' '+r.p.name)+(r.p.code?' <b>'+stkEsc(r.p.code)+'</b>':'')+' '+stkEsc(r.p.size)+'</span>'+
         '<span class="mapres-q"'+(neg?' style="color:#dc2626"':'')+'>'+r.l.q+'개'+(neg?' ⏳':'')+'</span>'+
         '</div>';
     }).join('')+(results.length>30?'<div class="mapres-empty">+'+(results.length-30)+'건 더</div>':'');
+  // 드래그 핸들러 (한 번만 바인딩)
+  if(!box._dragBound){box._dragBound=true;
+    box.addEventListener('dragstart',function(e){
+      var row=e.target.closest('.mapres-drag');if(!row)return;
+      var lotId=row.getAttribute('data-lotid');if(!lotId)return;
+      stkDrag={type:'lot',id:lotId};stkDragging=true;
+      if(e.dataTransfer){e.dataTransfer.setData('text/plain',lotId);e.dataTransfer.effectAllowed='move';}
+    });
+    box.addEventListener('dragend',function(e){if(e.target.closest&&e.target.closest('.mapres-drag'))stkDragEnd&&stkDragEnd();});
+  }
 }
 function stkUaList(){var rows=[];stkP.forEach(function(p){p.lots.forEach(function(l){if(l.q>0&&l.loc==='U')rows.push({p:p,l:l})})});return rows}
 var stkDrag=null;
@@ -3993,6 +4030,51 @@ function stkTouchEnd(e){
   else{stkDrag=null;}
 }
 var stkPick=null; // {type:'lot',id} or {type:'cell',code} — 폰 탭 이동
+// 검색 결과의 미배치 lot을 집어서 지도(창고지도 탭)로 이동 → 칸 탭하면 배치
+var stkSearchMapMode='B'; // 'A'=옆에 지도, 'B'=드래그시 지도탭 전환
+function stkSetSearchMapMode(m){
+  stkSearchMapMode=m;
+  var ba=document.getElementById('stk-modeA'),bb=document.getElementById('stk-modeB');
+  if(ba)ba.style.background=m==='A'?'#dbeafe':'';
+  if(bb)bb.style.background=m==='B'?'#dbeafe':'';
+  var im=document.getElementById('stk-inlinemap');
+  if(im)im.style.display=(m==='A')?'block':'none';
+  if(m==='A')stkRenderInlineMap();
+}
+// A모드: 검색 탭 안에 간단 지도(층 선택 + 칸 그리드)를 렌더, 검색 결과 드롭 받음
+function stkRenderInlineMap(){
+  var body=document.getElementById('stk-inlinemap-body');if(!body)return;
+  var m=stkCellMap();
+  var floors=['A','B','Y'];
+  var html='<div style="display:flex;gap:4px;margin-bottom:6px">';
+  floors.forEach(function(fl){html+='<button class="lotbtn" onclick="stkInlineFloor=\''+fl+'\';stkRenderInlineMap()" style="'+(stkInlineFloor===fl?'background:#dbeafe':'')+'">'+STK_FL[fl]+'</button>';});
+  html+='</div><div class="inline-grid">';
+  var codes=stkAllCodes().filter(function(c){return stkPos(c).f===stkInlineFloor;});
+  codes.forEach(function(code){
+    var items=m[code]||[];
+    var lbl=items.length?(items[0].p.code||items[0].p.name||'').slice(0,6):'';
+    html+='<div class="inline-cell'+(items.length?' has':'')+'" data-cell="'+code+'" ondragover="event.preventDefault();this.classList.add(\'dragover\')" ondragleave="this.classList.remove(\'dragover\')" ondrop="stkInlineDrop(event,\''+code+'\')">'+
+      '<span class="ic-code">'+code+'</span>'+(items.length?'<span class="ic-q">'+items.reduce(function(s,it){return s+it.l.q;},0)+'</span><span class="ic-lbl">'+stkEsc(lbl)+'</span>':'')+'</div>';
+  });
+  html+='</div>';
+  body.innerHTML=html;
+}
+var stkInlineFloor='A';
+async function stkInlineDrop(e,code){
+  e.preventDefault();
+  var t=e.currentTarget;if(t)t.classList.remove('dragover');
+  var lotId=(e.dataTransfer&&e.dataTransfer.getData('text/plain'))||(stkDrag&&stkDrag.id);
+  if(!lotId)return;
+  await stkMoveLot(lotId,code);
+  stkRenderInlineMap();stkRenderSearch();
+}
+function stkPlaceFromSearch(lotId,label){
+  if(!stkIsAdmin()){stkToast('관리자 전용입니다');return}
+  if(stkLocked){stkToast('🔒 잠금 해제 후 배치하세요');return}
+  stkPickStart({type:'lot',id:lotId},label);
+  stkTab(1); // 창고지도 탭으로 전환
+  stkToast('📍 '+label+' 집었어요 — 넣을 칸을 탭하세요');
+}
 function stkPickStart(obj,label){
   if(!stkLockGuard())return;
   stkPick=obj;
@@ -4109,11 +4191,13 @@ function stkRenderUnassigned(){
   ua.onclick=function(e){if(stkPick&&e.target.closest('.urow')===null){stkPickDrop('U')}};
   var rows=stkUaList();
   if(!rows.length){var em=document.createElement('div');em.className='uempty2';em.textContent='미배치 없음';ua.appendChild(em);}
-  rows.slice(0,60).forEach(function(r){
+  rows.forEach(function(r){
     var hit=q.trim()&&stkMatch(r.p,q);
     var el=document.createElement('div');el.className='urow'+(hit?' hit':'');
     el.draggable=true;
     var lid=r.l.id;
+    el.id='stk-urow-'+lid;
+    if(stkLastGoto==='U:'+lid)el.classList.add('gotomark-row'); // 재렌더 시 강조 복원
     var bd=document.createElement('span');bd.className='bdot';bd.style.background=STK_BC[r.p.br]||'#888';bd.draggable=false;
     var nm=document.createElement('span');nm.className='nm';nm.draggable=false;
     nm.innerHTML='<b>'+stkEsc(r.p.br+' '+r.p.name)+'</b>'+(r.p.code?' <span class="pcode">'+stkEsc(r.p.code)+'</span>':'')+' <span style="color:#5b35b0;font-weight:800">'+stkEsc(r.p.size)+'</span> <span style="color:'+(r.l.dot?'#bbb':'#dc2626')+';font-size:11px">'+(r.l.dot||'DOT누락')+'</span>';
@@ -4163,7 +4247,7 @@ function stkCellEl(code,m,hits,Z){
   var c=document.createElement('div');
   var items=m[code]||[];
   var lbl=STK_LBL[code];
-  c.className='cell'+(items.length?'':' empty')+(hits[code]?' hit':'')+(code[0]==='S'?' scell':'');
+  c.className='cell'+(items.length?'':' empty')+(hits[code]?' hit':'')+(code===stkLastGoto?' gotomark':'')+(code[0]==='S'?' scell':'');
   c.id='stk-cell-'+code;
   var col=items.length?(STK_BC[items[0].p.br]||'#888'):null;
   if(col)c.style.borderLeftColor=col;
@@ -4473,14 +4557,47 @@ async function stkDoMove(){
   }
 }
 // ── 점프 ──
-function stkGoto(loc){
+var stkLastGoto=null; // 마지막으로 점프한 위치 (칸코드 또는 'U:lotid') — 노란 테두리 유지
+function stkClearGotoMarks(){
+  document.querySelectorAll('.cell.gotomark,.cell.flash').forEach(function(el){el.classList.remove('gotomark','flash');});
+  document.querySelectorAll('.urow.gotomark-row,.urow.row-flash').forEach(function(el){el.classList.remove('gotomark-row','row-flash');});
+  var ua=document.getElementById('stk-ua');if(ua)ua.classList.remove('gotomark-ua','ua-flash');
+}
+function stkGoto(loc,lotId){
   stkTab(1);
-  if(loc==='U'){setTimeout(function(){var ua=document.getElementById('stk-ua');if(ua&&ua.scrollIntoView)ua.scrollIntoView({behavior:'smooth',block:'center'})},80);return}
+  stkClearGotoMarks(); // 이전 점프 강조 해제 (다음 점프까지만 유지)
+  if(loc==='U'){
+    stkLastGoto=lotId?('U:'+lotId):'U';
+    setTimeout(function(){
+      var ua=document.getElementById('stk-ua');if(!ua)return;
+      if(lotId){
+        // 미배치 중에서 그 줄만 강조 + 깜빡(3회)
+        var row=document.getElementById('stk-urow-'+lotId);
+        if(row){
+          row.classList.add('gotomark-row');
+          row.classList.add('row-flash');setTimeout(function(){row.classList.remove('row-flash');},1600);
+          if(row.scrollIntoView)row.scrollIntoView({behavior:'smooth',block:'center'});
+        }else if(ua.scrollIntoView)ua.scrollIntoView({behavior:'smooth',block:'center'});
+      }else{
+        // lotId 없으면 미배치 영역 전체 (이전 동작 유지)
+        ua.classList.add('gotomark-ua');
+        ua.classList.add('ua-flash');setTimeout(function(){ua.classList.remove('ua-flash');},1600);
+        if(ua.scrollIntoView)ua.scrollIntoView({behavior:'smooth',block:'center'});
+      }
+    },80);
+    return;
+  }
+  stkLastGoto=loc;
   var pos=stkPos(loc);
   if(pos.f!==stkFloor){stkFloor=pos.f;stkZoomLane=-1;stkRenderMap()}
   setTimeout(function(){
     var c=document.getElementById('stk-cell-'+loc);
-    if(c){c.classList.add('flash');if(c.scrollIntoView)c.scrollIntoView({behavior:'smooth',block:'center'})}
+    if(c){
+      c.classList.add('flash');     // 깜빡임 (3회)
+      c.classList.add('gotomark');  // 노란 테두리 유지
+      if(c.scrollIntoView)c.scrollIntoView({behavior:'smooth',block:'center'});
+      setTimeout(function(){c.classList.remove('flash');},1600);
+    }
   },80);
 }
 // ── 가격·정보 수정 (관리자) ──
