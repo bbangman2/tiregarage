@@ -830,11 +830,13 @@ body.rb-on #app{padding-top:58px}
     <div class="stk-tab" data-stab="3" onclick="stkTab(3)">📊 재고표</div>
   </div>
   <div class="stk-pane on" id="stk-pane0">
-    <div class="adminbar" id="stk-adminbar" style="display:none">🔧 관리자:
+    <div class="adminbar" id="stk-editbar" style="display:none">📦 재고 관리:
       <button onclick="stkUpOpen('in')">📥 입고 업로드</button>
       <button onclick="stkUpOpen('price')">📋 가격 갱신</button>
       <button onclick="stkUpOpen('new')">➕ 신규 상품</button>
       <button onclick="stkOpenAdd()">✏️ 하나 추가</button>
+    </div>
+    <div class="adminbar" id="stk-adminbar" style="display:none">🔧 관리자:
       <button onclick="stkResetOpen()" style="background:#fef2f2;border-color:#fecaca;color:#dc2626">🔄 전체 초기화</button>
     </div>
     <div id="stk-dlbar" style="display:none;margin-bottom:8px">
@@ -3836,6 +3838,8 @@ async function stkLoadLock(){
     b.textContent=stkLocked?'🔒 이동 잠김':'🔓 이동 가능(관리자)';}
   var dlbar=document.getElementById('stk-dlbar');
   if(dlbar)dlbar.style.display=stkLocked?'none':'block'; // 잠금 아니면 누구나 다운로드
+  var eb=document.getElementById('stk-editbar');
+  if(eb)eb.style.display=stkLocked?'none':'flex'; // 잠금 풀리면 누구나 재고관리
   var ab=document.getElementById('stk-adminbar');
   if(ab)ab.style.display=stkIsAdmin()?'flex':'none';
   var rb=document.getElementById('stk-logrestorebar');
@@ -3856,6 +3860,7 @@ async function stkLog(action,note,extra){
 }
 function stkLockGuard(){if(stkLocked&&!stkIsAdmin()){stkToast('🔒 잠겨 있어요 — 관리자만 해제 가능');return false}
   if(stkLocked&&stkIsAdmin()){stkToast('🔒 잠금 상태입니다 — 해제 후 이동하세요');return false}return true}
+function stkEditGuard(){if(stkLocked){stkToast('\ud83d\udd12 잠겨 있어요 — 관리자가 해제해야 재고 관리가 가능합니다');return false}return true}
 var STK_UNLOCK_PW='tg1234'; // 임시 — 나중에 변경
 async function stkTogLock(){
   if(!stkIsAdmin()){stkToast('관리자 전용입니다');return}
@@ -4632,14 +4637,14 @@ async function stkAdjQty(lotId,val){
 // ── 출고 ──
 var stkCurOut=null,stkCurType='장착';
 function stkOpenAdd(){
-  if(!stkIsAdmin()){stkToast('관리자만 가능합니다');return}
+  if(!stkEditGuard())return;
   document.getElementById('stk-adCat').value='일반';
   ['stk-adBrand','stk-adName','stk-adCode','stk-adSize','stk-adDot','stk-adLoc'].forEach(function(id){document.getElementById(id).value='';});
   document.getElementById('stk-adQty').value='0';
   document.getElementById('stk-dlgAdd').classList.add('on');
 }
 async function stkDoAdd(){
-  if(!stkIsAdmin())return;
+  if(!stkEditGuard())return;
   var cat=document.getElementById('stk-adCat').value||'일반';
   var br=(document.getElementById('stk-adBrand').value||'').trim();
   var name=(document.getElementById('stk-adName').value||'').trim();
@@ -5095,7 +5100,7 @@ async function stkUpFile(file){
   }catch(e){stkToast('파일 읽기 실패: '+e.message)}
 }
 function stkUpOpen(mode){
-  if(!stkIsAdmin()){stkToast('관리자만 가능합니다');return}
+  if(!stkEditGuard())return;
   stkUpMode=mode;stkUpRows=null;
   var t={'in':'📥 입고 업로드','price':'📋 가격 갱신','new':'➕ 신규 상품'}[mode];
   var h={'in':'템플릿 ①입고 형식: 브랜드/패턴/패턴코드/사이즈/연식/수량/출처/위치/비고/카테고리 — 위치 비우면 미배치, 카테고리 비우면 일반',
@@ -5127,7 +5132,7 @@ function stkFindProduct(br,name,code,size){
     ||stkP.find(function(p){return p.br===br&&p.size===size&&code&&p.code===code});
 }
 async function stkUpRun(){
-  if(!stkIsAdmin())return;
+  if(!stkEditGuard())return;
   var rows=stkUpParse();
   if(!rows.length){stkToast('붙여넣은 내용이 없습니다');return}
   var prev=document.getElementById('stk-upPrev');
