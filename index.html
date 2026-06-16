@@ -4336,14 +4336,16 @@ function stkRenderSearch(){
           '<span class="lotloc" onclick="event.stopPropagation();stkGoto(\''+l.loc+'\',\''+l.id+'\')">📍'+(l.loc==='U'?'미배치':l.loc)+'</span>'+
           '<button class="lotbtn" onclick="event.stopPropagation();stkOpenOut(\''+l.id+'\')">📦 출고</button>'+srcLine+'</div>';
       }).join('')||'<div class="lotrow" style="color:#bbb">창고 재고 없음 — 출고하면 입고예정(마이너스)으로 잡힙니다</div>';
-    var instLine=p.inst?'<div style="font-size:11px;color:#666;padding:2px 0">🔧 장착가 <b style="color:#c2410c">'+stkWon(p.inst)+'</b></div>':'';
+    var priceLine='<div style="font-size:12px;color:#444;padding:3px 0;display:flex;gap:14px">'+
+      '<span>🔧 장착가 <b style="color:#c2410c">'+(p.inst?stkWon(p.inst):'미정')+'</b></span>'+
+      '<span>📦 택배가 <b style="color:#0c447c">'+(stkTopPrice(p)?stkWon(stkTopPrice(p)):'미정')+'</b></span></div>';
     var memoLine=p.memo?'<div style="font-size:11px;color:#9a6b1f;padding:2px 0">📝 '+stkEsc(p.memo)+'</div>':'';
     var editBtn=(!stkLocked)?'<button class="lotbtn" style="background:#fffbe6;border-color:#f3e2a0;color:#7a5d00;margin-top:5px" onclick="event.stopPropagation();stkOpenEdit(\''+p.id+'\')">✏️ 정보 수정</button>':'';
     c.innerHTML='<div class="prow" data-pid="'+p.id+'">'+
       '<div class="pline1"><span class="pcatbadge" style="background:'+stkCatStyle(p.cat).bg+';color:'+stkCatStyle(p.cat).t+'">'+stkEsc(p.cat||'일반')+'</span><span class="pbrand" style="background:'+(STK_BC[p.br]||'#888')+'">'+stkEsc(p.br)+'</span><span class="psize">'+stkEsc(p.size)+'</span><span class="pname">'+stkEsc(p.name)+'</span>'+(p.code?'<span class="pcode"'+('피렐리'===p.br?' style="color:#c00;font-weight:800"':'')+'>'+stkEsc(p.code)+'</span>':'')+'</div>'+
-      '<div class="pline2"><span class="pprice">'+(stkTopPrice(p)?stkWon(stkTopPrice(p)):'가격 미정')+' <small>택배가</small></span>'+
+      '<div class="pline2"><span class="pprice">'+(p.inst?stkWon(p.inst)+' <small>장착가</small>':(stkTopPrice(p)?stkWon(stkTopPrice(p))+' <small>택배가</small>':'가격 미정'))+'</span>'+
       (qty>0?'<span class="pstock">재고 '+qty+'개 ▾</span>':(qty<0?'<span class="pstock" style="color:#dc2626">재고 '+qty+'개 ⏳ 입고대기 ▾</span>':'<span class="pstock n">재고 없음</span>'))+'</div></div>'+
-      '<div class="pdet">'+instLine+memoLine+lots+editBtn+'</div>';
+      '<div class="pdet">'+priceLine+memoLine+lots+editBtn+'</div>';
     c.setAttribute('data-pid',p.id);
     el.appendChild(c);
   });
