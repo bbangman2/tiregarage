@@ -3937,36 +3937,49 @@ function stkLogClass(action){
   return'';
 }
 async function stkUndoOut(logId){
-  // 출고 취소는 잠금·관리자 무관하게 누구나 가능 (기록은 남음)
+  // 출고 취소/복원 토글 — 누구나 가능 (잠금·관리자 무관), 기록은 모두 남음
   var g=(stkLogRows||[]).find(function(x){return ''+x.id===''+logId;});
   if(!g){stkToast('기록을 찾을 수 없습니다');return}
-  if(g.ref&&(''+g.ref).indexOf('[취소됨]')>=0){stkToast('이미 취소된 출고입니다');return}
   var qty=Math.abs(parseInt(g.qty)||0);
-  if(!qty){stkToast('취소할 수량이 없습니다');return}
+  if(!qty){stkToast('수량이 없습니다');return}
   var p=stkP.find(function(x){return x.id===g.product_id;});
   var pname=p?(p.br+' '+p.name+' '+p.size):'(삭제된 상품)';
-  if(!confirm('이 출고를 취소할까요?\n\n'+pname+'\n'+qty+'개를 재고로 되돌립니다.\n채널 '+(g.channel||'')+' 집계에서도 빠집니다.\n\n(출고기록·취소기록은 모두 남습니다)'))return;
-  try{
-    if(p){
-      var loc=g.from_loc||'U';
-      var dot=g.dot||'';
-      // 같은 위치+연식 lot 찾아 더하기, 없으면 생성
-      var lot=p.lots.find(function(l){return (l.loc||'U')===loc && (l.dot||'')===dot;});
-      if(lot){
-        await sb.from('stock_lots').update({qty:lot.q+qty,updated_at:new Date().toISOString()}).eq('id',lot.id);
-      }else{
-        await sb.from('stock_lots').insert({product_id:p.id,dot:dot,qty:qty,loc:loc});
+  var loc=g.from_loc||'U';
+  var dot=g.dot||'';
+  var isCancelled=g.ref&&(''+g.ref).indexOf('[취소됨]')>=0;
+  if(!isCancelled){
+    // ── 출고 취소 (재고 되돌림) ──
+    if(!confirm('이 출고를 취소할까요?\n\n'+pname+'\n'+qty+'개를 재고로 되돌립니다.\n채널 '+(g.channel||'')+' 집계에서도 빠집니다.\n\n(기록은 모두 남습니다)'))return;
+    try{
+      if(p){
+        var lot=p.lots.find(function(l){return (l.loc||'U')===loc && (l.dot||'')===dot;});
+        if(lot){await sb.from('stock_lots').update({qty:lot.q+qty,updated_at:new Date().toISOString()}).eq('id',lot.id);}
+        else{await sb.from('stock_lots').insert({product_id:p.id,dot:dot,qty:qty,loc:loc});}
       }
-    }
-    // 원본 출고기록에 [복구됨] 표시
-    var newRef=((g.ref||'')+' [취소됨]').trim();
-    await sb.from('stock_logs').update({ref:newRef}).eq('id',g.id);
-    // 복구 로그 추가
-    stkLog('↩️출고취소',pname+' '+qty+'개 취소',{product_id:g.product_id,dot:g.dot,qty:qty,to_loc:g.from_loc||'U',channel:g.channel||''});
-    stkToast('\u2713 취소되었습니다 (기록 남음)');
-    await stkLoad();
-    await stkLoadLogTab();
-  }catch(e){stkToast('취소 실패: '+e.message)}
+      await sb.from('stock_logs').update({ref:((g.ref||'')+' [취소됨]').trim()}).eq('id',g.id);
+      stkLog('↩️출고취소',pname+' '+qty+'개 취소',{product_id:g.product_id,dot:g.dot,qty:qty,to_loc:loc,channel:g.channel||''});
+      stkToast('\u2713 취소되었습니다 (기록 남음)');
+      await stkLoad();await stkLoadLogTab();
+    }catch(e){stkToast('취소 실패: '+e.message)}
+  }else{
+    // ── 취소 되돌리기 (다시 출고 상태로) ──
+    if(!confirm('취소를 되돌려 다시 출고 상태로 만들까요?\n\n'+pname+'\n'+qty+'개를 재고에서 다시 뺍니다.\n채널 '+(g.channel||'')+' 집계에 다시 잡힙니다.\n\n(기록은 모두 남습니다)'))return;
+    try{
+      if(p){
+        var lot2=p.lots.find(function(l){return (l.loc||'U')===loc && (l.dot||'')===dot;});
+        if(lot2){
+          if(lot2.q<qty){stkToast('재고가 부족해 되돌릴 수 없습니다 (현재 '+lot2.q+'개)');return}
+          await sb.from('stock_lots').update({qty:lot2.q-qty,updated_at:new Date().toISOString()}).eq('id',lot2.id);
+        }else{stkToast('되돌릴 재고 위치를 찾을 수 없습니다');return}
+      }
+      // [취소됨] 표시 제거
+      var restored=(''+(g.ref||'')).replace(/\s*\[취소됨\]/,'').trim();
+      await sb.from('stock_logs').update({ref:restored}).eq('id',g.id);
+      stkLog('↩️취소되돌림',pname+' '+qty+'개 — 다시 출고('+(g.channel||'')+')',{product_id:g.product_id,dot:g.dot,qty:qty,from_loc:loc,channel:g.channel||''});
+      stkToast('\u2713 다시 출고 상태로 복원 (기록 남음)');
+      await stkLoad();await stkLoadLogTab();
+    }catch(e){stkToast('복원 실패: '+e.message)}
+  }
 }
 function stkRenderLogTab(){
   var el=document.getElementById('stk-logtab');if(!el)return;
@@ -3992,8 +4005,8 @@ function stkRenderLogTab(){
     var isOut=(g.action||'').indexOf('출고')>=0 && (g.action||'').indexOf('취소')<0;
     var undone=g.ref&&(''+g.ref).indexOf('[취소됨]')>=0;
     var undoBtn='';
-    if(isOut){  // 출고 취소는 누구나 가능 (잠금·관리자 무관)
-      if(undone)undoBtn='<span style="font-size:11px;color:#999;font-weight:800">✗ 취소됨</span>';
+    if(isOut){  // 출고 취소/복원 토글 — 누구나 가능
+      if(undone)undoBtn='<span style="font-size:11px;color:#c0392b;font-weight:800;margin-right:5px">✗ 취소됨</span><button onclick="stkUndoOut(\''+g.id+'\')" style="font-size:11px;padding:4px 9px;border:1px solid #b9e0c9;background:#eaf7ef;color:#15803d;border-radius:7px;font-weight:800;cursor:pointer">↩️ 되돌리기</button>';
       else undoBtn='<button onclick="stkUndoOut(\''+g.id+'\')" style="font-size:11px;padding:4px 9px;border:1px solid #f3c2c2;background:#fdf2f2;color:#c0392b;border-radius:7px;font-weight:800;cursor:pointer">✗ 출고 취소</button>';
     }
     return '<div class="logcard '+cls+'"><div class="l1"><span class="act '+cls+'">'+stkEsc(g.action||'')+'</span>'+
