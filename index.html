@@ -833,6 +833,7 @@ body.rb-on #app{padding-top:58px}
     <div class="adminbar" id="stk-editbar" style="display:none">📦 재고 관리:
       <button onclick="stkUpOpen('in')">📥 입고 업로드</button>
       <button onclick="stkUpOpen('price')">📋 가격 갱신</button>
+      <button onclick="stkUpOpen('cat')">🏷️ 분류 변경</button>
       <button onclick="stkUpOpen('new')">➕ 신규 상품</button>
       <button onclick="stkOpenAdd()">✏️ 하나 추가</button>
     </div>
@@ -3973,15 +3974,27 @@ function stkMatch(p,q){
   if(!q.trim())return true;
   var sd=p.size.replace(/[^0-9]/g,'');
   var dm=p.lots.some(function(l){return l.q>0&&!l.dot});
-  // 검색 대상 총망라: 카테고리·브랜드·패턴·코드·사이즈·연식·위치·가격·메모
+  // 검색 대상: 카테고리·브랜드·패턴·코드·사이즈·연식·위치·메모 (가격은 제외 — 숫자 오매칭 방지)
   var dots=p.lots.map(function(l){return l.dot||'';}).join(' ');
   var locs=p.lots.map(function(l){return (l.loc&&l.loc!=='U')?l.loc:'미배치';}).join(' ');
-  var prices=((p.price||'')+' '+(p.inst||'')).trim();
-  var hay=((p.cat||'일반')+' '+p.br+' '+p.name+' '+p.code+' '+p.size+' '+sd+' '+dots+' '+locs+' '+prices+' '+(p.memo||'')+(dm?' dot누락 DOT누락':'')).toLowerCase();
-  var hns=hay.replace(/\s+/g,'');
+  // 사이즈 토큰들 (235, 55, 18 등 개별) — 정확 매칭용
+  var sizeTokens=p.size.split(/\s+/).filter(Boolean);
+  // 연식 토큰들 (2026 등)
+  var dotTokens=p.lots.map(function(l){return l.dot||'';}).filter(Boolean);
+  // 텍스트(문자) 매칭용 — 가격·붙인숫자 제거
+  var hay=((p.cat||'일반')+' '+p.br+' '+p.name+' '+(p.code||'')+' '+p.size+' '+locs+' '+(p.memo||'')+(dm?' dot누락 DOT누락':'')).toLowerCase();
   return q.toLowerCase().split(/\s+/).filter(Boolean).every(function(t){
     var td=t.replace(/[^0-9]/g,'');
-    return hay.indexOf(t)>=0||hns.indexOf(t)>=0||(td.length>=3&&sd.indexOf(td)>=0)});
+    // 1) 숫자만 입력 시: 사이즈·연식 정확 매칭만 (가격·붙인숫자 X)
+    if(td===t&&td.length){
+      if(sizeTokens.indexOf(td)>=0)return true;  // 사이즈 토큰 정확
+      if(dotTokens.indexOf(td)>=0)return true;   // 연식 정확
+      if(td.length>=5&&sd.indexOf(td)>=0)return true; // 사이즈 통째 (예: 2355518)
+      return false;
+    }
+    // 2) 문자/혼합: 텍스트 검색
+    return hay.indexOf(t)>=0;
+  });
 }
 // ── 탭/검색 렌더 ──
 function stkTab(i){
@@ -5466,7 +5479,7 @@ function stkLoadXLSX(){
     document.head.appendChild(s);
   });
 }
-var STK_SHEET={'in':'① 입고','price':'② 가격','new':'③ 신규'};
+var STK_SHEET={'in':'① 입고','price':'② 가격','new':'③ 신규','cat':'분류'};
 async function stkUpFile(file){
   if(!file)return;
   try{
@@ -5489,10 +5502,11 @@ async function stkUpFile(file){
 function stkUpOpen(mode){
   if(!stkEditGuard())return;
   stkUpMode=mode;stkUpRows=null;
-  var t={'in':'📥 입고 업로드','price':'📋 가격 갱신','new':'➕ 신규 상품'}[mode];
+  var t={'in':'📥 입고 업로드','price':'📋 가격 갱신','new':'➕ 신규 상품','cat':'🏷️ 분류 변경'}[mode];
   var h={'in':'템플릿 ①입고 형식: 브랜드/패턴/패턴코드/사이즈/연식/수량/출처/위치/비고/카테고리 — 위치 비우면 미배치, 카테고리 비우면 일반',
     'price':'템플릿 ②가격 형식: 브랜드/패턴/패턴코드/사이즈/연식/판매가(택배)/장착가 — 연식 비우면 전체 적용',
-    'new':'템플릿 ③신규 형식: 브랜드/패턴/패턴코드/사이즈/판매가(택배)/장착가/비고 — 재고 0으로 등록'}[mode];
+    'new':'템플릿 ③신규 형식: 브랜드/패턴/패턴코드/사이즈/판매가(택배)/장착가/비고 — 재고 0으로 등록',
+    'cat':'분류 변경 형식: 브랜드/패턴/패턴코드/사이즈/카테고리 — 매칭되는 상품의 분류만 바꿉니다 (재고·기록 안 건드림). 카테고리: 일반/행사/오프로드/중고/휠/튜닝'}[mode];
   document.getElementById('stk-upTitle').textContent=t;
   document.getElementById('stk-upHint').textContent=h;
   document.getElementById('stk-upTa').value='';
@@ -5584,6 +5598,20 @@ async function stkUpRun(){
         if(r2.error)throw r2.error;
       }
       ok=lots.length;fail=skip;
+    }else if(stkUpMode==='cat'){ // 분류만 변경 — 브랜드+패턴+사이즈 매칭, category만 update (재고·기록 안 건드림)
+      var VALID_CATS=['일반','행사','오프로드','중고','휠','튜닝'];
+      for(var i=0;i<rows.length;i++){
+        var c=rows[i];
+        if(i%20===0)prog('분류 변경… '+i+'/'+rows.length);
+        var p2=stkFindProduct(c[0],c[1],c[2]||'',c[3]);
+        if(!p2){fail++;continue}
+        var newCat=(c[4]||'').trim();  // 5번째 칸이 카테고리 (브랜드/패턴/코드/사이즈/카테고리)
+        if(!newCat||VALID_CATS.indexOf(newCat)<0){fail++;continue}
+        if((p2.cat||'일반')===newCat){ok++;continue} // 이미 같으면 통과(성공으로 카운트)
+        await sb.from('stock_products').update({category:newCat}).eq('id',p2.id);
+        stkLog('🏷️분류변경',p2.br+' '+p2.name+' '+p2.size+' '+(p2.cat||'일반')+'→'+newCat,{product_id:p2.id});
+        ok++;
+      }
     }else{ // price — 행별 값이 달라 개별 update (보통 수백 건 이하)
       for(var i=0;i<rows.length;i++){
         var c=rows[i];
@@ -5601,7 +5629,7 @@ async function stkUpRun(){
       }
     }
   }catch(e){stkToast('업로드 중 오류: '+e.message+' — 지금까지 '+ok+'건 반영됨')}
-  stkLog({'in':'📥입고업로드','new':'➕신규업로드','price':'📋가격갱신'}[stkUpMode],ok+'건 성공'+(fail?(' / '+fail+'건 건너뜀'):''),{qty:ok});
+  stkLog({'in':'📥입고업로드','new':'➕신규업로드','price':'📋가격갱신','cat':'🏷️분류일괄변경'}[stkUpMode],ok+'건 성공'+(fail?(' / '+fail+'건 건너뜀'):''),{qty:ok});
   stkCloseDlg();
   stkToast('완료: '+ok+'건'+(fail?(' (건너뜀 '+fail+')'):''));
   await stkLoad();
