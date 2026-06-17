@@ -3866,8 +3866,8 @@ function stkAllCodes(){var out=[];['A','B','Y'].forEach(function(f){for(var L=1;
 function stkEsc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
 function stkWon(n){return (+n).toLocaleString('ko-KR')+'원'}
 function stkIsAdmin(){return me&&me.name===ADMIN_NAME}
-// 재고표 즉시수정 권한: 남성현·이호준만 (잠금 무관)
-var STK_INLINE_EDITORS=['이호준','남성현'];
+// 재고표 즉시수정 권한: 이호준·남성현·권순현 (잠금 무관)
+var STK_INLINE_EDITORS=['이호준','남성현','권순현'];
 function stkCanInline(){return me&&STK_INLINE_EDITORS.indexOf(me.name)>=0}
 function stkToast(m){var t=document.getElementById('stk-toast');t.textContent=m;t.classList.add('show');setTimeout(function(){t.classList.remove('show')},2200)}
 function stkCloseDlg(){document.querySelectorAll('.stkdlgbg').forEach(function(d){d.classList.remove('on')})}
@@ -4176,7 +4176,7 @@ var stkRtAdding=false;
 var stkAddViaInline=false;
 var STK_CATS=['일반','오프로드','휠','튜닝','행사','중고'];
 function stkRtAddRow(){
-  if(!stkCanInline()){stkToast('남성현·이호준만 추가할 수 있습니다');return}
+  if(!stkCanInline()){stkToast('이호준·남성현·권순현만 추가할 수 있습니다');return}
   stkRtAdding=true;stkRtAddingCount=1;
   stkRenderTable();
   // 첫 셀(분류)에 포커스 — 거기 paste하면 7칸/6칸 자동 처리, 여러 줄이면 행 자동 확장
