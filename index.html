@@ -886,6 +886,10 @@ body.rb-on #app{padding-top:58px}
       <button onclick="stkLogRestoreOpen()" style="width:100%;padding:8px;border:1px solid #cfe0f5;background:#eef4fb;color:#0c447c;border-radius:9px;font-size:12px;font-weight:800">📂 백업에서 출고기록 복원 (재고는 안 건드림)</button>
     </div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px" id="stk-logfilters"></div>
+    <div style="display:flex;gap:6px;align-items:center;margin-bottom:8px">
+      <span style="font-size:12px;color:#888">📅 상단 날짜의 출고 표시</span>
+      <button id="stk-logall-btn" onclick="stkToggleLogAll()" style="height:34px;padding:0 12px;border:1px solid rgba(0,0,0,.12);background:#fff;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap">전체 날짜 보기</button>
+    </div>
     <input id="stk-logq" placeholder="🔍 상품·주문번호·담당자·판매처 검색" oninput="stkRenderLogTab()" style="width:100%;height:40px;border:1.5px solid rgba(0,0,0,.12);border-radius:10px;padding:0 12px;font-size:16px;background:#fff;margin-bottom:8px">
     <div id="stk-logtab"><div class="stk-empty">불러오는 중…</div></div>
   </div>
@@ -1205,7 +1209,7 @@ async function selectRoom(room){
   document.querySelector('.msgs-wrap').style.display=isSpecial?'none':'flex';
   document.querySelector('.input-wrap').style.display=isSpecial?'none':'';
   document.getElementById('ai-btn').style.display='none';
-  document.getElementById('date-picker-wrap').style.display=(isItems||isDelivery)?'flex':'none';
+  document.getElementById('date-picker-wrap').style.display=(isItems||isDelivery||isStock)?'flex':'none';
   document.getElementById('settings-btn').style.display='none';
   document.getElementById('item-search-btn').style.display=(isItems||isDelivery)?'flex':'none';
   document.getElementById('item-export-btn').style.display=isItems?'flex':'none';
@@ -1224,7 +1228,10 @@ async function selectRoom(room){
   if(dlvSub){sb.removeChannel(dlvSub);dlvSub=null;}
   if(stockSub){sb.removeChannel(stockSub);stockSub=null;}
   if(isStock){
+    initDatePicker();        // 날짜 기본 오늘로
+    stkLogAllDates=false;    // 출고기록도 기본 오늘
     await stkLoad();
+    if(typeof stkLoadLogTab==='function')stkLoadLogTab();
     stockSub=sb.channel('stock-live')
       .on('postgres_changes',{event:'*',schema:'public',table:'stock_lots'},()=>{stkLoad();})
       .on('postgres_changes',{event:'*',schema:'public',table:'stock_products'},()=>{stkLoad();})
@@ -1276,6 +1283,7 @@ function onDateChange(){
   const m=ROOM_META[curRoom.name]||{};
   if(m.mode==='items'){loadItems();loadItemMemos();}
   else if(m.mode==='delivery'){loadDeliveries();}
+  else if(m.mode==='stock'){if(typeof stkRenderTable==='function')stkRenderTable();if(typeof stkRenderLogTab==='function')stkRenderLogTab();}
   else if(m.ai)loadMsgs();
 }
 
@@ -3988,6 +3996,13 @@ function stkTab(i){
 }
 // ── 출고기록(활동기록) 탭 ──
 var stkLogRows=[], stkLogFilter='출고';
+var stkLogAllDates=false;
+function stkToggleLogAll(){
+  stkLogAllDates=!stkLogAllDates;
+  var b=document.getElementById('stk-logall-btn');
+  if(b){b.textContent=stkLogAllDates?'✓ 전체 날짜':'전체 날짜 보기';b.style.background=stkLogAllDates?'#eaf4ff':'#fff';b.style.borderColor=stkLogAllDates?'#2563eb':'rgba(0,0,0,.12)';}
+  stkRenderLogTab();
+}
 var STK_LOG_FILTERS=[['출고','📦 출고'],['이동','📍 이동/합치기'],['실사조정','✏️ 실사조정'],['잠금','🔒 잠금'],['전체','전체']];
 async function stkLoadLogTab(){
   try{var r=await sb.from('stock_logs').select('*').order('ts',{ascending:false}).limit(300);
@@ -4059,8 +4074,11 @@ async function stkUndoOut(logId){
 function stkRenderLogTab(){
   var el=document.getElementById('stk-logtab');if(!el)return;
   var q=(document.getElementById('stk-logq')||{}).value||'';
+  var dfilter=(typeof curDateStr==='function')?curDateStr():''; // 상단 날짜 피커 기준 (기본 오늘)
+  var showAll=stkLogAllDates; // '전체 날짜' 토글
   var rows=stkLogRows.filter(function(g){
     var a=g.action||'';
+    if(!showAll&&dfilter){var ds=g.ts?toKST(g.ts).toISOString().slice(0,10):'';if(ds!==dfilter)return false;}
     if(stkLogFilter==='출고'&&a.indexOf('출고')<0)return false;
     if(stkLogFilter==='이동'&&!(a.indexOf('이동')>=0||a.indexOf('합치기')>=0||a.indexOf('분리')>=0))return false;
     if(stkLogFilter==='실사조정'&&a.indexOf('실사')<0)return false;
@@ -4094,13 +4112,17 @@ var stkOpen={};
 var STK_CHANS=['장착','당일직배송','당일택배','택배핑&효성','직배송핑&효성','11번가','스토어팜','롯데온&쿠팡'];
 // 채널별 출고량 집계: product_id → {채널:수량}
 function stkChannelSums(){
-  // product_id + dot(연식) 단위로 채널 출고 집계
+  // product_id + dot(연식) 단위로 채널 출고 집계 — 오늘(KST) 출고만 (어제 것은 이미 실재고에 반영됨)
   var m={};
+  var selDate=(typeof curDateStr==='function')?curDateStr():getTodayISO(); // 상단 날짜 피커 기준 (기본 오늘)
   (stkLogRows||[]).forEach(function(g){
     if(!g.product_id)return;
     if((g.action||'').indexOf('출고')<0)return; // 출고만
     if((g.action||'').indexOf('취소')>=0)return; // 취소 로그는 집계 안 함
     if(g.ref&&(''+g.ref).indexOf('[취소됨]')>=0)return; // 취소된 출고는 제외
+    // 선택 날짜(KST)의 출고만 채널칸에 표시 (기본=오늘). 다른 날은 제외(수량엔 이미 반영)
+    var ds=g.ts?toKST(g.ts).toISOString().slice(0,10):selDate;
+    if(ds!==selDate)return;
     var ch=g.channel||'';
     var matched=STK_CHANS.find(function(c){return ch===c||ch.indexOf(c)>=0;});
     if(!matched)return;
