@@ -232,10 +232,24 @@ body.rb-on #app{padding-top:58px}
 .stk-chb[data-grp=on]{background:#E8F0FB;border-color:#A9C8EC;color:#1C5599}
 .stk-chb.on{outline:3px solid #1a2035;outline-offset:1px;color:#111}
 .stk-rtwrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
-.stk-rt{border-collapse:collapse;font-size:11px;white-space:nowrap;min-width:100%}
-.stk-rt th{background:#f3f5f9;color:#374151;font-weight:800;padding:6px 5px;border:1px solid #e5e7eb;position:sticky;top:0;font-size:10px;text-align:center}
-.stk-rt td{padding:5px 6px;border:1px solid #eee;text-align:center}
-.stk-rt tbody tr:hover{background:#f9fafb}
+.stk-rt{border-collapse:collapse;font-size:11px;white-space:nowrap;min-width:100%;background:#fff}
+.stk-rt th{background:#e8eef5;color:#374151;font-weight:800;padding:5px 6px;border:1px solid #b8c5d6;position:sticky;top:0;font-size:11px;text-align:center}
+.stk-rt th .colab{display:block;font-size:9px;color:#7a8694;font-weight:700;margin-top:1px}
+.stk-rt td{padding:4px 6px;border:1px solid #d1d8e0;text-align:center;background:#fff}
+.stk-rt tbody tr:hover td{background:#f7fafd}
+.stk-rt td.rtcur{background:#fff9db;font-weight:800;color:#856404}
+.stk-rt th.thcur{background:#ffe9a8}
+.stk-rt th.th-ch0{background:#e7d9f7}.stk-rt td.ch-0{background:#f5eefd}
+.stk-rt th.th-ch1{background:#cfeadd}.stk-rt td.ch-1{background:#eaf7f1}
+.stk-rt th.th-ch2{background:#fce8c5}.stk-rt td.ch-2{background:#fff5e0}
+.stk-rt th.th-ch3{background:#fcd9b6}.stk-rt td.ch-3{background:#fff0de}
+.stk-rt th.th-ch4{background:#fcd9b6}.stk-rt td.ch-4{background:#fff0de}
+.stk-rt th.th-ch5{background:#cfddf7}.stk-rt td.ch-5{background:#eaf1fc}
+.stk-rt th.th-ch6{background:#cfddf7}.stk-rt td.ch-6{background:#eaf1fc}
+.stk-rt th.th-ch7{background:#cfddf7}.stk-rt td.ch-7{background:#eaf1fc}
+.stk-rt td.rt-ed{cursor:cell}
+.stk-rt td.rt-ed:hover{outline:1px solid #93b4ff;outline-offset:-1px}
+.stk-rt td.rt-ed:focus{outline:2px solid #2563eb;outline-offset:-2px;background:#fff !important;box-shadow:inset 0 0 0 1px #fff;font-weight:600}
 .rtsort{cursor:pointer;user-select:none}
 .rtsort:hover{background:#e8edf5}
 .rtcat{font-size:10px;font-weight:800;padding:1px 5px;border-radius:7px}
@@ -895,7 +909,19 @@ body.rb-on #app{padding-top:58px}
     <div id="stk-logtab"><div class="stk-empty">불러오는 중…</div></div>
   </div>
   <div class="stk-pane" id="stk-pane3">
-    <div id="stk-rtAddBar" style="margin-bottom:8px"><button onclick="stkRtAddRow()" style="padding:8px 13px;border:1px solid #b9e0c9;background:#eaf7ef;color:#15803d;border-radius:9px;font-size:13px;font-weight:800;cursor:pointer">➕ 행 추가</button> <span id="stk-rtEditHint" style="font-size:11px;color:#888"></span></div>
+    <div id="stk-rtAddBar" style="margin-bottom:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      <button onclick="stkRtAddRow()" style="padding:8px 13px;border:1px solid #b9e0c9;background:#eaf7ef;color:#15803d;border-radius:9px;font-size:13px;font-weight:800;cursor:pointer">➕ 행 추가</button>
+      <span style="font-size:11px;color:#b91c1c;font-weight:600">⚠️ 재고표 수정 중에는 다른 직원이 같은 상품을 출고하지 않도록 주의 (가능하면 출고 끝난 뒤 정리)</span>
+      <span id="stk-rtEditHint" style="font-size:11px;color:#888"></span>
+    </div>
+    <div style="display:flex;gap:6px;margin-bottom:6px">
+      <select id="stk-rtBrand" onchange="stkRenderTable()" style="flex:1;height:38px;border:1px solid rgba(0,0,0,.12);border-radius:9px;padding:0 10px;font-size:13px;background:#fff;font-family:inherit"><option value="">전체 브랜드</option></select>
+      <select id="stk-rtCat" onchange="stkRenderTable()" style="flex:1;height:38px;border:1px solid rgba(0,0,0,.12);border-radius:9px;padding:0 10px;font-size:13px;background:#fff;font-family:inherit"><option value="">전체 분류</option></select>
+    </div>
+    <div style="display:flex;gap:14px;margin-bottom:6px;font-size:12px;color:#555">
+      <label style="display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="stk-rtSoldOut" onchange="stkRenderTable()" style="cursor:pointer"> 품절포함</label>
+      <label style="display:flex;align-items:center;gap:4px;cursor:pointer;color:#c0392b"><input type="checkbox" id="stk-rtOnlyOut" onchange="stkRenderTable()" style="cursor:pointer"> 출고만</label>
+    </div>
     <div class="sbox"><input id="stk-rtq" placeholder="🔍 브랜드·패턴·코드·사이즈" oninput="stkRenderTable()"><button>🔍</button></div>
     <div class="stk-rtwrap"><table class="stk-rt" id="stk-rtTable"></table></div>
   </div>
@@ -4151,11 +4177,205 @@ var stkAddViaInline=false;
 var STK_CATS=['일반','오프로드','휠','튜닝','행사','중고'];
 function stkRtAddRow(){
   if(!stkCanInline()){stkToast('남성현·이호준만 추가할 수 있습니다');return}
-  stkRtAdding=true;
+  stkRtAdding=true;stkRtAddingCount=1;
   stkRenderTable();
-  setTimeout(function(){var el=document.getElementById('stk-newBr');if(el)el.focus();},50);
+  // 첫 셀(분류)에 포커스 — 거기 paste하면 7칸/6칸 자동 처리, 여러 줄이면 행 자동 확장
+  setTimeout(function(){
+    stkRtAttachNewRowHandlers();
+    var first=document.querySelector('#stk-rtTable td.rt-newed[data-newrow="0"][data-newfield="cat"]');
+    if(first)first.focus();
+  },50);
+}
+// 빈 행 셀에 핸들러 부착: placeholder 표시, paste 자동 확장, Tab/Enter 이동, blur 정리
+function stkRtAttachNewRowHandlers(){
+  var cells=document.querySelectorAll('#stk-rtTable td.rt-newed');
+  cells.forEach(function(td){
+    if(td._stkNewHooked)return;td._stkNewHooked=true;
+    // placeholder (textContent 비어있으면 회색 글자 표시)
+    function updatePh(){
+      var ph=td.getAttribute('data-placeholder')||'';
+      if(td.textContent.trim()===''){
+        if(!td.getAttribute('data-empty')){td.setAttribute('data-empty','1');td.style.color='#bbb';td.textContent=ph;}
+      }else if(td.getAttribute('data-empty')){
+        td.removeAttribute('data-empty');td.style.color='';
+      }
+    }
+    td.addEventListener('focus',function(){
+      if(td.getAttribute('data-empty')){td.textContent='';td.removeAttribute('data-empty');td.style.color='';}
+    });
+    td.addEventListener('blur',updatePh);
+    // 자동 확장 paste — 첫 셀에만 (분류/브랜드 어디든 paste 받음)
+    td.addEventListener('paste',function(e){
+      var txt=(e.clipboardData||window.clipboardData).getData('text');
+      if(!txt)return;
+      // 여러 줄 또는 탭이 있으면 일괄 처리
+      if(txt.indexOf('\n')>=0||txt.indexOf('\t')>=0){
+        e.preventDefault();
+        stkRtBulkPasteIntoCells(txt);
+        return;
+      }
+      // 단일 값이면 기본 동작 (그냥 그 셀에 텍스트만)
+      e.preventDefault();
+      document.execCommand('insertText',false,txt.replace(/[\r\n]/g,'').trim());
+    });
+    td.addEventListener('keydown',function(e){
+      if(e.key==='Enter'){e.preventDefault();stkRtMoveNewCell(td,'down');}
+      else if(e.key==='Tab'){e.preventDefault();stkRtMoveNewCell(td,e.shiftKey?'left':'right');}
+      else if(e.key==='Escape'){e.preventDefault();stkRtCancelAdd();}
+    });
+    updatePh();
+  });
+}
+function stkRtMoveNewCell(td,dir){
+  var tr=td.parentElement,tbody=tr.parentElement;
+  var rowi=parseInt(td.getAttribute('data-newrow')||'0');
+  var field=td.getAttribute('data-newfield');
+  var order=['cat','br','name','code','size','dot','qty'];
+  var ci=order.indexOf(field);
+  if(dir==='right'&&ci<order.length-1){
+    var nxt=document.querySelector('#stk-rtTable td.rt-newed[data-newrow="'+rowi+'"][data-newfield="'+order[ci+1]+'"]');
+    if(nxt){nxt.focus();return}
+  }
+  if(dir==='left'&&ci>0){
+    var prv=document.querySelector('#stk-rtTable td.rt-newed[data-newrow="'+rowi+'"][data-newfield="'+order[ci-1]+'"]');
+    if(prv){prv.focus();return}
+  }
+  if(dir==='down'){
+    var nb=document.querySelector('#stk-rtTable td.rt-newed[data-newrow="'+(rowi+1)+'"][data-newfield="'+field+'"]');
+    if(nb){nb.focus();return}
+    // 다음 행이 없으면 빈 행 1개 추가
+    stkRtAddingCount=Math.max(stkRtAddingCount,rowi+2);
+    stkRenderTable();
+    setTimeout(function(){
+      stkRtAttachNewRowHandlers();
+      var nb2=document.querySelector('#stk-rtTable td.rt-newed[data-newrow="'+(rowi+1)+'"][data-newfield="'+field+'"]');
+      if(nb2)nb2.focus();
+    },30);
+  }
+}
+// 자동 확장 붙여넣기: 엑셀에서 N줄 복사 → 빈 행이 N개로 자동 확장 + 각 셀에 값 채움
+function stkRtBulkPasteIntoCells(txt){
+  var lines=txt.split(/\r?\n/).filter(function(l){return l.trim()});
+  if(!lines.length)return;
+  var VALID_CATS=['일반','행사','오프로드','중고','휠','튜닝'];
+  // 각 줄 파싱 — 7칸(cat 포함) 또는 6칸
+  var parsed=lines.map(function(line){
+    var c=line.split('\t').map(function(x){return x.trim()});
+    var hasCat=c.length>=6&&VALID_CATS.indexOf(c[0])>=0;
+    if(hasCat)return [c[0]||'',c[1]||'',c[2]||'',c[3]||'',c[4]||'',c[5]||'',c[6]||''];
+    return ['일반',c[0]||'',c[1]||'',c[2]||'',c[3]||'',c[4]||'',c[5]||''];
+  });
+  // 빈 행 N개로 확장 (붙여넣기 줄 수만큼)
+  stkRtAddingCount=parsed.length;
+  stkRenderTable();
+  // 각 빈 셀에 값 채우기
+  setTimeout(function(){
+    stkRtAttachNewRowHandlers();
+    var fields=['cat','br','name','code','size','dot','qty'];
+    parsed.forEach(function(row,ri){
+      fields.forEach(function(f,fi){
+        var cell=document.querySelector('#stk-rtTable td.rt-newed[data-newrow="'+ri+'"][data-newfield="'+f+'"]');
+        if(cell){
+          var v=row[fi]||'';
+          if(v){cell.textContent=v;cell.removeAttribute('data-empty');cell.style.color='';}
+        }
+      });
+    });
+    stkToast(parsed.length+'행 입력됨 — 확인 후 "N행 등록" 버튼');
+  },30);
+}
+// 일괄 등록: 빈 행 모두 읽어서 DB에 insert
+async function stkRtSaveBulkNew(){
+  if(!stkCanInline())return;
+  var rows=document.querySelectorAll('#stk-rtTable tr.stk-newrow');
+  if(!rows.length)return;
+  var VALID_CATS=['일반','행사','오프로드','중고','휠','튜닝'];
+  var items=[];
+  rows.forEach(function(tr){
+    function v(field){
+      var c=tr.querySelector('td.rt-newed[data-newfield="'+field+'"]');
+      if(!c||c.getAttribute('data-empty'))return '';
+      return c.textContent.trim();
+    }
+    var cat=v('cat')||'일반';
+    if(VALID_CATS.indexOf(cat)<0)cat='일반';
+    var br=v('br'),name=v('name'),code=v('code'),size=v('size'),dot=v('dot'),qty=parseInt(v('qty'))||0;
+    if(!br||!size)return; // 필수
+    items.push({cat:cat,br:br,name:name,code:code,size:size,dot:dot,qty:qty});
+  });
+  if(!items.length){stkToast('브랜드·사이즈가 있는 행이 없습니다');return}
+  if(!confirm(items.length+'개 행을 등록할까요?'))return;
+  var ok=0,fail=0;
+  for(var i=0;i<items.length;i++){
+    var r=items[i];
+    try{
+      var size=stkNormSize(r.size);
+      var ex=stkFindProduct(r.br,r.name,r.code,size);
+      var pid;
+      if(ex){pid=ex.id;}
+      else{
+        var ins=await sb.from('stock_products').insert({brand:r.br,name:r.name||(r.code||'(이름미정)'),code:r.code,size:size,category:r.cat}).select();
+        pid=ins.data[0].id;
+      }
+      if(r.qty>0){await sb.from('stock_lots').insert({product_id:pid,dot:r.dot,qty:r.qty,loc:'U'});}
+      stkLog('➕상품추가',r.br+' '+r.name+' '+size+(r.qty?' '+r.qty+'개':''),{product_id:pid,qty:r.qty});
+      ok++;
+    }catch(err){fail++;}
+  }
+  stkToast('✓ '+ok+'행 등록'+(fail?' / '+fail+'행 실패':''));
+  stkRtAdding=false;stkRtAddingCount=1;
+  await stkLoad();
+  stkRenderTable();
 }
 function stkRtCancelAdd(){stkRtAdding=false;stkRenderTable();}
+// 엑셀에서 여러 행 복사해서 붙여넣기 → 한꺼번에 신규 등록
+// 형식: 카테고리\t브랜드\t패턴\t코드\t사이즈\t연식\t수량 (탭 구분)
+// 또는: 브랜드\t패턴\t코드\t사이즈\t연식\t수량 (카테고리 없으면 '일반')
+async function stkRtBulkPaste(e){
+  if(!stkCanInline())return;
+  var txt=(e.clipboardData||window.clipboardData).getData('text');
+  if(!txt||txt.indexOf('\n')<0&&txt.indexOf('\t')<0)return; // 단일 값이면 기본 붙여넣기
+  e.preventDefault();
+  var lines=txt.split(/\r?\n/).filter(function(l){return l.trim()});
+  if(!lines.length)return;
+  var VALID_CATS=['일반','행사','오프로드','중고','휠','튜닝'];
+  // 각 줄 파싱
+  var rows=lines.map(function(line){
+    var c=line.split('\t').map(function(x){return x.trim()});
+    // 첫칸이 카테고리면 7칸, 아니면 6칸
+    var hasCat=c.length>=6&&VALID_CATS.indexOf(c[0])>=0;
+    if(hasCat){return {cat:c[0],br:c[1]||'',name:c[2]||'',code:c[3]||'',size:c[4]||'',dot:c[5]||'',qty:parseInt(c[6])||0};}
+    return {cat:'일반',br:c[0]||'',name:c[1]||'',code:c[2]||'',size:c[3]||'',dot:c[4]||'',qty:parseInt(c[5])||0};
+  });
+  // 미리보기 확인
+  var valid=rows.filter(function(r){return r.br&&r.size});
+  if(!valid.length){stkToast('브랜드·사이즈가 있는 행이 없습니다');return}
+  if(!confirm(valid.length+'개 행을 등록할까요?\n(첫 행: '+valid[0].br+' '+valid[0].name+' '+valid[0].size+')'))return;
+  // 일괄 등록
+  var ok=0,fail=0;
+  for(var i=0;i<valid.length;i++){
+    var r=valid[i];
+    try{
+      var size=stkNormSize(r.size);
+      var ex=stkFindProduct(r.br,r.name,r.code,size);
+      var pid;
+      if(ex){pid=ex.id;}
+      else{
+        var ins=await sb.from('stock_products').insert({brand:r.br,name:r.name||(r.code||'(이름미정)'),code:r.code,size:size,category:r.cat}).select();
+        pid=ins.data[0].id;
+      }
+      if(r.qty>0){
+        await sb.from('stock_lots').insert({product_id:pid,dot:r.dot,qty:r.qty,loc:'U'});
+      }
+      stkLog('➕상품추가',r.br+' '+r.name+' '+size+(r.qty?' '+r.qty+'개':''),{product_id:pid,qty:r.qty});
+      ok++;
+    }catch(err){fail++;}
+  }
+  stkToast('✓ '+ok+'행 등록'+(fail?' / '+fail+'행 실패':''));
+  stkRtAdding=false;
+  await stkLoad();
+  stkRenderTable();
+}
 async function stkRtSaveNew(){
   if(!stkCanInline()){stkToast('권한이 없습니다');return}
   var cat=(document.getElementById('stk-newCat')||{}).value||'일반';
@@ -4180,30 +4400,157 @@ async function stkRtSaveNew(){
     stkRenderTable();
   }catch(e){stkToast('추가 실패: '+e.message)}
 }
+// 엑셀처럼: contenteditable 셀에 focus/blur/keydown 일괄 부착 (DOM 변경 없음, 가벼움)
+function stkRtAttachCellHandlers(){
+  var tds=document.querySelectorAll('#stk-rtTable td.rt-ed[contenteditable="true"]');
+  tds.forEach(function(td){
+    if(td._stkHooked)return;td._stkHooked=true;
+    // 클릭 시 텍스트 전체 선택 (엑셀처럼 바로 덮어쓰기 편하게)
+    td.addEventListener('focus',function(){
+      td.setAttribute('data-old',td.textContent);
+      // 텍스트 전체 선택
+      try{var r=document.createRange();r.selectNodeContents(td);var s=window.getSelection();s.removeAllRanges();s.addRange(r);}catch(e){}
+    });
+    // 편집 종료 시 백그라운드 저장 (값 바뀌었을 때만)
+    td.addEventListener('blur',function(){
+      var nv=td.textContent.trim();
+      var old=td.getAttribute('data-old')||'';
+      if(nv===old)return;
+      var pid=td.getAttribute('data-pid');
+      var dot=td.getAttribute('data-dot')||'';
+      var field=td.getAttribute('data-field');
+      stkRtSaveFieldLight(pid,dot,field,nv,old,td);
+    });
+    // 키 처리: Enter/Tab→다음셀, Esc→취소, ↑↓←→ 셀 이동
+    td.addEventListener('keydown',function(e){
+      if(e.key==='Enter'){e.preventDefault();stkRtMoveCell(td,'down');}
+      else if(e.key==='Tab'){e.preventDefault();stkRtMoveCell(td,e.shiftKey?'left':'right');}
+      else if(e.key==='Escape'){e.preventDefault();td.textContent=td.getAttribute('data-old')||'';td.blur();}
+    });
+    // 줄바꿈 방지 (Enter는 이미 막음, 붙여넣기로도 줄바꿈 들어올 수 있음)
+    td.addEventListener('paste',function(e){
+      e.preventDefault();
+      var t=(e.clipboardData||window.clipboardData).getData('text').replace(/[\r\n\t]/g,' ').trim();
+      document.execCommand('insertText',false,t);
+    });
+  });
+}
+// 엑셀처럼 셀 이동 (방향에 따라 다음 편집 가능 셀로 focus)
+function stkRtMoveCell(td,dir){
+  var tr=td.parentElement;if(!tr)return;
+  var tbody=tr.parentElement;
+  var cells=Array.prototype.slice.call(tr.querySelectorAll('td.rt-ed[contenteditable="true"]'));
+  var idx=cells.indexOf(td);
+  if(dir==='right'&&idx<cells.length-1){cells[idx+1].focus();return}
+  if(dir==='left'&&idx>0){cells[idx-1].focus();return}
+  if(dir==='down'||dir==='up'){
+    var rows=Array.prototype.slice.call(tbody.querySelectorAll('tr'));
+    var ri=rows.indexOf(tr);
+    var nextTr=rows[ri+(dir==='down'?1:-1)];
+    if(!nextTr)return;
+    var nextCells=Array.prototype.slice.call(nextTr.querySelectorAll('td.rt-ed[contenteditable="true"]'));
+    // 같은 컬럼 인덱스로 — 행마다 셀 위치 동일하다 가정
+    if(nextCells[idx])nextCells[idx].focus();
+  }
+}
 function stkRtInline(td,pid,dot,field){
   if(!stkCanInline())return;
   if(td.querySelector('input'))return; // 이미 편집중
   var old=td.textContent;
+  // 모든 필드 text 입력 (number 스피너 X) — 호준님 요청: 화살표·드롭다운 없음, 직접 입력만
+  // inputmode=numeric → 모바일 숫자 키패드, 데스크탑은 텍스트
   var isNum=(field==='cur');
-  td.innerHTML='<input type="'+(isNum?'number':'text')+'" value="'+stkEsc(old)+'" style="width:90%;font-size:11px;padding:2px 4px;border:1.5px solid #2563eb;border-radius:4px" '+(isNum?'min="0"':'')+'>';
+  td.innerHTML='<input type="text" '+(isNum?'inputmode="numeric"':'')+' value="'+stkEsc(old)+'" style="width:90%;font-size:11px;padding:2px 4px;border:1.5px solid #2563eb;border-radius:4px;background:#fff;outline:none">';
   var inp=td.querySelector('input');inp.focus();inp.select();
+  var saved=false;
   function done(save){
+    if(saved)return; saved=true;
     var nv=inp.value.trim();
-    if(save && nv!==old && !(nv===''&&old==='')){stkRtSaveField(pid,dot,field,nv,old);}
-    else{stkRenderTable();}
+    if(save && nv!==old && !(nv===''&&old==='')){
+      // 백그라운드 저장 — UI는 즉시 textContent 업데이트, 다른 셀 누름 안 막음
+      td.textContent=nv;
+      stkRtSaveFieldLight(pid,dot,field,nv,old,td);
+    }else{
+      td.textContent=old; // 변경 없으면 원복
+    }
   }
   inp.onblur=function(){done(true)};
-  inp.onkeydown=function(e){if(e.key==='Enter'){e.preventDefault();inp.blur();}else if(e.key==='Escape'){inp.onblur=null;stkRenderTable();}};
+  inp.onkeydown=function(e){
+    if(e.key==='Enter'||e.key==='Tab'){e.preventDefault();inp.blur();}
+    else if(e.key==='Escape'){saved=true;td.textContent=old;}
+  };
 }
 function stkRtInlineCat(td,pid){
   if(!stkCanInline())return;
-  if(td.querySelector('select'))return;
+  if(td.querySelector('input'))return;
+  // span을 잠시 가리고 input 표시 (직접 입력, 드롭다운 없음)
   var cur=td.textContent.trim();
-  var opts=STK_CATS.map(function(c){return '<option'+(c===cur?' selected':'')+'>'+c+'</option>'}).join('');
-  td.innerHTML='<select style="font-size:11px;padding:2px;border:1.5px solid #2563eb;border-radius:4px">'+opts+'</select>';
-  var sel=td.querySelector('select');sel.focus();
-  sel.onchange=function(){stkRtSaveField(pid,'','cat',sel.value,cur);};
-  sel.onblur=function(){stkRenderTable();};
+  td.innerHTML='<input type="text" value="'+stkEsc(cur)+'" style="width:90%;font-size:11px;padding:2px 4px;border:1.5px solid #2563eb;border-radius:4px;background:#fff;outline:none" list="stk-cat-list">';
+  var inp=td.querySelector('input');inp.focus();inp.select();
+  var saved=false;
+  function done(save){
+    if(saved)return;saved=true;
+    var nv=inp.value.trim();
+    var VALID=['일반','행사','오프로드','중고','휠','튜닝'];
+    if(save && nv && nv!==cur && VALID.indexOf(nv)>=0){
+      td.textContent=nv;
+      stkRtSaveFieldLight(pid,'','cat',nv,cur,td);
+    }else{
+      // 원복: 다음 렌더에서 색·뱃지가 다시 입혀짐. 일단 텍스트만
+      td.textContent=cur;
+    }
+  }
+  inp.onblur=function(){done(true)};
+  inp.onkeydown=function(e){if(e.key==='Enter'||e.key==='Tab'){e.preventDefault();inp.blur();}else if(e.key==='Escape'){saved=true;td.textContent=cur;}};
+}
+// 가벼운 저장: 메모리(stkP)만 즉시 업데이트, DB는 백그라운드, 전체 재렌더 안 함
+async function stkRtSaveFieldLight(pid,dot,field,nv,old,td){
+  if(!stkCanInline())return;
+  var p=stkP.find(function(x){return x.id===pid});if(!p)return;
+  try{
+    if(field==='cur'){
+      var n=parseInt(nv);if(isNaN(n)||n<0){if(td)td.textContent=old;return}
+      var lots=(p.lots||[]).filter(function(l){return (l.dot||'DOT누락')===(dot||'DOT누락')});
+      if(lots.length===0){
+        var ins=await sb.from('stock_lots').insert({product_id:pid,dot:(dot==='DOT누락'?'':dot),qty:n,loc:'U'}).select();
+        if(ins.data&&ins.data[0])p.lots.push({id:ins.data[0].id,dot:dot==='DOT누락'?'':dot,q:n,loc:'U'});
+      }else if(lots.length===1){
+        await sb.from('stock_lots').update({qty:n,updated_at:new Date().toISOString()}).eq('id',lots[0].id);
+        lots[0].q=n;
+      }else{
+        var diff=n-parseInt(old||0);
+        var newQ=Math.max(0,lots[0].q+diff);
+        await sb.from('stock_lots').update({qty:newQ,updated_at:new Date().toISOString()}).eq('id',lots[0].id);
+        lots[0].q=newQ;
+      }
+      stkLog('✏️실사조정',p.br+' '+p.name+' '+p.size+' ('+(dot||'DOT누락')+') '+old+'→'+n+'개',{product_id:pid,dot:(dot==='DOT누락'?'':dot),qty:n});
+    }else if(field==='dot'){
+      var lots2=(p.lots||[]).filter(function(l){return (l.dot||'DOT누락')===(old||'DOT누락')});
+      var newDot=(nv==='DOT누락'||nv==='')?'':nv;
+      for(var i=0;i<lots2.length;i++){
+        await sb.from('stock_lots').update({dot:newDot}).eq('id',lots2[i].id);
+        lots2[i].dot=newDot;
+      }
+      stkLog('✏️정보수정',p.br+' '+p.name+' '+p.size+' 연식 '+old+'→'+(nv||'DOT누락'),{product_id:pid});
+    }else{
+      var col={cat:'category',br:'brand',name:'name',code:'code',size:'size'}[field];
+      if(!col){return}
+      var v=nv;
+      if(field==='size'&&typeof stkNormSize==='function')v=stkNormSize(nv);
+      await sb.from('stock_products').update({[col]:v}).eq('id',pid);
+      // 메모리 동기화
+      if(field==='cat')p.cat=v;
+      else if(field==='br')p.br=v;
+      else if(field==='name')p.name=v;
+      else if(field==='code')p.code=v;
+      else if(field==='size')p.size=v;
+      stkLog('✏️정보수정',p.br+' '+p.name+' '+p.size+' '+field+' '+old+'→'+nv,{product_id:pid});
+    }
+    // UI 갱신은 다음 자연 트리거에서 (다른 셀 편집/필터 변경 등)
+  }catch(e){
+    stkToast('저장 실패: '+e.message);
+    if(td)td.textContent=old; // 실패시 원복
+  }
 }
 async function stkRtSaveField(pid,dot,field,nv,old){
   if(!stkCanInline()){stkToast('권한이 없습니다');return}
@@ -4340,11 +4687,43 @@ function stkRtSortBy(col){
   else{stkRtSort.col=col;stkRtSort.dir=1;}
   stkRenderTable();
 }
+function stkRtFillFilters(){
+  var bs=document.getElementById('stk-rtBrand');
+  var cs=document.getElementById('stk-rtCat');
+  if(!bs||!cs)return;
+  var preBr=bs.value, preCat=cs.value;
+  // 브랜드 목록 (중복 제거, 가나다순)
+  var brs={};(stkP||[]).forEach(function(p){if(p.br)brs[p.br]=1});
+  var brList=Object.keys(brs).sort(function(a,b){return a.localeCompare(b,'ko')});
+  bs.innerHTML='<option value="">전체 브랜드</option>'+brList.map(function(b){return '<option value="'+stkEsc(b)+'">'+stkEsc(b)+'</option>'}).join('');
+  bs.value=preBr;
+  // 분류 목록
+  var cs0=['일반','행사','오프로드','중고','휠','튜닝'];
+  cs.innerHTML='<option value="">전체 분류</option>'+cs0.map(function(c){return '<option value="'+c+'">'+c+'</option>'}).join('');
+  cs.value=preCat;
+}
 function stkRenderTable(){
   var el=document.getElementById('stk-rtTable');if(!el)return;
+  stkRtFillFilters();
   var q=(document.getElementById('stk-rtq')||{}).value||'';
+  var fBr=(document.getElementById('stk-rtBrand')||{}).value||'';
+  var fCat=(document.getElementById('stk-rtCat')||{}).value||'';
+  var fSoldOut=(document.getElementById('stk-rtSoldOut')||{}).checked;  // 품절포함(재고0도 보임)
+  var fOnlyOut=(document.getElementById('stk-rtOnlyOut')||{}).checked;  // 출고만(오늘 채널출고 있는 상품만)
   var sums=stkChannelSums();
-  var list=stkP.filter(function(p){return stkMatch(p,q)});
+  var list=stkP.filter(function(p){
+    if(fBr&&p.br!==fBr)return false;
+    if(fCat&&(p.cat||'일반')!==fCat)return false;
+    if(!stkMatch(p,q))return false;
+    // 품절포함 안 켜져있으면 재고 0인 상품 제외 (기본: 재고 있는 것만)
+    if(!fSoldOut&&stkTq(p)<=0)return false;
+    // 출고만 켜져있으면 오늘 채널 출고가 있는 상품만
+    if(fOnlyOut){
+      var hasOut=(p.lots||[]).some(function(l){return sums[p.id+'|'+(l.dot||'DOT누락')]});
+      if(!hasOut)return false;
+    }
+    return true;
+  });
   // 1) 행 데이터를 평탄화(flat) — 연식별 한 행씩
   var R=[];
   list.forEach(function(p){
@@ -4387,13 +4766,17 @@ function stkRenderTable(){
       return 0;
     });
   }
-  // 3) 헤더 (정렬 화살표)
+  // 3) 헤더 (정렬 화살표 + 엑셀 스타일 알파벳)
   function arr(col){return stkRtSort.col===col?(stkRtSort.dir>0?' ▲':' ▼'):'';}
+  function ab(i){return String.fromCharCode(65+i)}  // 0→A, 1→B...
   var cols=[['cat','분류'],['br','브랜드'],['name','패턴'],['code','코드'],['size','사이즈'],['dot','DOT'],['cur','변동재고']];
-  var th='<thead><tr>';
-  cols.forEach(function(c){th+='<th class="rtsort" onclick="stkRtSortBy(\''+c[0]+'\')">'+c[1]+arr(c[0])+'</th>';});
-  STK_CHANS.forEach(function(c,i){th+='<th class="rtsort" onclick="stkRtSortBy(\'ch'+i+'\')">'+c.replace('&','&<br>')+arr('ch'+i)+'</th>';});
-  th+='<th class="rtsort" onclick="stkRtSortBy(\'qty\')">수량'+arr('qty')+'</th>';
+  var th='<thead><tr>',cabIdx=0;
+  cols.forEach(function(c,i){
+    var cls=(c[0]==='cur')?' thcur':'';
+    th+='<th class="rtsort'+cls+'" onclick="stkRtSortBy(\''+c[0]+'\')">'+c[1]+arr(c[0])+'<span class="colab">('+ab(cabIdx++)+')</span></th>';
+  });
+  STK_CHANS.forEach(function(c,i){th+='<th class="rtsort th-ch'+i+'" onclick="stkRtSortBy(\'ch'+i+'\')">'+c.replace('&','&<br>')+arr('ch'+i)+'<span class="colab">('+ab(cabIdx++)+')</span></th>';});
+  th+='<th class="rtsort" onclick="stkRtSortBy(\'qty\')">수량'+arr('qty')+'<span class="colab">('+ab(cabIdx++)+')</span></th>';
   if(stkCanInline())th+='<th>관리</th>';
   th+='</tr></thead>';
   // 4) 행 그리기
@@ -4404,14 +4787,20 @@ function stkRenderTable(){
     var pid=r.p.id, dotv=r.dot;
     function dq(s){return stkEsc(s).replace(/'/g,"");}
     // 즉시수정 가능한 칸: data-* 로 식별, 클릭하면 stkRtInline 호출
+    // 셀 자체를 편집 가능하게 (contenteditable) — input 생성 X, 엑셀처럼 가볍게
     function ed(field,val,extra){
       if(!canInline)return '<td'+(extra||'')+'>'+stkEsc(val)+'</td>';
-      return '<td'+(extra||'')+' class="rt-ed" style="cursor:pointer" title="클릭 수정" onclick="stkRtInline(this,\''+pid+'\',\''+dq(dotv)+'\',\''+field+'\')">'+stkEsc(val)+'</td>';
+      // extra에 class가 있으면 rt-ed를 합치기 (중복 class 속성 방지)
+      var ex=extra||'';
+      var clsMatch=ex.match(/ class="([^"]*)"/);
+      var cls='rt-ed'+(clsMatch?' '+clsMatch[1]:'');
+      ex=ex.replace(/ class="[^"]*"/,'');
+      return '<td'+ex+' class="'+cls+'" contenteditable="true" spellcheck="false" data-pid="'+pid+'" data-dot="'+stkEsc(dotv)+'" data-field="'+field+'" data-old="'+stkEsc(val)+'">'+stkEsc(val)+'</td>';
     }
-    // 분류는 드롭다운(클릭시), 나머지는 텍스트 입력
+    // 분류 셀도 동일 (드롭다운 X, 색뱃지 대신 행 왼쪽 컬러바로 분류 색 표시 유지)
     var catCell;
     if(canInline){
-      catCell='<td class="rt-ed" style="cursor:pointer" onclick="stkRtInlineCat(this,\''+pid+'\')"><span class="rtcat" style="background:'+cs.bg+';color:'+cs.t+'">'+stkEsc(r.cat)+'</span></td>';
+      catCell='<td class="rt-ed rtcatcell" contenteditable="true" spellcheck="false" data-pid="'+pid+'" data-dot="" data-field="cat" data-old="'+stkEsc(r.cat)+'" style="background:'+cs.bg+';color:'+cs.t+';font-weight:800">'+stkEsc(r.cat)+'</td>';
     }else{
       catCell='<td><span class="rtcat" style="background:'+cs.bg+';color:'+cs.t+'">'+stkEsc(r.cat)+'</span></td>';
     }
@@ -4422,10 +4811,10 @@ function stkRenderTable(){
       ed('code',r.code,('피렐리'===r.br?' style="color:#c00;font-weight:800"':''))+
       ed('size',r.size)+
       ed('dot',r.dot,(r.dot==='DOT누락'?' style="color:#dc2626"':''))+
-      ed('cur',r.cur,(' class="rtv'+(r.cur<0?' neg':(r.cur===0?' zero':''))+'"'));
+      ed('cur',r.cur,(' class="rtv rtcur'+(r.cur<0?' neg':(r.cur===0?' zero':''))+'"'));
     r.ch.forEach(function(v,ci){
       var chName=STK_CHANS[ci];
-      rows+='<td class="rtch" style="cursor:pointer" title="클릭해서 '+chName+' 출고" onclick="stkRtOpenOut(\''+pid+'\',\''+dq(dotv)+'\','+ci+')">'+(v||'<span style="color:#ccc">+</span>')+'</td>';
+      rows+='<td class="rtch ch-'+ci+'" style="cursor:pointer" title="클릭해서 '+chName+' 출고" onclick="stkRtOpenOut(\''+pid+'\',\''+dq(dotv)+'\','+ci+')">'+(v||'<span style="color:#ccc">+</span>')+'</td>';
     });
     rows+='<td class="rtqty">'+r.qty+'</td>';
     if(canInline){
@@ -4435,24 +4824,30 @@ function stkRenderTable(){
   });
   var addRow='';
   if(stkRtAdding && stkCanInline()){
-    var catOpts=STK_CATS.map(function(c){return '<option>'+c+'</option>'}).join('');
-    var inp='style="width:95%;font-size:11px;padding:3px 4px;border:1.5px solid #2563eb;border-radius:4px"';
-    addRow='<tr style="background:#eef6ff;border-left:4px solid #2563eb">'+
-      '<td><select id="stk-newCat" style="font-size:11px;padding:3px;border:1.5px solid #2563eb;border-radius:4px">'+catOpts+'</select></td>'+
-      '<td><input id="stk-newBr" placeholder="브랜드*" '+inp+'></td>'+
-      '<td><input id="stk-newName" placeholder="패턴" '+inp+'></td>'+
-      '<td><input id="stk-newCode" placeholder="코드" '+inp+'></td>'+
-      '<td><input id="stk-newSize" placeholder="사이즈*" '+inp+'></td>'+
-      '<td><input id="stk-newDot" placeholder="연식" '+inp+'></td>'+
-      '<td><input id="stk-newQty" type="number" value="0" min="0" style="width:50px;font-size:11px;padding:3px;border:1.5px solid #2563eb;border-radius:4px"></td>'+
-      STK_CHANS.map(function(){return '<td></td>';}).join('')+
-      '<td></td>'+
-      '<td style="white-space:nowrap"><button onclick="stkRtSaveNew()" style="font-size:11px;padding:3px 7px;border:none;background:#15803d;color:#fff;border-radius:6px;font-weight:800;cursor:pointer;margin-right:3px">저장</button>'+
-      '<button onclick="stkRtCancelAdd()" style="font-size:11px;padding:3px 7px;border:1px solid #ccc;background:#fff;color:#666;border-radius:6px;font-weight:800;cursor:pointer">취소</button></td></tr>';
+    // 빈 입력행 N개 — contenteditable, input 없음, 첫 셀에 paste하면 자동 확장
+    function emptyRow(idx){
+      var bg=(idx===0)?'#eef6ff':'#f7fafd';
+      function ne(field,ph,extra){
+        // contenteditable 빈 셀
+        return '<td'+(extra||'')+' class="rt-newed" contenteditable="true" spellcheck="false" data-newrow="'+idx+'" data-newfield="'+field+'" data-placeholder="'+ph+'" style="background:'+bg+'"></td>';
+      }
+      return '<tr class="stk-newrow" data-newrow="'+idx+'" style="background:'+bg+';border-left:4px solid #2563eb">'+
+        ne('cat','분류')+ne('br','브랜드*')+ne('name','패턴')+ne('code','코드')+ne('size','사이즈*')+ne('dot','연식')+ne('qty','수량')+
+        STK_CHANS.map(function(){return '<td style="background:'+bg+'"></td>';}).join('')+
+        '<td style="background:'+bg+'"></td>'+
+        (idx===0?'<td style="white-space:nowrap;background:'+bg+'"><button onclick="stkRtSaveBulkNew()" style="font-size:11px;padding:3px 7px;border:none;background:#15803d;color:#fff;border-radius:6px;font-weight:800;cursor:pointer;margin-right:3px">N행 등록</button><button onclick="stkRtCancelAdd()" style="font-size:11px;padding:3px 7px;border:1px solid #ccc;background:#fff;color:#666;border-radius:6px;font-weight:800;cursor:pointer">취소</button></td>':'<td style="background:'+bg+'"></td>')+
+        '</tr>';
+    }
+    // 처음 1행만 — paste하면 자동으로 늘어남
+    addRow='';
+    var nRows=stkRtAddingCount||1;
+    for(var ni=0;ni<nRows;ni++)addRow+=emptyRow(ni);
   }
   el.innerHTML=th+'<tbody>'+addRow+rows+'</tbody>'+
     '<tfoot><tr><td colspan="6">합계 '+R.length+'행</td><td class="rtv">'+totV+'</td>'+
     STK_CHANS.map(function(){return '<td></td>';}).join('')+'<td></td>'+(canInline?'<td></td>':'')+'</tr></tfoot>';
+  // 셀 핸들러 부착 (contenteditable 셀에 focus/blur/keydown)
+  if(canInline)stkRtAttachCellHandlers();
 }
 function stkRenderSearch(){
   var q=document.getElementById('stk-q').value||'';
