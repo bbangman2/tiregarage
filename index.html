@@ -4379,38 +4379,42 @@ async function stkRtSaveBulkNew(){
   });
   if(!items.length){stkToast('브랜드·사이즈가 있는 행이 없습니다');return}
   if(!confirm(items.length+'개 행을 등록할까요?'))return;
-  var ok=0,fail=0;
-  for(var i=0;i<items.length;i++){
-    var r=items[i];
-    try{
-      var size=stkNormSize(r.size);
-      // 중복 키 = 브랜드+패턴+코드+사이즈+P수 (P수가 다르면 다른 상품)
-      var ex=stkP.find(function(p){return p.br===r.br&&p.size===size&&(p.code||'')===(r.code||'')&&(p.name||'')===(r.name||'')&&(p.ply||'')===(r.ply||'')});
-      var pid;
-      if(ex){
-        // 이미 있으면 누락된 정보(P수·재원·공장도) 채워주기
-        var upd={};
-        if(r.ply&&!ex.ply)upd.ply=r.ply;
-        if(r.spec&&!ex.spec)upd.spec=r.spec;
-        if(r.fprice&&!ex.factory_price)upd.factory_price=r.fprice;
-        if(Object.keys(upd).length)await sb.from('stock_products').update(upd).eq('id',ex.id);
-        pid=ex.id;
-      }else{
-        var ins=await sb.from('stock_products').insert({brand:r.br,name:r.name||(r.code||'(이름미정)'),code:r.code,size:size,category:r.cat,ply:r.ply||'',spec:r.spec||'',factory_price:r.fprice||null}).select();
-        pid=ins.data[0].id;
-      }
-      // 수량 0이어도 lot 생성 (재고 0으로 등록 — 나중에 입고/출고 가능). 단 이미 같은 dot lot 있으면 추가 안 함
-      var hasLot=ex&&(ex.lots||[]).some(function(l){return (l.dot||'')===(r.dot||'')});
-      if(!hasLot){await sb.from('stock_lots').insert({product_id:pid,dot:r.dot,qty:r.qty,loc:'U'});}
-      else if(r.qty>0){
-        // 이미 같은 dot lot 있고 수량>0이면 그 lot에 더하기
-        var lot=ex.lots.find(function(l){return (l.dot||'')===(r.dot||'')});
-        await sb.from('stock_lots').update({qty:lot.q+r.qty}).eq('id',lot.id);
-      }
-      stkLog('➕상품추가',r.br+' '+r.name+' '+size+' '+r.qty+'개',{product_id:pid,qty:r.qty});
-      ok++;
-    }catch(err){fail++;}
-  }
+  // ── 배치 처리 (한 건씩 X — 수천 건도 빠르게) ──
+  var B=400,ok=0,fail=0;
+  // 모든 행 사이즈 정규화
+  items.forEach(function(r){r._size=stkNormSize(r.size);});
+  try{
+    // 1패스: 마스터에 없는 신규 상품 일괄 생성 (중복키=브랜드+패턴+코드+사이즈+P수)
+    var existKey={};
+    stkP.forEach(function(p){existKey[[p.br,p.name||'',p.code||'',p.size,p.ply||''].join('|')]=p.id;});
+    var newSeen={},newRows=[];
+    items.forEach(function(r){
+      var k=[r.br,r.name||'',r.code||'',r._size,r.ply||''].join('|');
+      if(existKey[k]||newSeen[k])return;
+      newSeen[k]=1;newRows.push(r);
+    });
+    for(var i=0;i<newRows.length;i+=B){
+      var chunk=newRows.slice(i,i+B).map(function(r){return {brand:r.br,name:r.name||(r.code||'(이름미정)'),code:r.code||'',size:r._size,category:r.cat,ply:r.ply||'',spec:r.spec||'',factory_price:r.fprice||null};});
+      var res=await sb.from('stock_products').insert(chunk);
+      if(res.error)throw res.error;
+    }
+    // 상품 다시 읽어 id 매핑
+    var pr=await sb.from('stock_products').select('*');
+    var byKey={};(pr.data||[]).forEach(function(p){byKey[[p.brand,p.name||'',p.code||'',p.size,p.ply||''].join('|')]=p.id;});
+    // 2패스: lots 일괄 insert (수량 0도)
+    var lots=[];
+    items.forEach(function(r){
+      var pid=byKey[[r.br,r.name||'',r.code||'',r._size,r.ply||''].join('|')];
+      if(!pid){fail++;return;}
+      lots.push({product_id:pid,dot:r.dot||'',qty:r.qty,loc:'U'});
+    });
+    for(var j=0;j<lots.length;j+=B){
+      var res2=await sb.from('stock_lots').insert(lots.slice(j,j+B));
+      if(res2.error)throw res2.error;
+      ok+=lots.slice(j,j+B).length;
+    }
+    stkLog('➕상품추가','일괄 등록 '+ok+'행'+(fail?' / '+fail+'행 실패':''),{qty:ok});
+  }catch(e){stkToast('등록 중 오류: '+e.message+' — 지금까지 '+ok+'건');}
   stkToast('✓ '+ok+'행 등록'+(fail?' / '+fail+'행 실패':''));
   stkRtAdding=false;stkRtAddingCount=1;
   await stkLoad();
@@ -6254,6 +6258,10 @@ async function stkUpRun(){
       }
     }else if(stkUpMode==='in'){
       // 새 양식 순서: c0카테고리 c1브랜드 c2패턴 c3패턴코드 c4사이즈 c5P수 c6재원 c7DOT c8공장도가 c9수량
+      // 새 분류 자동 등록 (자유 입력 — 트럭/BS 등도 OK)
+      var newCats=[];
+      rows.forEach(function(c){var ct=(c[0]||'').trim();if(ct&&stkCategories.indexOf(ct)<0&&newCats.indexOf(ct)<0)newCats.push(ct);});
+      if(newCats.length){stkCategories=stkCategories.concat(newCats);await saveCategories(stkCategories);}
       // 중복키 = 브랜드+패턴+코드+사이즈+P수 (P수 다르면 다른 상품)
       var keyOf=function(c){return [c[1],c[2]||'',c[3]||'',stkNormSize(c[4]||''),c[5]||''].join('|')};
       // 1패스: 마스터에 없는 상품 일괄 생성
