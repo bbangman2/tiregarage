@@ -4092,29 +4092,24 @@ function stkMatch(p,q){
   if(!q.trim())return true;
   var sd=p.size.replace(/[^0-9]/g,'');
   var dm=p.lots.some(function(l){return l.q>0&&!l.dot});
-  // 검색 대상: 카테고리·브랜드·패턴·코드·사이즈·연식·위치·메모 (가격은 제외 — 숫자 오매칭 방지)
-  var dots=p.lots.map(function(l){return l.dot||'';}).join(' ');
   var locs=p.lots.map(function(l){return (l.loc&&l.loc!=='U')?l.loc:'미배치';}).join(' ');
-  // 사이즈 토큰들 (235, 55, 18 등 개별) — 정확 매칭용
-  var sizeTokens=p.size.split(/\s+/).filter(Boolean);
-  // 연식 토큰들 (2026 등)
+  // 사이즈 숫자 토막: 문자·기호·공백으로 끊어 숫자 그룹만 (235 55 18→[235,55,18], 35X12.50 18→[35,12,50,18], LT235 85 16→[235,85,16])
+  var sizeNums=p.size.split(/[^0-9]+/).filter(Boolean);
   var dotTokens=p.lots.map(function(l){return l.dot||'';}).filter(Boolean);
-  // P수 토큰 (8p, 10p 등 — 소문자로)
   var plyTok=(p.ply||'').toLowerCase().trim();
-  // 텍스트(문자) 매칭용 — 가격·붙인숫자 제거
   var hay=((p.cat||'일반')+' '+p.br+' '+p.name+' '+(p.code||'')+' '+p.size+' '+(p.ply||'')+' '+(p.spec||'')+' '+locs+' '+(p.memo||'')+(dm?' dot누락 DOT누락':'')).toLowerCase();
   return q.toLowerCase().split(/\s+/).filter(Boolean).every(function(t){
     var td=t.replace(/[^0-9]/g,'');
-    // 1) 숫자만 입력 시: 사이즈·연식 정확 매칭만 (가격·붙인숫자 X)
+    // 1) 순수 숫자 토막: 사이즈 숫자그룹과 정확히 일치(순서무관) 또는 연식 일치
     if(td===t&&td.length){
-      if(sizeTokens.indexOf(td)>=0)return true;  // 사이즈 토큰 정확
-      if(dotTokens.indexOf(td)>=0)return true;   // 연식 정확
-      if(td.length>=5&&sd.indexOf(td)>=0)return true; // 사이즈 통째 (예: 2355518)
+      if(sizeNums.indexOf(td)>=0)return true;  // 사이즈 숫자그룹 토막 일치 (235,55,18,35,12,50…)
+      if(dotTokens.indexOf(td)>=0)return true; // 연식 일치
+      if(td.length>=5&&sd.indexOf(td)>=0)return true; // 사이즈 통째 (2355518)
       return false;
     }
-    // 2) P수 정확 매칭 (10p, 8p 등)
+    // 2) P수 정확 매칭 (10p, 8p)
     if(plyTok&&t===plyTok)return true;
-    // 3) 문자/혼합: 텍스트 검색
+    // 3) 문자/혼합(넥센, lt235, 오프로드 등): 텍스트 검색
     return hay.indexOf(t)>=0;
   });
 }
@@ -4705,6 +4700,8 @@ async function stkRtSaveFieldLight(pid,dot,field,nv,old,td){
       else if(field==='spec')p.spec=v;
       else if(field==='fprice')p.factory_price=v;
       stkLog('✏️정보수정',p.br+' '+p.name+' '+p.size+' '+field+' '+old+'→'+nv,{product_id:pid});
+      // 정규화/저장된 값이 입력과 다르면 셀에 즉시 반영 (수정이 사라진 것처럼 보이지 않게)
+      if(td&&String(v)!==String(nv))td.textContent=(v===null||v===undefined)?'':String(v);
     }
     // UI 갱신은 다음 자연 트리거에서 (다른 셀 편집/필터 변경 등)
   }catch(e){
@@ -5606,12 +5603,17 @@ function stkOpenNewOut(){
   stkCloseDlg();
   document.getElementById('stk-dlgNewOut').classList.add('on');
 }
-function stkNormSize(s){ // 2355518 / 235/55R18 / 235 55 18 → '235 55 18'
+function stkNormSize(s){ // 표준만 정규화. 규격 안 맞으면 원본 그대로 (오프로드/특이사이즈 보존)
   s=(s||'').trim();
-  var m=s.replace(/[^0-9]/g,'');
-  if(m.length>=7)return m.slice(0,3)+' '+m.slice(3,5)+' '+m.slice(5,7);
-  return s.replace(/\s+/g,' ');
+  if(/[xX×.]/.test(s))return s.replace(/\s+/g,' '); // x,×,. → 특이, 원본유지
+  var slash=s.match(/^(\d{3})\s*\/\s*(\d{2})\s*[A-Za-z]*\s*(\d{2})$/); // 235/55R18
+  if(slash)return slash[1]+' '+slash[2]+' '+slash[3];
+  if(/^\d{3}\s+\d{2}\s+\d{2}$/.test(s))return s.replace(/\s+/g,' '); // 이미 235 55 18
+  if(/^\d{7}$/.test(s)){var d=s;return d.slice(0,3)+' '+d.slice(3,5)+' '+d.slice(5,7);} // 정확히 7자리
+  return s.replace(/\s+/g,' '); // 그 외 전부 원본 유지
 }
+// 사이즈 검색용 — 숫자만 뽑아 비교 (35 12 50 18 ↔ 35X12.50 18 매칭)
+function stkSizeDigits(s){return (s||'').replace(/[^0-9]/g,'');}
 async function stkDoNewOut(){
   var brand=(document.getElementById('stk-noBrand').value||'').trim();
   var name=(document.getElementById('stk-noName').value||'').trim();
