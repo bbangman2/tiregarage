@@ -4338,6 +4338,25 @@ function stkChannelSums(){
   });
   return m;
 }
+// 누적 총출고 집계 (전 기간) — product_id+dot 별 채널별 + 합계 {pid|dot:{장착:n,...,_tot:n}}
+function stkTotalOut(){
+  var m={};
+  (stkLogRows||[]).forEach(function(g){
+    if(!g.product_id)return;
+    if((g.action||'').indexOf('출고')<0)return;
+    if((g.action||'').indexOf('취소')>=0)return;
+    if(g.ref&&(''+g.ref).indexOf('[취소됨]')>=0)return;
+    var ch=g.channel||'';
+    var matched=STK_CHANS.find(function(c){return ch===c||ch.indexOf(c)>=0;});
+    if(!matched)return;
+    var q=Math.abs(parseInt(g.qty)||0);
+    var key=g.product_id+'|'+(g.dot||'DOT누락');
+    if(!m[key])m[key]={_tot:0};
+    m[key][matched]=(m[key][matched]||0)+q;
+    m[key]._tot+=q;
+  });
+  return m;
+}
 var stkRtAdding=false;
 var stkAddViaInline=false;
 var STK_CATS=['일반','오프로드','휠','튜닝','행사','중고'];
@@ -5004,11 +5023,17 @@ function stkRenderTable(){
   function ab(i){return String.fromCharCode(65+i)}  // 0→A, 1→B...
   var cols=[['cat','분류'],['br','브랜드'],['name','패턴'],['code','패턴코드'],['size','사이즈'],['ply','P수'],['spec','재원'],['dot','DOT'],['fprice','공장도가'],['qty','수량'],['cur','변동재고']];
   var th='<thead><tr>',cabIdx=0;
+  var allOutTot=0; Object.keys(sums).forEach(function(k){STK_CHANS.forEach(function(c){allOutTot+=(sums[k][c]||0);});});
   cols.forEach(function(c,i){
     var cls=(c[0]==='cur')?' thcur':'';
-    th+='<th class="rtsort'+cls+'" onclick="stkRtSortBy(\''+c[0]+'\')">'+c[1]+arr(c[0])+'<span class="colab">('+ab(cabIdx++)+')</span></th>';
+    var qtyParen=(c[0]==='qty'&&allOutTot>0)?'<span class="ch-headtot" style="color:#2563eb;font-weight:700;font-size:11px"> ('+allOutTot+')</span>':'';
+    th+='<th class="rtsort'+cls+'" onclick="stkRtSortBy(\''+c[0]+'\')">'+c[1]+qtyParen+arr(c[0])+'<span class="colab">('+ab(cabIdx++)+')</span></th>';
   });
-  STK_CHANS.forEach(function(c,i){th+='<th class="rtsort th-ch'+i+'" onclick="stkRtSortBy(\'ch'+i+'\')">'+c.replace('&','&<br>')+arr('ch'+i)+'<span class="colab">('+ab(cabIdx++)+')</span></th>';});
+  STK_CHANS.forEach(function(c,i){
+    var chSum=0; Object.keys(sums).forEach(function(k){chSum+=(sums[k][c]||0);});
+    var paren=chSum>0?'<span class="ch-headtot" style="color:#2563eb;font-weight:700;font-size:11px"> ('+chSum+')</span>':'';
+    th+='<th class="rtsort th-ch'+i+'" onclick="stkRtSortBy(\'ch'+i+'\')">'+c.replace('&','&<br>')+paren+arr('ch'+i)+'<span class="colab">('+ab(cabIdx++)+')</span></th>';
+  });
   if(stkCanInline())th+='<th>관리</th>';
   th+='</tr></thead>';
   // 4) 행 그리기
