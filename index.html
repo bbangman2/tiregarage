@@ -707,9 +707,9 @@ body.rb-on #app{padding-top:58px}
 .item-add-btn.purple{background:#5b35b0}
 .item-add-btn:first-child{flex:1}
 .item-memo-input{flex:1;border:1.5px solid var(--border);border-radius:10px;padding:9px 12px;font-size:13px;outline:none;font-family:inherit;background:var(--bg)}
-.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:100;align-items:flex-end;justify-content:center}
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:100;align-items:center;justify-content:center;padding:16px;overflow-y:auto}
 .modal-bg.on{display:flex}
-.paste-modal{background:#fff;width:100%;max-width:560px;border-radius:16px 16px 0 0;padding:18px 16px 22px;max-height:90dvh;overflow-y:auto}
+.paste-modal{background:#fff;width:100%;max-width:560px;border-radius:16px;padding:18px 16px 22px;max-height:88dvh;overflow-y:auto;margin:auto}
 .paste-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
 .paste-head .pt{font-size:15px;font-weight:800;color:var(--navy)}
 .pmx{border:none;background:none;font-size:22px;color:var(--text3);cursor:pointer}
@@ -808,7 +808,7 @@ body.rb-on #app{padding-top:58px}
         <button class="item-tab" data-tab="sum" onclick="switchItemTab('sum')">📊 종합본</button>
         <button class="item-tab" data-tab="user" onclick="switchItemTab('user')">👤 작성자별</button>
         <button class="item-tab" data-tab="purpose" onclick="switchItemTab('purpose')">🚚 용도분류</button>
-        <button class="item-tab" data-tab="memo" onclick="switchItemTab('memo')">💬 메모</button>
+        <button class="item-tab" data-tab="memo" onclick="switchItemTab('memo')">↩️ 반품/특이사항</button>
       </div>
       <div class="item-search" id="item-search" style="display:none">
         <input id="item-search-input" placeholder="🔍 모델·규격·출처·용도 검색" oninput="onSearchInput()">
@@ -2301,13 +2301,25 @@ async function loadItems(){
     const all=data||[];
     // 반품과 일반 분리
     const todayDs=getTodayISO();
-    returnsCache=all.filter(function(it){return isReturnSrc(it.src);}).filter(function(it){
+    // 미완료 반품 이월: 오늘(단일날짜)을 볼 때, 과거의 '미완료 반품'도 함께 불러와 표시 (복사 없이 이월 효과)
+    let carryReturns=[];
+    if(!isRangeActive()&&sel.from===todayDs){
+      try{
+        const cr=await sb.from('items').select('*').eq('room_id',curRoom.id).lt('date_str',todayDs).or('is_return.eq.true,return_done.eq.false');
+        carryReturns=(cr.data||[]).filter(function(it){return isReturnItem(it)&&!it.return_done;});
+      }catch(e){carryReturns=[];}
+    }
+    const seenIds={};
+    returnsCache=all.filter(function(it){return isReturnItem(it);}).filter(function(it){
       // 범위 모드면 완료 포함 전부. 단일 날짜면: 미완료거나, 완료일이 오늘인 것만 (다음날부터 숨김)
       if(isRangeActive())return true;
       if(!it.return_done)return true;
       return it.return_done_date===todayDs;
     });
-    itemsCache=all.filter(function(it){return !isReturnSrc(it.src);});
+    returnsCache.forEach(function(it){seenIds[it.id]=true;});
+    // 과거 미완료 반품 합치기 (중복 제외)
+    carryReturns.forEach(function(it){if(!seenIds[it.id]){returnsCache.push(it);seenIds[it.id]=true;}});
+    itemsCache=all.filter(function(it){return !isReturnItem(it);});
   }catch(e){console.error('loadItems',e);itemsCache=[];returnsCache=[];}
   if(curItemTab==='list')renderItemList();
   if(curItemTab==='sum')renderItemSum();
@@ -3266,6 +3278,8 @@ function matchSearch(it){
   return hay.indexOf(itemSearchQuery)>=0;
 }
 function searchedItems(){return itemSearchQuery?itemsCache.filter(matchSearch):itemsCache;}
+// 반품 포함 전체 (작성자별·용도분류·종합본용 — 어느 탭에서든 반품 확인 가능하게)
+function searchedItemsAll(){var all=itemsCache.concat(returnsCache);return itemSearchQuery?all.filter(matchSearch):all;}
 function rerenderCurItemTab(){
   if(curItemTab==='list')renderItemList();
   else if(curItemTab==='sum')renderItemSum();
@@ -3328,9 +3342,20 @@ function isReturnSrc(src){
   var s=(src||'').toLowerCase();
   return returnKeywords.some(function(kw){return kw&&s.indexOf(kw.toLowerCase())>=0;});
 }
+// 항목 단위 반품 판정 — 출처 키워드 또는 수동 반품 플래그
+function isReturnItem(it){
+  return !!(it&&(it.is_return||isReturnSrc(it.src)));
+}
+// 반품 경과일 (D+N) — 반품 시작일부터 오늘까지
+function returnDaysElapsed(it){
+  var start=it.return_date||it.date_str;
+  if(!start)return 0;
+  var s=new Date(start+'T00:00:00+09:00'), today=new Date(getTodayISO()+'T00:00:00+09:00');
+  return Math.max(0,Math.round((today-s)/86400000));
+}
 // 출처의 그룹 판정 (반품이 최우선으로 분리, 그다음 받아오기>거래처발주>물류차>기타)
 function srcGroup(src){
-  if(isReturnSrc(src))return 'return';
+  if(src==='↩️ 반품'||isReturnSrc(src))return 'return';
   // 출처 목록에서 정확히 일치하는 항목의 분류 우선
   if(srcList&&srcList.length){
     var hit=srcList.find(function(it){return it.name===src;});
@@ -3342,8 +3367,8 @@ function srcGroup(src){
   if(isArrSrc(src))return 'arr';
   return 'etc';
 }
-const GROUP_ORDER={recv:0,order:1,arr:2,etc:3};
-const GROUP_BANNER={recv:'받아오기 (직접 가져올 타이어)',order:'거래처발주',arr:'물류차입고'};
+const GROUP_ORDER={recv:0,order:1,arr:2,etc:3,return:4};
+const GROUP_BANNER={recv:'받아오기 (직접 가져올 타이어)',order:'거래처발주',arr:'물류차입고',return:'↩️ 반품'};
 
 // settings에서 3그룹 키워드 로드
 async function loadRecvKeywords(){
@@ -3395,9 +3420,12 @@ function itemCardHtml(it){
   if(it.cancel_qty>0)qtyDisp=it.qty+'<small>개</small> <span style="color:#dc2626;font-size:10px">('+it.cancel_qty+' 취소)</span>';
   const logs=Array.isArray(it.logs)?it.logs:[];
   const logHtml=logs.map(function(lg){return '<div class="icard-log '+(lg.type==='edit'?'edit':'')+'">'+esc(lg.text)+'</div>';}).join('');
-  const acts=it.cancelled?'':'<span class="icb-acts"><button class="e" onclick="openEdit(\''+it.id+'\')">수정</button><button class="c" onclick="openCancel(\''+it.id+'\')">취소</button></span>';
-  return '<div class="icardB '+(it.cancelled?'cancelled':'')+'">'
-    +'<div class="irow1"><span class="icb-model">'+esc(it.model)+'</span><span class="icb-spec">'+esc(it.spec)+'</span><span class="icb-qty">'+qtyDisp+'</span></div>'
+  const ret=isReturnItem(it);
+  const retDone=ret&&it.return_done;
+  const acts=it.cancelled?'':'<span class="icb-acts"><button class="e" onclick="openEdit(\''+it.id+'\')">수정</button>'+(ret?'<button class="r" onclick="unmarkReturn(\''+it.id+'\')" style="background:#eef4ff;color:#2563eb;border:1px solid #b3c6e8">반품취소</button>':'<button class="r" onclick="markReturn(\''+it.id+'\')" style="background:#fef2f2;color:#dc2626;border:1px solid #f3c2c2">반품</button>')+'<button class="c" onclick="openCancel(\''+it.id+'\')">취소</button></span>';
+  const retTag=ret?'<span class="ret-flag" style="background:'+(retDone?'#9ca3af':'#dc2626')+';color:#fff;font-size:10px;font-weight:800;padding:1px 7px;border-radius:8px;margin-right:5px">'+(retDone?'✓ 반품완료':'↩️ 반품 D+'+returnDaysElapsed(it))+'</span>':'';
+  return '<div class="icardB '+(it.cancelled?'cancelled':'')+(ret?' is-return':'')+'"'+(retDone?' style="opacity:.55;border-left:3px solid #9ca3af;background:#f7f7f7"':(ret?' style="border-left:3px solid #dc2626;background:#fff8f8"':''))+'>'
+    +'<div class="irow1">'+retTag+'<span class="icb-model">'+esc(it.model)+'</span><span class="icb-spec">'+esc(it.spec)+'</span><span class="icb-qty">'+qtyDisp+'</span></div>'
     +'<div class="irow2"><span class="icb-use">'+esc(it.use_note||'미기입')+'</span><span class="icb-who">'+esc(it.user_name)+'</span>'+acts+'</div>'
     +logHtml+'</div>';
 }
@@ -3415,8 +3443,8 @@ function itemListBySrc(items){
 }
 function renderItemList(){
   const el=document.getElementById('item-body');
-  let html='<div class="iguide"><b>입력</b>: 스페이스=다음칸 / 규격칸만 스페이스 2번 / 빈칸 백스페이스=앞칸 / Enter=추가<br><b>취소/수정</b>: 각 카드의 버튼 → 사유 입력 (이력 보존)</div>';
-  const list=searchedItems();
+  let html='<div class="iguide"><b>입력</b>: 스페이스=다음칸 / 규격칸만 스페이스 2번 / 빈칸 백스페이스=앞칸 / Enter=추가<br><b>취소/수정/반품</b>: 각 카드의 버튼 (반품은 빨간색)</div>';
+  const list=searchedItemsAll();
   if(!list.length){el.innerHTML=html+'<div class="iempty">'+(itemSearchQuery?'검색 결과 없음':'아직 추가된 타이어가 없어요.')+'</div>';return;}
   if(isRangeActive()){
     const byDate={};
@@ -3434,10 +3462,12 @@ function renderItemList(){
 function itemSumBody(active){
   const groups={};
   active.forEach(function(it){
-    if(!groups[it.src])groups[it.src]={};
+    // 반품 항목은 합산에서 분리 — '↩️ 반품' 출처로 묶어 별도 표시 (일반 재고 집계와 안 섞이게)
+    var srcKey=isReturnItem(it)?'↩️ 반품':it.src;
+    if(!groups[srcKey])groups[srcKey]={};
     const key=it.model+'|'+it.spec;
-    if(!groups[it.src][key])groups[it.src][key]={model:it.model,spec:it.spec,qty:0,uses:[]};
-    const g=groups[it.src][key];
+    if(!groups[srcKey][key])groups[srcKey][key]={model:it.model,spec:it.spec,qty:0,uses:[]};
+    const g=groups[srcKey][key];
     g.qty+=(it.qty-(it.cancel_qty||0));
     if(it.use_note&&it.use_note!=='미기입'&&g.uses.indexOf(it.use_note)<0)g.uses.push(it.use_note);
   });
@@ -3468,7 +3498,7 @@ function itemSumBody(active){
 function renderItemSum(){
   const el=document.getElementById('item-body');
   let html='<div class="iguide">같은 출처+모델+규격 수량 합산. 취소분 제외.</div>';
-  const active=searchedItems().filter(function(it){return !it.cancelled;});
+  const active=searchedItemsAll().filter(function(it){return !it.cancelled;});
   if(!active.length){el.innerHTML=html+'<div class="iempty">'+(itemSearchQuery?'검색 결과 없음':'데이터 없음')+'</div>';return;}
   if(isRangeActive()){
     const byDate={};
@@ -3494,7 +3524,9 @@ function itemUserBody(items){
     rows.forEach(function(it){
       let qtyDisp=String(it.qty);
       if(it.cancel_qty>0)qtyDisp=it.qty+'<br><span style="color:#dc2626;font-size:9px">('+it.cancel_qty+' 취소)</span>';
-      html+='<tr class="'+(it.cancelled?'cancelled':'')+'"><td class="w">'+esc(it.src)+'</td><td class="m">'+esc(it.model)+'</td><td class="s">'+esc(it.spec)+'</td><td class="q">'+qtyDisp+'</td><td class="u">'+esc(it.use_note||'미기입')+'</td></tr>';
+      var _ret=isReturnItem(it);
+      var _rdone=_ret&&it.return_done;
+      html+='<tr class="'+(it.cancelled?'cancelled':'')+'"'+(_rdone?' style="background:#f5f5f5;opacity:.55"':(_ret?' style="background:#fff8f8"':''))+'><td class="w">'+(_ret?'<span style="color:'+(_rdone?'#9ca3af':'#dc2626')+';font-weight:800">↩️</span> ':'')+esc(it.src)+'</td><td class="m"'+(_ret&&!_rdone?' style="color:#dc2626"':'')+'>'+esc(it.model)+'</td><td class="s">'+esc(it.spec)+'</td><td class="q">'+qtyDisp+'</td><td class="u">'+esc(it.use_note||'미기입')+'</td></tr>';
       const logs=Array.isArray(it.logs)?it.logs:[];
       if(logs.length){
         const logHtml=logs.map(function(lg){return '<div class="icard-log '+(lg.type==='edit'?'edit':'')+'" style="font-size:9.5px">'+esc(lg.text)+'</div>';}).join('');
@@ -3507,8 +3539,8 @@ function itemUserBody(items){
 }
 function renderItemUser(){
   const el=document.getElementById('item-body');
-  let html='<div class="iguide">누가 무엇을 올렸는지. 수량 합산 안 함(추적용).</div>';
-  const list=searchedItems();
+  let html='<div class="iguide">누가 무엇을 올렸는지. 수량 합산 안 함(추적용). 반품은 빨간색.</div>';
+  const list=searchedItemsAll();
   if(!list.length){el.innerHTML=html+'<div class="iempty">'+(itemSearchQuery?'검색 결과 없음':'데이터 없음')+'</div>';return;}
   if(isRangeActive()){
     const byDate={};
@@ -3527,7 +3559,7 @@ function renderItemUser(){
 function renderItemPurpose(){
   const el=document.getElementById('item-body');
   let html='<div class="iguide">옮길 타이어를 용도별로 모았어요. 각 용도 안에서 <b>출처별</b>로 나뉘어요(아직 안 온 것 구분용). 취소분은 제외.</div>';
-  const active0=searchedItems().filter(function(it){return !it.cancelled;});
+  const active0=searchedItemsAll().filter(function(it){return !it.cancelled;});
   if(!active0.length){el.innerHTML=html+'<div class="iempty">'+(itemSearchQuery?'검색 결과 없음':'데이터 없음')+'</div>';return;}
   if(isRangeActive()){
     const byDate={};
@@ -3592,13 +3624,15 @@ function returnArea(){
   let h='<div class="recv-banner grp-return">반품 ('+returnsCache.length+')</div>';
   function rcard(it){
     const done=it.return_done;
+    const dN=returnDaysElapsed(it);
     return '<div class="ret-card'+(done?' done':'')+'">'
       +'<span class="ret-src">'+esc(it.src)+'</span>'
+      +(!done&&dN>0?'<span style="background:#dc2626;color:#fff;font-size:10px;font-weight:800;padding:1px 6px;border-radius:7px;margin-right:5px">D+'+dN+'</span>':'')
       +'<span class="ret-info"><span class="ret-model">'+esc(it.model)+'</span> <span class="ret-spec">'+esc(it.spec)+'</span> · '+it.qty+'개'
       +(it.use_note&&it.use_note!=='미기입'?' <span style="color:var(--text3);font-size:10px">'+esc(it.use_note)+'</span>':'')+'</span>'
       +(done
         ? '<span class="ret-done-tag">✓ 완료'+(it.return_done_date?' ('+fmtDateLabel(it.return_done_date)+')':'')+'</span>'
-        : '<button class="ret-btn" onclick="markReturnDone(\''+it.id+'\')">반품완료</button>')
+        : '<button class="ret-btn" onclick="markReturnDone(\''+it.id+'\')">반품완료</button><button class="ret-btn" onclick="unmarkReturn(\''+it.id+'\')" style="background:#eef4ff;color:#2563eb;margin-left:4px">반품취소</button>')
       +'</div>';
   }
   if(isRangeActive()){
@@ -3613,10 +3647,49 @@ function returnArea(){
   }
   return h+'<div style="height:14px"></div>';
 }
+async function markReturn(id){
+  var it=(itemsCache||[]).concat(returnsCache||[]).find(function(x){return x.id===id;});
+  if(!it){alert('항목을 찾을 수 없어요');return;}
+  var total=parseInt(it.qty)||0;
+  var ans=prompt('반품할 수량을 입력하세요 (전체 '+total+'개)\n전체 반품하려면 '+total+' 입력', String(total));
+  if(ans===null)return;
+  var rq=parseInt(ans)||0;
+  if(rq<=0){alert('1개 이상 입력하세요');return;}
+  if(rq>total){alert('재고('+total+'개)보다 많이 반품할 수 없어요');return;}
+  var today=getTodayISO();
+  try{
+    if(rq>=total){
+      // 전체 반품 — 이 항목을 반품으로 전환
+      const{error}=await sb.from('items').update({is_return:true,return_date:today}).eq('id',id);
+      if(error)throw error;
+    }else{
+      // 부분 반품 — 원래 항목 수량 차감 + 반품 수량만 별도 항목 생성
+      const{error:e1}=await sb.from('items').update({qty:total-rq}).eq('id',id);
+      if(e1)throw e1;
+      const{error:e2}=await sb.from('items').insert({room_id:curRoom.id,date_str:today,src:it.src,model:it.model,spec:it.spec,qty:rq,use_note:it.use_note||'',cancel_qty:0,cancelled:false,logs:[{type:'edit',text:'↩️ 부분반품 ('+rq+'개) — 원항목에서 분리'}],user_name:me.name,is_return:true,return_date:today});
+      if(e2)throw e2;
+    }
+  }catch(e){alert('반품 처리 실패: '+e.message);return;}
+  await loadItems();
+}
+async function unmarkReturn(id){
+  if(!confirm('이 항목의 반품을 취소하고 일반 항목으로 되돌릴까요?'))return;
+  var it=(itemsCache||[]).concat(returnsCache||[]).find(function(x){return x.id===id;});
+  var logs=it&&Array.isArray(it.logs)?it.logs.slice():[];
+  logs.push({type:'edit',text:'↩️ 반품취소 — '+me.name+' ('+fmtDateLabel(getTodayISO())+')'});
+  try{
+    const{error}=await sb.from('items').update({is_return:false,return_date:null,return_done:false,return_done_date:null,logs:logs}).eq('id',id);
+    if(error)throw error;
+  }catch(e){alert('반품 취소 실패: '+e.message);return;}
+  await loadItems();
+}
 async function markReturnDone(id){
   if(!confirm('이 반품을 완료 처리할까요?'))return;
+  var it=(itemsCache||[]).concat(returnsCache||[]).find(function(x){return x.id===id;});
+  var logs=it&&Array.isArray(it.logs)?it.logs.slice():[];
+  logs.push({type:'',text:'✓ 반품완료 — '+me.name+' ('+fmtDateLabel(getTodayISO())+')'});
   try{
-    const{error}=await sb.from('items').update({return_done:true,return_done_date:getTodayISO()}).eq('id',id);
+    const{error}=await sb.from('items').update({return_done:true,return_done_date:getTodayISO(),logs:logs}).eq('id',id);
     if(error)throw error;
   }catch(e){alert('처리 실패: '+e.message);return;}
   await loadItems();
