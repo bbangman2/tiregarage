@@ -373,7 +373,7 @@ body.rb-on #app{padding-top:58px}
 .unassigned .mvbtn{font-size:10px;font-weight:800;padding:4px 8px;border-radius:6px;border:1px solid #fcd9b6;background:#fff7ed;color:#9a3412}
 .uempty2{font-size:12px;color:#bbb;text-align:center;padding:6px}
 .stkdlgbg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:60}
-.stkdlgbg.on{display:flex;align-items:flex-end;justify-content:center}
+.stkdlgbg.on{display:flex;align-items:flex-start;justify-content:center;padding-top:8vh}
 .stkdlg{background:#fff;border-radius:16px 16px 0 0;width:100%;max-width:560px;padding:16px 16px 22px;max-height:86dvh;overflow-y:auto}
 .stkdlg h3{font-size:14px;color:#1a2035;margin-bottom:4px}
 .stkdlg .sub2{font-family:Consolas,monospace;font-size:11px;color:#666;margin-bottom:10px}
@@ -1113,6 +1113,16 @@ body.rb-on #app{padding-top:58px}
       <div class="del-row" style="gap:6px">
         <input id="cat-name-input" placeholder="분류 이름 (예: 트럭, BS, 스노우)" style="flex:1;padding:8px 11px;border:1px solid var(--border);border-radius:8px;font-size:14px;outline:none;font-family:inherit">
         <button class="btn-danger" style="background:#5b35b0" onclick="addCategory()">추가</button>
+      </div>
+    </div>
+    <div class="danger-section" style="border-color:rgba(21,128,61,.3);background:rgba(21,128,61,.06)">
+      <div class="danger-title" style="color:#15803d">📄 업로드 양식 다운로드</div>
+      <div class="del-hint" style="margin-bottom:10px">엑셀 양식을 받아서 채운 뒤, 재고방의 ➕ 행 추가 → 붙여넣기 또는 📥 업로드 메뉴로 올리세요.</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px">
+        <button onclick="stkDownloadTemplate('in')" style="padding:8px 13px;border:1px solid #b9e0c9;background:#fff;color:#15803d;border-radius:9px;font-size:13px;font-weight:800;cursor:pointer">📥 입고 양식</button>
+        <button onclick="stkDownloadTemplate('price')" style="padding:8px 13px;border:1px solid #f7c9a1;background:#fff;color:#c2680e;border-radius:9px;font-size:13px;font-weight:800;cursor:pointer">📋 가격갱신 양식</button>
+        <button onclick="stkDownloadTemplate('new')" style="padding:8px 13px;border:1px solid #b3c6e8;background:#fff;color:#2563eb;border-radius:9px;font-size:13px;font-weight:800;cursor:pointer">➕ 신규상품 양식</button>
+        <button onclick="stkDownloadTemplate('cat')" style="padding:8px 13px;border:1px solid #ccb3e8;background:#fff;color:#5b35b0;border-radius:9px;font-size:13px;font-weight:800;cursor:pointer">🏷️ 분류변경 양식</button>
       </div>
     </div>
     <div class="danger-section" style="border-color:rgba(220,38,38,.3);background:rgba(220,38,38,.06)">
@@ -6029,6 +6039,163 @@ function stkFindProduct(br,name,code,size){
   return stkP.find(function(p){return p.br===br&&p.size===size&&((code&&p.code===code)||(!code&&p.name===name)||(p.name===name))})
     ||stkP.find(function(p){return p.br===br&&p.size===size&&code&&p.code===code});
 }
+// 4가지 업로드 양식 다운로드 (입고/가격갱신/신규/분류변경)
+async function stkDownloadTemplate(mode){
+  if(!window.XLSX){await stkLoadXLSX();}
+  if(!window.XLSX){stkToast('엑셀 라이브러리 로드 실패');return;}
+  var XLSX=window.XLSX;
+  
+  // 모드별 설정
+  var configs={
+    'in':{
+      title:'재고방_입고양식',
+      sheet:'① 입고',
+      headers:['카테고리','브랜드★','패턴','패턴코드','사이즈★','P수','재원','DOT','공장도가','수량★'],
+      required:[false,true,false,false,true,false,false,false,false,true],
+      colors:['7c3aed','C00000','2563EB','2563EB','C00000','2563EB','2563EB','2563EB','15803d','C00000'],
+      widths:[10,14,16,12,12,7,18,10,11,8],
+      examples:[
+        ['일반','금호','크루젠','HP71','235 55 18','','한국산','2026',90000,10],
+        ['행사','사일룬','AT','','265 70 16','4P','중국산 행사상품','2025',60000,8],
+        ['오프로드','BF굿리치','KO3','','285 70 17','6P','OE 마킹','2025',180000,4]
+      ],
+      guide:[
+        '📥 입고 업로드 양식 — 사용법',
+        '',
+        '1. 열 순서를 절대 바꾸지 마세요',
+        '   카테고리·브랜드·패턴·패턴코드·사이즈·P수·재원·DOT·공장도가·수량',
+        '',
+        '2. ★ 표시는 필수: 브랜드, 사이즈, 수량',
+        '',
+        '3. 카테고리 — 일반/행사/오프로드/중고/휠/튜닝 또는 호준님이 새로 등록한 분류',
+        '   비우면 자동 "일반"',
+        '',
+        '4. P수 — 4P/6P/8P 등 (사이즈에 안 들어가는 것)',
+        '   같은 사이즈라도 P수가 다르면 다른 상품으로 처리됩니다',
+        '',
+        '5. 재원 — 원산지·흡음재 여부·마킹 등 자유 텍스트',
+        '',
+        '6. DOT — 연식 (2025, 2026 등). 같은 상품의 같은 DOT는 한 lot으로 합쳐집니다',
+        '',
+        '7. 공장도가 — 숫자만 (예: 90000). 비워도 됨',
+        '',
+        '⚠️ 복사-붙여넣기 시 주의:',
+        '   엑셀에서 전체 범위(헤더 빼고)를 선택해 복사하면 빈 칸도 탭으로 유지됩니다.',
+        '   재고방 → 행 추가 → 빈 셀에 Ctrl+V 로 한꺼번에 입력 가능 (500행 이하 권장)'
+      ]
+    },
+    'price':{
+      title:'재고방_가격갱신양식',
+      sheet:'② 가격',
+      headers:['브랜드★','패턴','패턴코드','사이즈★','연식(DOT)','판매가(택배)','장착가'],
+      required:[true,false,false,true,false,false,false],
+      colors:['C00000','2563EB','2563EB','C00000','2563EB','E8A317','E8A317'],
+      widths:[14,16,12,12,10,12,11],
+      examples:[
+        ['금호','크루젠','HP71','235 55 18','2026',135000,150000],
+        ['넥센','엔페라','','225 45 18','',128000,145000]
+      ],
+      guide:[
+        '📋 가격 갱신 양식 — 사용법',
+        '',
+        '1. 매칭 기준: 브랜드+패턴+패턴코드+사이즈',
+        '   매칭되는 상품의 가격만 바뀝니다 (재고/기록 안 건드림)',
+        '',
+        '2. 연식 비우면: 그 상품 전체 가격 변경',
+        '   연식 입력: 해당 연식 lot만 변경',
+        '',
+        '3. 판매가(택배) — 택배 판매가',
+        '   장착가 — 장착 판매가',
+        '   둘 중 하나만 채워도 됩니다 (다른 것은 그대로 유지)'
+      ]
+    },
+    'new':{
+      title:'재고방_신규상품양식',
+      sheet:'③ 신규',
+      headers:['브랜드★','패턴','패턴코드','사이즈★','P수','재원','공장도가','판매가(택배)','장착가','비고'],
+      required:[true,false,false,true,false,false,false,false,false,false],
+      colors:['C00000','2563EB','2563EB','C00000','2563EB','2563EB','15803d','E8A317','E8A317','2563EB'],
+      widths:[14,16,12,12,7,18,11,12,11,16],
+      examples:[
+        ['금호','크루젠','HP71','235 55 18','','','90000',135000,150000,''],
+        ['사일룬','AT','','265 70 16','4P','중국산','45000',75000,85000,'행사 한정']
+      ],
+      guide:[
+        '➕ 신규 상품 양식 — 사용법',
+        '',
+        '1. 재고 0으로 신규 등록만 (입고 X)',
+        '   상품 마스터에 등록만 하고 실제 입고는 따로',
+        '',
+        '2. 같은 브랜드+패턴+코드+사이즈+P수는 한 상품',
+        '   이미 있으면 건너뜀',
+        '',
+        '3. 공장도가·판매가·장착가 — 다 선택 (비워도 됨)'
+      ]
+    },
+    'cat':{
+      title:'재고방_분류변경양식',
+      sheet:'분류',
+      headers:['브랜드★','패턴','패턴코드','사이즈★','카테고리★'],
+      required:[true,false,false,true,true],
+      colors:['C00000','2563EB','2563EB','C00000','7c3aed'],
+      widths:[14,16,12,12,12],
+      examples:[
+        ['금호','크루젠','HP71','235 55 18','행사'],
+        ['사일룬','AT','','265 70 16','오프로드']
+      ],
+      guide:[
+        '🏷️ 분류 변경 양식 — 사용법',
+        '',
+        '1. 카테고리만 일괄 변경 (재고/기록 안 건드림)',
+        '',
+        '2. 매칭 기준: 브랜드+패턴+패턴코드+사이즈',
+        '   매칭되는 상품의 분류(카테고리)만 바뀝니다',
+        '',
+        '3. 카테고리 — 등록된 분류 목록 (관리자 패널 분류 관리에서 확인)',
+        '   새 분류는 자동으로 등록됩니다'
+      ]
+    }
+  };
+  
+  var cfg=configs[mode];
+  if(!cfg){stkToast('양식 모드 오류');return;}
+  
+  // 메인 시트
+  var wb=XLSX.utils.book_new();
+  var aoa=[cfg.headers].concat(cfg.examples);
+  var ws=XLSX.utils.aoa_to_sheet(aoa);
+  
+  // 헤더 스타일 (색·흰글자·굵게·중앙·Arial 10)
+  var hb={font:{name:'Arial',sz:10,bold:true,color:{rgb:'FFFFFF'}},alignment:{horizontal:'center',vertical:'center'}};
+  for(var c=0;c<cfg.headers.length;c++){
+    var addr=XLSX.utils.encode_cell({r:0,c:c});
+    if(ws[addr])ws[addr].s=Object.assign({},hb,{fill:{patternType:'solid',fgColor:{rgb:cfg.colors[c]}}});
+  }
+  // 예시 행 스타일 (옅은 색 폰트)
+  var exFont={font:{name:'Arial',sz:10,italic:true,color:{rgb:'888888'}}};
+  for(var r=1;r<aoa.length;r++){
+    for(var cc=0;cc<cfg.headers.length;cc++){
+      var ad=XLSX.utils.encode_cell({r:r,c:cc});
+      if(!ws[ad])ws[ad]={t:'s',v:''};
+      ws[ad].s=exFont;
+    }
+  }
+  ws['!cols']=cfg.widths.map(function(w){return {wch:w}});
+  ws['!rows']=[{hpt:24}]; // 헤더 높이
+  ws['!freeze']={xSplit:0,ySplit:1};
+  XLSX.utils.book_append_sheet(wb,ws,cfg.sheet);
+  
+  // 사용법 시트
+  var guideAoa=cfg.guide.map(function(g){return [g]});
+  var wsG=XLSX.utils.aoa_to_sheet(guideAoa);
+  wsG['!cols']=[{wch:80}];
+  if(wsG['A1'])wsG['A1'].s={font:{name:'Arial',sz:13,bold:true,color:{rgb:'2F5496'}}};
+  XLSX.utils.book_append_sheet(wb,wsG,'사용법');
+  
+  var fn=cfg.title+'_'+new Date(new Date().getTime()+9*3600*1000).toISOString().slice(0,10)+'.xlsx';
+  XLSX.writeFile(wb,fn);
+  stkToast('양식 다운로드: '+fn);
+}
 async function stkUpRun(){
   if(!stkEditGuard())return;
   var rows=stkUpParse();
@@ -6140,7 +6307,7 @@ async function stkUpRun(){
   <table class="cdlg-tbl" id="stk-cdTbl"></table>
   <div class="stkacts"><button class="stk-no" onclick="stkCloseDlg()">닫기</button></div>
 </div></div>
-<div class="stkdlgbg" id="stk-dlgRtOut"><div class="stkdlg" style="max-width:320px">
+<div class="stkdlgbg" id="stk-dlgRtOut" onclick="if(event.target===this)stkCloseDlg()"><div class="stkdlg" style="max-width:320px">
   <div class="stkdlg-t" id="stk-rtoTitle" style="font-size:15px;margin-bottom:4px">출고</div>
   <div id="stk-rtoSub" style="font-size:12px;color:#888;margin-bottom:12px"></div>
   <label style="font-size:12px;color:#666;display:block;margin-bottom:3px">수량</label>
@@ -6152,7 +6319,7 @@ async function stkUpRun(){
     <button onclick="stkRtDoOut()" style="flex:2;padding:11px;border:none;background:#c0392b;color:#fff;border-radius:9px;font-weight:800;cursor:pointer">출고 처리</button>
   </div>
 </div></div>
-<div class="stkdlgbg" id="stk-dlgOut"><div class="stkdlg">
+<div class="stkdlgbg" id="stk-dlgOut" onclick="if(event.target===this)stkCloseDlg()"><div class="stkdlg">
   <h3 id="stk-outTitle">📦 출고</h3>
   <div class="sub2" id="stk-outStockInfo"></div>
   <div class="row"><label>몇 개 출고?</label><input type="number" id="stk-outQty" value="1" min="1" oninput="stkOutCheckStock()"></div>
@@ -6175,7 +6342,7 @@ async function stkUpRun(){
   <div class="row"><label>용도 메모 (한 줄, 그대로 기록에 남음)</label><input id="stk-outMemo" placeholder="예) 핑 택배 / 서울경기 택배 / 전화 남양주장착 / 핑 직배송"></div>
   <div class="stkacts"><button class="stk-no" onclick="stkCloseDlg()">취소</button><button class="stk-ok" id="stk-outGo" onclick="stkDoOut()">출고 확정</button></div>
 </div></div>
-<div class="stkdlgbg" id="stk-dlgNewOut"><div class="stkdlg">
+<div class="stkdlgbg" id="stk-dlgNewOut" onclick="if(event.target===this)stkCloseDlg()"><div class="stkdlg">
   <h3>➕ 새 상품 등록하고 출고</h3>
   <div class="sub2">창고 마스터에 없는 타이어입니다. 칸을 채우면 등록 후 바로 출고(입고예정 마이너스)됩니다.</div>
   <div class="row"><label>브랜드 *</label><input id="stk-noBrand" placeholder="예) 한국 / 금호 / 미쉐린 / 넥센"></div>
@@ -6184,7 +6351,7 @@ async function stkUpRun(){
   <div class="row"><label>사이즈 *</label><input id="stk-noSize" placeholder="예) 235 55 18 (붙여써도 됨: 2355518)"></div>
   <div class="stkacts"><button class="stk-no" onclick="stkCloseDlg()">취소</button><button class="stk-ok" onclick="stkDoNewOut()">등록하고 출고로 →</button></div>
 </div></div>
-<div class="stkdlgbg" id="stk-dlgAdd"><div class="stkdlg">
+<div class="stkdlgbg" id="stk-dlgAdd" onclick="if(event.target===this)stkCloseDlg()"><div class="stkdlg">
   <h3>✏️ 새 상품 추가</h3>
   <div class="sub2">칸을 채우면 재고에 바로 등록됩니다 (대량은 입고 업로드).</div>
   <div class="row"><label>카테고리</label><select id="stk-adCat" style="width:100%;height:42px;border:1.5px solid rgba(0,0,0,.18);border-radius:9px;padding:0 11px;font-size:16px;color:#111;font-weight:700;background:#fff"><option>일반</option><option>오프로드</option><option>휠</option><option>튜닝</option><option>행사</option><option>중고</option></select></div>
@@ -6197,13 +6364,13 @@ async function stkUpRun(){
   <div class="row"><label>위치 (비우면 미배치)</label><input id="stk-adLoc" placeholder="예) A3-05"></div>
   <div class="stkacts"><button class="stk-no" onclick="stkCloseDlg()">취소</button><button class="stk-ok" onclick="stkDoAdd()">추가</button></div>
 </div></div>
-<div class="stkdlgbg" id="stk-dlgMove"><div class="stkdlg">
+<div class="stkdlgbg" id="stk-dlgMove" onclick="if(event.target===this)stkCloseDlg()"><div class="stkdlg">
   <h3 id="stk-mvTitle">📍 이동</h3>
   <div class="row"><label>수량</label><input type="number" id="stk-mvQty" value="1" min="1"></div>
   <div class="row"><label>목적지 칸 (예: A3-04 · S-02 · U=미배치)</label><input id="stk-mvTo" placeholder="A3-04"></div>
   <div class="stkacts"><button class="stk-no" onclick="stkCloseDlg()">취소</button><button class="stk-ok" onclick="stkDoMove()">이동 확정</button></div>
 </div></div>
-<div class="stkdlgbg" id="stk-dlgEdit"><div class="stkdlg">
+<div class="stkdlgbg" id="stk-dlgEdit" onclick="if(event.target===this)stkCloseDlg()"><div class="stkdlg">
   <h3 id="stk-edTitle">✏️ 수정</h3>
   <div class="sub2">개별 수정 — 정보를 직접 고칩니다 (대량은 업로드로)</div>
   <div class="row"><label>카테고리</label><select id="stk-edCat" style="width:100%;height:42px;border:1.5px solid rgba(0,0,0,.18);border-radius:9px;padding:0 11px;font-size:16px;color:#111;font-weight:700;background:#fff"><option>일반</option><option>오프로드</option><option>휠</option><option>튜닝</option><option>행사</option><option>중고</option></select></div>
@@ -6218,9 +6385,10 @@ async function stkUpRun(){
   <div class="stkacts"><button class="stk-no" onclick="stkCloseDlg()">취소</button><button class="stk-ok" onclick="stkDoEdit()">저장</button></div>
   <div style="margin-top:10px;border-top:1px solid #f0e0e0;padding-top:10px"><button onclick="stkDoDelete()" style="width:100%;padding:9px;border:1.5px solid #f3c2c2;background:#fdf2f2;color:#c0392b;border-radius:9px;font-size:13px;font-weight:800">🗑️ 이 상품 삭제 (관리자)</button><div style="font-size:11px;color:#b08;margin-top:5px;text-align:center">상품·재고만 삭제됩니다. 출고기록은 보존됩니다.</div></div>
 </div></div>
-<div class="stkdlgbg" id="stk-dlgUp"><div class="stkdlg">
+<div class="stkdlgbg" id="stk-dlgUp" onclick="if(event.target===this)stkCloseDlg()"><div class="stkdlg">
   <h3 id="stk-upTitle">📥 업로드</h3>
   <div class="sub2" id="stk-upHint"></div>
+  <button onclick="stkDownloadTemplate(stkUpMode)" style="display:inline-block;font-size:12px;padding:6px 11px;border:1px solid #b9e0c9;background:#eaf7ef;color:#15803d;border-radius:7px;font-weight:700;cursor:pointer;margin-bottom:8px">📄 이 양식 다운로드</button>
   <label style="display:block;border:2px dashed rgba(0,0,0,.18);border-radius:9px;padding:13px;text-align:center;font-size:12px;color:#666;cursor:pointer;margin-bottom:8px">📂 엑셀 파일 선택 (.xlsx — 시트 자동 인식)
     <input type="file" id="stk-upFile" accept=".xlsx,.xls" style="display:none" onchange="stkUpFile(this.files[0])"></label>
 <input type="file" id="stk-logRestoreFile" accept=".xlsx,.xls" style="display:none" onchange="stkLogRestoreFile(this.files[0])">
