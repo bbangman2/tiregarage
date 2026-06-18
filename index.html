@@ -4329,12 +4329,15 @@ function stkRtBulkPasteIntoCells(txt){
     if(!confirm(lines.length+'행은 화면이 느려질 수 있습니다.\n500행 이하 권장. 그래도 진행할까요?'))return;
   }
   // 양식: 카테고리 | 브랜드 | 패턴 | 패턴코드 | 사이즈 | P수 | 재원 | DOT | 공장도가 | 수량 (10칸)
-  // 또는 카테고리 없으면 9칸 (카테고리=일반 자동)
-  var parsed=lines.map(function(line){
-    var c=line.split('\t').map(function(x){return x.trim()});
-    // 첫 칸이 등록된 분류면 카테고리 포함, 아니면 9칸 (분류 누락)
-    var hasCat=c.length>=9&&stkCategories.indexOf(c[0])>=0;
-    if(hasCat)return [c[0]||'',c[1]||'',c[2]||'',c[3]||'',c[4]||'',c[5]||'',c[6]||'',c[7]||'',c[8]||'',c[9]||''];
+  // 칸 수로 일관되게 판단 (행마다 추측 X — 어긋남 방지)
+  // 엑셀 복사 시 모든 행이 같은 칸 수. 첫 줄 칸 수로 전체 모드 결정.
+  var splitLines=lines.map(function(line){return line.split('\t').map(function(x){return x.trim()});});
+  // 최대 칸 수 (빈 칸이 잘릴 수 있어 max로 판단)
+  var maxCols=Math.max.apply(null,splitLines.map(function(c){return c.length;}));
+  // 10칸 이상이면 카테고리 포함, 9칸 이하면 카테고리 없음(=일반)
+  var hasCatCol=maxCols>=10;
+  var parsed=splitLines.map(function(c){
+    if(hasCatCol)return [c[0]||'',c[1]||'',c[2]||'',c[3]||'',c[4]||'',c[5]||'',c[6]||'',c[7]||'',c[8]||'',c[9]||''];
     return ['일반',c[0]||'',c[1]||'',c[2]||'',c[3]||'',c[4]||'',c[5]||'',c[6]||'',c[7]||'',c[8]||''];
   });
   stkRtAddingCount=parsed.length;
