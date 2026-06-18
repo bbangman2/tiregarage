@@ -2305,7 +2305,7 @@ async function loadItems(){
     let carryReturns=[];
     if(!isRangeActive()&&sel.from===todayDs){
       try{
-        const cr=await sb.from('items').select('*').eq('room_id',curRoom.id).lt('date_str',todayDs).or('is_return.eq.true,return_done.eq.false');
+        const cr=await sb.from('items').select('*').eq('room_id',curRoom.id).lt('date_str',todayDs).or('return_done.is.null,return_done.eq.false');
         carryReturns=(cr.data||[]).filter(function(it){return isReturnItem(it)&&!it.return_done;});
       }catch(e){carryReturns=[];}
     }
@@ -4210,7 +4210,7 @@ function stkToggleLogAll(){
 }
 var STK_LOG_FILTERS=[['출고','📦 출고'],['이동','📍 이동/합치기'],['실사조정','✏️ 실사조정'],['잠금','🔒 잠금'],['전체','전체']];
 async function stkLoadLogTab(){
-  try{var r=await sb.from('stock_logs').select('*').order('ts',{ascending:false}).limit(300);
+  try{var r=await sb.from('stock_logs').select('*').order('ts',{ascending:false}).limit(2000);
     stkLogRows=r.data||[];}catch(e){stkLogRows=[]}
   stkRenderLogFilters();stkRenderLogTab();
 }
@@ -4335,25 +4335,6 @@ function stkChannelSums(){
     var key=g.product_id+'|'+(g.dot||'DOT누락');
     if(!m[key])m[key]={};
     m[key][matched]=(m[key][matched]||0)+q;
-  });
-  return m;
-}
-// 누적 총출고 집계 (전 기간) — product_id+dot 별 채널별 + 합계 {pid|dot:{장착:n,...,_tot:n}}
-function stkTotalOut(){
-  var m={};
-  (stkLogRows||[]).forEach(function(g){
-    if(!g.product_id)return;
-    if((g.action||'').indexOf('출고')<0)return;
-    if((g.action||'').indexOf('취소')>=0)return;
-    if(g.ref&&(''+g.ref).indexOf('[취소됨]')>=0)return;
-    var ch=g.channel||'';
-    var matched=STK_CHANS.find(function(c){return ch===c||ch.indexOf(c)>=0;});
-    if(!matched)return;
-    var q=Math.abs(parseInt(g.qty)||0);
-    var key=g.product_id+'|'+(g.dot||'DOT누락');
-    if(!m[key])m[key]={_tot:0};
-    m[key][matched]=(m[key][matched]||0)+q;
-    m[key]._tot+=q;
   });
   return m;
 }
