@@ -4049,7 +4049,9 @@ async function stkLoad(){
   await stkConsolidate();
   await stkLoadLock();
   await stkLoadLogs();
+  if(typeof stkLoadLogTab==='function')await stkLoadLogTab(); // 출고 집계(stkLogRows) 최신화 — 채널칸 정확도
   stkRenderSearch();stkRenderMap();
+  if(typeof stkRenderTable==='function')stkRenderTable(); // 로그 갱신 후 재고표 다시 그려 채널 출고칸 반영
 }
 var __stkConsolidating=false;
 // 특정 칸(loc)의 lot들을 즉시 합침 (이동/분리/드롭 직후 호출) — 같은 상품+연식+출처
