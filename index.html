@@ -4371,7 +4371,7 @@ async function stkRtSaveBulkNew(){
     // 분류는 stkCategories에 있으면 그대로, 없으면 자동 추가 (호준님이 자유롭게 쓸 수 있게)
     if(cat&&stkCategories.indexOf(cat)<0){stkCategories.push(cat);saveCategories(stkCategories);}
     var br=v('br'),name=v('name'),code=v('code'),size=v('size'),ply=v('ply'),spec=v('spec'),dot=v('dot'),fprice=v('fprice'),qty=parseInt(v('qty'))||0;
-    if(!br||!size||qty<=0)return; // 필수 (브랜드·사이즈·수량)
+    if(!br||!size)return; // 필수 (브랜드·사이즈) — 수량 0도 허용 (재고 0 등록)
     items.push({cat:cat,br:br,name:name,code:code,size:size,ply:ply,spec:spec,dot:dot,fprice:parseInt(fprice)||null,qty:qty});
   });
   if(!items.length){stkToast('브랜드·사이즈가 있는 행이 없습니다');return}
@@ -4396,8 +4396,15 @@ async function stkRtSaveBulkNew(){
         var ins=await sb.from('stock_products').insert({brand:r.br,name:r.name||(r.code||'(이름미정)'),code:r.code,size:size,category:r.cat,ply:r.ply||'',spec:r.spec||'',factory_price:r.fprice||null}).select();
         pid=ins.data[0].id;
       }
-      if(r.qty>0){await sb.from('stock_lots').insert({product_id:pid,dot:r.dot,qty:r.qty,loc:'U'});}
-      stkLog('➕상품추가',r.br+' '+r.name+' '+size+(r.qty?' '+r.qty+'개':''),{product_id:pid,qty:r.qty});
+      // 수량 0이어도 lot 생성 (재고 0으로 등록 — 나중에 입고/출고 가능). 단 이미 같은 dot lot 있으면 추가 안 함
+      var hasLot=ex&&(ex.lots||[]).some(function(l){return (l.dot||'')===(r.dot||'')});
+      if(!hasLot){await sb.from('stock_lots').insert({product_id:pid,dot:r.dot,qty:r.qty,loc:'U'});}
+      else if(r.qty>0){
+        // 이미 같은 dot lot 있고 수량>0이면 그 lot에 더하기
+        var lot=ex.lots.find(function(l){return (l.dot||'')===(r.dot||'')});
+        await sb.from('stock_lots').update({qty:lot.q+r.qty}).eq('id',lot.id);
+      }
+      stkLog('➕상품추가',r.br+' '+r.name+' '+size+' '+r.qty+'개',{product_id:pid,qty:r.qty});
       ok++;
     }catch(err){fail++;}
   }
