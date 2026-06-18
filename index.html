@@ -918,9 +918,10 @@ body.rb-on #app{padding-top:58px}
       <select id="stk-rtBrand" onchange="stkRenderTable()" style="flex:1;height:38px;border:1px solid rgba(0,0,0,.12);border-radius:9px;padding:0 10px;font-size:13px;background:#fff;font-family:inherit"><option value="">전체 브랜드</option></select>
       <select id="stk-rtCat" onchange="stkRenderTable()" style="flex:1;height:38px;border:1px solid rgba(0,0,0,.12);border-radius:9px;padding:0 10px;font-size:13px;background:#fff;font-family:inherit"><option value="">전체 분류</option></select>
     </div>
-    <div style="display:flex;gap:14px;margin-bottom:6px;font-size:12px;color:#555">
+    <div style="display:flex;gap:14px;margin-bottom:6px;font-size:12px;color:#555;align-items:center">
       <label style="display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="stk-rtSoldOut" onchange="stkRenderTable()" style="cursor:pointer"> 품절포함</label>
       <label style="display:flex;align-items:center;gap:4px;cursor:pointer;color:#c0392b"><input type="checkbox" id="stk-rtOnlyOut" onchange="stkRenderTable()" style="cursor:pointer"> 출고만</label>
+      <button id="stk-rtResetSort" onclick="stkRtResetSort()" style="display:none;margin-left:auto;font-size:12px;padding:4px 10px;border:1px solid #b3c6e8;background:#eef4ff;color:#2563eb;border-radius:7px;font-weight:700;cursor:pointer">↺ 원본 순서로</button>
     </div>
     <div class="sbox"><input id="stk-rtq" placeholder="🔍 브랜드·패턴·코드·사이즈" oninput="stkRenderTable()"><button>🔍</button></div>
     <div class="stk-rtwrap"><table class="stk-rt" id="stk-rtTable"></table></div>
@@ -3941,12 +3942,16 @@ function stkCloseDlg(){document.querySelectorAll('.stkdlgbg').forEach(function(d
 // ── 데이터 ──
 // Supabase는 기본 1000행만 반환 → 페이지네이션으로 전부 읽기
 async function stkSelectAll(table,orderCol){
-  var all=[],from=0,size=1000;
+  var all=[],from=0,size=1000,useOrder=orderCol;
   while(true){
     var q=sb.from(table).select('*');
-    if(orderCol)q=q.order(orderCol);
+    if(useOrder)q=q.order(useOrder);
     var r=await q.range(from,from+size-1);
-    if(r.error)throw r.error;
+    if(r.error){
+      // 정렬 컬럼이 없으면(created_at 등) 정렬 없이 재시도
+      if(useOrder){useOrder=null;continue;}
+      throw r.error;
+    }
     var batch=r.data||[];
     all=all.concat(batch);
     if(batch.length<size)break;
@@ -3957,12 +3962,12 @@ async function stkSelectAll(table,orderCol){
 }
 async function stkLoad(){
   try{
-    var prAll=await stkSelectAll('stock_products','brand');
+    var prAll=await stkSelectAll('stock_products','created_at'); // 업로드(등록) 순서 보존
     var lrAll=await stkSelectAll('stock_lots',null);
     var pr={data:prAll},lr={data:lrAll};
     var prods=pr.data||[], lots=lr.data||[];
     var byId={};
-    stkP=prods.map(function(p){var o={id:p.id,br:p.brand,name:p.name,code:p.code||'',size:p.size,ply:p.ply||'',spec:p.spec||'',factory_price:p.factory_price||null,price:p.price,inst:p.inst_price,memo:p.memo||'',cat:p.category||'일반',lots:[]};byId[p.id]=o;return o});
+    stkP=prods.map(function(p,_i){var o={id:p.id,br:p.brand,name:p.name,code:p.code||'',size:p.size,ply:p.ply||'',spec:p.spec||'',factory_price:p.factory_price||null,price:p.price,inst:p.inst_price,memo:p.memo||'',cat:p.category||'일반',_ord:_i,lots:[]};byId[p.id]=o;return o});
     lots.forEach(function(l){var p=byId[l.product_id];if(p)p.lots.push({id:l.id,dot:l.dot||'',q:l.qty,loc:l.loc||'U',price:l.price,src_in:l.src_in||'',due_date:l.due_date||''})});
   }catch(e){stkToast('재고 불러오기 실패: '+e.message);return}
   await stkConsolidate();
@@ -4510,37 +4515,36 @@ async function stkRtSaveNew(){
 }
 // 엑셀처럼: contenteditable 셀에 focus/blur/keydown 일괄 부착 (DOM 변경 없음, 가벼움)
 function stkRtAttachCellHandlers(){
-  var tds=document.querySelectorAll('#stk-rtTable td.rt-ed[contenteditable="true"]');
-  tds.forEach(function(td){
-    if(td._stkHooked)return;td._stkHooked=true;
-    // 클릭 시 텍스트 전체 선택 (엑셀처럼 바로 덮어쓰기 편하게)
-    td.addEventListener('focus',function(){
-      td.setAttribute('data-old',td.textContent);
-      // 텍스트 전체 선택
-      try{var r=document.createRange();r.selectNodeContents(td);var s=window.getSelection();s.removeAllRanges();s.addRange(r);}catch(e){}
-    });
-    // 편집 종료 시 백그라운드 저장 (값 바뀌었을 때만)
-    td.addEventListener('blur',function(){
-      var nv=td.textContent.trim();
-      var old=td.getAttribute('data-old')||'';
-      if(nv===old)return;
-      var pid=td.getAttribute('data-pid');
-      var dot=td.getAttribute('data-dot')||'';
-      var field=td.getAttribute('data-field');
-      stkRtSaveFieldLight(pid,dot,field,nv,old,td);
-    });
-    // 키 처리: Enter/Tab→다음셀, Esc→취소, ↑↓←→ 셀 이동
-    td.addEventListener('keydown',function(e){
-      if(e.key==='Enter'){e.preventDefault();stkRtMoveCell(td,'down');}
-      else if(e.key==='Tab'){e.preventDefault();stkRtMoveCell(td,e.shiftKey?'left':'right');}
-      else if(e.key==='Escape'){e.preventDefault();td.textContent=td.getAttribute('data-old')||'';td.blur();}
-    });
-    // 줄바꿈 방지 (Enter는 이미 막음, 붙여넣기로도 줄바꿈 들어올 수 있음)
-    td.addEventListener('paste',function(e){
-      e.preventDefault();
-      var t=(e.clipboardData||window.clipboardData).getData('text').replace(/[\r\n\t]/g,' ').trim();
-      document.execCommand('insertText',false,t);
-    });
+  // ── 이벤트 위임 (테이블 1개에만 리스너 — 셀이 수천개여도 빠름) ──
+  var tbl=document.getElementById('stk-rtTable');
+  if(!tbl||tbl._stkDelegated)return;
+  tbl._stkDelegated=true;
+  var isEd=function(t){return t&&t.classList&&t.classList.contains('rt-ed')&&t.getAttribute('contenteditable')==='true';};
+  // focusin: 편집 셀 들어오면 현재값 기억 + 전체선택 (focus는 버블 안돼서 focusin 사용)
+  tbl.addEventListener('focusin',function(e){
+    var td=e.target;if(!isEd(td))return;
+    td.setAttribute('data-old',td.textContent);
+    try{var r=document.createRange();r.selectNodeContents(td);var s=window.getSelection();s.removeAllRanges();s.addRange(r);}catch(err){}
+  });
+  // focusout: 값 바뀌었으면 저장
+  tbl.addEventListener('focusout',function(e){
+    var td=e.target;if(!isEd(td))return;
+    var nv=td.textContent.trim();
+    var old=td.getAttribute('data-old')||'';
+    if(nv===old)return;
+    stkRtSaveFieldLight(td.getAttribute('data-pid'),td.getAttribute('data-dot')||'',td.getAttribute('data-field'),nv,old,td);
+  });
+  tbl.addEventListener('keydown',function(e){
+    var td=e.target;if(!isEd(td))return;
+    if(e.key==='Enter'){e.preventDefault();stkRtMoveCell(td,'down');}
+    else if(e.key==='Tab'){e.preventDefault();stkRtMoveCell(td,e.shiftKey?'left':'right');}
+    else if(e.key==='Escape'){e.preventDefault();td.textContent=td.getAttribute('data-old')||'';td.blur();}
+  });
+  tbl.addEventListener('paste',function(e){
+    var td=e.target;if(!isEd(td))return;
+    e.preventDefault();
+    var t=(e.clipboardData||window.clipboardData).getData('text').replace(/[\r\n\t]/g,' ').trim();
+    document.execCommand('insertText',false,t);
   });
 }
 // 엑셀처럼 셀 이동 (방향에 따라 다음 편집 가능 셀로 focus)
@@ -4819,6 +4823,10 @@ function stkOpenAdd2(){ // 재고표 전용 (남성현·이호준, 잠금 무관
   document.getElementById('stk-dlgAdd').classList.add('on');
 }
 var stkRtSort={col:null,dir:1}; // col: cat/br/name/code/size/dot/cur/ch0..7/qty, dir:1 asc -1 desc
+function stkRtResetSort(){
+  stkRtSort.col=null;stkRtSort.dir=1;
+  stkRenderTable();
+}
 function stkRtSortBy(col){
   if(stkRtSort.col===col)stkRtSort.dir=-stkRtSort.dir;
   else{stkRtSort.col=col;stkRtSort.dir=1;}
@@ -4877,11 +4885,12 @@ function stkRenderTable(){
       var ps=sums[p.id+'|'+dk]||{};
       var chArr=STK_CHANS.map(function(c){return ps[c]||0;});
       var chTot=chArr.reduce(function(s,x){return s+x;},0);
-      R.push({p:p,cat:p.cat||'일반',br:p.br,name:p.name,code:p.code||'',size:p.size,ply:p.ply||'',spec:p.spec||'',dot:dk,fprice:p.factory_price||'',cur:cur,ch:chArr,qty:cur+chTot});
+      R.push({p:p,_ord:p._ord||0,cat:p.cat||'일반',br:p.br,name:p.name,code:p.code||'',size:p.size,ply:p.ply||'',spec:p.spec||'',dot:dk,fprice:p.factory_price||'',cur:cur,ch:chArr,qty:cur+chTot});
     });
   });
   // 2) 정렬
   var sc=stkRtSort.col, dir=stkRtSort.dir;
+  var rsb=document.getElementById('stk-rtResetSort');if(rsb)rsb.style.display=sc?'':'none';
   if(sc){
     R.sort(function(a,b){
       var x,y;
@@ -4896,12 +4905,8 @@ function stkRenderTable(){
       return (''+x).localeCompare(''+y,'ko')*dir;
     });
   } else {
-    // 기본: 연식 최신 먼저 (같은 상품 내)
-    R.sort(function(a,b){
-      if(a.dot==='DOT누락'&&b.dot!=='DOT누락')return 1;
-      if(b.dot==='DOT누락'&&a.dot!=='DOT누락')return -1;
-      return 0;
-    });
+    // 기본(정렬 해제): 업로드(등록)한 원본 순서 그대로
+    R.sort(function(a,b){return (a._ord||0)-(b._ord||0);});
   }
   // 3) 헤더 (정렬 화살표 + 엑셀 스타일 알파벳)
   function arr(col){return stkRtSort.col===col?(stkRtSort.dir>0?' ▲':' ▼'):'';}
