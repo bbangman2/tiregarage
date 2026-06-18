@@ -6020,9 +6020,9 @@ function stkUpOpen(mode){
   if(!stkEditGuard())return;
   stkUpMode=mode;stkUpRows=null;
   var t={'in':'📥 입고 업로드','price':'📋 가격 갱신','new':'➕ 신규 상품','cat':'🏷️ 분류 변경'}[mode];
-  var h={'in':'템플릿 ①입고 형식: 브랜드/패턴/패턴코드/사이즈/연식/수량/출처/위치/비고/카테고리 — 위치 비우면 미배치, 카테고리 비우면 일반',
+  var h={'in':'입고 양식: 카테고리/브랜드/패턴/패턴코드/사이즈/P수/재원/DOT/공장도가/수량 (양식 다운로드 버튼 사용 권장). 카테고리 비우면 일반',
     'price':'템플릿 ②가격 형식: 브랜드/패턴/패턴코드/사이즈/연식/판매가(택배)/장착가 — 연식 비우면 전체 적용',
-    'new':'템플릿 ③신규 형식: 브랜드/패턴/패턴코드/사이즈/판매가(택배)/장착가/비고 — 재고 0으로 등록',
+    'new':'신규 양식: 브랜드/패턴/패턴코드/사이즈/P수/재원/공장도가/판매가/장착가/비고 — 재고 0으로 등록',
     'cat':'분류 변경 형식: 브랜드/패턴/패턴코드/사이즈/카테고리 — 매칭되는 상품의 분류만 바꿉니다 (재고·기록 안 건드림). 카테고리: 일반/행사/오프로드/중고/휠/튜닝'}[mode];
   document.getElementById('stk-upTitle').textContent=t;
   document.getElementById('stk-upHint').textContent=h;
@@ -6214,9 +6214,13 @@ async function stkUpRun(){
   if(!stkUpRows){ // 1단계: 미리보기
     var msg=[];
     if(stkUpMode==='in'){
-      var newP=0;rows.forEach(function(c){if(!stkFindProduct(c[0],c[1],c[2]||'',c[3]))newP++});
-      msg.push(rows.length+'건 입고 (위치 없는 행→미배치)');
-      if(newP)msg.push('🆕 마스터에 없는 상품 '+newP+'종 → 자동 신규 등록(가격 미정)');
+      // 새 양식: c1브랜드 c2패턴 c3코드 c4사이즈 c5P수
+      var newP=0;rows.forEach(function(c){
+        var ex=stkP.find(function(p){return p.br===c[1]&&p.size===stkNormSize(c[4]||'')&&(p.code||'')===(c[3]||'')&&(p.name||'')===(c[2]||'')&&(p.ply||'')===(c[5]||'')});
+        if(!ex)newP++;
+      });
+      msg.push(rows.length+'건 입고');
+      if(newP)msg.push('🆕 마스터에 없는 상품 '+newP+'종 → 자동 신규 등록');
     }else if(stkUpMode==='new'){msg.push(rows.length+'종 신규 등록 (재고 0)')}
     else{var miss=0;rows.forEach(function(c){if(!stkFindProduct(c[0],c[1],c[2]||'',c[3]))miss++});
       msg.push(rows.length+'건 가격 갱신');if(miss)msg.push('⚠ 매칭 안 되는 행 '+miss+'건 (건너뜀)')}
@@ -6233,38 +6237,47 @@ async function stkUpRun(){
   var ok=0,fail=0,B=400;
   try{
     if(stkUpMode==='new'){
-      var fresh=rows.filter(function(c){return !stkFindProduct(c[0],c[1],c[2]||'',c[3])});
+      // 신규 양식: c0브랜드 c1패턴 c2패턴코드 c3사이즈 c4P수 c5재원 c6공장도가 c7판매가 c8장착가 c9비고
+      var fresh=rows.filter(function(c){
+        return !stkP.find(function(p){return p.br===c[0]&&p.size===stkNormSize(c[3]||'')&&(p.code||'')===(c[2]||'')&&(p.name||'')===(c[1]||'')&&(p.ply||'')===(c[4]||'')});
+      });
       fail=rows.length-fresh.length;
       var seen={},dedup=[];
-      fresh.forEach(function(c){var k=[c[0],c[1],c[2]||'',c[3]].join('|');if(seen[k])return;seen[k]=1;dedup.push(c)});
+      fresh.forEach(function(c){var k=[c[0],c[1]||'',c[2]||'',stkNormSize(c[3]||''),c[4]||''].join('|');if(seen[k])return;seen[k]=1;dedup.push(c)});
       for(var i=0;i<dedup.length;i+=B){
         prog('등록 중… '+Math.min(i+B,dedup.length)+'/'+dedup.length);
-        var chunk=dedup.slice(i,i+B).map(function(c){return {brand:c[0],name:c[1],code:c[2]||'',size:c[3],
-          price:parseInt(c[4])||null,inst_price:parseInt(c[5])||null,memo:c[6]||'',category:c[7]||'일반'}});
+        var chunk=dedup.slice(i,i+B).map(function(c){return {brand:c[0],name:c[1]||(c[2]||'(이름미정)'),code:c[2]||'',size:stkNormSize(c[3]||''),
+          ply:c[4]||'',spec:c[5]||'',factory_price:parseInt(c[6])||null,price:parseInt(c[7])||null,inst_price:parseInt(c[8])||null,memo:c[9]||'',category:'일반'}});
         var r=await sb.from('stock_products').insert(chunk);
         if(r.error)throw r.error;
         ok+=chunk.length;
       }
     }else if(stkUpMode==='in'){
+      // 새 양식 순서: c0카테고리 c1브랜드 c2패턴 c3패턴코드 c4사이즈 c5P수 c6재원 c7DOT c8공장도가 c9수량
+      // 중복키 = 브랜드+패턴+코드+사이즈+P수 (P수 다르면 다른 상품)
+      var keyOf=function(c){return [c[1],c[2]||'',c[3]||'',stkNormSize(c[4]||''),c[5]||''].join('|')};
       // 1패스: 마스터에 없는 상품 일괄 생성
-      var need={},keyOf=function(c){return [c[0],c[1]||(c[2]||'(이름미정)'),c[2]||'',c[3]].join('|')};
-      rows.forEach(function(c){if(!stkFindProduct(c[0],c[1],c[2]||'',c[3]))need[keyOf(c)]=c});
+      var need={};
+      rows.forEach(function(c){
+        var ex=stkP.find(function(p){return p.br===c[1]&&p.size===stkNormSize(c[4]||'')&&(p.code||'')===(c[3]||'')&&(p.name||'')===(c[2]||'')&&(p.ply||'')===(c[5]||'')});
+        if(!ex)need[keyOf(c)]=c;
+      });
       var newRows=Object.keys(need).map(function(k){return need[k]});
       for(var i=0;i<newRows.length;i+=B){
         prog('신규 상품 생성… '+Math.min(i+B,newRows.length)+'/'+newRows.length);
-        var chunk=newRows.slice(i,i+B).map(function(c){return {brand:c[0],name:c[1]||(c[2]||'(이름미정)'),code:c[2]||'',size:c[3],memo:c[8]||'',category:c[9]||'일반'}});
+        var chunk=newRows.slice(i,i+B).map(function(c){return {brand:c[1],name:c[2]||(c[3]||'(이름미정)'),code:c[3]||'',size:stkNormSize(c[4]||''),category:c[0]||'일반',ply:c[5]||'',spec:c[6]||'',factory_price:parseInt(c[8])||null}});
         var r=await sb.from('stock_products').insert(chunk);
         if(r.error)throw r.error;
       }
-      // 상품 다시 읽어 id 매핑
+      // 상품 다시 읽어 id 매핑 (브랜드+패턴+코드+사이즈+P수)
       var pr=await sb.from('stock_products').select('*');
-      var byKey={};(pr.data||[]).forEach(function(p){byKey[[p.brand,p.name,p.code||'',p.size].join('|')]=p.id});
-      // 2패스: lots 일괄 insert
+      var byKey={};(pr.data||[]).forEach(function(p){byKey[[p.brand,p.name||'',p.code||'',p.size,p.ply||''].join('|')]=p.id});
+      // 2패스: lots 일괄 insert (수량 0도 등록)
       var lots=[],skip=0;
       rows.forEach(function(c){
-        var pid=byKey[keyOf(c)]||byKey[[c[0],c[1],c[2]||'',c[3]].join('|')];
+        var pid=byKey[keyOf(c)];
         if(!pid){skip++;return}
-        lots.push({product_id:pid,dot:c[4]||'',qty:parseInt(c[5])||0,loc:(c[7]||'U').toUpperCase()||'U'});
+        lots.push({product_id:pid,dot:c[7]||'',qty:parseInt(c[9])||0,loc:'U'});
       });
       for(var j=0;j<lots.length;j+=B){
         prog('재고 입고 중… '+Math.min(j+B,lots.length)+'/'+lots.length);
