@@ -255,6 +255,8 @@ body.rb-on #app{padding-top:58px}
 .rtcat{font-size:10px;font-weight:800;padding:1px 5px;border-radius:7px}
 .rtv{font-weight:800;color:#15803d}
 .rtv.zero{color:#999}.rtv.neg{color:#dc2626}
+.stk-justadded td{background:#fff3bf !important;animation:stkJustAddedFade 2.5s ease-out}
+@keyframes stkJustAddedFade{0%{background:#ffe066}100%{background:#fff3bf}}
 .rtch{color:#7a5d00;background:#fffdf5}
 .rtqty{font-weight:700;color:#0c447c}
 .stk-rt tfoot td{background:#f3f5f9;font-weight:800;border:1px solid #e5e7eb;padding:6px 5px}
@@ -4158,7 +4160,7 @@ function stkEsc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</
 function stkWon(n){return (+n).toLocaleString('ko-KR')+'원'}
 function stkIsAdmin(){return me&&me.name===ADMIN_NAME}
 // 재고표 즉시수정 권한: 이호준·남성현·권순현 (잠금 무관)
-var STK_INLINE_EDITORS=['이호준','남성현','권순현'];
+var STK_INLINE_EDITORS=['이호준','남성현','권순현','이정우'];
 function stkCanInline(){return me&&STK_INLINE_EDITORS.indexOf(me.name)>=0}
 function stkToast(m){var t=document.getElementById('stk-toast');t.textContent=m;t.classList.add('show');setTimeout(function(){t.classList.remove('show')},2200)}
 function stkCloseDlg(){document.querySelectorAll('.stkdlgbg').forEach(function(d){d.classList.remove('on')})}
@@ -4486,10 +4488,12 @@ function stkChannelSums(){
   return m;
 }
 var stkRtAdding=false;
+var stkJustAdded={}; // 방금 등록한 상품 id — 재고0이어도 등록 직후엔 재고표에 보이게 + 강조
 var stkAddViaInline=false;
 var STK_CATS=['일반','오프로드','휠','튜닝','행사','중고'];
 function stkRtAddRow(){
   if(!stkCanInline()){stkToast('이호준·남성현·권순현만 추가할 수 있습니다');return}
+  stkJustAdded={}; // 새 추가 세션 — 이전 강조 초기화
   stkRtAdding=true;stkRtAddingCount=1;
   stkRenderTable();
   // 첫 셀(분류)에 포커스 — 거기 paste하면 7칸/6칸 자동 처리, 여러 줄이면 행 자동 확장
@@ -4659,12 +4663,24 @@ async function stkRtSaveBulkNew(){
       if(res2.error)throw res2.error;
       ok+=lots.slice(j,j+B).length;
     }
+    // 방금 등록(또는 기존 상품에 합쳐진)된 상품 id 수집 — 재고0이어도 표에 보이게 + 강조
+    var _added={};
+    items.forEach(function(r){var pid=byKey[[r.br,r.name||'',r.code||'',r._size,r.ply||''].join('|')];if(pid)_added[pid]=1;});
+    stkJustAdded=_added;
     stkLog('➕상품추가','일괄 등록 '+ok+'행'+(fail?' / '+fail+'행 실패':''),{qty:ok});
   }catch(e){stkToast('등록 중 오류: '+e.message+' — 지금까지 '+ok+'건');}
-  stkToast('✓ '+ok+'행 등록'+(fail?' / '+fail+'행 실패':''));
+  var zeroCnt=items.filter(function(r){return (parseInt(r.qty)||0)<=0;}).length;
   stkRtAdding=false;stkRtAddingCount=1;
+  // 방금 등록한 행이 필터·검색에 가려지지 않게 표 필터 해제 (방금 추가한 것 바로 확인용)
+  var _q=document.getElementById('stk-rtq');if(_q)_q.value='';
+  var _br=document.getElementById('stk-rtBrand');if(_br)_br.value='';
+  var _ct=document.getElementById('stk-rtCat');if(_ct)_ct.value='';
+  var _oo=document.getElementById('stk-rtOnlyOut');if(_oo)_oo.checked=false;
   await stkLoad();
   stkRenderTable();
+  // 방금 추가한 첫 행으로 스크롤
+  try{var _hl=document.querySelector('#stk-rtTable tr.stk-justadded');if(_hl&&_hl.scrollIntoView)_hl.scrollIntoView({block:'center'});}catch(_e){}
+  stkToast('✓ '+ok+'행 등록'+(fail?' / '+fail+'행 실패':'')+(zeroCnt?' (수량 0 '+zeroCnt+'행 — 노란색으로 표시)':''));
 }
 function stkRtCancelAdd(){stkRtAdding=false;stkRenderTable();}
 // 엑셀에서 여러 행 복사해서 붙여넣기 → 한꺼번에 신규 등록
@@ -4689,7 +4705,7 @@ async function stkRtBulkPaste(e){
   if(!valid.length){stkToast('브랜드·사이즈가 있는 행이 없습니다');return}
   if(!confirm(valid.length+'개 행을 등록할까요?\n(첫 행: '+valid[0].br+' '+valid[0].name+' '+valid[0].size+')'))return;
   // 일괄 등록
-  var ok=0,fail=0;
+  var ok=0,fail=0,_added={};
   for(var i=0;i<valid.length;i++){
     var r=valid[i];
     try{
@@ -4701,6 +4717,7 @@ async function stkRtBulkPaste(e){
         var ins=await sb.from('stock_products').insert({brand:r.br,name:r.name||(r.code||'(이름미정)'),code:r.code,size:size,category:r.cat}).select();
         pid=ins.data[0].id;
       }
+      if(pid)_added[pid]=1;
       if(r.qty>0){
         await sb.from('stock_lots').insert({product_id:pid,dot:r.dot,qty:r.qty,loc:'U'});
       }
@@ -4708,10 +4725,17 @@ async function stkRtBulkPaste(e){
       ok++;
     }catch(err){fail++;}
   }
-  stkToast('✓ '+ok+'행 등록'+(fail?' / '+fail+'행 실패':''));
+  stkJustAdded=_added;
+  var _zero=valid.filter(function(r){return (parseInt(r.qty)||0)<=0;}).length;
   stkRtAdding=false;
+  var _q=document.getElementById('stk-rtq');if(_q)_q.value='';
+  var _br=document.getElementById('stk-rtBrand');if(_br)_br.value='';
+  var _ct=document.getElementById('stk-rtCat');if(_ct)_ct.value='';
+  var _oo=document.getElementById('stk-rtOnlyOut');if(_oo)_oo.checked=false;
   await stkLoad();
   stkRenderTable();
+  try{var _hl=document.querySelector('#stk-rtTable tr.stk-justadded');if(_hl&&_hl.scrollIntoView)_hl.scrollIntoView({block:'center'});}catch(_e){}
+  stkToast('✓ '+ok+'행 등록'+(fail?' / '+fail+'행 실패':'')+(_zero?' (수량 0 '+_zero+'행 — 노란색으로 표시)':''));
 }
 async function stkRtSaveNew(){
   if(!stkCanInline()){stkToast('권한이 없습니다');return}
@@ -5126,7 +5150,8 @@ function stkRenderTable(){
     if(fCat&&(p.cat||'일반')!==fCat)return false;
     if(!stkMatch(p,q))return false;
     // 품절포함 안 켜져있으면 재고 0인 상품 제외 (기본: 재고 있는 것만)
-    if(!fSoldOut&&stkTq(p)<=0)return false;
+    // 단, 방금 등록한 상품(stkJustAdded)은 재고 0이어도 보이게 — 등록 직후 사라져 보이는 문제 방지
+    if(!fSoldOut&&stkTq(p)<=0&&!stkJustAdded[p.id])return false;
     // 출고만 켜져있으면 오늘 채널 출고가 있는 상품만
     if(fOnlyOut){
       var hasOut=(p.lots||[]).some(function(l){return sums[p.id+'|'+(l.dot||'DOT누락')]});
@@ -5220,7 +5245,7 @@ function stkRenderTable(){
     }else{
       catCell='<td><span class="rtcat" style="background:'+cs.bg+';color:'+cs.t+'">'+stkEsc(r.cat)+'</span></td>';
     }
-    rows+='<tr style="border-left:4px solid '+cs.c+'" data-pid="'+pid+'" data-dot="'+stkEsc(dotv)+'">'+
+    rows+='<tr class="'+(stkJustAdded[pid]?'stk-justadded':'')+'" style="border-left:4px solid '+cs.c+'" data-pid="'+pid+'" data-dot="'+stkEsc(dotv)+'">'+
       catCell+
       ed('br',r.br)+
       ed('name',r.name)+
