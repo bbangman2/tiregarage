@@ -257,6 +257,12 @@ body.rb-on #app{padding-top:58px}
 .rtv.zero{color:#999}.rtv.neg{color:#dc2626}
 .stk-justadded td{background:#fff3bf !important;animation:stkJustAddedFade 2.5s ease-out}
 @keyframes stkJustAddedFade{0%{background:#ffe066}100%{background:#fff3bf}}
+.perm-row{display:flex;align-items:center;justify-content:space-between;padding:9px 4px;border-bottom:1px solid #f0f1f4}
+.perm-name{font-size:14px;font-weight:700;color:#222}
+.perm-badge{font-size:10px;font-weight:800;color:#0c447c;background:#eef4fb;border:1px solid #cfe0f5;border-radius:6px;padding:1px 6px;margin-left:4px}
+.perm-fixed{font-size:12px;font-weight:800;color:#15803d}
+.perm-tog{font-size:12px;font-weight:800;padding:6px 12px;border-radius:8px;cursor:pointer;border:1px solid #ddd;background:#f5f5f7;color:#999;min-width:88px}
+.perm-tog.on{border-color:#b9e0c9;background:#eaf7ef;color:#15803d}
 .rtch{color:#7a5d00;background:#fffdf5}
 .rtqty{font-weight:700;color:#0c447c}
 .stk-rt tfoot td{background:#f3f5f9;font-weight:800;border:1px solid #e5e7eb;padding:6px 5px}
@@ -917,6 +923,7 @@ body.rb-on #app{padding-top:58px}
       <button onclick="stkOpenAdd()">✏️ 하나 추가</button>
     </div>
     <div class="adminbar" id="stk-adminbar" style="display:none">🔧 관리자:
+      <button onclick="stkOpenPerm()" style="background:#eef6ff;border-color:#cfe0f5;color:#0c447c">👥 수정권한</button>
       <button onclick="stkResetOpen()" style="background:#fef2f2;border-color:#fecaca;color:#dc2626">🔄 전체 초기화</button>
     </div>
     <div id="stk-dlbar" style="display:none;margin-bottom:8px">
@@ -1429,11 +1436,12 @@ async function selectRoom(room){
     initDatePicker();        // 날짜 기본 오늘로
     stkLogAllDates=false;    // 출고기록도 기본 오늘
     await stkLoad();
+    if(typeof stkLoadEditors==='function')await stkLoadEditors();
     if(typeof stkLoadLogTab==='function')stkLoadLogTab();
     stockSub=sb.channel('stock-live')
       .on('postgres_changes',{event:'*',schema:'public',table:'stock_lots'},()=>{stkLoad();})
       .on('postgres_changes',{event:'*',schema:'public',table:'stock_products'},()=>{stkLoad();})
-      .on('postgres_changes',{event:'*',schema:'public',table:'stock_settings'},()=>{stkLoadLock();})
+      .on('postgres_changes',{event:'*',schema:'public',table:'stock_settings'},()=>{stkLoadLock();if(typeof stkLoadEditors==='function')stkLoadEditors();})
       .subscribe();
     return;
   }
@@ -4161,7 +4169,7 @@ function stkWon(n){return (+n).toLocaleString('ko-KR')+'원'}
 function stkIsAdmin(){return me&&me.name===ADMIN_NAME}
 // 재고표 즉시수정 권한: 이호준·남성현·권순현 (잠금 무관)
 var STK_INLINE_EDITORS=['이호준','남성현','권순현','이정우'];
-function stkCanInline(){return me&&STK_INLINE_EDITORS.indexOf(me.name)>=0}
+function stkCanInline(){return me&&(stkIsAdmin()||STK_INLINE_EDITORS.indexOf(me.name)>=0)}
 function stkToast(m){var t=document.getElementById('stk-toast');t.textContent=m;t.classList.add('show');setTimeout(function(){t.classList.remove('show')},2200)}
 function stkCloseDlg(){document.querySelectorAll('.stkdlgbg').forEach(function(d){d.classList.remove('on')})}
 // ── 데이터 ──
@@ -4307,6 +4315,56 @@ async function stkTogLock(){
   }
   stkLoadLock();
 }
+// ── 재고방 수정권한 관리 (stock_settings key='inline_editors', JSON 명단) ──
+// 잠금과 같은 방식: Supabase 1줄 저장 + 실시간 구독으로 전 직원·전 기기 즉시 반영
+var STK_EDITORS_DEFAULT=['이호준','남성현','권순현','이정우'];
+async function stkLoadEditors(){
+  try{
+    var r=await sb.from('stock_settings').select('*').eq('key','inline_editors');
+    if(r.data&&r.data[0]&&r.data[0].value){
+      var arr=JSON.parse(r.data[0].value);
+      if(Array.isArray(arr)){STK_INLINE_EDITORS.length=0;arr.forEach(function(n){if(STK_INLINE_EDITORS.indexOf(n)<0)STK_INLINE_EDITORS.push(n);});}
+    }else{
+      // 행이 없으면 현재 기본 명단으로 자동 생성 (호준님 SQL 실행 불필요)
+      try{await sb.from('stock_settings').insert({key:'inline_editors',value:JSON.stringify(STK_INLINE_EDITORS)});}catch(e){}
+    }
+  }catch(e){}
+  // 관리자는 항상 포함 보장
+  if(STK_INLINE_EDITORS.indexOf(ADMIN_NAME)<0)STK_INLINE_EDITORS.push(ADMIN_NAME);
+  // 권한 모달이 열려 있으면 갱신, 내 편집가능 여부 바뀔 수 있으니 표도 갱신
+  if(document.getElementById('stk-dlgPerm')&&document.getElementById('stk-dlgPerm').classList.contains('on'))stkRenderPerm();
+}
+async function stkSaveEditors(){
+  var val=JSON.stringify(STK_INLINE_EDITORS);
+  var ex=await sb.from('stock_settings').select('key').eq('key','inline_editors');
+  if(ex.data&&ex.data.length){await sb.from('stock_settings').update({value:val}).eq('key','inline_editors');}
+  else{await sb.from('stock_settings').insert({key:'inline_editors',value:val});}
+}
+async function stkSetEditor(name,on){
+  if(!stkIsAdmin()){stkToast('관리자 전용입니다');return}
+  if(name===ADMIN_NAME){stkToast('관리자는 항상 수정 가능합니다');return}
+  var idx=STK_INLINE_EDITORS.indexOf(name);
+  if(on&&idx<0)STK_INLINE_EDITORS.push(name);
+  else if(!on&&idx>=0)STK_INLINE_EDITORS.splice(idx,1);
+  try{await stkSaveEditors();}catch(e){stkToast('저장 실패: '+e.message);return}
+  stkLog('👥권한변경',name+(on?' 수정권한 부여':' 수정권한 회수'),{});
+  stkToast('✓ '+name+' '+(on?'수정권한 부여':'수정권한 회수'));
+  stkRenderPerm();
+  if(typeof stkRenderTable==='function')stkRenderTable(); // 본인이면 편집칸/관리칼럼 즉시 반영
+}
+function stkRenderPerm(){
+  var el=document.getElementById('stk-permList');if(!el)return;
+  var names=Object.keys(PW);
+  el.innerHTML=names.map(function(n){
+    if(n===ADMIN_NAME){
+      return '<div class="perm-row"><span class="perm-name">'+stkEsc(n)+' <span class="perm-badge">관리자</span></span><span class="perm-fixed">항상 가능</span></div>';
+    }
+    var on=STK_INLINE_EDITORS.indexOf(n)>=0;
+    return '<div class="perm-row"><span class="perm-name">'+stkEsc(n)+'</span>'
+      +'<button class="perm-tog'+(on?' on':'')+'" onclick="stkSetEditor(\''+stkEsc(n).replace(/'/g,"")+'\','+(!on)+')">'+(on?'✓ 수정 가능':'권한 없음')+'</button></div>';
+  }).join('');
+}
+function stkOpenPerm(){if(!stkIsAdmin()){stkToast('관리자 전용입니다');return}stkRenderPerm();document.getElementById('stk-dlgPerm').classList.add('on');}
 // ── 공통 계산 ──
 function stkTq(p){return p.lots.reduce(function(s,l){return s+l.q},0)}
 function stkCellMap(){var m={};stkP.forEach(function(p){p.lots.forEach(function(l){if(!l.q)return;(m[l.loc]=m[l.loc]||[]).push({p:p,l:l})})});return m}
@@ -7014,6 +7072,13 @@ async function rsvDelete(id){
   <textarea id="stk-upTa" rows="5" placeholder="엑셀에서 행들을 복사해 붙여넣으세요 (헤더 행 포함돼도 자동 제외)"></textarea>
   <div class="upbox" id="stk-upPrev" style="display:none"></div>
   <div class="stkacts"><button class="stk-no" onclick="stkCloseDlg()">취소</button><button class="stk-ok" id="stk-upGo" onclick="stkUpRun()">미리보기</button></div>
+</div></div>
+<div class="stkdlgbg" id="stk-dlgPerm" onclick="if(event.target===this)stkCloseDlg()"><div class="stkdlg" style="max-width:360px">
+  <h3>👥 재고방 수정권한</h3>
+  <div class="sub2">권한이 있는 사람만 재고표 셀 수정·행추가·상품추가·삭제가 가능합니다. 변경 즉시 모든 직원·기기에 반영됩니다.</div>
+  <div id="stk-permList" style="margin:6px 0 4px;max-height:50vh;overflow:auto"></div>
+  <div style="font-size:11px;color:#999;margin-top:6px">※ 출고(채널칸)는 권한과 무관하게 누구나 가능합니다.</div>
+  <div class="stkacts"><button class="stk-ok" onclick="stkCloseDlg()">닫기</button></div>
 </div></div>
 <div class="stktoast" id="stk-toast"></div>
 </body>
