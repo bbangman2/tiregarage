@@ -4715,23 +4715,50 @@ async function stkRtBulkPaste(e){
 }
 async function stkRtSaveNew(){
   if(!stkCanInline()){stkToast('권한이 없습니다');return}
-  var cat=(document.getElementById('stk-newCat')||{}).value||'일반';
-  var br=((document.getElementById('stk-newBr')||{}).value||'').trim();
-  var name=((document.getElementById('stk-newName')||{}).value||'').trim();
-  var code=((document.getElementById('stk-newCode')||{}).value||'').trim();
-  var sizeRaw=((document.getElementById('stk-newSize')||{}).value||'').trim();
-  var dot=((document.getElementById('stk-newDot')||{}).value||'').trim();
-  var qty=parseInt((document.getElementById('stk-newQty')||{}).value)||0;
-  if(!br||!sizeRaw){stkToast('브랜드·사이즈는 필수입니다');return}
-  if(!name&&!code){stkToast('패턴 또는 코드 중 하나는 필요합니다');return}
-  var size=stkNormSize(sizeRaw);
+  var order=['cat','br','name','code','size','ply','spec','dot','fprice','qty'];
+  // 새 행(contenteditable td.rt-newed)을 행 번호별로 모음
+  var rowSet={};
+  document.querySelectorAll('#stk-rtTable td.rt-newed').forEach(function(td){
+    var ri=td.getAttribute('data-newrow'), fld=td.getAttribute('data-newfield');
+    if(ri===null||!fld)return;
+    if(!rowSet[ri])rowSet[ri]={};
+    rowSet[ri][fld]=(td.textContent||'').trim();
+  });
+  var rowKeys=Object.keys(rowSet).sort(function(a,b){return (+a)-(+b);});
+  // 내용이 있는 행만 (브랜드+사이즈 둘 다 있는 행)
+  var valid=[], skipped=0;
+  rowKeys.forEach(function(k){
+    var row=rowSet[k];
+    var br=(row.br||'').trim(), sizeRaw=(row.size||'').trim();
+    var name=(row.name||'').trim(), code=(row.code||'').trim();
+    if(!br&&!sizeRaw&&!name&&!code)return; // 완전 빈 행은 무시
+    if(!br||!sizeRaw){skipped++;return;}
+    if(!name&&!code){skipped++;return;}
+    valid.push(row);
+  });
+  if(!valid.length){stkToast('브랜드·사이즈, 패턴/코드를 채워주세요');return}
+  var ok=0;
   try{
-    var r=await sb.from('stock_products').insert({brand:br,name:name||(code||'(이름미정)'),code:code,size:size,category:cat}).select();
-    if(r.error)throw r.error;
-    var pid=r.data&&r.data[0]&&r.data[0].id;
-    if(pid&&qty>0){await sb.from('stock_lots').insert({product_id:pid,dot:(dot||''),qty:qty,loc:'U'});}
-    stkLog('➕상품추가',br+' '+(name||code)+' '+size+' '+qty+'개 (미배치)',{product_id:pid,dot:(dot||''),qty:qty,to_loc:'U'});
-    stkToast('\u2713 추가됨 (기록 남음)');
+    for(var i=0;i<valid.length;i++){
+      var row=valid[i];
+      var cat=(row.cat||'').trim()||'일반';
+      var br=(row.br||'').trim();
+      var name=(row.name||'').trim();
+      var code=(row.code||'').trim();
+      var size=stkNormSize((row.size||'').trim());
+      var ply=(row.ply||'').trim();
+      var spec=(row.spec||'').trim();
+      var dot=(row.dot||'').trim();
+      var fprice=parseInt((row.fprice||'').replace(/[^0-9]/g,''))||null;
+      var qty=parseInt((row.qty||'').replace(/[^0-9-]/g,''))||0;
+      var r=await sb.from('stock_products').insert({brand:br,name:name||(code||'(이름미정)'),code:code,size:size,category:cat,ply:ply,spec:spec,factory_price:fprice}).select();
+      if(r.error)throw r.error;
+      var pid=r.data&&r.data[0]&&r.data[0].id;
+      if(pid&&qty>0){await sb.from('stock_lots').insert({product_id:pid,dot:dot,qty:qty,loc:'U'});}
+      stkLog('➕상품추가',br+' '+(name||code)+' '+size+' '+qty+'개 (미배치)',{product_id:pid,dot:dot,qty:qty,to_loc:'U'});
+      ok++;
+    }
+    stkToast('✓ '+ok+'건 추가됨'+(skipped?(' (미완성 '+skipped+'건 건너뜀)'):''));
     stkRtAdding=false;
     await stkLoad();await stkLoadLogTab();
     stkRenderTable();
