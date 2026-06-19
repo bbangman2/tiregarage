@@ -728,6 +728,66 @@ body.rb-on #app{padding-top:58px}
   .seg-label{font-size:9px}
   .pf-input,.paste-text,.item-memo-input,.del-select{font-size:16px}
 }
+/* ===== 예약장착방 ===== */
+#reserve-screen{background:#f4f5f7}
+.rsv-bar{display:flex;align-items:center;gap:8px;padding:10px 12px;background:#fff;border-bottom:1px solid #e3e5e8;flex-wrap:wrap}
+.rsv-nav{display:flex;align-items:center;gap:4px}
+.rsv-nav button{border:none;background:#eef1f4;width:30px;height:30px;border-radius:7px;font-size:16px;cursor:pointer;color:#444}
+.rsv-nav .rsv-today{width:auto;padding:0 10px;font-size:12px;font-weight:700}
+.rsv-nav #rsv-title{font-size:15px;font-weight:800;color:var(--navy);min-width:78px;text-align:center}
+.rsv-viewtog{display:flex;border:1px solid #d5d8dc;border-radius:8px;overflow:hidden}
+.rsv-viewtog button{border:none;background:#fff;padding:6px 12px;font-size:13px;font-weight:700;cursor:pointer;color:#888}
+.rsv-viewtog button.on{background:#2563eb;color:#fff}
+.rsv-add{margin-left:auto;border:none;background:#1d9e75;color:#fff;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:800;cursor:pointer}
+.rsv-summary{padding:8px 14px;font-size:13px;color:#555;background:#fff;border-bottom:1px solid #eee}
+.rsv-summary b{color:#2563eb}
+.rsv-cal{padding:10px;flex:1;min-height:0}
+/* 월 뷰 */
+.rsv-month{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.rsv-dow{text-align:center;font-size:11px;font-weight:700;color:#888;padding:4px 0}
+.rsv-dow.sun{color:#dc2626}.rsv-dow.sat{color:#2563eb}
+.rsv-day{background:#fff;border-radius:8px;min-height:64px;padding:4px 5px;cursor:pointer;border:1px solid #eef1f4;position:relative}
+.rsv-day.other{background:#f7f8fa;opacity:.5}
+.rsv-day.today{border-color:#2563eb;box-shadow:inset 0 0 0 1px #2563eb}
+.rsv-day .dnum{font-size:12px;font-weight:700;color:#444}
+.rsv-day .dnum.sun{color:#dc2626}.rsv-day .dnum.sat{color:#2563eb}
+.rsv-day .dcount{position:absolute;top:3px;right:5px;font-size:10px;font-weight:800;color:#fff;background:#1d9e75;border-radius:8px;padding:0 5px}
+.rsv-pill{font-size:10px;background:#eef4ff;color:#2563eb;border-radius:4px;padding:1px 4px;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rsv-pill.done{background:#f0f0f0;color:#999;text-decoration:line-through}
+.rsv-pill.cancel{background:#fee2e2;color:#dc2626;text-decoration:line-through}
+.rsv-pill.more{background:none;color:#888;text-align:center}
+/* 주 뷰 */
+.rsv-week{display:flex;flex-direction:column;gap:3px}
+.rsv-wslot{display:flex;gap:6px;align-items:flex-start}
+.rsv-wtime{flex:0 0 48px;font-size:11px;color:#888;font-weight:700;padding-top:6px;text-align:right}
+.rsv-wbody{flex:1;min-height:30px;border-top:1px solid #eee;padding:3px 0;display:flex;flex-wrap:wrap;gap:3px}
+/* 카드 (주뷰/상세) — 엔지니어 핵심 강조 */
+.rsv-card{background:#fff;border-left:3px solid #2563eb;border-radius:6px;padding:5px 8px;font-size:12px;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.rsv-card.done{opacity:.5;border-left-color:#999}
+.rsv-card.cancel{opacity:.5;border-left-color:#dc2626;text-decoration:line-through}
+.rsv-card .rc-eng{font-weight:800;color:#222}
+.rsv-card .rc-sub{font-size:11px;color:#888;margin-top:1px}
+.rsv-card .rc-align{display:inline-block;background:#fef3c7;color:#b45309;font-size:10px;font-weight:800;padding:0 5px;border-radius:6px;margin-left:4px}
+/* 모달 폼 */
+.rsv-modetabs{display:flex;gap:6px;margin-bottom:12px}
+.rsv-modetabs button{flex:1;border:1px solid #d5d8dc;background:#fff;padding:9px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;color:#888}
+.rsv-modetabs button.on{background:#2563eb;color:#fff;border-color:#2563eb}
+.rsv-form label{display:block;font-size:12px;font-weight:700;color:#555;margin-bottom:10px}
+.rsv-form input,.rsv-form select,.rsv-form textarea{width:100%;border:1.5px solid var(--border);border-radius:8px;padding:8px 10px;font-size:14px;margin-top:3px;box-sizing:border-box;font-family:inherit;background:#fff}
+.rsv-form .rsv-row2{display:flex;gap:10px}
+.rsv-form .rsv-row2 label{flex:1}
+.rsv-form .req{color:#dc2626}
+.rsv-form .rsv-chk{display:flex;align-items:center;gap:6px;font-weight:600}
+.rsv-form .rsv-chk input{width:auto;margin:0}
+.rsv-submit{width:100%;border:none;background:#1d9e75;color:#fff;padding:12px;border-radius:10px;font-size:15px;font-weight:800;cursor:pointer;margin-top:6px}
+.rsv-detail-row{display:flex;font-size:13px;padding:6px 0;border-bottom:0.5px solid #eee}
+.rsv-detail-row .k{flex:0 0 90px;color:#888;font-weight:700}
+.rsv-detail-row .v{flex:1;color:#222}
+.rsv-detail-acts{display:flex;gap:8px;margin-top:14px}
+.rsv-detail-acts button{flex:1;border:none;padding:11px;border-radius:9px;font-size:14px;font-weight:800;cursor:pointer}
+.rsv-bt-done{background:#1d9e75;color:#fff}
+.rsv-bt-cancel{background:#fee2e2;color:#dc2626}
+.rsv-bt-reopen{background:#eef1f4;color:#444}
 </style>
 </head>
 <body>
@@ -928,6 +988,79 @@ body.rb-on #app{padding-top:58px}
     </div>
     <div class="sbox"><input id="stk-rtq" placeholder="🔍 브랜드·패턴·코드·사이즈" oninput="stkRenderTable()"><button>🔍</button></div>
     <div class="stk-rtwrap"><table class="stk-rt" id="stk-rtTable"></table></div>
+  </div>
+</div>
+<div id="reserve-screen" style="display:none;flex-direction:column;flex:1;min-height:0;overflow-y:auto">
+  <div class="rsv-bar">
+    <div class="rsv-nav">
+      <button onclick="rsvMove(-1)">‹</button>
+      <span id="rsv-title">2026.06</span>
+      <button onclick="rsvMove(1)">›</button>
+      <button class="rsv-today" onclick="rsvToday()">오늘</button>
+    </div>
+    <div class="rsv-viewtog">
+      <button id="rsv-vm" class="on" onclick="rsvSetView('month')">월</button>
+      <button id="rsv-vw" onclick="rsvSetView('week')">주</button>
+    </div>
+    <button class="rsv-add" onclick="rsvOpenAdd()">+ 예약</button>
+  </div>
+  <div id="rsv-summary" class="rsv-summary"></div>
+  <div id="rsv-cal" class="rsv-cal"></div>
+</div>
+<!-- 예약 등록/상세 모달 -->
+<div class="modal-bg" id="rsv-modal">
+  <div class="paste-modal" style="max-width:520px">
+    <div class="paste-head"><span class="pt" id="rsv-modal-title">예약 등록</span><button class="pmx" onclick="rsvCloseModal()">×</button></div>
+    <div class="rsv-modetabs">
+      <button id="rsv-mode-quick" class="on" onclick="rsvSetMode('quick')">⚡ 빠른입력</button>
+      <button id="rsv-mode-full" onclick="rsvSetMode('full')">📝 상세입력</button>
+    </div>
+    <div class="rsv-form">
+      <div class="rsv-row2">
+        <label>날짜 <span class="req">*</span><input type="date" id="rsv-date"></label>
+        <label>시간 <span class="req">*</span>
+          <select id="rsv-time"></select>
+        </label>
+      </div>
+      <!-- 빠른입력: 핵심만 -->
+      <div id="rsv-quick-fields">
+        <label>간단 메모<textarea id="rsv-memo-quick" rows="2" placeholder="예: 김OO 그랜저 / 미쉐린 4짝 / 25만 / 현장"></textarea></label>
+      </div>
+      <!-- 상세입력 -->
+      <div id="rsv-full-fields" style="display:none">
+        <div class="rsv-row2">
+          <label>유입경로<select id="rsv-source"><option value="">-</option><option>전화</option><option>스팜</option><option>11번가</option><option>번장</option><option>깜손</option></select></label>
+          <label>이름<input id="rsv-name" placeholder="손님 이름"></label>
+        </div>
+        <div class="rsv-row2">
+          <label>연락처<input id="rsv-tel" placeholder="010-"></label>
+          <label>차종<input id="rsv-car" placeholder="예: 그랜저 IG"></label>
+        </div>
+        <div class="rsv-row2">
+          <label>타이어명<input id="rsv-tire" placeholder="예: 미쉐린 PS5"></label>
+          <label>개수<input id="rsv-qty" type="number" placeholder="4"></label>
+        </div>
+        <label>타이어 위치 / 거래처 출고일<input id="rsv-tireloc" placeholder="예: 창고 A-3 / 거래처 6/20 도착예정"></label>
+        <div class="rsv-row2">
+          <label>현장결제금액<input id="rsv-pay" placeholder="없으면 X"></label>
+          <label>결제방법<select id="rsv-paytype"><option value="">-</option><option>현금</option><option>카드</option><option>계좌이체</option></select></label>
+        </div>
+        <div class="rsv-row2">
+          <label class="rsv-chk"><input type="checkbox" id="rsv-align"> 얼라이먼트</label>
+          <label class="rsv-chk"><input type="checkbox" id="rsv-notice"> 포함안내</label>
+        </div>
+        <label class="rsv-chk"><input type="checkbox" id="rsv-review"> 구매확정·리뷰 안내 (엔지니어 메모)</label>
+        <label>추가 메모<textarea id="rsv-memo-full" rows="2"></textarea></label>
+      </div>
+      <button class="rsv-submit" onclick="rsvSubmit()">예약 등록</button>
+    </div>
+  </div>
+</div>
+<!-- 예약 상세 보기 모달 -->
+<div class="modal-bg" id="rsv-detail-modal">
+  <div class="paste-modal" style="max-width:480px">
+    <div class="paste-head"><span class="pt">예약 상세</span><button class="pmx" onclick="rsvCloseDetail()">×</button></div>
+    <div id="rsv-detail-body"></div>
   </div>
 </div>
     <div class="delivery-screen" id="delivery-screen" style="display:none">
@@ -1176,6 +1309,7 @@ const ROOM_META={
   '입고방':{icon:'📦',ai:true,mode:'items',desc:'받아오기 · 거래처 발주 · 물류차 입고'},
   '직배송방':{icon:'🚚',ai:false,mode:'delivery',desc:'직배송 · 미출고 · 택배전환'},
   '재고방':{icon:'🗺',ai:false,mode:'stock',desc:'재고 검색 · 창고지도'},
+  '예약장착방':{icon:'📅',ai:false,mode:'reserve',desc:'장착 예약 · 캘린더'},
   '공지방':{icon:'📢',ai:false,desc:'공지 및 전달사항'},
   '자유방':{icon:'💬',ai:false,desc:'자유로운 대화'},
 };
@@ -1227,6 +1361,8 @@ async function bootApp(){
   if(me.name===ADMIN_NAME)document.getElementById('admin-sidebar-btn').style.display='block';
   const{data}=await sb.from('rooms').select('*').order('created_at');
   if(data&&!data.some(r=>r.name==='재고방'))data.splice(2,0,{id:'stock-virtual',name:'재고방'});
+  // [실사용 비활성화] 예약장착방은 테스트 중 — 테스트 파일에서만 노출. 안정화 후 이 줄 활성화
+  // if(data&&!data.some(r=>r.name==='예약장착방'))data.splice(3,0,{id:'reserve-virtual',name:'예약장착방'});
   rooms=data||[];
   populateAdminSelects();renderSidebar();
   if(rooms.length)selectRoom(rooms[0]);
@@ -1250,11 +1386,13 @@ async function selectRoom(room){
   const isItems=(m.mode==='items');
   const isDelivery=(m.mode==='delivery');
   const isStock=(m.mode==='stock');
-  const isSpecial=isItems||isDelivery||isStock;
-  // 입고방/직배송방/재고방: 전용 화면. 그 외: 기존 채팅
+  const isReserve=(m.mode==='reserve');
+  const isSpecial=isItems||isDelivery||isStock||isReserve;
+  // 입고방/직배송방/재고방/예약장착방: 전용 화면. 그 외: 기존 채팅
   document.getElementById('items-screen').style.display=isItems?'flex':'none';
   document.getElementById('delivery-screen').style.display=isDelivery?'flex':'none';
   document.getElementById('stock-screen').style.display=isStock?'flex':'none';
+  var rsv=document.getElementById('reserve-screen');if(rsv)rsv.style.display=isReserve?'flex':'none';
   document.getElementById('msgs-wrap')&&(document.getElementById('msgs-wrap').style.display=isSpecial?'none':'');
   document.querySelector('.msgs-wrap').style.display=isSpecial?'none':'flex';
   document.querySelector('.input-wrap').style.display=isSpecial?'none':'';
@@ -1277,6 +1415,14 @@ async function selectRoom(room){
   if(itemsSub){sb.removeChannel(itemsSub);itemsSub=null;}
   if(dlvSub){sb.removeChannel(dlvSub);dlvSub=null;}
   if(stockSub){sb.removeChannel(stockSub);stockSub=null;}
+  if(typeof reserveSub!=='undefined'&&reserveSub){sb.removeChannel(reserveSub);reserveSub=null;}
+  if(isReserve){
+    if(typeof loadReservations==='function')await loadReservations();
+    reserveSub=sb.channel('reserve-live')
+      .on('postgres_changes',{event:'*',schema:'public',table:'reservations'},()=>{if(typeof loadReservations==='function')loadReservations();})
+      .subscribe();
+    return;
+  }
   if(isStock){
     initDatePicker();        // 날짜 기본 오늘로
     stkLogAllDates=false;    // 출고기록도 기본 오늘
@@ -2301,12 +2447,12 @@ async function loadItems(){
     const all=data||[];
     // 반품과 일반 분리
     const todayDs=getTodayISO();
-    // 미완료 반품 이월: 오늘(단일날짜)을 볼 때, 과거의 '미완료 반품'도 함께 불러와 표시 (복사 없이 이월 효과)
+    // 미완료 반품 이월 + 오늘 완료된 과거 반품도 함께 (완료해도 그날까지 반투명으로 남게)
     let carryReturns=[];
     if(!isRangeActive()&&sel.from===todayDs){
       try{
-        const cr=await sb.from('items').select('*').eq('room_id',curRoom.id).lt('date_str',todayDs).or('return_done.is.null,return_done.eq.false');
-        carryReturns=(cr.data||[]).filter(function(it){return isReturnItem(it)&&!it.return_done;});
+        const cr=await sb.from('items').select('*').eq('room_id',curRoom.id).lt('date_str',todayDs).or('return_done.is.null,return_done.eq.false,return_done_date.eq.'+todayDs);
+        carryReturns=(cr.data||[]).filter(function(it){return isReturnItem(it)&&(!it.return_done||it.return_done_date===todayDs);});
       }catch(e){carryReturns=[];}
     }
     const seenIds={};
@@ -3986,6 +4132,7 @@ function updateFilled(){['i-src','i-model','i-spec','i-qty','i-use','i-chg'].for
 
 // ═══════════ 재고방 (stock) ═══════════
 var stockSub=null, stkP=[], stkLocked=false;
+var reserveSub=null, reservations=[], reserveView='month', reserveCursor=new Date();
 var STK_LANES={A:6,B:6,Y:3}, STK_LEN=10, stkFloor='A', stkZi=0, stkHoriz=false, stkZoomLane=-1;
 var STK_FL={A:'1층',B:'2층',Y:'야외'};
 var STK_ZOOM=[{fit:true,h:54,m:1},{h:64,m:1},{h:80,m:2},{h:100,m:2}];
@@ -6490,6 +6637,232 @@ async function stkUpRun(){
   stkCloseDlg();
   stkToast('완료: '+ok+'건'+(fail?(' (건너뜀 '+fail+')'):''));
   await stkLoad();
+}
+
+// ========== 예약장착방 ==========
+var rsvMode='quick', rsvEditId=null;
+function rsvDateStr(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function rsvFillTimeOptions(){
+  var sel=document.getElementById('rsv-time');if(!sel)return;
+  var h='<option value="">-</option>';
+  for(var hr=8;hr<=20;hr++){for(var m=0;m<60;m+=30){var t=String(hr).padStart(2,'0')+':'+String(m).padStart(2,'0');h+='<option value="'+t+'">'+t+'</option>';}}
+  sel.innerHTML=h;
+}
+async function loadReservations(){
+  try{
+    var r=await sb.from('reservations').select('*').order('date_str',{ascending:true}).order('time_slot',{ascending:true});
+    reservations=r.data||[];
+  }catch(e){reservations=[];}
+  renderReserve();
+}
+function rsvMove(dir){
+  if(reserveView==='month')reserveCursor.setMonth(reserveCursor.getMonth()+dir);
+  else reserveCursor.setDate(reserveCursor.getDate()+dir*7);
+  renderReserve();
+}
+function rsvToday(){reserveCursor=new Date();renderReserve();}
+function rsvSetView(v){
+  reserveView=v;
+  document.getElementById('rsv-vm').classList.toggle('on',v==='month');
+  document.getElementById('rsv-vw').classList.toggle('on',v==='week');
+  renderReserve();
+}
+function rsvByDate(ds){return reservations.filter(function(r){return r.date_str===ds;}).sort(function(a,b){return (a.time_slot||'').localeCompare(b.time_slot||'');});}
+function rsvEngLine(r){
+  // 엔지니어 핵심: 차종 · 타이어 · 개수 · 금액 · 얼라이먼트
+  var parts=[];
+  if(r.car_model)parts.push(r.car_model);
+  if(r.tire_spec)parts.push(r.tire_spec);
+  if(r.qty)parts.push(r.qty+'짝');
+  var line=parts.join(' · ');
+  if(!line)line=(r.memo||'(메모 없음)');
+  return line;
+}
+function renderReserve(){
+  rsvFillTimeOptions();
+  var todayDs=rsvDateStr(new Date());
+  // 요약
+  var todays=rsvByDate(todayDs);
+  var done=todays.filter(function(r){return r.status==='완료';}).length;
+  var sumEl=document.getElementById('rsv-summary');
+  if(sumEl)sumEl.innerHTML='오늘 예약 <b>'+todays.length+'</b>건 · 완료 <b>'+done+'</b>건 · 대기 <b>'+(todays.filter(function(r){return r.status!=='완료'&&r.status!=='취소';}).length)+'</b>건';
+  if(reserveView==='month')renderReserveMonth();
+  else renderReserveWeek();
+}
+function renderReserveMonth(){
+  var y=reserveCursor.getFullYear(), mo=reserveCursor.getMonth();
+  document.getElementById('rsv-title').textContent=y+'.'+String(mo+1).padStart(2,'0');
+  var first=new Date(y,mo,1), start=new Date(first);
+  start.setDate(1-first.getDay()); // 그 주 일요일부터
+  var todayDs=rsvDateStr(new Date());
+  var dows=['일','월','화','수','목','금','토'];
+  var h='<div class="rsv-month">';
+  dows.forEach(function(d,i){h+='<div class="rsv-dow'+(i===0?' sun':(i===6?' sat':''))+'">'+d+'</div>';});
+  for(var i=0;i<42;i++){
+    var d=new Date(start);d.setDate(start.getDate()+i);
+    var ds=rsvDateStr(d), inMonth=(d.getMonth()===mo), dow=d.getDay();
+    var list=rsvByDate(ds);
+    h+='<div class="rsv-day'+(inMonth?'':' other')+(ds===todayDs?' today':'')+'" onclick="rsvDayClick(\''+ds+'\')">';
+    h+='<div class="dnum'+(dow===0?' sun':(dow===6?' sat':''))+'">'+d.getDate()+'</div>';
+    if(list.length)h+='<div class="dcount">'+list.length+'</div>';
+    list.slice(0,3).forEach(function(r){
+      var cls=r.status==='완료'?' done':(r.status==='취소'?' cancel':'');
+      h+='<div class="rsv-pill'+cls+'" onclick="event.stopPropagation();rsvShowDetail(\''+r.id+'\')">'+(r.time_slot||'')+' '+esc(rsvEngLine(r)).slice(0,10)+'</div>';
+    });
+    if(list.length>3)h+='<div class="rsv-pill more">+'+(list.length-3)+'</div>';
+    h+='</div>';
+  }
+  h+='</div>';
+  document.getElementById('rsv-cal').innerHTML=h;
+}
+function renderReserveWeek(){
+  var cur=new Date(reserveCursor), start=new Date(cur);
+  start.setDate(cur.getDate()-cur.getDay());
+  var end=new Date(start);end.setDate(start.getDate()+6);
+  document.getElementById('rsv-title').textContent=(start.getMonth()+1)+'/'+start.getDate()+'~'+(end.getMonth()+1)+'/'+end.getDate();
+  var todayDs=rsvDateStr(new Date());
+  var dows=['일','월','화','수','목','금','토'];
+  var h='<div class="rsv-week">';
+  for(var i=0;i<7;i++){
+    var d=new Date(start);d.setDate(start.getDate()+i);
+    var ds=rsvDateStr(d);
+    var list=rsvByDate(ds);
+    h+='<div class="rsv-wslot"><div class="rsv-wtime">'+dows[d.getDay()]+'<br>'+d.getDate()+(ds===todayDs?'★':'')+'</div><div class="rsv-wbody" onclick="rsvDayClick(\''+ds+'\')">';
+    list.forEach(function(r){
+      var cls=r.status==='완료'?' done':(r.status==='취소'?' cancel':'');
+      h+='<div class="rsv-card'+cls+'" onclick="event.stopPropagation();rsvShowDetail(\''+r.id+'\')" style="flex:0 0 auto;max-width:200px">'+
+        '<div class="rc-eng">'+(r.time_slot||'')+' '+esc(rsvEngLine(r))+(r.alignment?'<span class="rc-align">얼라이</span>':'')+'</div>'+
+        (r.pay_amount?'<div class="rc-sub">💰 '+esc(r.pay_amount)+(r.pay_type?' ('+esc(r.pay_type)+')':'')+'</div>':'')+
+        '</div>';
+    });
+    if(!list.length)h+='<span style="color:#ccc;font-size:11px;padding:6px">예약 없음</span>';
+    h+='</div></div>';
+  }
+  h+='</div>';
+  document.getElementById('rsv-cal').innerHTML=h;
+}
+function rsvDayClick(ds){rsvOpenAdd(ds);}
+function rsvSetMode(m){
+  rsvMode=m;
+  document.getElementById('rsv-mode-quick').classList.toggle('on',m==='quick');
+  document.getElementById('rsv-mode-full').classList.toggle('on',m==='full');
+  document.getElementById('rsv-quick-fields').style.display=(m==='quick')?'block':'none';
+  document.getElementById('rsv-full-fields').style.display=(m==='full')?'block':'none';
+}
+function rsvOpenAdd(ds){
+  rsvEditId=null;
+  document.getElementById('rsv-modal-title').textContent='예약 등록';
+  rsvFillTimeOptions();
+  rsvSetMode('quick');
+  document.getElementById('rsv-date').value=ds||rsvDateStr(new Date());
+  ['rsv-time','rsv-memo-quick','rsv-source','rsv-name','rsv-tel','rsv-car','rsv-tire','rsv-qty','rsv-tireloc','rsv-pay','rsv-paytype','rsv-memo-full'].forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
+  ['rsv-align','rsv-notice','rsv-review'].forEach(function(id){var el=document.getElementById(id);if(el)el.checked=false;});
+  document.getElementById('rsv-modal').classList.add('on');
+}
+function rsvCloseModal(){document.getElementById('rsv-modal').classList.remove('on');}
+function rsvOpenEdit(id){
+  var r=reservations.find(function(x){return x.id===id;});if(!r)return;
+  rsvCloseDetail();
+  rsvEditId=id;
+  document.getElementById('rsv-modal-title').textContent='예약 수정';
+  rsvFillTimeOptions();
+  // 상세 내용이 있으면 상세모드, 아니면 빠른모드
+  var hasFull=r.car_model||r.tire_spec||r.customer_name||r.customer_tel||r.pay_amount||r.source;
+  rsvSetMode(hasFull?'full':'quick');
+  document.getElementById('rsv-date').value=r.date_str||'';
+  document.getElementById('rsv-time').value=r.time_slot||'';
+  document.getElementById('rsv-memo-quick').value=r.memo||'';
+  document.getElementById('rsv-source').value=r.source||'';
+  document.getElementById('rsv-name').value=r.customer_name||'';
+  document.getElementById('rsv-tel').value=r.customer_tel||'';
+  document.getElementById('rsv-car').value=r.car_model||'';
+  document.getElementById('rsv-tire').value=r.tire_spec||'';
+  document.getElementById('rsv-qty').value=r.qty||'';
+  document.getElementById('rsv-tireloc').value=r.tire_loc||'';
+  document.getElementById('rsv-pay').value=r.pay_amount||'';
+  document.getElementById('rsv-paytype').value=r.pay_type||'';
+  document.getElementById('rsv-memo-full').value=r.memo||'';
+  document.getElementById('rsv-align').checked=!!r.alignment;
+  document.getElementById('rsv-notice').checked=!!r.notice;
+  document.getElementById('rsv-review').checked=!!r.review_notice;
+  document.getElementById('rsv-modal').classList.add('on');
+}
+async function rsvSubmit(){
+  var date=document.getElementById('rsv-date').value;
+  var time=document.getElementById('rsv-time').value;
+  if(!date||!time){alert('날짜와 시간은 꼭 선택해주세요');return;}
+  var rec={
+    date_str:date, time_slot:time, user_name:me?me.name:'?',
+    memo:(rsvMode==='quick'?document.getElementById('rsv-memo-quick').value:document.getElementById('rsv-memo-full').value).trim()
+  };
+  if(!rsvEditId)rec.status='예약'; // 신규만 상태 초기화 (수정 시 기존 상태 유지)
+  if(rsvMode==='full'){
+    rec.source=document.getElementById('rsv-source').value;
+    rec.customer_name=document.getElementById('rsv-name').value.trim();
+    rec.customer_tel=document.getElementById('rsv-tel').value.trim();
+    rec.car_model=document.getElementById('rsv-car').value.trim();
+    rec.tire_spec=document.getElementById('rsv-tire').value.trim();
+    rec.qty=parseInt(document.getElementById('rsv-qty').value)||null;
+    rec.tire_loc=document.getElementById('rsv-tireloc').value.trim();
+    rec.pay_amount=document.getElementById('rsv-pay').value.trim();
+    rec.pay_type=document.getElementById('rsv-paytype').value;
+    rec.alignment=document.getElementById('rsv-align').checked;
+    rec.notice=document.getElementById('rsv-notice').checked;
+    rec.review_notice=document.getElementById('rsv-review').checked;
+  }
+  try{
+    if(rsvEditId){
+      var{error}=await sb.from('reservations').update(rec).eq('id',rsvEditId);
+      if(error)throw error;
+    }else{
+      var{error:e2}=await sb.from('reservations').insert(rec);
+      if(e2)throw e2;
+    }
+  }catch(e){alert((rsvEditId?'수정':'등록')+' 실패: '+e.message);return;}
+  rsvEditId=null;
+  rsvCloseModal();
+  await loadReservations();
+}
+function rsvShowDetail(id){
+  var r=reservations.find(function(x){return x.id===id;});if(!r)return;
+  var rows=[];
+  function row(k,v){if(v!==undefined&&v!==null&&v!=='')rows.push('<div class="rsv-detail-row"><div class="k">'+k+'</div><div class="v">'+esc(String(v))+'</div></div>');}
+  row('날짜',r.date_str);row('시간',r.time_slot);
+  row('상태',r.status);
+  row('차종',r.car_model);row('타이어',r.tire_spec);row('개수',r.qty?r.qty+'짝':'');
+  row('현장결제',r.pay_amount);row('결제방법',r.pay_type);
+  if(r.alignment)row('얼라이먼트','✅ 포함');
+  if(r.notice)row('포함안내','✅');
+  row('타이어위치/출고',r.tire_loc);
+  row('유입경로',r.source);row('이름',r.customer_name);row('연락처',r.customer_tel);
+  if(r.review_notice)row('리뷰안내','✅ (엔지니어 확인)');
+  row('메모',r.memo);row('작성자',r.user_name);
+  var acts='<div class="rsv-detail-acts">';
+  if(r.status==='완료'){
+    acts+='<button class="rsv-bt-reopen" onclick="rsvSetStatus(\''+r.id+'\',\'예약\')">완료 취소</button>';
+  }else if(r.status==='취소'){
+    acts+='<button class="rsv-bt-reopen" onclick="rsvSetStatus(\''+r.id+'\',\'예약\')">취소 되돌리기</button>';
+  }else{
+    acts+='<button class="rsv-bt-done" onclick="rsvSetStatus(\''+r.id+'\',\'완료\')">완료</button>';
+    acts+='<button class="rsv-bt-cancel" onclick="rsvSetStatus(\''+r.id+'\',\'취소\')">취소</button>';
+  }
+  acts+='</div>';
+  acts+='<div style="margin-top:8px"><button onclick="rsvOpenEdit(\''+r.id+'\')" style="width:100%;border:1.5px solid #2563eb;background:#fff;color:#2563eb;padding:10px;border-radius:9px;font-size:14px;font-weight:800;cursor:pointer">✏️ 내용 수정</button></div>';
+  acts+='<div style="margin-top:6px"><button onclick="rsvDelete(\''+r.id+'\')" style="width:100%;border:none;background:none;color:#999;font-size:12px;text-decoration:underline;cursor:pointer">예약 삭제</button></div>';
+  document.getElementById('rsv-detail-body').innerHTML=rows.join('')+acts;
+  document.getElementById('rsv-detail-modal').classList.add('on');
+}
+function rsvCloseDetail(){document.getElementById('rsv-detail-modal').classList.remove('on');}
+async function rsvSetStatus(id,status){
+  try{var{error}=await sb.from('reservations').update({status:status}).eq('id',id);if(error)throw error;}
+  catch(e){alert('변경 실패: '+e.message);return;}
+  rsvCloseDetail();await loadReservations();
+}
+async function rsvDelete(id){
+  if(!confirm('이 예약을 완전히 삭제할까요? (되돌릴 수 없음)'))return;
+  try{var{error}=await sb.from('reservations').delete().eq('id',id);if(error)throw error;}
+  catch(e){alert('삭제 실패: '+e.message);return;}
+  rsvCloseDetail();await loadReservations();
 }
 
 </script>
