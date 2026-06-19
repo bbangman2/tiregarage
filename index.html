@@ -255,14 +255,6 @@ body.rb-on #app{padding-top:58px}
 .rtcat{font-size:10px;font-weight:800;padding:1px 5px;border-radius:7px}
 .rtv{font-weight:800;color:#15803d}
 .rtv.zero{color:#999}.rtv.neg{color:#dc2626}
-.stk-justadded td{background:#fff3bf !important;animation:stkJustAddedFade 2.5s ease-out}
-@keyframes stkJustAddedFade{0%{background:#ffe066}100%{background:#fff3bf}}
-.perm-row{display:flex;align-items:center;justify-content:space-between;padding:9px 4px;border-bottom:1px solid #f0f1f4}
-.perm-name{font-size:14px;font-weight:700;color:#222}
-.perm-badge{font-size:10px;font-weight:800;color:#0c447c;background:#eef4fb;border:1px solid #cfe0f5;border-radius:6px;padding:1px 6px;margin-left:4px}
-.perm-fixed{font-size:12px;font-weight:800;color:#15803d}
-.perm-tog{font-size:12px;font-weight:800;padding:6px 12px;border-radius:8px;cursor:pointer;border:1px solid #ddd;background:#f5f5f7;color:#999;min-width:88px}
-.perm-tog.on{border-color:#b9e0c9;background:#eaf7ef;color:#15803d}
 .rtch{color:#7a5d00;background:#fffdf5}
 .rtqty{font-weight:700;color:#0c447c}
 .stk-rt tfoot td{background:#f3f5f9;font-weight:800;border:1px solid #e5e7eb;padding:6px 5px}
@@ -923,7 +915,6 @@ body.rb-on #app{padding-top:58px}
       <button onclick="stkOpenAdd()">✏️ 하나 추가</button>
     </div>
     <div class="adminbar" id="stk-adminbar" style="display:none">🔧 관리자:
-      <button onclick="stkOpenPerm()" style="background:#eef6ff;border-color:#cfe0f5;color:#0c447c">👥 수정권한</button>
       <button onclick="stkResetOpen()" style="background:#fef2f2;border-color:#fecaca;color:#dc2626">🔄 전체 초기화</button>
     </div>
     <div id="stk-dlbar" style="display:none;margin-bottom:8px">
@@ -1436,12 +1427,11 @@ async function selectRoom(room){
     initDatePicker();        // 날짜 기본 오늘로
     stkLogAllDates=false;    // 출고기록도 기본 오늘
     await stkLoad();
-    if(typeof stkLoadEditors==='function')await stkLoadEditors();
     if(typeof stkLoadLogTab==='function')stkLoadLogTab();
     stockSub=sb.channel('stock-live')
       .on('postgres_changes',{event:'*',schema:'public',table:'stock_lots'},()=>{stkLoad();})
       .on('postgres_changes',{event:'*',schema:'public',table:'stock_products'},()=>{stkLoad();})
-      .on('postgres_changes',{event:'*',schema:'public',table:'stock_settings'},()=>{stkLoadLock();if(typeof stkLoadEditors==='function')stkLoadEditors();})
+      .on('postgres_changes',{event:'*',schema:'public',table:'stock_settings'},()=>{stkLoadLock();})
       .subscribe();
     return;
   }
@@ -4168,8 +4158,8 @@ function stkEsc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</
 function stkWon(n){return (+n).toLocaleString('ko-KR')+'원'}
 function stkIsAdmin(){return me&&me.name===ADMIN_NAME}
 // 재고표 즉시수정 권한: 이호준·남성현·권순현 (잠금 무관)
-var STK_INLINE_EDITORS=['이호준','남성현','권순현','이정우'];
-function stkCanInline(){return me&&(stkIsAdmin()||STK_INLINE_EDITORS.indexOf(me.name)>=0)}
+var STK_INLINE_EDITORS=['이호준','남성현','권순현'];
+function stkCanInline(){return me&&STK_INLINE_EDITORS.indexOf(me.name)>=0}
 function stkToast(m){var t=document.getElementById('stk-toast');t.textContent=m;t.classList.add('show');setTimeout(function(){t.classList.remove('show')},2200)}
 function stkCloseDlg(){document.querySelectorAll('.stkdlgbg').forEach(function(d){d.classList.remove('on')})}
 // ── 데이터 ──
@@ -4315,56 +4305,6 @@ async function stkTogLock(){
   }
   stkLoadLock();
 }
-// ── 재고방 수정권한 관리 (stock_settings key='inline_editors', JSON 명단) ──
-// 잠금과 같은 방식: Supabase 1줄 저장 + 실시간 구독으로 전 직원·전 기기 즉시 반영
-var STK_EDITORS_DEFAULT=['이호준','남성현','권순현','이정우'];
-async function stkLoadEditors(){
-  try{
-    var r=await sb.from('stock_settings').select('*').eq('key','inline_editors');
-    if(r.data&&r.data[0]&&r.data[0].value){
-      var arr=JSON.parse(r.data[0].value);
-      if(Array.isArray(arr)){STK_INLINE_EDITORS.length=0;arr.forEach(function(n){if(STK_INLINE_EDITORS.indexOf(n)<0)STK_INLINE_EDITORS.push(n);});}
-    }else{
-      // 행이 없으면 현재 기본 명단으로 자동 생성 (호준님 SQL 실행 불필요)
-      try{await sb.from('stock_settings').insert({key:'inline_editors',value:JSON.stringify(STK_INLINE_EDITORS)});}catch(e){}
-    }
-  }catch(e){}
-  // 관리자는 항상 포함 보장
-  if(STK_INLINE_EDITORS.indexOf(ADMIN_NAME)<0)STK_INLINE_EDITORS.push(ADMIN_NAME);
-  // 권한 모달이 열려 있으면 갱신, 내 편집가능 여부 바뀔 수 있으니 표도 갱신
-  if(document.getElementById('stk-dlgPerm')&&document.getElementById('stk-dlgPerm').classList.contains('on'))stkRenderPerm();
-}
-async function stkSaveEditors(){
-  var val=JSON.stringify(STK_INLINE_EDITORS);
-  var ex=await sb.from('stock_settings').select('key').eq('key','inline_editors');
-  if(ex.data&&ex.data.length){await sb.from('stock_settings').update({value:val}).eq('key','inline_editors');}
-  else{await sb.from('stock_settings').insert({key:'inline_editors',value:val});}
-}
-async function stkSetEditor(name,on){
-  if(!stkIsAdmin()){stkToast('관리자 전용입니다');return}
-  if(name===ADMIN_NAME){stkToast('관리자는 항상 수정 가능합니다');return}
-  var idx=STK_INLINE_EDITORS.indexOf(name);
-  if(on&&idx<0)STK_INLINE_EDITORS.push(name);
-  else if(!on&&idx>=0)STK_INLINE_EDITORS.splice(idx,1);
-  try{await stkSaveEditors();}catch(e){stkToast('저장 실패: '+e.message);return}
-  stkLog('👥권한변경',name+(on?' 수정권한 부여':' 수정권한 회수'),{});
-  stkToast('✓ '+name+' '+(on?'수정권한 부여':'수정권한 회수'));
-  stkRenderPerm();
-  if(typeof stkRenderTable==='function')stkRenderTable(); // 본인이면 편집칸/관리칼럼 즉시 반영
-}
-function stkRenderPerm(){
-  var el=document.getElementById('stk-permList');if(!el)return;
-  var names=Object.keys(PW);
-  el.innerHTML=names.map(function(n){
-    if(n===ADMIN_NAME){
-      return '<div class="perm-row"><span class="perm-name">'+stkEsc(n)+' <span class="perm-badge">관리자</span></span><span class="perm-fixed">항상 가능</span></div>';
-    }
-    var on=STK_INLINE_EDITORS.indexOf(n)>=0;
-    return '<div class="perm-row"><span class="perm-name">'+stkEsc(n)+'</span>'
-      +'<button class="perm-tog'+(on?' on':'')+'" onclick="stkSetEditor(\''+stkEsc(n).replace(/'/g,"")+'\','+(!on)+')">'+(on?'✓ 수정 가능':'권한 없음')+'</button></div>';
-  }).join('');
-}
-function stkOpenPerm(){if(!stkIsAdmin()){stkToast('관리자 전용입니다');return}stkRenderPerm();document.getElementById('stk-dlgPerm').classList.add('on');}
 // ── 공통 계산 ──
 function stkTq(p){return p.lots.reduce(function(s,l){return s+l.q},0)}
 function stkCellMap(){var m={};stkP.forEach(function(p){p.lots.forEach(function(l){if(!l.q)return;(m[l.loc]=m[l.loc]||[]).push({p:p,l:l})})});return m}
@@ -4546,12 +4486,10 @@ function stkChannelSums(){
   return m;
 }
 var stkRtAdding=false;
-var stkJustAdded={}; // 방금 등록한 상품 id — 재고0이어도 등록 직후엔 재고표에 보이게 + 강조
 var stkAddViaInline=false;
 var STK_CATS=['일반','오프로드','휠','튜닝','행사','중고'];
 function stkRtAddRow(){
   if(!stkCanInline()){stkToast('이호준·남성현·권순현만 추가할 수 있습니다');return}
-  stkJustAdded={}; // 새 추가 세션 — 이전 강조 초기화
   stkRtAdding=true;stkRtAddingCount=1;
   stkRenderTable();
   // 첫 셀(분류)에 포커스 — 거기 paste하면 7칸/6칸 자동 처리, 여러 줄이면 행 자동 확장
@@ -4721,24 +4659,12 @@ async function stkRtSaveBulkNew(){
       if(res2.error)throw res2.error;
       ok+=lots.slice(j,j+B).length;
     }
-    // 방금 등록(또는 기존 상품에 합쳐진)된 상품 id 수집 — 재고0이어도 표에 보이게 + 강조
-    var _added={};
-    items.forEach(function(r){var pid=byKey[[r.br,r.name||'',r.code||'',r._size,r.ply||''].join('|')];if(pid)_added[pid]=1;});
-    stkJustAdded=_added;
     stkLog('➕상품추가','일괄 등록 '+ok+'행'+(fail?' / '+fail+'행 실패':''),{qty:ok});
   }catch(e){stkToast('등록 중 오류: '+e.message+' — 지금까지 '+ok+'건');}
-  var zeroCnt=items.filter(function(r){return (parseInt(r.qty)||0)<=0;}).length;
+  stkToast('✓ '+ok+'행 등록'+(fail?' / '+fail+'행 실패':''));
   stkRtAdding=false;stkRtAddingCount=1;
-  // 방금 등록한 행이 필터·검색에 가려지지 않게 표 필터 해제 (방금 추가한 것 바로 확인용)
-  var _q=document.getElementById('stk-rtq');if(_q)_q.value='';
-  var _br=document.getElementById('stk-rtBrand');if(_br)_br.value='';
-  var _ct=document.getElementById('stk-rtCat');if(_ct)_ct.value='';
-  var _oo=document.getElementById('stk-rtOnlyOut');if(_oo)_oo.checked=false;
   await stkLoad();
   stkRenderTable();
-  // 방금 추가한 첫 행으로 스크롤
-  try{var _hl=document.querySelector('#stk-rtTable tr.stk-justadded');if(_hl&&_hl.scrollIntoView)_hl.scrollIntoView({block:'center'});}catch(_e){}
-  stkToast('✓ '+ok+'행 등록'+(fail?' / '+fail+'행 실패':'')+(zeroCnt?' (수량 0 '+zeroCnt+'행 — 노란색으로 표시)':''));
 }
 function stkRtCancelAdd(){stkRtAdding=false;stkRenderTable();}
 // 엑셀에서 여러 행 복사해서 붙여넣기 → 한꺼번에 신규 등록
@@ -4763,7 +4689,7 @@ async function stkRtBulkPaste(e){
   if(!valid.length){stkToast('브랜드·사이즈가 있는 행이 없습니다');return}
   if(!confirm(valid.length+'개 행을 등록할까요?\n(첫 행: '+valid[0].br+' '+valid[0].name+' '+valid[0].size+')'))return;
   // 일괄 등록
-  var ok=0,fail=0,_added={};
+  var ok=0,fail=0;
   for(var i=0;i<valid.length;i++){
     var r=valid[i];
     try{
@@ -4775,7 +4701,6 @@ async function stkRtBulkPaste(e){
         var ins=await sb.from('stock_products').insert({brand:r.br,name:r.name||(r.code||'(이름미정)'),code:r.code,size:size,category:r.cat}).select();
         pid=ins.data[0].id;
       }
-      if(pid)_added[pid]=1;
       if(r.qty>0){
         await sb.from('stock_lots').insert({product_id:pid,dot:r.dot,qty:r.qty,loc:'U'});
       }
@@ -4783,17 +4708,10 @@ async function stkRtBulkPaste(e){
       ok++;
     }catch(err){fail++;}
   }
-  stkJustAdded=_added;
-  var _zero=valid.filter(function(r){return (parseInt(r.qty)||0)<=0;}).length;
+  stkToast('✓ '+ok+'행 등록'+(fail?' / '+fail+'행 실패':''));
   stkRtAdding=false;
-  var _q=document.getElementById('stk-rtq');if(_q)_q.value='';
-  var _br=document.getElementById('stk-rtBrand');if(_br)_br.value='';
-  var _ct=document.getElementById('stk-rtCat');if(_ct)_ct.value='';
-  var _oo=document.getElementById('stk-rtOnlyOut');if(_oo)_oo.checked=false;
   await stkLoad();
   stkRenderTable();
-  try{var _hl=document.querySelector('#stk-rtTable tr.stk-justadded');if(_hl&&_hl.scrollIntoView)_hl.scrollIntoView({block:'center'});}catch(_e){}
-  stkToast('✓ '+ok+'행 등록'+(fail?' / '+fail+'행 실패':'')+(_zero?' (수량 0 '+_zero+'행 — 노란색으로 표시)':''));
 }
 async function stkRtSaveNew(){
   if(!stkCanInline()){stkToast('권한이 없습니다');return}
@@ -5208,8 +5126,7 @@ function stkRenderTable(){
     if(fCat&&(p.cat||'일반')!==fCat)return false;
     if(!stkMatch(p,q))return false;
     // 품절포함 안 켜져있으면 재고 0인 상품 제외 (기본: 재고 있는 것만)
-    // 단, 방금 등록한 상품(stkJustAdded)은 재고 0이어도 보이게 — 등록 직후 사라져 보이는 문제 방지
-    if(!fSoldOut&&stkTq(p)<=0&&!stkJustAdded[p.id])return false;
+    if(!fSoldOut&&stkTq(p)<=0)return false;
     // 출고만 켜져있으면 오늘 채널 출고가 있는 상품만
     if(fOnlyOut){
       var hasOut=(p.lots||[]).some(function(l){return sums[p.id+'|'+(l.dot||'DOT누락')]});
@@ -5303,7 +5220,7 @@ function stkRenderTable(){
     }else{
       catCell='<td><span class="rtcat" style="background:'+cs.bg+';color:'+cs.t+'">'+stkEsc(r.cat)+'</span></td>';
     }
-    rows+='<tr class="'+(stkJustAdded[pid]?'stk-justadded':'')+'" style="border-left:4px solid '+cs.c+'" data-pid="'+pid+'" data-dot="'+stkEsc(dotv)+'">'+
+    rows+='<tr style="border-left:4px solid '+cs.c+'" data-pid="'+pid+'" data-dot="'+stkEsc(dotv)+'">'+
       catCell+
       ed('br',r.br)+
       ed('name',r.name)+
@@ -7072,13 +6989,6 @@ async function rsvDelete(id){
   <textarea id="stk-upTa" rows="5" placeholder="엑셀에서 행들을 복사해 붙여넣으세요 (헤더 행 포함돼도 자동 제외)"></textarea>
   <div class="upbox" id="stk-upPrev" style="display:none"></div>
   <div class="stkacts"><button class="stk-no" onclick="stkCloseDlg()">취소</button><button class="stk-ok" id="stk-upGo" onclick="stkUpRun()">미리보기</button></div>
-</div></div>
-<div class="stkdlgbg" id="stk-dlgPerm" onclick="if(event.target===this)stkCloseDlg()"><div class="stkdlg" style="max-width:360px">
-  <h3>👥 재고방 수정권한</h3>
-  <div class="sub2">권한이 있는 사람만 재고표 셀 수정·행추가·상품추가·삭제가 가능합니다. 변경 즉시 모든 직원·기기에 반영됩니다.</div>
-  <div id="stk-permList" style="margin:6px 0 4px;max-height:50vh;overflow:auto"></div>
-  <div style="font-size:11px;color:#999;margin-top:6px">※ 출고(채널칸)는 권한과 무관하게 누구나 가능합니다.</div>
-  <div class="stkacts"><button class="stk-ok" onclick="stkCloseDlg()">닫기</button></div>
 </div></div>
 <div class="stktoast" id="stk-toast"></div>
 </body>
