@@ -3155,13 +3155,16 @@ async function dlvToggleDone(id){
   if(!dlvGuardEdit())return;
   const c=deliveriesCache.find(function(x){return x.id===id;});if(!c)return;
   const willDone=!c.done;
-  try{await sb.from('deliveries').update({done:willDone,need_done:false,done_at:willDone?new Date().toISOString():null}).eq('id',id);}catch(e){alert('실패: '+e.message);}
+  const root=c.origin_id||c.id;  // 뿌리 — 사슬 전체(원본+모든 복사본+쌍둥이) 한꺼번에
+  try{await sb.from('deliveries').update({done:willDone,need_done:false,done_at:willDone?new Date().toISOString():null}).or('id.eq.'+root+',origin_id.eq.'+root);}catch(e){alert('실패: '+e.message);}
   await loadDeliveries();
 }
 async function dlvToggleConfirm(id){
   if(!dlvGuardEdit())return;
   const c=deliveriesCache.find(function(x){return x.id===id;});if(!c)return;
-  try{await sb.from('deliveries').update({confirmed:!c.confirmed}).eq('id',id);}catch(e){alert('실패: '+e.message);}
+  const willConfirm=!c.confirmed;
+  const root=c.origin_id||c.id;  // 뿌리 — 사슬 전체 한꺼번에
+  try{await sb.from('deliveries').update({confirmed:willConfirm}).or('id.eq.'+root+',origin_id.eq.'+root);}catch(e){alert('실패: '+e.message);}
   await loadDeliveries();
 }
 async function dlvMoveTab(id,to,carNo){
@@ -3191,7 +3194,8 @@ async function dlvCancel(id){
   const c=deliveriesCache.find(function(x){return x.id===id;});if(!c)return;
   if(!confirm('이 건을 취소할까요? (기록은 남아요)'))return;
   try{
-    await sb.from('deliveries').update({cancelled:true,cancelled_at:new Date().toISOString()}).eq('id',id);
+    var root=c.origin_id||c.id;  // 뿌리 — 사슬 전체 한꺼번에 취소
+    await sb.from('deliveries').update({cancelled:true,cancelled_at:new Date().toISOString()}).or('id.eq.'+root+',origin_id.eq.'+root);
     await sb.from('delivery_logs').insert({room_id:curRoom.id,date_str:dlvDateStr(),text:(me?me.name:'?')+'님이 취소함 ('+(c.recv||c.tire||'')+')',user_name:me?me.name:''});
   }catch(e){alert('취소 실패: '+e.message);}
   await loadDeliveries();
