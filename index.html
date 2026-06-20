@@ -1391,6 +1391,8 @@ async function bootApp(){
   if(rooms.length)selectRoom(rooms[0]);
   checkScheduledRefresh();
   setInterval(checkScheduledRefresh,60000); // 1분마다 체크
+  rolloverDeliveriesGlobal();                   // 로드 직후 1회 — 직배송방 안 봐도 자동 이월
+  setInterval(rolloverDeliveriesGlobal,60000);  // 1분마다 체크(하루 1회만 실제 실행)
 }
 function renderSidebar(){
   const el=document.getElementById('sb-rooms');
@@ -2682,14 +2684,15 @@ function dlvHasContent(d){
 
 // 이전 날짜의 미완료 직배송 + 미출고를 오늘로 계속 이월 (끝낼 때까지 매일)
 var _rollingOver=false; // 동시 실행 방지 잠금 (realtime 콜백 연쇄 차단)
-async function rolloverDeliveries(today){
+async function rolloverDeliveries(today, roomId){
   // 과거 날짜를 들여다볼 때는 이월하지 않음 (실제 오늘일 때만)
   if(today!==getTodayISO())return;
+  roomId=roomId||(curRoom&&curRoom.id); if(!roomId)return; // 전역 호출 시 직배송 방 id 사용
   if(_rollingOver)return;        // 이미 이월 진행 중이면 건너뜀
   _rollingOver=true;
   try{
     // 오늘 것 + 이전 것 모두 조회
-    const {data}=await sb.from('deliveries').select('*').eq('room_id',curRoom.id).lte('date_str',today);
+    const {data}=await sb.from('deliveries').select('*').eq('room_id',roomId).lte('date_str',today);
     if(!data||!data.length)return;
     const todayRows=data.filter(function(d){return d.date_str===today;});
     const pastRows=data.filter(function(d){return d.date_str<today;});
@@ -2742,7 +2745,7 @@ async function rolloverDeliveries(today){
       if(d.tab==='deliv')destCar=(d.car||1);   // 1호차·2호차·대기 그대로 유지
       let so;
       if(isParcel){maxOp++;so=maxOp;}else{maxOd++;so=maxOd;}
-      return {room_id:curRoom.id,date_str:today,tab:destTab,channel:d.channel,code:d.code||'',car:destCar,
+      return {room_id:roomId,date_str:today,tab:destTab,channel:d.channel,code:d.code||'',car:destCar,
         src:d.src||'',tire:d.tire||'',brand:d.brand||'',qty:d.qty||'',addr:d.addr||'',recv:d.recv||'',tel:d.tel||'',
         note:d.note||'',due_date:d.due_date||null,need_done:!isParcel,done:false,cancelled:false,confirmed:false,
         origin_id:(d.origin_id||d.id), first_date:(d.first_date||d.date_str),
@@ -2752,6 +2755,19 @@ async function rolloverDeliveries(today){
     await sb.from('deliveries').upsert(newRows,{onConflict:'room_id,date_str,origin_id',ignoreDuplicates:true});
   }catch(e){console.error('rollover',e);}
   finally{_rollingOver=false;}
+}
+// 전역 자동 이월: 직배송방 안 들어가도, 메신저만 켜져 있으면 하루 1회 자동 이월
+var _lastRolloverDay='';
+async function rolloverDeliveriesGlobal(){
+  try{
+    if(!sb||!me)return;                              // 로그인 전이면 패스
+    var today=getTodayISO();
+    if(_lastRolloverDay===today)return;              // 오늘 이미 실행함
+    var dr=(rooms||[]).find(function(r){return (ROOM_META[r.name]||{}).mode==='delivery';});
+    if(!dr||!dr.id)return;                           // 직배송 방 못 찾으면 패스
+    await rolloverDeliveries(today, dr.id);
+    _lastRolloverDay=today;
+  }catch(e){console.error('rolloverGlobal',e);}
 }
 
 function switchDlvTab(tab){
@@ -3388,16 +3404,7 @@ async function dlvPasteRegister(){
       src:d.src||'',tire:((d.tire||'')+(d.spec?' '+d.spec:'')).trim(),brand:d.brand||'',qty:d.qty||'',
       addr:d.addr||'',recv:d.recv||'',tel:d.tel||'',first_date:ds,sort_order:so,user_name:me?me.name:''};
   });
-  try{
-    var ins=await sb.from('deliveries').insert(rows).select();
-    if(ins.error)throw ins.error;
-    var newIds=(ins.data||[]).filter(function(r){return r.id&&!r.origin_id;}).map(function(r){return r.id;});
-    if(newIds.length){
-      for(var bi=0;bi<newIds.length;bi++){
-        await sb.from('deliveries').update({origin_id:newIds[bi]}).eq('id',newIds[bi]);
-      }
-    }
-  }catch(e){alert('등록 실패: '+e.message);return;}
+  try{await sb.from('deliveries').insert(rows);}catch(e){alert('등록 실패: '+e.message);return;}
   document.getElementById('dlv-paste').value='';
   dlvClearPreview();
   closeDlvSheet();
