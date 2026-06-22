@@ -6484,18 +6484,18 @@ async function stkDownload(){
   try{await stkLoadXLSX();}catch(e){stkToast(e.message);return}
   var XLSX=window.XLSX;
   // ── 시트1: 입고양식 (위치 포함, 다시 업로드 가능) ──
-  var aoa1=[['브랜드','패턴(제품명)','패턴코드','사이즈','연식(DOT)','수량','출처','위치','비고','카테고리','원가']];
+  var aoa1=[['분류','브랜드','패턴','패턴코드','사이즈','P수','재원','DOT','원가','공장도가','수량','위치','비고']];
   stkP.forEach(function(p){
     if(!p.lots||!p.lots.length){
       // lot이 아예 없는 상품도 재고 0으로 1줄 보존 (품목 자체 백업)
-      aoa1.push([p.br,p.name,p.code||'',p.size,'',0,'','',p.memo||'',p.cat||'일반',p.cost||'']);
+      aoa1.push([p.cat||'일반',p.br,p.name,p.code||'',p.size,p.ply||'',p.spec||'','',p.cost||'',p.factory_price||'',0,'',p.memo||'']);
       return;
     }
     p.lots.forEach(function(l){
       // 재고 0도 포함 (품목 보존 — 나중에 다시 입고될 것들). 음수(입고예정)도 포함.
       var memo=p.memo||'';
       if(l.q<0&&l.src_in)memo=(memo?memo+' / ':'')+'입고예정:'+l.src_in+(l.due_date?'('+l.due_date+')':'');
-      aoa1.push([p.br,p.name,p.code||'',p.size,l.dot||'',l.q,'',l.loc==='U'?'':l.loc,memo,p.cat||'일반',p.cost||'']);
+      aoa1.push([p.cat||'일반',p.br,p.name,p.code||'',p.size,p.ply||'',p.spec||'',l.dot||'',p.cost||'',p.factory_price||'',l.q,l.loc==='U'?'':l.loc,memo]);
     });
   });
   // ── 시트2: 현황 리포트 (사람이 보기 좋게) ──
@@ -6701,7 +6701,7 @@ function stkUpParse(){
   var isIn=(stkUpMode==='in');
   lines.forEach(function(line){
     var c=line.split('\t').map(function(x){return x.trim()});
-    var hw=['브랜드','카테고리','패턴','패턴코드','코드','사이즈','P수','피수','재원','DOT','연식','공장도가','공장가','수량','판매가','장착가','비고'];
+    var hw=['브랜드','카테고리','분류','패턴','패턴코드','코드','사이즈','P수','피수','재원','DOT','연식','원가','공장도가','공장가','수량','판매가','장착가','위치','비고'];
     var hits=c.filter(function(x){return hw.indexOf((x||'').replace(/[★*\s]/g,''))>=0;}).length;
     if(hits>=2)return;
     if(isIn){
@@ -6728,12 +6728,12 @@ async function stkDownloadTemplate(mode){
     'in':{
       title:'재고방_입고양식',
       sheet:'① 입고',
-      headers:['카테고리','브랜드★','패턴','패턴코드','사이즈★','P수','재원','DOT','공장도가','수량★'],
-      required:[false,true,false,false,true,false,false,false,false,true],
-      colors:['7c3aed','C00000','2563EB','2563EB','C00000','2563EB','2563EB','2563EB','15803d','C00000'],
-      widths:[10,14,16,12,12,7,18,10,11,8],
+      headers:['카테고리','브랜드★','패턴','패턴코드','사이즈★','P수','재원','DOT','원가','공장도가','수량★','위치','비고'],
+      required:[false,true,false,false,true,false,false,false,false,false,true,false,false],
+      colors:['7c3aed','C00000','2563EB','2563EB','C00000','2563EB','2563EB','2563EB','b45309','15803d','C00000','2563EB','2563EB'],
+      widths:[10,14,16,12,12,7,18,10,11,11,8,8,16],
       examples:[
-        ['일반','금호','크루젠','HP71','235 55 18','','한국산','2026',90000,10],
+        ['일반','금호','크루젠','HP71','235 55 18','','한국산','2026','',90000,10,'A-1',''],
         ['행사','사일룬','AT','','265 70 16','4P','중국산 행사상품','2025',60000,8],
         ['오프로드','BF굿리치','KO3','','285 70 17','6P','OE 마킹','2025',180000,4]
       ],
@@ -6885,7 +6885,7 @@ async function stkUpRun(){
       // 새 양식: c1브랜드 c2패턴 c3코드 c4사이즈 c5P수
       var newP=0;rows.forEach(function(c){
         var cName=c[2]||(c[3]||'(이름미정)');
-        var ex=stkP.find(function(p){return p.br===c[1]&&p.size===stkNormSize(c[4]||'')&&(p.code||'')===(c[3]||'')&&(p.name||'')===cName&&(p.ply||'')===(c[5]||'')&&(p.spec||'')===(c[6]||'')&&(String(p.factory_price||''))===String(parseInt(c[8])||'')&&(p.cat||'일반')===(c[0]||'일반')});
+        var ex=stkP.find(function(p){return p.br===c[1]&&p.size===stkNormSize(c[4]||'')&&(p.code||'')===(c[3]||'')&&(p.name||'')===cName&&(p.ply||'')===(c[5]||'')&&(p.spec||'')===(c[6]||'')&&(String(p.factory_price||''))===String(parseInt(c[9])||'')&&(p.cat||'일반')===(c[0]||'일반')});
         if(!ex)newP++;
       });
       msg.push(rows.length+'건 입고');
@@ -6928,19 +6928,19 @@ async function stkUpRun(){
       rows.forEach(function(c){var ct=(c[0]||'').trim();if(ct&&stkCategories.indexOf(ct)<0&&newCats.indexOf(ct)<0)newCats.push(ct);});
       if(newCats.length){stkCategories=stkCategories.concat(newCats);await saveCategories(stkCategories);}
       // 중복키 = 브랜드+패턴+코드+사이즈+P수+재원+공장도가+카테고리 (완전일치만 같은 상품 — 하나라도 다르면 따로)
-      var keyOf=function(c){return [c[1],c[2]||(c[3]||'(이름미정)'),c[3]||'',stkNormSize(c[4]||''),c[5]||'',c[6]||'',String(parseInt(c[8])||''),c[0]||'일반'].join('|')};
+      var keyOf=function(c){return [c[1],c[2]||(c[3]||'(이름미정)'),c[3]||'',stkNormSize(c[4]||''),c[5]||'',c[6]||'',String(parseInt(c[9])||''),c[0]||'일반'].join('|')};
       // 1패스: 마스터에 없는 상품 일괄 생성
       var need={};
       rows.forEach(function(c){
         var cName=c[2]||(c[3]||'(이름미정)');
-        var ex=stkP.find(function(p){return p.br===c[1]&&p.size===stkNormSize(c[4]||'')&&(p.code||'')===(c[3]||'')&&(p.name||'')===cName&&(p.ply||'')===(c[5]||'')&&(p.spec||'')===(c[6]||'')&&(String(p.factory_price||''))===String(parseInt(c[8])||'')&&(p.cat||'일반')===(c[0]||'일반')});
+        var ex=stkP.find(function(p){return p.br===c[1]&&p.size===stkNormSize(c[4]||'')&&(p.code||'')===(c[3]||'')&&(p.name||'')===cName&&(p.ply||'')===(c[5]||'')&&(p.spec||'')===(c[6]||'')&&(String(p.factory_price||''))===String(parseInt(c[9])||'')&&(p.cat||'일반')===(c[0]||'일반')});
         if(!ex)need[keyOf(c)]=c;
       });
       var newRows=Object.keys(need).map(function(k){return need[k]});
       var _baseTs=Date.now(); // 업로드 순서 보존용 (created_at 순번)
       for(var i=0;i<newRows.length;i+=B){
         prog('신규 상품 생성… '+Math.min(i+B,newRows.length)+'/'+newRows.length);
-        var chunk=newRows.slice(i,i+B).map(function(c,_ci){return {brand:c[1],name:c[2]||(c[3]||'(이름미정)'),code:c[3]||'',size:stkNormSize(c[4]||''),category:c[0]||'일반',ply:c[5]||'',spec:c[6]||'',factory_price:parseInt(c[8])||null,created_at:new Date(_baseTs+i+_ci).toISOString()}});
+        var chunk=newRows.slice(i,i+B).map(function(c,_ci){return {brand:c[1],name:c[2]||(c[3]||'(이름미정)'),code:c[3]||'',size:stkNormSize(c[4]||''),category:c[0]||'일반',ply:c[5]||'',spec:c[6]||'',factory_price:parseInt(c[9])||null,cost:parseInt(c[8])||null,memo:c[12]||'',created_at:new Date(_baseTs+i+_ci).toISOString()}});
         var r=await sb.from('stock_products').insert(chunk);
         if(r.error){
           // 새 컬럼(ply/spec/factory_price)이 DB에 없으면 그 컬럼 빼고 재시도
@@ -6960,7 +6960,7 @@ async function stkUpRun(){
       rows.forEach(function(c){
         var pid=byKey[keyOf(c)];
         if(!pid){skip++;return}
-        lots.push({product_id:pid,dot:c[7]||'',qty:parseInt(c[9])||0,loc:'U'});
+        lots.push({product_id:pid,dot:c[7]||'',qty:parseInt(c[10])||0,loc:c[11]||'U'});
       });
       var lotOk=0;
       for(var j=0;j<lots.length;j+=B){
