@@ -753,24 +753,65 @@ body.rb-on #app{padding-top:58px}
 .rsv-summary b{color:#2563eb}
 .rsv-cal{padding:10px;flex:1;min-height:0}
 /* 월 뷰 */
-.rsv-month{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.rsv-month{display:grid;grid-template-columns:repeat(6,minmax(0,1fr)) minmax(0,0.5fr);gap:4px}
 .rsv-dow{text-align:center;font-size:11px;font-weight:700;color:#888;padding:4px 0}
 .rsv-dow.sun{color:#dc2626}.rsv-dow.sat{color:#2563eb}
-.rsv-day{background:#fff;border-radius:8px;min-height:64px;padding:4px 5px;cursor:pointer;border:1px solid #eef1f4;position:relative}
+.rsv-day{background:#fff;border-radius:8px;min-height:64px;padding:4px 5px;cursor:pointer;border:1px solid #eef1f4;position:relative;min-width:0;overflow:hidden}
+.rsv-day.sun{min-height:30px;padding:3px 2px;background:#f6f5f2}
+.rsv-day.sun .dnum{font-size:10px;color:#c0392b}
+.rsv-dow.small{font-size:9px;color:#c89}
 .rsv-day.other{background:#f7f8fa;opacity:.5}
 .rsv-day.today{border-color:#2563eb;box-shadow:inset 0 0 0 1px #2563eb}
 .rsv-day .dnum{font-size:12px;font-weight:700;color:#444}
 .rsv-day .dnum.sun{color:#dc2626}.rsv-day .dnum.sat{color:#2563eb}
 .rsv-day .dcount{position:absolute;top:3px;right:5px;font-size:10px;font-weight:800;color:#fff;background:#1d9e75;border-radius:8px;padding:0 5px}
 .rsv-pill{font-size:10px;background:#eef4ff;color:#2563eb;border-radius:4px;padding:1px 4px;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rsv-dl-card{background:#f7f6f3;border-radius:9px;padding:9px 11px;margin-bottom:7px;cursor:pointer;border:1px solid #ececdf}
+.rsv-dl-card:active{background:#eeede9}
+.rsv-dl-time{font-size:13px;font-weight:800;color:#1f6feb}
+.rsv-dl-eng{font-size:12.5px;color:#444;margin-top:2px;line-height:1.35}
+.rsv-dl-pay{font-size:11px;color:#1a6c4e;margin-top:3px;font-weight:600}
+.rsv-chiprow{display:flex;flex-wrap:wrap;gap:5px}
+.rsv-chip{padding:6px 9px;border:1.5px solid #dcdad2;background:#fff;border-radius:8px;font-size:12.5px;font-weight:700;color:#555;cursor:pointer}
+.rsv-chip.on{background:#16a36a;border-color:#16a36a;color:#fff}
+.rsv-pick-card{background:#f7f6f3;border-radius:9px;padding:9px 11px;margin-bottom:7px;border:1px solid #ececdf}
+.rsv-pick-tit{font-size:13px;font-weight:800;color:#333;margin-bottom:5px}
+.rsv-pick-dot{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px;color:#555;padding:4px 0}
+.rsv-pick-dot button{flex-shrink:0;border:1.5px solid #16a36a;background:#fff;color:#16a36a;border-radius:7px;padding:6px 11px;font-size:12px;font-weight:700;cursor:pointer}
+.ledger-tbl{width:100%;border-collapse:collapse;font-size:12px}
+.ledger-tbl th{background:#f4f6f9;padding:7px 6px;text-align:left;font-size:11px;color:#666;border-bottom:1.5px solid #e2e6ec}
+.ledger-tbl td{padding:7px 6px;border-bottom:1px solid #f0f2f5;color:#333}
+.ledger-tbl tr:nth-child(even) td{background:#fafbfc}
 .rsv-pill.done{background:#f0f0f0;color:#999;text-decoration:line-through}
 .rsv-pill.cancel{background:#fee2e2;color:#dc2626;text-decoration:line-through}
 .rsv-pill.more{background:none;color:#888;text-align:center}
 /* 주 뷰 */
+.rsv-tl{overflow-x:auto}
+.rsv-tlgrid{display:grid;grid-template-columns:34px repeat(6,1fr);min-width:480px;position:relative}
+.rsv-tlcorner{border-bottom:1px solid #e5e3dc}
+.rsv-dhead{font-size:11px;font-weight:600;text-align:center;padding:5px 0 6px;border-bottom:1px solid #e5e3dc;line-height:1.3}
+.rsv-dhead.sun{color:#d23}.rsv-dhead.sat{color:#2563eb}.rsv-dhead.today{background:#eef5ff;border-radius:6px 6px 0 0}
+.rsv-tlbody{grid-column:1 / span 7;display:grid;grid-template-columns:34px repeat(6,1fr)}
+.rsv-timecol{position:relative}
+.rsv-tlabel{height:44px;font-size:9px;color:#999;text-align:right;padding-right:3px;transform:translateY(-5px)}
+.rsv-daycol{position:relative;border-left:1px solid #eee}
+.rsv-daycol.today{background:#fafcff}
+.rsv-daycol.over{background:#f0f6ff}
+.rsv-hourline{height:44px;border-top:1px solid #eee}
+.rsv-blk{position:absolute;border-radius:5px;padding:2px 4px;font-size:10px;line-height:1.2;overflow:hidden;cursor:grab;color:#0c447c;background:#dbeafe;border:1px solid #93c5fd;user-select:none;touch-action:none;box-shadow:0 1px 2px rgba(0,0,0,0.07)}
+.rsv-blk .bt{font-weight:700;font-size:9.5px}
+.rsv-blk.align{background:#fde9d2;border-color:#f5b97a;color:#8a4b12}
+.rsv-blk.done{opacity:0.5}
+.rsv-blk.dragging{opacity:0.85;cursor:grabbing;z-index:100;box-shadow:0 4px 12px rgba(0,0,0,0.2)}
+.rsv-blk.resizing{opacity:0.9;z-index:60}
+.rsv-blk .rsz{position:absolute;left:0;right:0;bottom:0;height:8px;cursor:ns-resize;background:linear-gradient(to bottom,transparent,rgba(0,0,0,0.06))}
+.rsv-alg{flex:1;height:34px;font-size:13px;background:#fff;border:0.5px solid #ccc;border-radius:7px;cursor:pointer}
+.rsv-alg.on{background:#e6f1fb;border-color:#378add;color:#0c447c;font-weight:600}
 .rsv-week{display:flex;flex-direction:column;gap:3px}
 .rsv-wslot{display:flex;gap:6px;align-items:flex-start}
 .rsv-wtime{flex:0 0 48px;font-size:11px;color:#888;font-weight:700;padding-top:6px;text-align:right}
-.rsv-wbody{flex:1;min-height:30px;border-top:1px solid #eee;padding:3px 0;display:flex;flex-wrap:wrap;gap:3px}
+.rsv-wbody{flex:1;min-height:30px;border-top:1px solid #eee;padding:3px 0;display:flex;flex-direction:column;gap:3px}
+.rsv-card{width:100%}
 /* 카드 (주뷰/상세) — 엔지니어 핵심 강조 */
 .rsv-card{background:#fff;border-left:3px solid #2563eb;border-radius:6px;padding:5px 8px;font-size:12px;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.06)}
 .rsv-card.done{opacity:.5;border-left-color:#999}
@@ -881,6 +922,7 @@ body.rb-on #app{padding-top:58px}
         <button class="item-tab" data-tab="user" onclick="switchItemTab('user')">👤 작성자별</button>
         <button class="item-tab" data-tab="purpose" onclick="switchItemTab('purpose')">🚚 용도분류</button>
         <button class="item-tab" data-tab="memo" onclick="switchItemTab('memo')">↩️ 반품/특이사항</button>
+        <button class="item-tab" data-tab="ledger" onclick="switchItemTab('ledger')">📑 입고표(test)</button>
       </div>
       <div class="item-search" id="item-search" style="display:none">
         <input id="item-search-input" placeholder="🔍 모델·규격·출처·용도 검색" oninput="onSearchInput()">
@@ -1017,53 +1059,47 @@ body.rb-on #app{padding-top:58px}
     <button class="rsv-add" onclick="rsvOpenAdd()">+ 예약</button>
   </div>
   <div id="rsv-summary" class="rsv-summary"></div>
+  <div style="padding:6px 14px;background:#fff;border-bottom:1px solid #eee">
+    <input id="rsv-search" placeholder="🔍 예약 검색 (차량·고객·타이어·날짜·작성자)" oninput="renderReserve()" style="width:100%;height:38px;border:1.5px solid #ddd;border-radius:9px;padding:0 12px;font-size:13px">
+  </div>
   <div id="rsv-cal" class="rsv-cal"></div>
 </div>
 <!-- 예약 등록/상세 모달 -->
 <div class="modal-bg" id="rsv-modal">
   <div class="paste-modal" style="max-width:520px">
     <div class="paste-head"><span class="pt" id="rsv-modal-title">예약 등록</span><button class="pmx" onclick="rsvCloseModal()">×</button></div>
-    <div class="rsv-modetabs">
-      <button id="rsv-mode-quick" class="on" onclick="rsvSetMode('quick')">⚡ 빠른입력</button>
-      <button id="rsv-mode-full" onclick="rsvSetMode('full')">📝 상세입력</button>
-    </div>
     <div class="rsv-form">
-      <div class="rsv-row2">
-        <label>날짜 <span class="req">*</span><input type="date" id="rsv-date"></label>
-        <label>시간 <span class="req">*</span>
-          <select id="rsv-time"></select>
-        </label>
+      <label>일시 (12자리: 년월일시분)<input id="rsv-dt12" inputmode="numeric" maxlength="12" placeholder="예) 202606211500" oninput="rsvSyncDt()" onfocus="this.dataset.prev=this.value;this.value='';rsvSyncDt();" onblur="if(!this.value&&this.dataset.prev)this.value=this.dataset.prev;rsvSyncDt();"></label>
+      <div id="rsv-dt12out" style="font-size:12px;color:#185fa5;margin:-4px 0 6px"></div>
+      <div id="rsv-chipday" class="rsv-chiprow"></div>
+      <div id="rsv-chiptime" class="rsv-chiprow" style="margin-bottom:9px"></div>
+      <label>내용 (차량·고객·전화·특이사항)<input id="rsv-memo" placeholder="예: 그랜저 김OO 010-1234-5678 / 휠보관"></label>
+      <div id="rsv-tireline" style="font-size:12px;color:#666;background:#f3f3f0;border-radius:7px;padding:7px 9px;margin:6px 0;display:none"></div>
+      <div id="rsv-outqtyrow" style="display:none;align-items:center;gap:7px;margin:6px 0">
+        <span style="font-size:13px;color:#5f5e5a;min-width:64px">출고 수량</span>
+        <input id="rsv-outqty" inputmode="numeric" value="1" style="width:70px;text-align:center">
+        <span style="font-size:13px;color:#5f5e5a">짝</span>
+        <span style="font-size:11px;color:#c0392b">예약 등록 시 이 수량만큼 재고 출고</span>
       </div>
-      <!-- 빠른입력: 핵심만 -->
-      <div id="rsv-quick-fields">
-        <label>간단 메모<textarea id="rsv-memo-quick" rows="2" placeholder="예: 김OO 그랜저 / 미쉐린 4짝 / 25만 / 현장"></textarea></label>
+      <label style="margin-top:6px">얼라이먼트</label>
+      <div class="rsv-algseg" style="display:flex;gap:5px;margin-bottom:7px">
+        <button type="button" class="rsv-alg" data-v="none" onclick="rsvSetAlg('none')">없음</button>
+        <button type="button" class="rsv-alg on" data-v="inform" onclick="rsvSetAlg('inform')">안내함</button>
+        <button type="button" class="rsv-alg" data-v="take" onclick="rsvSetAlg('take')">받기로함</button>
       </div>
-      <!-- 상세입력 -->
-      <div id="rsv-full-fields" style="display:none">
-        <div class="rsv-row2">
-          <label>유입경로<select id="rsv-source"><option value="">-</option><option>전화</option><option>스팜</option><option>11번가</option><option>번장</option><option>깜손</option></select></label>
-          <label>이름<input id="rsv-name" placeholder="손님 이름"></label>
-        </div>
-        <div class="rsv-row2">
-          <label>연락처<input id="rsv-tel" placeholder="010-"></label>
-          <label>차종<input id="rsv-car" placeholder="예: 그랜저 IG"></label>
-        </div>
-        <div class="rsv-row2">
-          <label>타이어명<input id="rsv-tire" placeholder="예: 미쉐린 PS5"></label>
-          <label>개수<input id="rsv-qty" type="number" placeholder="4"></label>
-        </div>
-        <label>타이어 위치 / 거래처 출고일<input id="rsv-tireloc" placeholder="예: 창고 A-3 / 거래처 6/20 도착예정"></label>
-        <div class="rsv-row2">
-          <label>현장결제금액<input id="rsv-pay" placeholder="없으면 X"></label>
-          <label>결제방법<select id="rsv-paytype"><option value="">-</option><option>현금</option><option>카드</option><option>계좌이체</option></select></label>
-        </div>
-        <div class="rsv-row2">
-          <label class="rsv-chk"><input type="checkbox" id="rsv-align"> 얼라이먼트</label>
-          <label class="rsv-chk"><input type="checkbox" id="rsv-notice"> 포함안내</label>
-        </div>
-        <label class="rsv-chk"><input type="checkbox" id="rsv-review"> 구매확정·리뷰 안내 (엔지니어 메모)</label>
-        <label>추가 메모<textarea id="rsv-memo-full" rows="2"></textarea></label>
+      <div id="rsv-algamtrow" style="display:none;align-items:center;gap:7px;margin-bottom:8px">
+        <span style="font-size:13px;color:#5f5e5a;min-width:64px">얼라이 금액</span>
+        <input id="rsv-algamt" inputmode="text" placeholder="예) 70000 또는 7만" oninput="rsvCalc()" style="flex:1">
+        <span id="rsv-algamtk" style="font-size:12px;color:#185fa5;min-width:60px;text-align:right"></span>
       </div>
+      <label>현장결제 (금액 × 개수 · 개수 비우면 통금액)</label>
+      <div style="display:flex;align-items:center;gap:7px;margin-bottom:4px">
+        <input id="rsv-payunit" inputmode="text" placeholder="금액" oninput="rsvCalc()" style="flex:1">
+        <span style="font-size:16px;color:#888">×</span>
+        <input id="rsv-payqty" inputmode="numeric" placeholder="개수" oninput="rsvCalc()" style="width:58px;text-align:center">
+      </div>
+      <div id="rsv-paycalc" style="font-size:12px;color:#185fa5;text-align:right;min-height:15px"></div>
+      <div id="rsv-totline" style="font-size:13px;font-weight:600;text-align:right;margin:6px 0;border-top:0.5px solid #eee;padding-top:8px"></div>
       <button class="rsv-submit" onclick="rsvSubmit()">예약 등록</button>
     </div>
   </div>
@@ -1073,6 +1109,15 @@ body.rb-on #app{padding-top:58px}
   <div class="paste-modal" style="max-width:480px">
     <div class="paste-head"><span class="pt">예약 상세</span><button class="pmx" onclick="rsvCloseDetail()">×</button></div>
     <div id="rsv-detail-body"></div>
+  </div>
+</div>
+<div class="modal-bg" id="rsv-pick-modal">
+  <div class="paste-modal" style="max-width:520px">
+    <div class="paste-head"><span class="pt">재고에서 출고할 타이어 선택</span><button class="pmx" onclick="rsvPickClose()">×</button></div>
+    <div style="padding:2px">
+      <input id="rsv-pick-q" placeholder="브랜드·사이즈·패턴 검색 (예: 245/45 19 벤투스)" oninput="rsvPickRender()" style="width:100%;height:42px;border:1.5px solid #ccc;border-radius:9px;padding:0 12px;font-size:14px;margin-bottom:9px">
+      <div id="rsv-pick-list" style="max-height:55vh;overflow-y:auto"></div>
+    </div>
   </div>
 </div>
     <div class="delivery-screen" id="delivery-screen" style="display:none">
@@ -1308,11 +1353,50 @@ body.rb-on #app{padding-top:58px}
 </div>
 
 <script>
-/* ===== 실서비스 DB (키 박음 — 직원은 입력 불필요) ===== */
-const SUPA_URL='https://dohspibpjzdrnigphalt.supabase.co';
-const SUPA_KEY='sb_publishable_JCYJcVDoQkHXd6SuhtjIAw_Wz44s0Y3';
+/* ===== 테스트 모드: 화면 고정 입력 폼 (다른 창 가도 안 닫힘) ===== */
+var __tgMemCfg={u:'',k:''};
+function tgLsGet(key){try{return localStorage.getItem(key)||'';}catch(e){return '';}}
+function tgLsSet(key,val){try{localStorage.setItem(key,val);}catch(e){}}
+function tgGetTestCfg(){var u=tgLsGet('tg_test_url')||__tgMemCfg.u;var k=tgLsGet('tg_test_key')||__tgMemCfg.k;return {u:u,k:k};}
+function tgValidUrl(u){return /^https:\/\/[a-z0-9-]+\.supabase\.co$/.test((u||'').trim());}
+function tgValidKey(k){k=(k||'').trim();return k.length>20&&(k.indexOf('sb_')===0||k.indexOf('eyJ')===0);}
+var SUPA_URL='https://dohspibpjzdrnigphalt.supabase.co', SUPA_KEY='sb_publishable_JCYJcVDoQkHXd6SuhtjIAw_Wz44s0Y3';
+var sb=null; function tgInitClient(){sb=createClient(SUPA_URL,SUPA_KEY);}
 const{createClient}=supabase;
-const sb=createClient(SUPA_URL,SUPA_KEY);
+
+function tgSaveCfg(){
+  var u=(document.getElementById('tgcfg-url').value||'').trim().replace(/\/+$/,'');
+  var k=(document.getElementById('tgcfg-key').value||'').trim();
+  var msg=document.getElementById('tgcfg-msg');
+  if(!tgValidUrl(u)){msg.textContent='URL 형식 오류 — https://xxxx.supabase.co 형태여야 합니다';return;}
+  if(!tgValidKey(k)){msg.textContent='키 형식 오류 — sb_ 또는 eyJ 로 시작해야 합니다';return;}
+  __tgMemCfg.u=u;__tgMemCfg.k=k;tgLsSet('tg_test_url',u);tgLsSet('tg_test_key',k);
+  SUPA_URL=u;SUPA_KEY=k;tgInitClient();
+  document.getElementById('tgcfg-overlay').style.display='none';
+  location.reload();
+}
+if(tgValidUrl(SUPA_URL)&&tgValidKey(SUPA_KEY)){
+  tgInitClient();
+}else{
+  // 화면 고정 입력 폼 표시 (다른 창 갔다 와도 유지)
+  window.addEventListener('DOMContentLoaded',function(){
+    var ov=document.createElement('div');ov.id='tgcfg-overlay';
+    ov.style.cssText='position:fixed;inset:0;background:#1a2035;z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px;font-family:sans-serif';
+    ov.innerHTML='<div style="background:#fff;border-radius:14px;padding:24px;max-width:440px;width:100%">'+
+      '<h2 style="margin:0 0 6px;font-size:18px">🔧 테스트 설정</h2>'+
+      '<p style="margin:0 0 16px;font-size:13px;color:#666">테스트 Supabase 정보를 붙여넣으세요. 다른 창 갔다 와도 안 닫힙니다.</p>'+
+      '<label style="font-size:12px;font-weight:700">① Project URL</label>'+
+      '<input id="tgcfg-url" placeholder="https://kgownegqkqmlsjwzjdfn.supabase.co" style="width:100%;padding:10px;margin:4px 0 12px;border:1.5px solid #ccc;border-radius:8px;font-size:14px;box-sizing:border-box">'+
+      '<label style="font-size:12px;font-weight:700">② Publishable key</label>'+
+      '<input id="tgcfg-key" placeholder="sb_publishable_... 또는 eyJ..." style="width:100%;padding:10px;margin:4px 0 12px;border:1.5px solid #ccc;border-radius:8px;font-size:14px;box-sizing:border-box">'+
+      '<div id="tgcfg-msg" style="color:#dc2626;font-size:12px;min-height:16px;margin-bottom:8px"></div>'+
+      '<button onclick="tgSaveCfg()" style="width:100%;padding:12px;background:#1a2035;color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:800">저장하고 시작</button>'+
+      '</div>';
+    document.body.appendChild(ov);
+    // URL 기본값 채워둠(테스트 프로젝트)
+    document.getElementById('tgcfg-url').value='https://kgownegqkqmlsjwzjdfn.supabase.co';
+  });
+}
 const ADMIN_NAME='이호준';
 const PW={'이호준':'bbangman2','남성현':'tg1234','김다영':'tg1234','임예지':'tg1234',
   '이민재':'tg1234','권순현':'tg1234','이영재':'tg1234','이정우':'wowlee1216',
@@ -1363,7 +1447,6 @@ async function doLogin(){
   if(user&&user.password){
     if(user.password!==pw){showErr('비밀번호가 틀렸습니다');return;}
   }else{
-    // users 행이 없거나 password가 비어있음 → 기본 비번으로 확인 후 시드/복구
     if((PW[name]||'')!==pw){showErr('비밀번호가 틀렸습니다');return;}
     try{
       if(user){await sb.from('users').update({password:pw}).eq('name',name);user.password=pw;}
@@ -1384,8 +1467,7 @@ async function bootApp(){
   if(me.name===ADMIN_NAME)document.getElementById('admin-sidebar-btn').style.display='block';
   const{data}=await sb.from('rooms').select('*').order('created_at');
   if(data&&!data.some(r=>r.name==='재고방'))data.splice(2,0,{id:'stock-virtual',name:'재고방'});
-  // [실사용 비활성화] 예약장착방은 테스트 중 — 테스트 파일에서만 노출. 안정화 후 이 줄 활성화
-  // if(data&&!data.some(r=>r.name==='예약장착방'))data.splice(3,0,{id:'reserve-virtual',name:'예약장착방'});
+  if(data&&!data.some(r=>r.name==='예약장착방'))data.splice(3,0,{id:'reserve-virtual',name:'예약장착방'});
   rooms=data||[];
   populateAdminSelects();renderSidebar();
   if(rooms.length)selectRoom(rooms[0]);
@@ -1399,14 +1481,14 @@ function renderSidebar(){
   el.innerHTML=rooms.map((r,i)=>{
     const m=ROOM_META[r.name]||{icon:'💬'};
     return'<button class="room-btn'+(curRoom&&curRoom.id===r.id?' active':'')+'" onclick="selectRoom(rooms['+i+'])">'
-      +'<span class="room-icon">'+m.icon+'</span><span class="room-label">'+r.name+'</span></button>';
+      +'<span class="room-icon">'+m.icon+'</span><span class="room-label">'+rsvRoomLabel(r.name)+'</span></button>';
   }).join('');
 }
 async function selectRoom(room){
   curRoom=room;
   closeSidebar();
   const m=ROOM_META[room.name]||{icon:'💬',ai:false,desc:''};
-  document.getElementById('ch-name').textContent=room.name;
+  document.getElementById('ch-name').textContent=rsvRoomLabel(room.name);
   document.getElementById('ch-desc').textContent=m.desc||'';
   const isItems=(m.mode==='items');
   const isDelivery=(m.mode==='delivery');
@@ -2473,7 +2555,6 @@ async function loadItems(){
     const all=data||[];
     // 반품과 일반 분리
     const todayDs=getTodayISO();
-    // 미완료 반품 이월 + 오늘 완료된 과거 반품도 함께 (완료해도 그날까지 반투명으로 남게)
     let carryReturns=[];
     if(!isRangeActive()&&sel.from===todayDs){
       try{
@@ -2483,13 +2564,11 @@ async function loadItems(){
     }
     const seenIds={};
     returnsCache=all.filter(function(it){return isReturnItem(it);}).filter(function(it){
-      // 범위 모드면 완료 포함 전부. 단일 날짜면: 미완료거나, 완료일이 오늘인 것만 (다음날부터 숨김)
       if(isRangeActive())return true;
       if(!it.return_done)return true;
       return it.return_done_date===todayDs;
     });
     returnsCache.forEach(function(it){seenIds[it.id]=true;});
-    // 과거 미완료 반품 합치기 (중복 제외)
     carryReturns.forEach(function(it){if(!seenIds[it.id]){returnsCache.push(it);seenIds[it.id]=true;}});
     itemsCache=all.filter(function(it){return !isReturnItem(it);});
   }catch(e){console.error('loadItems',e);itemsCache=[];returnsCache=[];}
@@ -3468,7 +3547,6 @@ function matchSearch(it){
   return hay.indexOf(itemSearchQuery)>=0;
 }
 function searchedItems(){return itemSearchQuery?itemsCache.filter(matchSearch):itemsCache;}
-// 반품 포함 전체 (작성자별·용도분류·종합본용 — 어느 탭에서든 반품 확인 가능하게)
 function searchedItemsAll(){var all=itemsCache.concat(returnsCache);return itemSearchQuery?all.filter(matchSearch):all;}
 function rerenderCurItemTab(){
   if(curItemTab==='list')renderItemList();
@@ -3481,13 +3559,35 @@ function rerenderCurItemTab(){
 function switchItemTab(tab){
   curItemTab=tab;
   document.querySelectorAll('.item-tab').forEach(function(t){t.classList.toggle('active',t.dataset.tab===tab);});
-  document.getElementById('item-input-zone').style.display=(tab==='memo')?'none':'block';
+  document.getElementById('item-input-zone').style.display=(tab==='memo'||tab==='ledger')?'none':'block';
   document.getElementById('item-memo-zone').style.display=(tab==='memo')?'block':'none';
   if(tab==='list')renderItemList();
   if(tab==='sum')renderItemSum();
   if(tab==='user')renderItemUser();
   if(tab==='purpose')renderItemPurpose();
   if(tab==='memo')renderItemMemo();
+  if(tab==='ledger')renderItemLedger();
+}
+function rsvRoomLabel(n){return n==='예약장착방'?'예약장착방 (test)':n;}
+async function renderItemLedger(){
+  if(!curRoom)return;
+  var el=document.getElementById('item-body');
+  el.innerHTML='<div style="text-align:center;color:#999;padding:24px 0">불러오는 중…</div>';
+  var data=[];
+  try{
+    var r=await sb.from('items').select('*').eq('room_id',curRoom.id).order('date_str',{ascending:false}).order('created_at',{ascending:false});
+    data=r.data||[];
+  }catch(e){el.innerHTML='<div style="text-align:center;color:#c00;padding:24px 0">불러오기 실패</div>';return;}
+  var list=data.filter(function(it){return !isReturnItem(it) && !it.out_done;});
+  var totalQ=list.reduce(function(s,it){return s+(parseInt(it.qty,10)||0);},0);
+  var h='<div style="font-size:12px;color:#345;margin:4px 0 10px;padding:9px 11px;background:#eef5ff;border-radius:8px;line-height:1.5">📑 <b>입고표 (test)</b> — 출고되지 않은 입고분이 계속 누적됩니다.<br>총 <b>'+list.length+'</b>건 · '+totalQ+'개 <span style="color:#c0392b">· 베타(보기 전용)</span></div>';
+  if(!list.length){h+='<div style="text-align:center;color:#aaa;padding:24px 0;font-size:13px">누적된 입고분이 없습니다</div>';el.innerHTML=h;return;}
+  h+='<table class="ledger-tbl"><thead><tr><th>입고일</th><th>출처</th><th>모델</th><th>규격</th><th>수량</th></tr></thead><tbody>';
+  list.forEach(function(it){
+    h+='<tr><td>'+esc((it.date_str||'').slice(5))+'</td><td>'+esc(it.src||'-')+'</td><td>'+esc(it.model||'')+'</td><td>'+esc(it.spec||'')+'</td><td style="text-align:center;font-weight:700">'+esc(String(it.qty||''))+'</td></tr>';
+  });
+  h+='</tbody></table>';
+  el.innerHTML=h;
 }
 // 표 행 탭하면 펼쳐서 전체보기 (이벤트 위임, 한 번만 등록)
 (function(){
@@ -3532,11 +3632,9 @@ function isReturnSrc(src){
   var s=(src||'').toLowerCase();
   return returnKeywords.some(function(kw){return kw&&s.indexOf(kw.toLowerCase())>=0;});
 }
-// 항목 단위 반품 판정 — 출처 키워드 또는 수동 반품 플래그
 function isReturnItem(it){
   return !!(it&&(it.is_return||isReturnSrc(it.src)));
 }
-// 반품 경과일 (D+N) — 반품 시작일부터 오늘까지
 function returnDaysElapsed(it){
   var start=it.return_date||it.date_str;
   if(!start)return 0;
@@ -3652,7 +3750,6 @@ function renderItemList(){
 function itemSumBody(active){
   const groups={};
   active.forEach(function(it){
-    // 반품 항목은 합산에서 분리 — '↩️ 반품' 출처로 묶어 별도 표시 (일반 재고 집계와 안 섞이게)
     var srcKey=isReturnItem(it)?'↩️ 반품':it.src;
     if(!groups[srcKey])groups[srcKey]={};
     const key=it.model+'|'+it.spec;
@@ -3849,11 +3946,9 @@ async function markReturn(id){
   var today=getTodayISO();
   try{
     if(rq>=total){
-      // 전체 반품 — 이 항목을 반품으로 전환
       const{error}=await sb.from('items').update({is_return:true,return_date:today}).eq('id',id);
       if(error)throw error;
     }else{
-      // 부분 반품 — 원래 항목 수량 차감 + 반품 수량만 별도 항목 생성
       const{error:e1}=await sb.from('items').update({qty:total-rq}).eq('id',id);
       if(e1)throw e1;
       const{error:e2}=await sb.from('items').insert({room_id:curRoom.id,date_str:today,src:it.src,model:it.model,spec:it.spec,qty:rq,use_note:it.use_note||'',cancel_qty:0,cancelled:false,logs:[{type:'edit',text:'↩️ 부분반품 ('+rq+'개) — 원항목에서 분리'}],user_name:me.name,is_return:true,return_date:today});
@@ -4177,6 +4272,8 @@ function updateFilled(){['i-src','i-model','i-spec','i-qty','i-use','i-chg'].for
 // ═══════════ 재고방 (stock) ═══════════
 var stockSub=null, stkP=[], stkLocked=false;
 var reserveSub=null, reservations=[], reserveView='month', reserveCursor=new Date();
+var rsvAlg='inform', rsvOutInfo=null;
+var BETA_WRITE=false; // 베타: 재고 차감 경로 잠금. false면 빗장 ON.
 var STK_LANES={A:6,B:6,Y:3}, STK_LEN=10, stkFloor='A', stkZi=0, stkHoriz=false, stkZoomLane=-1;
 var STK_FL={A:'1층',B:'2층',Y:'야외'};
 var STK_ZOOM=[{fit:true,h:54,m:1},{h:64,m:1},{h:80,m:2},{h:100,m:2}];
@@ -4237,13 +4334,14 @@ async function stkLoad(){
     stkP=prods.map(function(p,_i){var o={id:p.id,br:p.brand,name:p.name,code:p.code||'',size:p.size,ply:p.ply||'',spec:p.spec||'',factory_price:p.factory_price||null,price:p.price,inst:p.inst_price,memo:p.memo||'',cat:p.category||'일반',_ord:_i,lots:[]};byId[p.id]=o;return o});
     lots.forEach(function(l){var p=byId[l.product_id];if(p)p.lots.push({id:l.id,dot:l.dot||'',q:l.qty,loc:l.loc||'U',price:l.price,src_in:l.src_in||'',due_date:l.due_date||''})});
   }catch(e){stkToast('재고 불러오기 실패: '+e.message);return}
-  await stkConsolidate();
+  await stkConsolidate(); // 같은 상품+위치+연식 lot 합치기 (분리흔적 정리)
   await stkLoadLock();
   await stkLoadLogs();
-  if(typeof stkLoadLogTab==='function')await stkLoadLogTab(); // 출고 집계(stkLogRows) 최신화 — 채널칸 정확도
+  if(typeof stkLoadLogTab==='function')await stkLoadLogTab();
   stkRenderSearch();stkRenderMap();
-  if(typeof stkRenderTable==='function')stkRenderTable(); // 로그 갱신 후 재고표 다시 그려 채널 출고칸 반영
+  if(typeof stkRenderTable==='function')stkRenderTable();
 }
+// 같은 상품·같은 위치·같은 연식(DOT)인 lot을 하나로 합침 (이미 갈라진 데이터도 정리)
 var __stkConsolidating=false;
 // 특정 칸(loc)의 lot들을 즉시 합침 (이동/분리/드롭 직후 호출) — 같은 상품+연식+출처
 async function stkConsolidateCell(loc){
@@ -4273,14 +4371,21 @@ async function stkConsolidateCell(loc){
   }
 }
 async function stkConsolidate(){
-  if(__stkConsolidating)return;
-  var merges=[];
+  if(__stkConsolidating)return; // 무한 루프 방지
+  var merges=[]; // {keep, remove[], totalQ}
   stkP.forEach(function(p){
     var groups={};
-    p.lots.forEach(function(l){var norm=function(v){return (v===null||v===undefined?'':String(v)).trim();};var key=norm(l.loc)+'|'+norm(l.dot)+'|'+norm(l.src_in);(groups[key]=groups[key]||[]).push(l);});
+    p.lots.forEach(function(l){
+      var norm=function(v){return (v===null||v===undefined?'':String(v)).trim();};
+      var key=norm(l.loc)+'|'+norm(l.dot)+'|'+norm(l.src_in);
+      (groups[key]=groups[key]||[]).push(l);
+    });
     Object.keys(groups).forEach(function(key){
       var g=groups[key];
-      if(g.length>1){var keep=g[0],sum=g.reduce(function(s,l){return s+l.q;},0);merges.push({keep:keep,remove:g.slice(1),sum:sum});}
+      if(g.length>1){ // 같은 위치+연식에 lot 2개 이상 → 합치기
+        var keep=g[0], sum=g.reduce(function(s,l){return s+l.q;},0);
+        merges.push({keep:keep,remove:g.slice(1),sum:sum});
+      }
     });
   });
   if(!merges.length)return;
@@ -4289,12 +4394,15 @@ async function stkConsolidate(){
     for(var i=0;i<merges.length;i++){
       var mg=merges[i];
       await sb.from('stock_lots').update({qty:mg.sum,updated_at:new Date().toISOString()}).eq('id',mg.keep.id);
-      for(var j=0;j<mg.remove.length;j++){await sb.from('stock_lots').delete().eq('id',mg.remove[j].id);}
+      for(var j=0;j<mg.remove.length;j++){
+        await sb.from('stock_lots').delete().eq('id',mg.remove[j].id);
+      }
     }
+    // 메모리도 갱신: 재조회
     var lrData=await stkSelectAll('stock_lots',null);
     var byId={};stkP.forEach(function(p){p.lots=[];byId[p.id]=p;});
     lrData.forEach(function(l){var p=byId[l.product_id];if(p)p.lots.push({id:l.id,dot:l.dot||'',q:l.qty,loc:l.loc||'U',price:l.price,src_in:l.src_in||'',due_date:l.due_date||''})});
-  }catch(e){}
+  }catch(e){/* 합치기 실패해도 계속 */}
   __stkConsolidating=false;
 }
 async function stkLoadLock(){
@@ -4350,7 +4458,6 @@ async function stkTogLock(){
   stkLoadLock();
 }
 // ── 재고방 수정권한 관리 (stock_settings key='inline_editors', JSON 명단) ──
-// 잠금과 같은 방식: Supabase 1줄 저장 + 실시간 구독으로 전 직원·전 기기 즉시 반영
 var STK_EDITORS_DEFAULT=['이호준','남성현','권순현','이정우'];
 async function stkLoadEditors(){
   try{
@@ -4359,13 +4466,10 @@ async function stkLoadEditors(){
       var arr=JSON.parse(r.data[0].value);
       if(Array.isArray(arr)){STK_INLINE_EDITORS.length=0;arr.forEach(function(n){if(STK_INLINE_EDITORS.indexOf(n)<0)STK_INLINE_EDITORS.push(n);});}
     }else{
-      // 행이 없으면 현재 기본 명단으로 자동 생성 (호준님 SQL 실행 불필요)
       try{await sb.from('stock_settings').insert({key:'inline_editors',value:JSON.stringify(STK_INLINE_EDITORS)});}catch(e){}
     }
   }catch(e){}
-  // 관리자는 항상 포함 보장
   if(STK_INLINE_EDITORS.indexOf(ADMIN_NAME)<0)STK_INLINE_EDITORS.push(ADMIN_NAME);
-  // 권한 모달이 열려 있으면 갱신, 내 편집가능 여부 바뀔 수 있으니 표도 갱신
   if(document.getElementById('stk-dlgPerm')&&document.getElementById('stk-dlgPerm').classList.contains('on'))stkRenderPerm();
 }
 async function stkSaveEditors(){
@@ -4384,7 +4488,7 @@ async function stkSetEditor(name,on){
   stkLog('👥권한변경',name+(on?' 수정권한 부여':' 수정권한 회수'),{});
   stkToast('✓ '+name+' '+(on?'수정권한 부여':'수정권한 회수'));
   stkRenderPerm();
-  if(typeof stkRenderTable==='function')stkRenderTable(); // 본인이면 편집칸/관리칼럼 즉시 반영
+  if(typeof stkRenderTable==='function')stkRenderTable();
 }
 function stkRenderPerm(){
   var el=document.getElementById('stk-permList');if(!el)return;
@@ -4409,10 +4513,10 @@ function stkRenderPw(){
   var names=Object.keys(PW);
   el.innerHTML=names.map(function(n){
     var cur=(n in stkUsersCache)?stkUsersCache[n]:(PW[n]||'');
-    var isDefault=(cur===(PW[n]||'')); // 기본비번 그대로면 표시
+    var isDefault=(cur===(PW[n]||''));
     return '<div class="perm-row"><span class="perm-name">'+stkEsc(n)+(n===ADMIN_NAME?' <span class="perm-badge">관리자</span>':'')+'</span>'
       +'<span class="pw-cur'+(isDefault?' pw-def':'')+'">'+stkEsc(cur||'(미설정)')+'</span>'
-      +'<button class="perm-tog" onclick="stkSetPw(\''+stkEsc(n).replace(/\\\\/g,"").replace(/'/g,"")+'\')">🔑 변경</button></div>';
+      +'<button class="perm-tog" onclick="stkSetPw(\''+stkEsc(n).replace(/\\/g,"").replace(/'/g,"")+'\')">🔑 변경</button></div>';
   }).join('');
 }
 async function stkOpenPw(){if(!stkIsAdmin()){stkToast('관리자 전용입니다');return}await stkLoadUsersPw();stkRenderPw();document.getElementById('stk-dlgPw').classList.add('on');}
@@ -4612,10 +4716,10 @@ function stkChannelSums(){
   });
   return m;
 }
-var stkRtAdding=false;
-var stkJustAdded={}; // 방금 등록한 상품 id — 재고0이어도 등록 직후엔 재고표에 보이게 + 강조
-var stkAddViaInline=false;
+var stkRtSort={col:null,dir:1};
 var STK_CATS=['일반','오프로드','휠','튜닝','행사','중고'];
+var stkRtAdding=false;
+var stkJustAdded={}; // 방금 등록한 상품 id — 재고0이어도 등록 직후엔 재고표에 보이게 + 강조 // 빈 입력행 표시중
 function stkRtAddRow(){
   if(!stkCanInline()){stkToast('이호준·남성현·권순현만 추가할 수 있습니다');return}
   stkJustAdded={}; // 새 추가 세션 — 이전 강조 초기화
@@ -4796,14 +4900,12 @@ async function stkRtSaveBulkNew(){
   }catch(e){stkToast('등록 중 오류: '+e.message+' — 지금까지 '+ok+'건');}
   var zeroCnt=items.filter(function(r){return (parseInt(r.qty)||0)<=0;}).length;
   stkRtAdding=false;stkRtAddingCount=1;
-  // 방금 등록한 행이 필터·검색에 가려지지 않게 표 필터 해제 (방금 추가한 것 바로 확인용)
   var _q=document.getElementById('stk-rtq');if(_q)_q.value='';
   var _br=document.getElementById('stk-rtBrand');if(_br)_br.value='';
   var _ct=document.getElementById('stk-rtCat');if(_ct)_ct.value='';
   var _oo=document.getElementById('stk-rtOnlyOut');if(_oo)_oo.checked=false;
   await stkLoad();
   stkRenderTable();
-  // 방금 추가한 첫 행으로 스크롤
   try{var _hl=document.querySelector('#stk-rtTable tr.stk-justadded');if(_hl&&_hl.scrollIntoView)_hl.scrollIntoView({block:'center'});}catch(_e){}
   stkToast('✓ '+ok+'행 등록'+(fail?' / '+fail+'행 실패':'')+(zeroCnt?' (수량 0 '+zeroCnt+'행 — 노란색으로 표시)':''));
 }
@@ -4864,50 +4966,23 @@ async function stkRtBulkPaste(e){
 }
 async function stkRtSaveNew(){
   if(!stkCanInline()){stkToast('권한이 없습니다');return}
-  var order=['cat','br','name','code','size','ply','spec','dot','fprice','qty'];
-  // 새 행(contenteditable td.rt-newed)을 행 번호별로 모음
-  var rowSet={};
-  document.querySelectorAll('#stk-rtTable td.rt-newed').forEach(function(td){
-    var ri=td.getAttribute('data-newrow'), fld=td.getAttribute('data-newfield');
-    if(ri===null||!fld)return;
-    if(!rowSet[ri])rowSet[ri]={};
-    rowSet[ri][fld]=(td.textContent||'').trim();
-  });
-  var rowKeys=Object.keys(rowSet).sort(function(a,b){return (+a)-(+b);});
-  // 내용이 있는 행만 (브랜드+사이즈 둘 다 있는 행)
-  var valid=[], skipped=0;
-  rowKeys.forEach(function(k){
-    var row=rowSet[k];
-    var br=(row.br||'').trim(), sizeRaw=(row.size||'').trim();
-    var name=(row.name||'').trim(), code=(row.code||'').trim();
-    if(!br&&!sizeRaw&&!name&&!code)return; // 완전 빈 행은 무시
-    if(!br||!sizeRaw){skipped++;return;}
-    if(!name&&!code){skipped++;return;}
-    valid.push(row);
-  });
-  if(!valid.length){stkToast('브랜드·사이즈, 패턴/코드를 채워주세요');return}
-  var ok=0;
+  var cat=(document.getElementById('stk-newCat')||{}).value||'일반';
+  var br=((document.getElementById('stk-newBr')||{}).value||'').trim();
+  var name=((document.getElementById('stk-newName')||{}).value||'').trim();
+  var code=((document.getElementById('stk-newCode')||{}).value||'').trim();
+  var sizeRaw=((document.getElementById('stk-newSize')||{}).value||'').trim();
+  var dot=((document.getElementById('stk-newDot')||{}).value||'').trim();
+  var qty=parseInt((document.getElementById('stk-newQty')||{}).value)||0;
+  if(!br||!sizeRaw){stkToast('브랜드·사이즈는 필수입니다');return}
+  if(!name&&!code){stkToast('패턴 또는 코드 중 하나는 필요합니다');return}
+  var size=stkNormSize(sizeRaw);
   try{
-    for(var i=0;i<valid.length;i++){
-      var row=valid[i];
-      var cat=(row.cat||'').trim()||'일반';
-      var br=(row.br||'').trim();
-      var name=(row.name||'').trim();
-      var code=(row.code||'').trim();
-      var size=stkNormSize((row.size||'').trim());
-      var ply=(row.ply||'').trim();
-      var spec=(row.spec||'').trim();
-      var dot=(row.dot||'').trim();
-      var fprice=parseInt((row.fprice||'').replace(/[^0-9]/g,''))||null;
-      var qty=parseInt((row.qty||'').replace(/[^0-9-]/g,''))||0;
-      var r=await sb.from('stock_products').insert({brand:br,name:name||(code||'(이름미정)'),code:code,size:size,category:cat,ply:ply,spec:spec,factory_price:fprice}).select();
-      if(r.error)throw r.error;
-      var pid=r.data&&r.data[0]&&r.data[0].id;
-      if(pid&&qty>0){await sb.from('stock_lots').insert({product_id:pid,dot:dot,qty:qty,loc:'U'});}
-      stkLog('➕상품추가',br+' '+(name||code)+' '+size+' '+qty+'개 (미배치)',{product_id:pid,dot:dot,qty:qty,to_loc:'U'});
-      ok++;
-    }
-    stkToast('✓ '+ok+'건 추가됨'+(skipped?(' (미완성 '+skipped+'건 건너뜀)'):''));
+    var r=await sb.from('stock_products').insert({brand:br,name:name||(code||'(이름미정)'),code:code,size:size,category:cat}).select();
+    if(r.error)throw r.error;
+    var pid=r.data&&r.data[0]&&r.data[0].id;
+    if(pid&&qty>0){await sb.from('stock_lots').insert({product_id:pid,dot:(dot||''),qty:qty,loc:'U'});}
+    stkLog('➕상품추가',br+' '+(name||code)+' '+size+' '+qty+'개 (미배치)',{product_id:pid,dot:(dot||''),qty:qty,to_loc:'U'});
+    stkToast('\u2713 추가됨 (기록 남음)');
     stkRtAdding=false;
     await stkLoad();await stkLoadLogTab();
     stkRenderTable();
@@ -4920,13 +4995,11 @@ function stkRtAttachCellHandlers(){
   if(!tbl||tbl._stkDelegated)return;
   tbl._stkDelegated=true;
   var isEd=function(t){return t&&t.classList&&t.classList.contains('rt-ed')&&t.getAttribute('contenteditable')==='true';};
-  // focusin: 편집 셀 들어오면 현재값 기억 + 전체선택 (focus는 버블 안돼서 focusin 사용)
   tbl.addEventListener('focusin',function(e){
     var td=e.target;if(!isEd(td))return;
     td.setAttribute('data-old',td.textContent);
     try{var r=document.createRange();r.selectNodeContents(td);var s=window.getSelection();s.removeAllRanges();s.addRange(r);}catch(err){}
   });
-  // focusout: 값 바뀌었으면 저장
   tbl.addEventListener('focusout',function(e){
     var td=e.target;if(!isEd(td))return;
     var nv=td.textContent.trim();
@@ -5054,7 +5127,6 @@ async function stkRtSaveFieldLight(pid,dot,field,nv,old,td){
         for(var k=0;k<toUpd.length;k++){
           await sb.from('stock_logs').update({dot:newDot}).eq('id',toUpd[k].id);
         }
-        // 메모리(stkLogRows)도 갱신
         (stkLogRows||[]).forEach(function(g){if(g.product_id===pid&&(g.action||'').indexOf('출고')>=0&&((g.dot||'')===oldDotVal))g.dot=newDot;});
       }catch(e){}
       stkLog('✏️정보수정',p.br+' '+p.name+' '+p.size+' 연식 '+old+'→'+(nv||'DOT누락')+' (출고기록 포함)',{product_id:pid});
@@ -5145,6 +5217,11 @@ var stkRtOutPid=null,stkRtOutDot=null,stkRtOutCh=null;
 function stkRtOpenOut(pid,dot,chIdx){
   var p=stkP.find(function(x){return x.id===pid});if(!p){stkToast('상품 없음');return}
   var chName=STK_CHANS[chIdx];
+  // 장착 칼럼이면 출고창 대신 예약창 바로 (예약 저장 시 출고 확정)
+  if(BETA_WRITE && chName==='장착' && typeof rsvOpenAdd==='function'){
+    rsvOpenAdd(null,{spec:p.br+' '+p.name+' '+p.size+(dot&&dot!=='DOT누락'?' '+dot:'')+(p.ply?' '+p.ply+'P':''),qty:1,kind:'rt',product_id:p.id,dot:(dot==='DOT누락'?'':dot),channel:'장착'});
+    return;
+  }
   // 해당 연식 재고 확인
   var lots=(p.lots||[]).filter(function(l){return (l.dot||'DOT누락')===(dot||'DOT누락')});
   var totq=lots.reduce(function(s,l){return s+l.q;},0);
@@ -5227,16 +5304,7 @@ async function stkRtDelRow(pid,dot){
     await stkLoad();await stkLoadLogTab();
     stkRenderTable();
   }catch(e){stkToast('삭제 실패: '+e.message)}
-}
-function stkOpenAdd2(){ // 재고표 전용 (남성현·이호준, 잠금 무관)
-  if(!stkCanInline()){stkToast('남성현·이호준만 가능합니다');return}
-  stkAddViaInline=true;
-  document.getElementById('stk-adCat').value='일반';
-  ['stk-adBrand','stk-adName','stk-adCode','stk-adSize','stk-adDot','stk-adLoc'].forEach(function(id){document.getElementById(id).value='';});
-  document.getElementById('stk-adQty').value='0';
-  document.getElementById('stk-dlgAdd').classList.add('on');
-}
-var stkRtSort={col:null,dir:1}; // col: cat/br/name/code/size/dot/cur/ch0..7/qty, dir:1 asc -1 desc
+} // col: cat/br/name/code/size/dot/cur/ch0..7/qty, dir:1 asc -1 desc
 function stkRtResetSort(){
   stkRtSort.col=null;stkRtSort.dir=1;
   stkRenderTable();
@@ -5970,6 +6038,15 @@ function stkOpenAdd(){
   document.getElementById('stk-adQty').value='0';
   document.getElementById('stk-dlgAdd').classList.add('on');
 }
+var stkAddViaInline=false;
+function stkOpenAdd2(){ // 재고표 전용 (남성현·이호준, 잠금 무관)
+  if(!stkCanInline()){stkToast('남성현·이호준만 가능합니다');return}
+  stkAddViaInline=true;
+  document.getElementById('stk-adCat').value='일반';
+  ['stk-adBrand','stk-adName','stk-adCode','stk-adSize','stk-adDot','stk-adLoc'].forEach(function(id){document.getElementById(id).value='';});
+  document.getElementById('stk-adQty').value='0';
+  document.getElementById('stk-dlgAdd').classList.add('on');
+}
 async function stkDoAdd(){
   if(stkAddViaInline){ if(!stkCanInline()){stkToast('권한이 없습니다');return} }
   else { if(!stkEditGuard())return; }
@@ -6017,7 +6094,6 @@ function stkNormSize(s){ // 표준만 정규화. 규격 안 맞으면 원본 그
   if(/^\d{7}$/.test(s)){var d=s;return d.slice(0,3)+' '+d.slice(3,5)+' '+d.slice(5,7);} // 정확히 7자리
   return s.replace(/\s+/g,' '); // 그 외 전부 원본 유지
 }
-// 사이즈 검색용 — 숫자만 뽑아 비교 (35 12 50 18 ↔ 35X12.50 18 매칭)
 function stkSizeDigits(s){return (s||'').replace(/[^0-9]/g,'');}
 async function stkDoNewOut(){
   var brand=(document.getElementById('stk-noBrand').value||'').trim();
@@ -6064,6 +6140,8 @@ function stkOpenOut(lotId){
   document.getElementById('stk-outMemo').value='';
   document.getElementById('stk-outSrc').value='';
   document.getElementById('stk-outDue').value='';
+  stkCurType='';
+  document.querySelectorAll('#stk-outTypes button').forEach(function(x){x.classList.remove('on');});
   stkOutCheckStock();
   document.getElementById('stk-dlgOut').classList.add('on');
 }
@@ -6089,15 +6167,23 @@ function stkOutCheckStock(){
 }
 function stkSelType(b){stkCurType=b.textContent;
   document.querySelectorAll('#stk-outTypes button').forEach(function(x){x.classList.toggle('on',x===b)});
-  var isOnline=(b.getAttribute('data-grp')==='on');
+  var isOnline=(b.getAttribute('data-grp')==='on'); // 11번/스팜/롯데
   document.getElementById('stk-refLbl').textContent=isOnline?'주문번호':'메모 (차종·이름·폰뒷자리)';
-  document.getElementById('stk-outRef').placeholder=isOnline?'예) 2026061200123':'예) 렉서스 김손님 3417'}
+  document.getElementById('stk-outRef').placeholder=isOnline?'예) 2026061200123':'예) 렉서스 김손님 3417';
+  if(BETA_WRITE && b.textContent==='장착'){stkDoOut();} // (베타 OFF: 장착도 기존처럼 메모 입력 후 [출고 확정])
+}
 async function stkDoOut(){
   var found=null,fp=null;
   stkP.forEach(function(p){p.lots.forEach(function(l){if(l.id===stkCurOut){found=l;fp=p}})});
   if(!found)return;
   var n=parseInt(document.getElementById('stk-outQty').value)||1; // 재고 초과 허용(마이너스)
   if(n<1){stkToast('수량을 확인하세요');return}
+  // 장착이면 재고 안 빼고 예약창으로 (예약 저장 시 출고 확정)
+  if(BETA_WRITE && stkCurType==='장착' && typeof rsvOpenAdd==='function'){
+    stkCloseDlg();
+    rsvOpenAdd(null,{spec:fp.br+' '+fp.name+' '+fp.size+(found.dot?' '+found.dot:'')+(fp.ply?' '+fp.ply+'P':''),qty:n,kind:'lot',product_id:fp.id,dot:found.dot||'',lot_id:stkCurOut,loc:found.loc,channel:'장착'});
+    return;
+  }
   var ref=document.getElementById('stk-outRef').value||'';
   var memo=document.getElementById('stk-outMemo').value||'';
   var minus=n>found.q;
@@ -6502,15 +6588,13 @@ function stkUpParse(){
   var isIn=(stkUpMode==='in');
   lines.forEach(function(line){
     var c=line.split('\t').map(function(x){return x.trim()});
-    // 헤더 행 스킵 (★·공백 제거 후 헤더 단어 2개 이상)
     var hw=['브랜드','카테고리','패턴','패턴코드','코드','사이즈','P수','피수','재원','DOT','연식','공장도가','공장가','수량','판매가','장착가','비고'];
     var hits=c.filter(function(x){return hw.indexOf((x||'').replace(/[★*\s]/g,''))>=0;}).length;
-    if(hits>=2)return; // 헤더 행
-    // 필수 칸 검사 (모드별)
+    if(hits>=2)return;
     if(isIn){
-      if(!(c[1]||'').trim()||!(c[4]||'').trim())return; // 브랜드·사이즈 필수
+      if(!(c[1]||'').trim()||!(c[4]||'').trim())return;
     }else{
-      if(!(c[0]||'').trim()||!(c[3]||'').trim())return; // 브랜드·사이즈 필수
+      if(!(c[0]||'').trim()||!(c[3]||'').trim())return;
     }
     rows.push(c);
   });
@@ -6846,13 +6930,12 @@ function rsvSetView(v){
 }
 function rsvByDate(ds){return reservations.filter(function(r){return r.date_str===ds;}).sort(function(a,b){return (a.time_slot||'').localeCompare(b.time_slot||'');});}
 function rsvEngLine(r){
-  // 엔지니어 핵심: 차종 · 타이어 · 개수 · 금액 · 얼라이먼트
   var parts=[];
-  if(r.car_model)parts.push(r.car_model);
   if(r.tire_spec)parts.push(r.tire_spec);
   if(r.qty)parts.push(r.qty+'짝');
   var line=parts.join(' · ');
-  if(!line)line=(r.memo||'(메모 없음)');
+  if(r.memo)line=(line?line+' · ':'')+r.memo;
+  if(!line)line='(내용 없음)';
   return line;
 }
 function renderReserve(){
@@ -6863,77 +6946,411 @@ function renderReserve(){
   var done=todays.filter(function(r){return r.status==='완료';}).length;
   var sumEl=document.getElementById('rsv-summary');
   if(sumEl)sumEl.innerHTML='오늘 예약 <b>'+todays.length+'</b>건 · 완료 <b>'+done+'</b>건 · 대기 <b>'+(todays.filter(function(r){return r.status!=='완료'&&r.status!=='취소';}).length)+'</b>건';
+  var sq=((document.getElementById('rsv-search')||{}).value||'').trim();
+  if(sq){ rsvRenderSearchList(sq); return; }
   if(reserveView==='month')renderReserveMonth();
   else renderReserveWeek();
+}
+function rsvRenderSearchList(q){
+  var ql=q.toLowerCase();
+  var list=reservations.filter(function(r){
+    return [r.memo,r.tire_spec,r.user_name,r.date_str,r.time_slot,r.status].filter(Boolean).join(' ').toLowerCase().indexOf(ql)>-1;
+  });
+  list.sort(function(a,b){return (b.date_str+(b.time_slot||'')).localeCompare(a.date_str+(a.time_slot||''));});
+  var el=document.getElementById('rsv-cal'); if(!el)return;
+  document.getElementById('rsv-title').textContent='검색';
+  if(!list.length){el.innerHTML='<div style="text-align:center;color:#aaa;padding:24px 0;font-size:13px">검색 결과 없음 — "'+esc(q)+'"</div>';return;}
+  var h='<div style="font-size:12px;color:#888;margin-bottom:8px">검색 결과 '+list.length+'건</div>';
+  list.forEach(function(r){
+    var _pv=r.pay_amount?(parseInt(String(r.pay_amount).replace(/[^0-9]/g,''),10)||0):0;
+    var _av=r.align_state==='take'?(r.align_amount||0):0; var _tot=_pv+_av;
+    var stc=r.status==='완료'?'#1a6c4e':(r.status==='취소'?'#aaa':'#1f6feb');
+    var dd=new Date(r.date_str+'T00:00:00');
+    var dow=['일','월','화','수','목','금','토'][dd.getDay()];
+    h+='<div class="rsv-dl-card" onclick="rsvShowDetail(\''+r.id+'\')">'+
+       '<div class="rsv-dl-time">'+r.date_str+' ('+dow+') '+(r.time_slot||'')+' <span style="color:'+stc+'">· '+r.status+'</span></div>'+
+       '<div class="rsv-dl-eng">'+esc(rsvEngLine(r))+'</div>'+
+       (_tot>0?'<div class="rsv-dl-pay">현장 합계 '+rsvWon(_tot)+'</div>':'')+
+       '</div>';
+  });
+  el.innerHTML=h;
 }
 function renderReserveMonth(){
   var y=reserveCursor.getFullYear(), mo=reserveCursor.getMonth();
   document.getElementById('rsv-title').textContent=y+'.'+String(mo+1).padStart(2,'0');
-  var first=new Date(y,mo,1), start=new Date(first);
-  start.setDate(1-first.getDay()); // 그 주 일요일부터
+  var first=new Date(y,mo,1);
+  var startOff=(first.getDay()+6)%7;            // 월요일 기준 오프셋
+  var start=new Date(first); start.setDate(1-startOff); // 그 주 월요일
   var todayDs=rsvDateStr(new Date());
-  var dows=['일','월','화','수','목','금','토'];
+  var dows=['월','화','수','목','금','토','일']; // 일요일은 작은 칸으로 맨 오른쪽
   var h='<div class="rsv-month">';
-  dows.forEach(function(d,i){h+='<div class="rsv-dow'+(i===0?' sun':(i===6?' sat':''))+'">'+d+'</div>';});
-  for(var i=0;i<42;i++){
-    var d=new Date(start);d.setDate(start.getDate()+i);
-    var ds=rsvDateStr(d), inMonth=(d.getMonth()===mo), dow=d.getDay();
-    var list=rsvByDate(ds);
-    h+='<div class="rsv-day'+(inMonth?'':' other')+(ds===todayDs?' today':'')+'" onclick="rsvDayClick(\''+ds+'\')">';
-    h+='<div class="dnum'+(dow===0?' sun':(dow===6?' sat':''))+'">'+d.getDate()+'</div>';
-    if(list.length)h+='<div class="dcount">'+list.length+'</div>';
-    list.slice(0,3).forEach(function(r){
-      var cls=r.status==='완료'?' done':(r.status==='취소'?' cancel':'');
-      h+='<div class="rsv-pill'+cls+'" onclick="event.stopPropagation();rsvShowDetail(\''+r.id+'\')">'+(r.time_slot||'')+' '+esc(rsvEngLine(r)).slice(0,10)+'</div>';
-    });
-    if(list.length>3)h+='<div class="rsv-pill more">+'+(list.length-3)+'</div>';
-    h+='</div>';
+  dows.forEach(function(d,i){h+='<div class="rsv-dow'+(i===5?' sat':'')+(i===6?' sun small':'')+'">'+d+'</div>';});
+  var curD=new Date(start);
+  for(var wk=0;wk<6;wk++){
+    for(var dd=0;dd<7;dd++){                      // 월~일
+      var d=new Date(curD);
+      var ds=rsvDateStr(d), inMonth=(d.getMonth()===mo), dow=d.getDay();
+      var list=rsvByDate(ds);
+      if(dow===0){                                // 일요일: 작은 칸(날짜+개수만)
+        h+='<div class="rsv-day sun'+(inMonth?'':' other')+(ds===todayDs?' today':'')+'" onclick="rsvDayClick(\''+ds+'\')"><div class="dnum">'+d.getDate()+'</div>'+(list.length?'<div class="dcount">'+list.length+'</div>':'')+'</div>';
+      }else{
+        h+='<div class="rsv-day'+(inMonth?'':' other')+(ds===todayDs?' today':'')+'" onclick="rsvDayClick(\''+ds+'\')">';
+        h+='<div class="dnum'+(dow===6?' sat':'')+'">'+d.getDate()+'</div>';
+        if(list.length)h+='<div class="dcount">'+list.length+'</div>';
+        list.slice(0,3).forEach(function(r){
+          var cls=r.status==='완료'?' done':(r.status==='취소'?' cancel':'');
+          h+='<div class="rsv-pill'+cls+'">'+(r.time_slot||'')+' '+esc(rsvEngLine(r)).slice(0,10)+'</div>';
+        });
+        if(list.length>3)h+='<div class="rsv-pill more">+'+(list.length-3)+'</div>';
+        h+='</div>';
+      }
+      curD.setDate(curD.getDate()+1);
+    }
   }
   h+='</div>';
   document.getElementById('rsv-cal').innerHTML=h;
 }
+var RSV_H0=8, RSV_H1=20, RSV_ROW=44; // 타임라인: 08~20시, 1시간=44px
+function rsvTlMin(t){t=(t||'09:00').split(':');return (+t[0])*60+(+t[1]||0);}
+function rsvTlTime(m){return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0');}
 function renderReserveWeek(){
   var cur=new Date(reserveCursor), start=new Date(cur);
-  start.setDate(cur.getDate()-cur.getDay());
-  var end=new Date(start);end.setDate(start.getDate()+6);
+  start.setDate(cur.getDate()-((cur.getDay()+6)%7)); // 월요일 시작
+  var end=new Date(start);end.setDate(start.getDate()+5); // 월~토
   document.getElementById('rsv-title').textContent=(start.getMonth()+1)+'/'+start.getDate()+'~'+(end.getMonth()+1)+'/'+end.getDate();
   var todayDs=rsvDateStr(new Date());
   var dows=['일','월','화','수','목','금','토'];
-  var h='<div class="rsv-week">';
-  for(var i=0;i<7;i++){
-    var d=new Date(start);d.setDate(start.getDate()+i);
+  var days=[];for(var i=0;i<6;i++){var d=new Date(start);d.setDate(start.getDate()+i);days.push(d);} // 월~토
+  var html='<div class="rsv-tl"><div class="rsv-tlgrid">';
+  html+='<div class="rsv-tlcorner"></div>';
+  days.forEach(function(d,i){var ds=rsvDateStr(d);var cls=(d.getDay()===6?'sat':'');if(ds===todayDs)cls+=' today';
+    html+='<div class="rsv-dhead '+cls+'">'+dows[d.getDay()]+'<br>'+d.getDate()+'</div>';});
+  html+='<div class="rsv-tlbody"><div class="rsv-timecol">';
+  for(var hh=RSV_H0;hh<RSV_H1;hh++)html+='<div class="rsv-tlabel">'+hh+'시</div>';
+  html+='</div>';
+  days.forEach(function(d){var ds=rsvDateStr(d);var tcls=(ds===todayDs)?' today':'';
+    html+='<div class="rsv-daycol'+tcls+'" data-date="'+ds+'" onclick="rsvColClick(event,\''+ds+'\')">';
+    for(var hh2=RSV_H0;hh2<RSV_H1;hh2++)html+='<div class="rsv-hourline"></div>';
+    html+='</div>';});
+  html+='</div></div></div>';
+  document.getElementById('rsv-cal').innerHTML=html;
+  days.forEach(function(d){
     var ds=rsvDateStr(d);
-    var list=rsvByDate(ds);
-    h+='<div class="rsv-wslot"><div class="rsv-wtime">'+dows[d.getDay()]+'<br>'+d.getDate()+(ds===todayDs?'★':'')+'</div><div class="rsv-wbody" onclick="rsvDayClick(\''+ds+'\')">';
-    list.forEach(function(r){
-      var cls=r.status==='완료'?' done':(r.status==='취소'?' cancel':'');
-      h+='<div class="rsv-card'+cls+'" onclick="event.stopPropagation();rsvShowDetail(\''+r.id+'\')" style="flex:0 0 auto;max-width:200px">'+
-        '<div class="rc-eng">'+(r.time_slot||'')+' '+esc(rsvEngLine(r))+(r.alignment?'<span class="rc-align">얼라이</span>':'')+'</div>'+
-        (r.pay_amount?'<div class="rc-sub">💰 '+esc(r.pay_amount)+(r.pay_type?' ('+esc(r.pay_type)+')':'')+'</div>':'')+
-        '</div>';
-    });
-    if(!list.length)h+='<span style="color:#ccc;font-size:11px;padding:6px">예약 없음</span>';
-    h+='</div></div>';
+    var list=reservations.filter(function(r){return r.date_str===ds && r.status!=='취소';});
+    rsvTlLayoutDay(ds,list);
+  });
+}
+function rsvTlLayoutDay(ds,list){
+  list.forEach(function(e){e._s=rsvTlMin(e.time_slot);e._dur=e.duration_min||60;e._e=e._s+e._dur;});
+  list.sort(function(a,b){return a._s-b._s;});
+  var groups=[];
+  list.forEach(function(e){var placed=false;for(var gi=0;gi<groups.length;gi++){if(groups[gi].some(function(x){return e._s<x._e&&x._s<e._e;})){groups[gi].push(e);placed=true;break;}}if(!placed)groups.push([e]);});
+  groups.forEach(function(grp){
+    var cols=[];grp.forEach(function(e){var ci=0;while(cols[ci]&&cols[ci]._e>e._s)ci++;cols[ci]=e;e._col=ci;});
+    var maxc=0;grp.forEach(function(e){maxc=Math.max(maxc,e._col);});grp.forEach(function(e){e._cols=maxc+1;});
+    grp.forEach(function(e){rsvTlPlaceBlock(ds,e);});
+  });
+}
+function rsvTlPlaceBlock(ds,e){
+  var col=document.querySelector('.rsv-daycol[data-date="'+ds+'"]');if(!col)return;
+  var top=(e._s-RSV_H0*60)/60*RSV_ROW, ht=e._dur/60*RSV_ROW-2, w=100/e._cols;
+  var _pv=e.pay_amount?(parseInt(String(e.pay_amount).replace(/[^0-9]/g,''),10)||0):0;
+  var _av=e.align_state==='take'?(e.align_amount||0):0; var _tot=_pv+_av;
+  var sub=_tot>0?(' · '+rsvWon(_tot)):'';
+  var b=document.createElement('div');
+  b.className='rsv-blk'+(e.align_state==='take'?' align':'')+(e.status==='완료'?' done':'');
+  b.style.top=top+'px';b.style.height=ht+'px';
+  b.style.left='calc('+(e._col*w)+'% + 1px)';b.style.width='calc('+w+'% - 2px)';
+  b.innerHTML='<div class="bt">'+(e.time_slot||'')+sub+'</div>'+esc(rsvEngLine(e))+'<div class="rsz"></div>';
+  b.dataset.id=e.id;
+  col.appendChild(b);
+  rsvTlDrag(b,e);rsvTlResize(b,e);
+}
+function rsvTlDrag(b,e){
+  var sY,sX,dragging=false,moved=false,overDate=e.date_str;
+  function down(ev){
+    if(ev.target.classList.contains('rsz'))return;
+    ev.preventDefault();var pt=ev.touches?ev.touches[0]:ev;sY=pt.clientY;sX=pt.clientX;dragging=true;moved=false;overDate=e.date_str;
+    b.classList.add('dragging');
+    document.addEventListener('mousemove',mv);document.addEventListener('mouseup',up);
+    document.addEventListener('touchmove',mv,{passive:false});document.addEventListener('touchend',up);
   }
-  h+='</div>';
-  document.getElementById('rsv-cal').innerHTML=h;
+  function mv(ev){
+    if(!dragging)return;ev.preventDefault();var pt=ev.touches?ev.touches[0]:ev;
+    var dx=pt.clientX-sX,dy=pt.clientY-sY;
+    if(Math.abs(dx)>4||Math.abs(dy)>4)moved=true;
+    var cols=document.querySelectorAll('.rsv-daycol'),overCol=null;
+    for(var i=0;i<cols.length;i++){var r=cols[i].getBoundingClientRect();if(pt.clientX>=r.left&&pt.clientX<r.right){overCol=cols[i];overDate=cols[i].dataset.date;break;}}
+    document.querySelectorAll('.rsv-daycol').forEach(function(c){c.classList.remove('over');});
+    if(overCol){if(b.parentElement!==overCol){overCol.appendChild(b);b.style.left='1px';b.style.width='calc(100% - 2px)';}overCol.classList.add('over');}
+    var rawTop=(e._s-RSV_H0*60)/60*RSV_ROW+dy,half=RSV_ROW/2,snap=Math.round(rawTop/half)*half;
+    var maxTop=((RSV_H1*60-(e.duration_min||60))-RSV_H0*60)/60*RSV_ROW;snap=Math.max(0,Math.min(maxTop,snap));
+    b.style.top=snap+'px';
+  }
+  async function up(){
+    if(!dragging)return; dragging=false;b.classList.remove('dragging');
+    document.querySelectorAll('.rsv-daycol').forEach(function(c){c.classList.remove('over');});
+    document.removeEventListener('mousemove',mv);document.removeEventListener('mouseup',up);
+    document.removeEventListener('touchmove',mv);document.removeEventListener('touchend',up);
+    if(!moved){rsvShowDetail(e.id);return;}
+    var topPx=parseFloat(b.style.top);
+    var mins=RSV_H0*60+Math.round((topPx/RSV_ROW*60)/30)*30;
+    mins=Math.max(RSV_H0*60,Math.min(RSV_H1*60-(e.duration_min||60),mins));
+    try{await sb.from('reservations').update({date_str:overDate,time_slot:rsvTlTime(mins)}).eq('id',e.id);}catch(err){alert('이동 실패: '+err.message);}
+    await loadReservations();renderReserve();
+  }
+  b.addEventListener('mousedown',down);b.addEventListener('touchstart',down,{passive:false});
 }
-function rsvDayClick(ds){rsvOpenAdd(ds);}
-function rsvSetMode(m){
-  rsvMode=m;
-  document.getElementById('rsv-mode-quick').classList.toggle('on',m==='quick');
-  document.getElementById('rsv-mode-full').classList.toggle('on',m==='full');
-  document.getElementById('rsv-quick-fields').style.display=(m==='quick')?'block':'none';
-  document.getElementById('rsv-full-fields').style.display=(m==='full')?'block':'none';
+function rsvTlResize(b,e){
+  var rsz=b.querySelector('.rsz');if(!rsz)return;
+  var sY,sDur,sizing=false,newDur=e.duration_min||60;
+  function down(ev){ev.preventDefault();ev.stopPropagation();var pt=ev.touches?ev.touches[0]:ev;sY=pt.clientY;sDur=e.duration_min||60;sizing=true;b.classList.add('resizing');
+    document.addEventListener('mousemove',mv);document.addEventListener('mouseup',up);document.addEventListener('touchmove',mv,{passive:false});document.addEventListener('touchend',up);}
+  function mv(ev){if(!sizing)return;ev.preventDefault();var pt=ev.touches?ev.touches[0]:ev;var dy=pt.clientY-sY;
+    newDur=sDur+Math.round((dy/RSV_ROW*60)/30)*30;newDur=Math.max(30,newDur);var maxDur=RSV_H1*60-e._s;newDur=Math.min(maxDur,newDur);
+    b.style.height=(newDur/60*RSV_ROW-2)+'px';}
+  async function up(){if(!sizing)return;sizing=false;b.classList.remove('resizing');
+    document.removeEventListener('mousemove',mv);document.removeEventListener('mouseup',up);document.removeEventListener('touchmove',mv);document.removeEventListener('touchend',up);
+    try{await sb.from('reservations').update({duration_min:newDur}).eq('id',e.id);}catch(err){alert('변경 실패: '+err.message);}
+    await loadReservations();renderReserve();}
+  rsz.addEventListener('mousedown',down);rsz.addEventListener('touchstart',down,{passive:false});
 }
-function rsvOpenAdd(ds){
-  rsvEditId=null;
+function rsvColClick(ev,ds){
+  if(!(ev.target.classList.contains('rsv-daycol')||ev.target.classList.contains('rsv-hourline')))return;
+  var col=document.querySelector('.rsv-daycol[data-date="'+ds+'"]');if(!col)return;
+  var r=col.getBoundingClientRect();
+  var cy=(ev.touches?ev.touches[0].clientY:ev.clientY)-r.top;
+  var mins=RSV_H0*60+Math.round((cy/RSV_ROW*60)/30)*30;
+  mins=Math.max(RSV_H0*60,Math.min(RSV_H1*60-30,mins));
+  rsvOpenAdd(null,{dt12:ds.replace(/-/g,'')+rsvTlTime(mins).replace(':','')});
+}
+function rsvDayClick(ds){rsvShowDayList(ds);}
+function rsvShowDayList(ds){
+  var list=rsvByDate(ds).filter(function(r){return r.status!=='취소';});
+  var dd=new Date(ds+'T00:00:00');
+  var dow=['일','월','화','수','목','금','토'][dd.getDay()];
+  var title=(dd.getMonth()+1)+'/'+dd.getDate()+' ('+dow+') · 예약 '+list.length+'건';
+  var h='';
+  if(!list.length){h+='<div style="text-align:center;color:#aaa;padding:18px 0;font-size:13px">예약 없음</div>';}
+  else{
+    list.sort(function(a,b){return (a.time_slot||'').localeCompare(b.time_slot||'');});
+    list.forEach(function(r){
+      var _pv=r.pay_amount?(parseInt(String(r.pay_amount).replace(/[^0-9]/g,''),10)||0):0;
+      var _av=r.align_state==='take'?(r.align_amount||0):0; var _tot=_pv+_av;
+      var st=r.status==='완료'?' <span style="color:#1a6c4e">✅완료</span>':'';
+      h+='<div class="rsv-dl-card" onclick="rsvShowDetail(\''+r.id+'\')">'+
+         '<div class="rsv-dl-time">'+(r.time_slot||'')+st+'</div>'+
+         '<div class="rsv-dl-eng">'+esc(rsvEngLine(r))+'</div>'+
+         (_tot>0?'<div class="rsv-dl-pay">현장 합계 '+rsvWon(_tot)+'</div>':'')+
+         '</div>';
+    });
+  }
+  h+='<button onclick="rsvCloseDetail();rsvOpenAdd(\''+ds+'\')" style="width:100%;margin-top:10px;border:1.5px solid #16a36a;background:#fff;color:#16a36a;padding:11px;border-radius:9px;font-size:14px;font-weight:800;cursor:pointer">+ 이 날 예약 추가</button>';
+  var pt=document.querySelector('#rsv-detail-modal .pt'); if(pt)pt.textContent=title;
+  document.getElementById('rsv-detail-body').innerHTML=h;
+  document.getElementById('rsv-detail-modal').classList.add('on');
+}
+function rsvSetMode(m){} // A안: 빠른/상세 모드 제거 (호환용 빈 함수)
+function rsvSetAlg(v){
+  rsvAlg=v;
+  document.querySelectorAll('.rsv-alg').forEach(function(b){b.classList.toggle('on',b.getAttribute('data-v')===v);});
+  var row=document.getElementById('rsv-algamtrow'); if(row)row.style.display=(v==='take'||v==='inform')?'flex':'none';
+  rsvCalc();
+}
+function rsvParse12(s){
+  s=(s||'').replace(/[^0-9]/g,'');
+  if(s.length<12)return null;
+  return {date_str:s.slice(0,4)+'-'+s.slice(4,6)+'-'+s.slice(6,8), time_slot:s.slice(8,10)+':'+s.slice(10,12)};
+}
+function rsvSyncDt(){
+  var p=rsvParse12(document.getElementById('rsv-dt12').value);
+  var el=document.getElementById('rsv-dt12out'); if(!el)return;
+  if(!p){el.textContent='12자리(년월일시분)를 채워주세요';rsvBuildChips();return;}
+  var dow=['일','월','화','수','목','금','토'][new Date(p.date_str).getDay()];
+  el.textContent=p.date_str+' ('+dow+') '+p.time_slot;
+  rsvBuildChips();
+}
+function rsvPad(n){return String(n).padStart(2,'0');}
+function rsvChipDay(off){
+  var now=new Date(), dd=new Date(now); dd.setDate(now.getDate()+off);
+  var cur=document.getElementById('rsv-dt12').value;
+  var time=(cur&&cur.length>=12)?cur.slice(8,12):'0900';
+  document.getElementById('rsv-dt12').value=''+dd.getFullYear()+rsvPad(dd.getMonth()+1)+rsvPad(dd.getDate())+time;
+  rsvSyncDt();
+}
+function rsvChipTime(hh){
+  var cur=document.getElementById('rsv-dt12').value, now=new Date();
+  var date=(cur&&cur.length>=8)?cur.slice(0,8):(''+now.getFullYear()+rsvPad(now.getMonth()+1)+rsvPad(now.getDate()));
+  var mm=(cur&&cur.length>=12&&cur.slice(10,12)==='30')?'30':'00';
+  document.getElementById('rsv-dt12').value=date+rsvPad(hh)+mm;
+  rsvSyncDt();
+}
+function rsvChipHalf(){
+  var cur=document.getElementById('rsv-dt12').value; if(cur.length<12)return;
+  var mm=(cur.slice(10,12)==='30')?'00':'30';
+  document.getElementById('rsv-dt12').value=cur.slice(0,10)+mm;
+  rsvSyncDt();
+}
+function rsvBuildChips(){
+  var cur=document.getElementById('rsv-dt12').value||'';
+  var curDate=cur.slice(0,8), curHH=cur.slice(8,10), curMM=cur.slice(10,12);
+  var now=new Date(), dows=['일','월','화','수','목','금','토'];
+  var dl=document.getElementById('rsv-chipday'), tl=document.getElementById('rsv-chiptime');
+  if(!dl||!tl)return;
+  var labels=['오늘','내일','모레'], dh='';
+  for(var o=0;o<3;o++){var dd=new Date(now);dd.setDate(now.getDate()+o);
+    var ymd=''+dd.getFullYear()+rsvPad(dd.getMonth()+1)+rsvPad(dd.getDate());
+    dh+='<button type="button" class="rsv-chip'+(ymd===curDate?' on':'')+'" onclick="rsvChipDay('+o+')">'+labels[o]+' '+(dd.getMonth()+1)+'/'+dd.getDate()+'('+dows[dd.getDay()]+')</button>';}
+  dl.innerHTML=dh;
+  var th='';
+  for(var hh=8;hh<20;hh++){th+='<button type="button" class="rsv-chip'+(rsvPad(hh)===curHH?' on':'')+'" onclick="rsvChipTime('+hh+')">'+hh+'시</button>';}
+  th+='<button type="button" class="rsv-chip'+(curMM==='30'?' on':'')+'" onclick="rsvChipHalf()">:30</button>';
+  tl.innerHTML=th;
+}
+var rsvPickRsvId=null;
+function rsvOutFromStock(id){
+  if(!BETA_WRITE){alert('업데이트 후 사용 가능합니다.\n(베타: 재고 차감은 아직 비활성화)');return;}
+  rsvPickRsvId=id;
+  var r=reservations.find(function(x){return x.id===id;});
+  rsvCloseDetail();
+  if(typeof stkLoad==='function'){ Promise.resolve(stkLoad()).then(function(){_rsvPickShow(r);}); }
+  else _rsvPickShow(r);
+}
+function _rsvPickShow(r){
+  var q=document.getElementById('rsv-pick-q');
+  q.value=(r&&r.tire_spec)?String(r.tire_spec).replace(/\sDOT\S*/i,'').replace(/\s\d+P\b/,'').replace(/\s\d+짝/,'').trim():'';
+  document.getElementById('rsv-pick-modal').classList.add('on');
+  rsvPickRender();
+}
+function rsvPickClose(){document.getElementById('rsv-pick-modal').classList.remove('on');}
+function rsvPickRender(){
+  var q=document.getElementById('rsv-pick-q').value||'';
+  var el=document.getElementById('rsv-pick-list'); if(!el)return;
+  var list=stkP.filter(function(p){return stkMatch(p,q)&&stkTq(p)>0;}).slice(0,40);
+  if(!stkP.length){el.innerHTML='<div style="text-align:center;color:#aaa;padding:18px 0;font-size:13px">재고 데이터가 없습니다</div>';return;}
+  if(!list.length){el.innerHTML='<div style="text-align:center;color:#aaa;padding:18px 0;font-size:13px">검색 결과 없음 — 검색어를 바꿔보세요</div>';return;}
+  var h='';
+  list.forEach(function(p){
+    var dots=p.lots.filter(function(l){return l.q>0;});
+    if(!dots.length)return;
+    h+='<div class="rsv-pick-card"><div class="rsv-pick-tit">'+stkEsc(p.br)+' '+stkEsc(p.name)+' · '+stkEsc(p.size)+(p.ply?' '+stkEsc(p.ply):'')+'</div>';
+    dots.forEach(function(l){
+      h+='<div class="rsv-pick-dot"><span>'+(l.dot?stkEsc(l.dot)+'년식':'DOT누락')+' · 재고 '+l.q+'개 · 📍'+(l.loc==='U'?'미배치':stkEsc(l.loc))+'</span>'+
+         '<button onclick="rsvPickChoose(\''+p.id+'\',\''+(l.dot||'')+'\')">이걸로 출고</button></div>';
+    });
+    h+='</div>';
+  });
+  el.innerHTML=h;
+}
+function rsvPickChoose(pid,dot){
+  var p=stkP.find(function(x){return x.id===pid;}); if(!p)return;
+  var r=reservations.find(function(x){return x.id===rsvPickRsvId;});
+  var spec=p.br+' '+p.name+' '+p.size+(dot?' '+dot:'')+(p.ply?' '+p.ply+'P':'');
+  var defQty=(r&&r.qty)?r.qty:1;
+  var qStr=prompt(spec+'\n출고 수량(짝)을 입력하세요', defQty); if(qStr==null)return;
+  var qty=parseInt(String(qStr).replace(/[^0-9]/g,''),10)||defQty;
+  if(qty<1){alert('수량을 확인하세요');return;}
+  rsvPickConfirm(pid,dot,spec,qty);
+}
+async function rsvPickConfirm(pid,dot,spec,qty){
+  var r=reservations.find(function(x){return x.id===rsvPickRsvId;});
+  try{
+    await rsvStockOut({kind:'rt',product_id:pid,dot:dot,spec:spec}, qty, r?r.memo:'');
+    var{error}=await sb.from('reservations').update({tire_spec:spec,qty:qty,src_kind:'rt',src_product_id:pid,src_dot:dot,src_qty:qty,stock_done:true}).eq('id',rsvPickRsvId);
+    if(error)throw error;
+  }catch(e){alert('출고 실패: '+e.message);return;}
+  rsvPickClose();
+  await loadReservations();
+  rsvShowDetail(rsvPickRsvId);
+}
+function rsvOutFromInbound(id){ alert('입고분에서 출고 — 입고표를 만든 뒤 연결됩니다.'); }
+function rsvWon(n){n=Math.round(n||0);if(n===0)return'0원';var a=[],u=[[100000000,'억'],[10000,'만']],r=n;u.forEach(function(x){var q=Math.floor(r/x[0]);if(q>0){a.push(q.toLocaleString()+x[1]);r=r%x[0];}});if(r>0)a.push(r.toLocaleString()+'원');else if(a.length)a[a.length-1]+='원';return a.join(' ');}
+// 금액 파서: "7만7천원"=77000, "100만"=1000000, "20만5천"=205000, "40000*4"=160000, "7만*4"=280000
+function rsvHangulNum(s){
+  var dig={'영':0,'일':1,'이':2,'삼':3,'사':4,'오':5,'육':6,'륙':6,'칠':7,'팔':8,'구':9};
+  var sm={'십':10,'백':100,'천':1000}, big={'만':10000,'억':100000000};
+  if(!/^[영일이삼사오육륙칠팔구십백천만억0-9]+$/.test(s))return null;
+  if(!/[영일이삼사오육륙칠팔구십백천만억]/.test(s))return null;
+  var total=0,section=0,num=0,i,ch;
+  for(i=0;i<s.length;i++){ch=s[i];
+    if(/[0-9]/.test(ch))num=num*10+(+ch);
+    else if(dig[ch]!=null)num=dig[ch];
+    else if(sm[ch]!=null){section+=(num||1)*sm[ch];num=0;}
+    else if(big[ch]!=null){section+=num;total+=section*big[ch];section=0;num=0;}
+  }
+  return total+section+num;
+}
+function rsvParseWon(raw){
+  if(raw==null)return 0;
+  var s=String(raw).replace(/원/g,'').replace(/,/g,'').replace(/\s+/g,'').replace(/[×xX]/g,'*');
+  if(!s)return 0;
+  if(s.indexOf('*')>-1){
+    var ps=s.split('*').filter(function(x){return x!=='';});
+    if(ps.length>=2)return ps.reduce(function(acc,x){return acc*rsvParseWon(x);},1);
+    s=ps[0]||'';
+  }
+  if(/^[0-9]+$/.test(s))return parseInt(s,10);
+  var hn=rsvHangulNum(s); if(hn!=null)return hn;
+  var total=0,m;
+  m=s.match(/([0-9]+)억/);if(m){total+=parseInt(m[1],10)*100000000;s=s.replace(m[0],'');}
+  m=s.match(/([0-9]+)만/);if(m){total+=parseInt(m[1],10)*10000;s=s.replace(m[0],'');}
+  m=s.match(/([0-9]+)천/);if(m){total+=parseInt(m[1],10)*1000;s=s.replace(m[0],'');}
+  m=s.match(/([0-9]+)백/);if(m){total+=parseInt(m[1],10)*100;s=s.replace(m[0],'');}
+  m=s.match(/([0-9]+)/);if(m)total+=parseInt(m[1],10);
+  return total;
+}
+function rsvPayVal(){
+  var unitRaw=(document.getElementById('rsv-payunit').value||'');
+  var q=parseInt((document.getElementById('rsv-payqty').value||'').replace(/[^0-9]/g,'')||'0',10);
+  // 단가칸에 곱하기가 있으면 통금액 직접 입력으로 간주
+  if(/[*×xX]/.test(unitRaw)){
+    var val=rsvParseWon(unitRaw);
+    var parts=unitRaw.replace(/원/g,'').replace(/[×xX]/g,'*').split('*').filter(function(x){return x.trim()!=='';});
+    return {val:val, expr:parts.map(function(x){return rsvParseWon(x).toLocaleString();}).join(' × ')};
+  }
+  var unit=rsvParseWon(unitRaw);
+  if(q>1)return {val:unit*q, expr:unit.toLocaleString()+' × '+q};
+  return {val:unit, expr:''};
+}
+function rsvAlgVal(){return (rsvAlg==='take'||rsvAlg==='inform')?rsvParseWon(document.getElementById('rsv-algamt').value||''):0;}
+function rsvCalc(){
+  var a=rsvAlgVal(), pc=rsvPayVal();
+  var ak=document.getElementById('rsv-algamtk'); if(ak)ak.textContent=rsvWon(a);
+  var pcl=document.getElementById('rsv-paycalc'); if(pcl)pcl.textContent=(pc.expr?pc.expr+' = ':'')+rsvWon(pc.val);
+  var algTot=(rsvAlg==='take')?a:0;             // 합계엔 받기로함만
+  var tot=algTot+pc.val, tl=document.getElementById('rsv-totline');
+  if(tl){
+    var bd=[];if(algTot>0)bd.push('얼라이 '+rsvWon(algTot));if(pc.val>0)bd.push('현장 '+rsvWon(pc.val));
+    var base=tot>0?('현장 합계 '+rsvWon(tot)+(bd.length>1?' ('+bd.join(' + ')+')':'')):'';
+    if(rsvAlg==='inform'&&a>0)base=(base?base+' · ':'')+'얼라이 안내 '+rsvWon(a);
+    tl.textContent=base;
+  }
+}
+function rsvOpenAdd(ds,out){
+  rsvEditId=null; rsvOutInfo=out||null;
   document.getElementById('rsv-modal-title').textContent='예약 등록';
-  rsvFillTimeOptions();
-  rsvSetMode('quick');
-  document.getElementById('rsv-date').value=ds||rsvDateStr(new Date());
-  ['rsv-time','rsv-memo-quick','rsv-source','rsv-name','rsv-tel','rsv-car','rsv-tire','rsv-qty','rsv-tireloc','rsv-pay','rsv-paytype','rsv-memo-full'].forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
-  ['rsv-align','rsv-notice','rsv-review'].forEach(function(id){var el=document.getElementById(id);if(el)el.checked=false;});
+  var dt12='';
+  if(out&&out.dt12)dt12=out.dt12;
+  else{
+    var now=new Date(), hh=now.getHours(), mm=Math.round(now.getMinutes()/30)*30;
+    if(mm===60){mm=0;hh++;}
+    if(hh<8){hh=9;mm=0;} else if(hh>19||(hh===19&&mm>30)){hh=19;mm=30;} // 08~19:30
+    var ds2=ds?ds:rsvDateStr(now);
+    dt12=ds2.replace(/-/g,'')+String(hh).padStart(2,'0')+String(mm).padStart(2,'0');
+  }
+  document.getElementById('rsv-dt12').value=dt12;
+  document.getElementById('rsv-memo').value='';
+  document.getElementById('rsv-payunit').value=''; document.getElementById('rsv-payqty').value='';
+  document.getElementById('rsv-algamt').value='';
+  rsvSetAlg('inform');
+  var tl=document.getElementById('rsv-tireline');
+  var oq=document.getElementById('rsv-outqtyrow');
+  if(rsvOutInfo&&rsvOutInfo.spec){
+    tl.style.display='block';tl.textContent='🛞 '+rsvOutInfo.spec;
+    if(rsvOutInfo.product_id){oq.style.display='flex';document.getElementById('rsv-outqty').value=rsvOutInfo.qty||1;}
+    else{oq.style.display='none';}
+  }else{tl.style.display='none';tl.textContent='';oq.style.display='none';}
+  rsvSyncDt(); rsvCalc();
   document.getElementById('rsv-modal').classList.add('on');
 }
 function rsvCloseModal(){document.getElementById('rsv-modal').classList.remove('on');}
@@ -6942,105 +7359,159 @@ function rsvOpenEdit(id){
   rsvCloseDetail();
   rsvEditId=id;
   document.getElementById('rsv-modal-title').textContent='예약 수정';
-  rsvFillTimeOptions();
-  // 상세 내용이 있으면 상세모드, 아니면 빠른모드
-  var hasFull=r.car_model||r.tire_spec||r.customer_name||r.customer_tel||r.pay_amount||r.source;
-  rsvSetMode(hasFull?'full':'quick');
-  document.getElementById('rsv-date').value=r.date_str||'';
-  document.getElementById('rsv-time').value=r.time_slot||'';
-  document.getElementById('rsv-memo-quick').value=r.memo||'';
-  document.getElementById('rsv-source').value=r.source||'';
-  document.getElementById('rsv-name').value=r.customer_name||'';
-  document.getElementById('rsv-tel').value=r.customer_tel||'';
-  document.getElementById('rsv-car').value=r.car_model||'';
-  document.getElementById('rsv-tire').value=r.tire_spec||'';
-  document.getElementById('rsv-qty').value=r.qty||'';
-  document.getElementById('rsv-tireloc').value=r.tire_loc||'';
-  document.getElementById('rsv-pay').value=r.pay_amount||'';
-  document.getElementById('rsv-paytype').value=r.pay_type||'';
-  document.getElementById('rsv-memo-full').value=r.memo||'';
-  document.getElementById('rsv-align').checked=!!r.alignment;
-  document.getElementById('rsv-notice').checked=!!r.notice;
-  document.getElementById('rsv-review').checked=!!r.review_notice;
+  rsvOutInfo=(r.tire_spec)?{spec:r.tire_spec,qty:r.qty}:null;
+  document.getElementById('rsv-dt12').value=(r.date_str||'').replace(/-/g,'')+(r.time_slot||'').replace(/[^0-9]/g,'');
+  document.getElementById('rsv-memo').value=r.memo||'';
+  document.getElementById('rsv-payunit').value=(r.pay_amount||'').replace(/[^0-9]/g,'');
+  document.getElementById('rsv-payqty').value='';
+  document.getElementById('rsv-algamt').value=(r.align_amount||'');
+  rsvSetAlg(r.align_state||(r.alignment?'take':'none'));
+  var tl=document.getElementById('rsv-tireline');
+  var oq=document.getElementById('rsv-outqtyrow'); if(oq)oq.style.display='none';
+  if(rsvOutInfo&&rsvOutInfo.spec){tl.style.display='block';tl.textContent='🛞 '+rsvOutInfo.spec+(rsvOutInfo.qty?' × '+rsvOutInfo.qty+'짝':'');}
+  else{tl.style.display='none';tl.textContent='';}
+  rsvSyncDt(); rsvCalc();
   document.getElementById('rsv-modal').classList.add('on');
 }
 async function rsvSubmit(){
-  var date=document.getElementById('rsv-date').value;
-  var time=document.getElementById('rsv-time').value;
-  if(!date||!time){alert('날짜와 시간은 꼭 선택해주세요');return;}
+  var p=rsvParse12(document.getElementById('rsv-dt12').value);
+  if(!p){alert('일시 12자리(년월일시분)를 정확히 입력해주세요');return;}
+  var pc=rsvPayVal(), a=rsvAlgVal();
   var rec={
-    date_str:date, time_slot:time, user_name:me?me.name:'?',
-    memo:(rsvMode==='quick'?document.getElementById('rsv-memo-quick').value:document.getElementById('rsv-memo-full').value).trim()
+    date_str:p.date_str, time_slot:p.time_slot, user_name:me?me.name:'?',
+    memo:document.getElementById('rsv-memo').value.trim(),
+    align_state:rsvAlg,
+    align_amount:((rsvAlg==='take'||rsvAlg==='inform')?a:null),
+    pay_amount:(pc.val>0?String(pc.val):''),
+    alignment:(rsvAlg==='take')
   };
-  if(!rsvEditId)rec.status='예약'; // 신규만 상태 초기화 (수정 시 기존 상태 유지)
-  if(rsvMode==='full'){
-    rec.source=document.getElementById('rsv-source').value;
-    rec.customer_name=document.getElementById('rsv-name').value.trim();
-    rec.customer_tel=document.getElementById('rsv-tel').value.trim();
-    rec.car_model=document.getElementById('rsv-car').value.trim();
-    rec.tire_spec=document.getElementById('rsv-tire').value.trim();
-    rec.qty=parseInt(document.getElementById('rsv-qty').value)||null;
-    rec.tire_loc=document.getElementById('rsv-tireloc').value.trim();
-    rec.pay_amount=document.getElementById('rsv-pay').value.trim();
-    rec.pay_type=document.getElementById('rsv-paytype').value;
-    rec.alignment=document.getElementById('rsv-align').checked;
-    rec.notice=document.getElementById('rsv-notice').checked;
-    rec.review_notice=document.getElementById('rsv-review').checked;
-  }
+  var oi=rsvOutInfo, outQty=0;
+  if(oi&&oi.spec)rec.tire_spec=oi.spec;
+  if(oi&&oi.product_id){
+    outQty=parseInt((document.getElementById('rsv-outqty').value||'').replace(/[^0-9]/g,''),10)||oi.qty||1;
+    rec.qty=outQty;
+    rec.src_kind=oi.kind; rec.src_product_id=oi.product_id; rec.src_dot=oi.dot||''; rec.src_qty=outQty; rec.src_lot_id=oi.lot_id||null; rec.stock_done=false;
+  }else if(oi&&oi.qty){rec.qty=oi.qty;}
+  if(!rsvEditId)rec.status='예약';
   try{
-    if(rsvEditId){
-      var{error}=await sb.from('reservations').update(rec).eq('id',rsvEditId);
-      if(error)throw error;
-    }else{
-      var{error:e2}=await sb.from('reservations').insert(rec);
-      if(e2)throw e2;
+    if(BETA_WRITE && !rsvEditId && oi && oi.product_id){            // 신규+출고대기 → 재고 차감(출고 확정)
+      await rsvStockOut(oi, outQty, rec.memo);
+      rec.stock_done=true;
     }
+    if(rsvEditId){var{error}=await sb.from('reservations').update(rec).eq('id',rsvEditId);if(error)throw error;}
+    else{var{error:e2}=await sb.from('reservations').insert(rec);if(e2)throw e2;}
   }catch(e){alert((rsvEditId?'수정':'등록')+' 실패: '+e.message);return;}
-  rsvEditId=null;
+  var _wasNew=!rsvEditId, _wasTmp=!(oi&&oi.product_id);
+  rsvEditId=null; rsvOutInfo=null;
   rsvCloseModal();
   await loadReservations();
+  if(_wasNew&&_wasTmp)alert('임시 예약으로 등록되었습니다.\n실제 출고(재고 차감)는 예약 상세에서 진행할 수 있어요.');
+}
+// 예약 저장 시 재고 출고(차감) + 로그 한 줄
+async function rsvStockOut(o,n,memo){
+  var ts=new Date().toISOString();
+  if(o.kind==='lot'){
+    var cur=await sb.from('stock_lots').select('qty').eq('id',o.lot_id).maybeSingle();
+    var curQ=(cur&&cur.data)?(cur.data.qty||0):0;
+    await sb.from('stock_lots').update({qty:curQ-n,updated_at:ts}).eq('id',o.lot_id);
+  }else if(o.kind==='rt'){
+    var lr=await sb.from('stock_lots').select('*').eq('product_id',o.product_id);
+    var lots=((lr&&lr.data)||[]).filter(function(l){return (l.dot||'DOT누락')===((o.dot||'')||'DOT누락');});
+    var rem=n;
+    for(var i=0;i<lots.length&&rem>0;i++){var take=Math.min(lots[i].qty,rem);if(take<=0)continue;await sb.from('stock_lots').update({qty:lots[i].qty-take,updated_at:ts}).eq('id',lots[i].id);rem-=take;}
+    if(rem>0){
+      if(lots.length){await sb.from('stock_lots').update({qty:(lots[0].qty-Math.min(lots[0].qty,n))-(rem),updated_at:ts}).eq('id',lots[0].id);}
+      else{await sb.from('stock_lots').insert({product_id:o.product_id,dot:(o.dot||''),qty:-rem,loc:'U'});}
+    }
+  }
+  stkLog('📦장착출고', o.spec+' −'+n+'개 · 예약'+(memo?' ['+memo+']':''), {product_id:o.product_id,dot:o.dot||'',qty:n,channel:'장착',ref:'예약등록'+(memo?' '+memo:'')});
+  if(typeof stkLoad==='function')await stkLoad();
+}
+// 예약 취소/삭제 시 출고했던 재고 되돌리기 + 기록(누가 취소했는지 자동)
+async function rsvStockRestore(r,memo){
+  var ts=new Date().toISOString();
+  var n=r.src_qty||r.qty||1;
+  if(r.src_kind==='lot' && r.src_lot_id){
+    var cur=await sb.from('stock_lots').select('qty').eq('id',r.src_lot_id).maybeSingle();
+    var curQ=(cur&&cur.data)?(cur.data.qty||0):0;
+    await sb.from('stock_lots').update({qty:curQ+n,updated_at:ts}).eq('id',r.src_lot_id);
+  }else if(r.src_kind==='rt'){
+    var lr=await sb.from('stock_lots').select('*').eq('product_id',r.src_product_id);
+    var lots=((lr&&lr.data)||[]).filter(function(l){return (l.dot||'DOT누락')===((r.src_dot||'')||'DOT누락');});
+    if(lots.length){await sb.from('stock_lots').update({qty:lots[0].qty+n,updated_at:ts}).eq('id',lots[0].id);}
+    else{await sb.from('stock_lots').insert({product_id:r.src_product_id,dot:(r.src_dot||''),qty:n,loc:'U'});}
+  }
+  stkLog('↩️재고복구', (r.tire_spec||'')+' +'+n+'개 · 예약취소'+(memo?' ['+memo+']':''), {product_id:r.src_product_id,dot:r.src_dot||'',qty:n,channel:'장착',ref:'예약취소복구'});
+  if(typeof stkLoad==='function')await stkLoad();
 }
 function rsvShowDetail(id){
   var r=reservations.find(function(x){return x.id===id;});if(!r)return;
   var rows=[];
   function row(k,v){if(v!==undefined&&v!==null&&v!=='')rows.push('<div class="rsv-detail-row"><div class="k">'+k+'</div><div class="v">'+esc(String(v))+'</div></div>');}
-  row('날짜',r.date_str);row('시간',r.time_slot);
+  row('일시',(r.date_str||'')+' '+(r.time_slot||''));
   row('상태',r.status);
-  row('차종',r.car_model);row('타이어',r.tire_spec);row('개수',r.qty?r.qty+'짝':'');
-  row('현장결제',r.pay_amount);row('결제방법',r.pay_type);
-  if(r.alignment)row('얼라이먼트','✅ 포함');
-  if(r.notice)row('포함안내','✅');
-  row('타이어위치/출고',r.tire_loc);
-  row('유입경로',r.source);row('이름',r.customer_name);row('연락처',r.customer_tel);
-  if(r.review_notice)row('리뷰안내','✅ (엔지니어 확인)');
-  row('메모',r.memo);row('작성자',r.user_name);
+  row('타이어',r.tire_spec);row('수량',r.qty?r.qty+'짝':'');
+  if(r.align_state==='take')row('얼라이먼트','받기로함 · '+rsvWon(r.align_amount||0));
+  else if(r.align_state==='inform')row('얼라이먼트','안내함'+(r.align_amount?' · '+rsvWon(r.align_amount):''));
+  else if(r.alignment&&!r.align_state)row('얼라이먼트','✅ 포함');
+  var _pv=r.pay_amount?(parseInt(String(r.pay_amount).replace(/[^0-9]/g,''),10)||0):0;
+  var _av=r.align_state==='take'?(r.align_amount||0):0;
+  if(_pv>0)row('현장결제',rsvWon(_pv));
+  if(_pv+_av>0)row('현장 합계',rsvWon(_pv+_av));
+  row('내용',r.memo);row('작성자',r.user_name);
+  var isTmp=!(r.src_kind&&r.src_product_id); // 출고 안 한 임시예약
   var acts='<div class="rsv-detail-acts">';
   if(r.status==='완료'){
-    acts+='<button class="rsv-bt-reopen" onclick="rsvSetStatus(\''+r.id+'\',\'예약\')">완료 취소</button>';
+    acts+='<button class="rsv-bt-reopen" onclick="rsvSetStatus(\''+r.id+'\',\'예약\')">작업완료 취소</button>';
   }else if(r.status==='취소'){
-    acts+='<button class="rsv-bt-reopen" onclick="rsvSetStatus(\''+r.id+'\',\'예약\')">취소 되돌리기</button>';
+    acts+='<button class="rsv-bt-reopen" onclick="rsvSetStatus(\''+r.id+'\',\'예약\')">예약취소 되돌리기</button>';
   }else{
-    acts+='<button class="rsv-bt-done" onclick="rsvSetStatus(\''+r.id+'\',\'완료\')">완료</button>';
-    acts+='<button class="rsv-bt-cancel" onclick="rsvSetStatus(\''+r.id+'\',\'취소\')">취소</button>';
+    acts+='<button class="rsv-bt-done" onclick="rsvSetStatus(\''+r.id+'\',\'완료\')">작업완료</button>';
+    if(isTmp)acts+='<button class="rsv-bt-cancel" onclick="rsvDelete(\''+r.id+'\')">임시예약 취소</button>';
+    else acts+='<button class="rsv-bt-cancel" onclick="rsvSetStatus(\''+r.id+'\',\'취소\')">예약취소</button>';
   }
   acts+='</div>';
+  if(isTmp && r.status!=='취소'){
+    acts+='<div style="margin-top:9px;display:flex;gap:6px">'+
+      '<button onclick="rsvOutFromStock(\''+r.id+'\')" style="flex:1;border:1.5px solid #16a36a;background:#fff;color:#16a36a;padding:10px;border-radius:9px;font-size:13px;font-weight:800;cursor:pointer">📦 재고에서 출고</button>'+
+      '<button onclick="rsvOutFromInbound(\''+r.id+'\')" style="flex:1;border:1.5px solid #e08a2b;background:#fff;color:#e08a2b;padding:10px;border-radius:9px;font-size:13px;font-weight:800;cursor:pointer">🆕 입고분에서 출고</button>'+
+      '</div>';
+  }
   acts+='<div style="margin-top:8px"><button onclick="rsvOpenEdit(\''+r.id+'\')" style="width:100%;border:1.5px solid #2563eb;background:#fff;color:#2563eb;padding:10px;border-radius:9px;font-size:14px;font-weight:800;cursor:pointer">✏️ 내용 수정</button></div>';
-  acts+='<div style="margin-top:6px"><button onclick="rsvDelete(\''+r.id+'\')" style="width:100%;border:none;background:none;color:#999;font-size:12px;text-decoration:underline;cursor:pointer">예약 삭제</button></div>';
+  acts+='<div style="margin-top:6px"><button onclick="rsvCloseDetail()" style="width:100%;border:1px solid #ddd;background:#fff;color:#666;padding:9px;border-radius:9px;font-size:13px;font-weight:600;cursor:pointer">닫기</button></div>';
+  var _pt=document.querySelector('#rsv-detail-modal .pt'); if(_pt)_pt.textContent='예약 상세';
   document.getElementById('rsv-detail-body').innerHTML=rows.join('')+acts;
   document.getElementById('rsv-detail-modal').classList.add('on');
 }
 function rsvCloseDetail(){document.getElementById('rsv-detail-modal').classList.remove('on');}
 async function rsvSetStatus(id,status){
-  try{var{error}=await sb.from('reservations').update({status:status}).eq('id',id);if(error)throw error;}
-  catch(e){alert('변경 실패: '+e.message);return;}
+  if(status==='완료'&&!confirm('작업을 완료 처리할까요?'))return;
+  if(status==='취소'&&!confirm('이 예약을 취소할까요?\n(출고했던 재고는 자동으로 복구됩니다)'))return;
+  var r=reservations.find(function(x){return x.id===id;});
+  try{
+    if(BETA_WRITE && r && r.src_kind && r.src_product_id){            // 출고로 생긴 예약만 재고 동기화
+      if(status==='취소' && r.stock_done){              // 취소 → 재고 복구
+        await rsvStockRestore(r, r.memo);
+        await sb.from('reservations').update({stock_done:false}).eq('id',id);
+      }else if(status==='예약' && r.stock_done===false){ // 되살리기 → 재차감
+        await rsvStockOut({kind:r.src_kind,product_id:r.src_product_id,dot:r.src_dot,lot_id:r.src_lot_id,spec:r.tire_spec}, r.src_qty||r.qty||1, r.memo);
+        await sb.from('reservations').update({stock_done:true}).eq('id',id);
+      }
+    }
+    var{error}=await sb.from('reservations').update({status:status}).eq('id',id);if(error)throw error;
+  }catch(e){alert('변경 실패: '+e.message);return;}
   rsvCloseDetail();await loadReservations();
 }
 async function rsvDelete(id){
   if(!confirm('이 예약을 완전히 삭제할까요? (되돌릴 수 없음)'))return;
-  try{var{error}=await sb.from('reservations').delete().eq('id',id);if(error)throw error;}
-  catch(e){alert('삭제 실패: '+e.message);return;}
+  var r=reservations.find(function(x){return x.id===id;});
+  try{
+    if(BETA_WRITE && r && r.src_kind && r.src_product_id && r.stock_done){ await rsvStockRestore(r, r.memo); }
+    var{error}=await sb.from('reservations').delete().eq('id',id);if(error)throw error;
+  }catch(e){alert('삭제 실패: '+e.message);return;}
   rsvCloseDetail();await loadReservations();
 }
+
 
 </script>
 <div class="stkdlgbg" id="stk-dlgCell" onclick="if(event.target===this)stkCloseDlg()"><div class="stkdlg">
@@ -7072,7 +7543,7 @@ async function rsvDelete(id){
     <div class="row" style="margin-bottom:0"><label>입고 예정일 (선택)</label><input id="stk-outDue" placeholder="예) 6/15 또는 이번주"></div>
   </div>
   <div class="row"><label>판매처 / 채널</label><div class="stk-chbtns" id="stk-outTypes">
-    <button class="stk-chb on" data-grp="jang" onclick="stkSelType(this)">장착</button>
+    <button class="stk-chb" data-grp="jang" onclick="stkSelType(this)">장착</button>
     <button class="stk-chb" data-grp="dae" onclick="stkSelType(this)">당일직배송</button>
     <button class="stk-chb" data-grp="dae" onclick="stkSelType(this)">당일택배</button>
     <button class="stk-chb" data-grp="ping" onclick="stkSelType(this)">택배핑&효성</button>
