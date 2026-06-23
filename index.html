@@ -4934,9 +4934,9 @@ function stkRtBulkPasteIntoCells(txt){
 // 일괄 등록: 빈 행 모두 읽어서 DB에 insert
 async function stkRtSaveBulkNew(){
   if(!stkCanInline())return;
+  if(!stkEditGuard())return;
   var rows=document.querySelectorAll('#stk-rtTable tr.stk-newrow');
   if(!rows.length)return;
-  var VALID_CATS=['일반','행사','오프로드','중고','휠','튜닝'];
   var items=[];
   rows.forEach(function(tr){
     function v(field){
@@ -4945,65 +4945,73 @@ async function stkRtSaveBulkNew(){
       return c.textContent.trim();
     }
     var cat=v('cat')||'일반';
-    // 분류는 stkCategories에 있으면 그대로, 없으면 자동 추가 (호준님이 자유롭게 쓸 수 있게)
     if(cat&&stkCategories.indexOf(cat)<0){stkCategories.push(cat);saveCategories(stkCategories);}
     var br=v('br'),name=v('name'),code=v('code'),size=v('size'),ply=v('ply'),spec=v('spec'),dot=v('dot'),fprice=v('fprice'),qty=parseInt(v('qty'))||0;
-    if(!br||!size)return; // 필수 (브랜드·사이즈) — 수량 0도 허용 (재고 0 등록)
+    if(!br||!size)return; // 필수 (브랜드·사이즈) — 수량 0도 허용
     items.push({cat:cat,br:br,name:name,code:code,size:size,ply:ply,spec:spec,dot:dot,fprice:parseInt(fprice)||null,qty:qty});
   });
   if(!items.length){stkToast('브랜드·사이즈가 있는 행이 없습니다');return}
   if(!confirm(items.length+'개 행을 등록할까요?'))return;
-  // ── 배치 처리 (한 건씩 X — 수천 건도 빠르게) ──
-  var B=400,ok=0,fail=0;
-  // 모든 행 사이즈 정규화
-  items.forEach(function(r){r._size=stkNormSize(r.size);});
+  items.forEach(function(r){r._size=stkNormSize(r.size);r._fname=r.name||(r.code||'(이름미정)');});
+  var ok=0,fail=0,failRows=[],okRows=[];
   try{
-    // 1패스: 마스터에 없는 신규 상품 일괄 생성 (중복키=브랜드+패턴+코드+사이즈+P수)
-    var existKey={};
-    stkP.forEach(function(p){existKey[[p.br,p.name||'',p.code||'',p.size,p.ply||''].join('|')]=p.id;});
-    var newSeen={},newRows=[];
-    items.forEach(function(r){
-      var k=[r.br,r.name||'',r.code||'',r._size,r.ply||''].join('|');
-      if(existKey[k]||newSeen[k])return;
-      newSeen[k]=1;newRows.push(r);
-    });
-    for(var i=0;i<newRows.length;i+=B){
-      var chunk=newRows.slice(i,i+B).map(function(r){return {brand:r.br,name:r.name||(r.code||'(이름미정)'),code:r.code||'',size:r._size,category:r.cat,ply:r.ply||'',spec:r.spec||'',factory_price:r.fprice||null};});
-      var res=await sb.from('stock_products').insert(chunk);
-      if(res.error)throw res.error;
+    // ── 행을 하나씩 정확히 처리 (재조회·키매칭 없음 → 어긋남 불가) ──
+    // 같은 (브랜드+패턴+코드+사이즈+P수)는 한 번만 상품 생성, id 메모리에 보관
+    var pidCache={}; // key -> product_id
+    // 기존 마스터에 있는 것 먼저 캐시
+    stkP.forEach(function(p){pidCache[[p.br,p.name||'',p.code||'',p.size,p.ply||''].join('|')]=p.id;});
+    for(var i=0;i<items.length;i++){
+      var r=items[i];
+      var key=[r.br,r._fname,r.code||'',r._size,r.ply||''].join('|');
+      try{
+        var pid=pidCache[key];
+        // 1) 상품이 없으면 생성하고, .select()로 그 자리에서 id 받기 (재조회 안 함)
+        if(!pid){
+          var payload={brand:r.br,name:r._fname,code:r.code||'',size:r._size,category:r.cat,ply:r.ply||'',spec:r.spec||'',factory_price:r.fprice};
+          var ins=await sb.from('stock_products').insert(payload).select();
+          if(ins.error){
+            // 새 컬럼 없으면 기본정보만으로 재시도 — 반드시 들어가게
+            if((ins.error.message||'').match(/ply|spec|factory_price|column/i)){
+              if(!window._stkColWarned){window._stkColWarned=true;stkToast('⚠️ DB에 P수·재원·공장도가 컬럼이 없어 기본정보만 등록합니다.');}
+              ins=await sb.from('stock_products').insert({brand:r.br,name:r._fname,code:r.code||'',size:r._size,category:r.cat}).select();
+            }
+            if(ins.error)throw ins.error;
+          }
+          pid=ins.data&&ins.data[0]&&ins.data[0].id;
+          if(!pid)throw new Error('상품 생성 후 ID 없음');
+          pidCache[key]=pid;
+        }
+        // 2) lot insert — 결과 검증 (조용한 실패 금지)
+        var lr=await sb.from('stock_lots').insert({product_id:pid,dot:r.dot||'',qty:r.qty,loc:'U'});
+        if(lr.error)throw new Error('lot: '+lr.error.message);
+        // 3) 개별 추적 로그 (행 단위 — 누가/언제/무엇을)
+        await stkLog('➕상품추가',r.br+' '+r._fname+(r.code?' ['+r.code+']':'')+' '+r._size+(r.ply?' '+r.ply:'')+(r.dot?' '+r.dot+'년식':'')+' '+r.qty+'개',{product_id:pid,dot:r.dot||'',qty:r.qty,to_loc:'U'});
+        ok++; okRows.push(pid);
+      }catch(rowErr){
+        fail++; failRows.push((i+1)+'행: '+r.br+' '+r._fname+' '+r._size+' — '+rowErr.message);
+        console.error('행 저장 실패',i+1,r,rowErr);
+      }
     }
-    // 상품 다시 읽어 id 매핑
-    var prData=await stkSelectAll('stock_products',null);
-    var byKey={};prData.forEach(function(p){byKey[[p.brand,p.name||'',p.code||'',p.size,p.ply||''].join('|')]=p.id;});
-    // 2패스: lots 일괄 insert (수량 0도)
-    var lots=[];
-    items.forEach(function(r){
-      var pid=byKey[[r.br,r.name||'',r.code||'',r._size,r.ply||''].join('|')];
-      if(!pid){fail++;return;}
-      lots.push({product_id:pid,dot:r.dot||'',qty:r.qty,loc:'U'});
-    });
-    for(var j=0;j<lots.length;j+=B){
-      var res2=await sb.from('stock_lots').insert(lots.slice(j,j+B));
-      if(res2.error)throw res2.error;
-      ok+=lots.slice(j,j+B).length;
-    }
-    // 방금 등록(또는 기존 상품에 합쳐진)된 상품 id 수집 — 재고0이어도 표에 보이게 + 강조
-    var _added={};
-    items.forEach(function(r){var pid=byKey[[r.br,r.name||'',r.code||'',r._size,r.ply||''].join('|')];if(pid)_added[pid]=1;});
-    stkJustAdded=_added;
-    stkLog('➕상품추가','일괄 등록 '+ok+'행'+(fail?' / '+fail+'행 실패':''),{qty:ok});
-  }catch(e){stkToast('등록 중 오류: '+e.message+' — 지금까지 '+ok+'건');}
+    stkJustAdded={};okRows.forEach(function(pid){stkJustAdded[pid]=1;});
+    // 일괄 요약 로그 (개별 로그와 별개로 한 줄 요약도 남김)
+    await stkLog('➕일괄등록','붙여넣기 '+ok+'행 등록'+(fail?' / '+fail+'행 실패':''),{qty:ok});
+  }catch(e){stkToast('등록 중 오류: '+e.message+' — 지금까지 '+ok+'건');console.error(e);}
   var zeroCnt=items.filter(function(r){return (parseInt(r.qty)||0)<=0;}).length;
   stkRtAdding=false;stkRtAddingCount=1;
   var _q=document.getElementById('stk-rtq');if(_q)_q.value='';
   var _br=document.getElementById('stk-rtBrand');if(_br)_br.value='';
   var _ct=document.getElementById('stk-rtCat');if(_ct)_ct.value='';
   var _oo=document.getElementById('stk-rtOnlyOut');if(_oo)_oo.checked=false;
-  await stkLoad();
+  await stkLoad();await stkLoadLogTab();
   stkRenderTable();
   try{var _hl=document.querySelector('#stk-rtTable tr.stk-justadded');if(_hl&&_hl.scrollIntoView)_hl.scrollIntoView({block:'center'});}catch(_e){}
-  stkToast('✓ '+ok+'행 등록'+(fail?' / '+fail+'행 실패':'')+(zeroCnt?' (수량 0 '+zeroCnt+'행 — 노란색으로 표시)':''));
+  if(fail){
+    // 실패한 행을 사람이 볼 수 있게 — 조용히 사라지지 않게
+    alert('⚠ '+fail+'행이 저장되지 않았습니다:\n\n'+failRows.join('\n')+'\n\n이 행들은 다시 입력해 주세요.');
+  }
+  stkToast('✓ '+ok+'행 등록'+(fail?' / '+fail+'행 실패':'')+(zeroCnt?' (수량 0 '+zeroCnt+'행)':''));
 }
+
 function stkRtCancelAdd(){stkRtAdding=false;stkRenderTable();}
 // 엑셀에서 여러 행 복사해서 붙여넣기 → 한꺼번에 신규 등록
 // 형식: 카테고리\t브랜드\t패턴\t코드\t사이즈\t연식\t수량 (탭 구분)
@@ -5061,27 +5069,48 @@ async function stkRtBulkPaste(e){
 }
 async function stkRtSaveNew(){
   if(!stkCanInline()){stkToast('권한이 없습니다');return}
+  if(!stkEditGuard())return;
   var cat=(document.getElementById('stk-newCat')||{}).value||'일반';
   var br=((document.getElementById('stk-newBr')||{}).value||'').trim();
   var name=((document.getElementById('stk-newName')||{}).value||'').trim();
   var code=((document.getElementById('stk-newCode')||{}).value||'').trim();
   var sizeRaw=((document.getElementById('stk-newSize')||{}).value||'').trim();
+  var ply=((document.getElementById('stk-newPly')||{}).value||'').trim();
   var dot=((document.getElementById('stk-newDot')||{}).value||'').trim();
   var qty=parseInt((document.getElementById('stk-newQty')||{}).value)||0;
   if(!br||!sizeRaw){stkToast('브랜드·사이즈는 필수입니다');return}
   if(!name&&!code){stkToast('패턴 또는 코드 중 하나는 필요합니다');return}
   var size=stkNormSize(sizeRaw);
+  var fname=name||(code||'(이름미정)');
   try{
-    var r=await sb.from('stock_products').insert({brand:br,name:name||(code||'(이름미정)'),code:code,size:size,category:cat}).select();
-    if(r.error)throw r.error;
-    var pid=r.data&&r.data[0]&&r.data[0].id;
-    if(pid&&qty>0){await sb.from('stock_lots').insert({product_id:pid,dot:(dot||''),qty:qty,loc:'U'});}
-    stkLog('➕상품추가',br+' '+(name||code)+' '+size+' '+qty+'개 (미배치)',{product_id:pid,dot:(dot||''),qty:qty,to_loc:'U'});
+    // ── 1) 같은 상품(브랜드+패턴+코드+사이즈+P수)이 이미 있으면 그 id 사용 (중복 생성 방지) ──
+    var pid=null, reused=false;
+    var exist=stkP.find(function(p){return p.br===br&&(p.name||'')===fname&&(p.code||'')===code&&p.size===size&&(p.ply||'')===ply;});
+    if(exist){ pid=exist.id; reused=true; }
+    else{
+      var ins=await sb.from('stock_products').insert({brand:br,name:fname,code:code,size:size,category:cat,ply:ply}).select();
+      if(ins.error){
+        // 새 컬럼(ply) 없으면 빼고 재시도 — 데이터는 반드시 들어가게
+        if((ins.error.message||'').match(/ply|column/i)){
+          ins=await sb.from('stock_products').insert({brand:br,name:fname,code:code,size:size,category:cat}).select();
+        }
+        if(ins.error)throw ins.error;
+      }
+      pid=ins.data&&ins.data[0]&&ins.data[0].id;
+      if(!pid)throw new Error('상품 생성 후 ID를 받지 못했습니다');
+    }
+    // ── 2) lot insert — 결과 반드시 검증 (조용한 실패 금지) ──
+    if(qty>0){
+      var lr=await sb.from('stock_lots').insert({product_id:pid,dot:(dot||''),qty:qty,loc:'U'});
+      if(lr.error)throw new Error('재고(lot) 저장 실패: '+lr.error.message);
+    }
+    // ── 3) 개별 추적 로그 (누가/언제/무엇을 — 행 단위) ──
+    await stkLog('➕상품추가',br+' '+fname+(code?' ['+code+']':'')+' '+size+(ply?' '+ply:'')+(dot?' '+dot+'년식':'')+' '+qty+'개 (미배치)'+(reused?' · 기존상품에 추가':' · 신규'),{product_id:pid,dot:(dot||''),qty:qty,to_loc:'U'});
     stkToast('\u2713 추가됨 (기록 남음)');
     stkRtAdding=false;
     await stkLoad();await stkLoadLogTab();
     stkRenderTable();
-  }catch(e){stkToast('추가 실패: '+e.message)}
+  }catch(e){stkToast('추가 실패: '+e.message);console.error('stkRtSaveNew',e);}
 }
 // 엑셀처럼: contenteditable 셀에 focus/blur/keydown 일괄 부착 (DOM 변경 없음, 가벼움)
 function stkRtAttachCellHandlers(){
@@ -6922,60 +6951,54 @@ async function stkUpRun(){
         ok+=chunk.length;
       }
     }else if(stkUpMode==='in'){
-      // 새 양식 순서: c0카테고리 c1브랜드 c2패턴 c3패턴코드 c4사이즈 c5P수 c6재원 c7DOT c8공장도가 c9수량
-      // 새 분류 자동 등록 (자유 입력 — 트럭/BS 등도 OK)
+      // 새 양식 순서: c0카테고리 c1브랜드 c2패턴 c3패턴코드 c4사이즈 c5P수 c6재원 c7DOT c8공장도가 c9수량 c10위치 c12비고
       var newCats=[];
       rows.forEach(function(c){var ct=(c[0]||'').trim();if(ct&&stkCategories.indexOf(ct)<0&&newCats.indexOf(ct)<0)newCats.push(ct);});
       if(newCats.length){stkCategories=stkCategories.concat(newCats);await saveCategories(stkCategories);}
-      // 중복키 = 브랜드+패턴+코드+사이즈+P수+재원+공장도가+카테고리 (완전일치만 같은 상품 — 하나라도 다르면 따로)
-      var keyOf=function(c){return [c[1],c[2]||(c[3]||'(이름미정)'),c[3]||'',stkNormSize(c[4]||''),c[5]||'',c[6]||'',String(parseInt(c[9])||''),c[0]||'일반'].join('|')};
-      // 1패스: 마스터에 없는 상품 일괄 생성
-      var need={};
-      rows.forEach(function(c){
-        var cName=c[2]||(c[3]||'(이름미정)');
-        var ex=stkP.find(function(p){return p.br===c[1]&&p.size===stkNormSize(c[4]||'')&&(p.code||'')===(c[3]||'')&&(p.name||'')===cName&&(p.ply||'')===(c[5]||'')&&(p.spec||'')===(c[6]||'')&&(String(p.factory_price||''))===String(parseInt(c[9])||'')&&(p.cat||'일반')===(c[0]||'일반')});
-        if(!ex)need[keyOf(c)]=c;
-      });
-      var newRows=Object.keys(need).map(function(k){return need[k]});
-      var _baseTs=Date.now(); // 업로드 순서 보존용 (created_at 순번)
-      for(var i=0;i<newRows.length;i+=B){
-        prog('신규 상품 생성… '+Math.min(i+B,newRows.length)+'/'+newRows.length);
-        var chunk=newRows.slice(i,i+B).map(function(c,_ci){return {brand:c[1],name:c[2]||(c[3]||'(이름미정)'),code:c[3]||'',size:stkNormSize(c[4]||''),category:c[0]||'일반',ply:c[5]||'',spec:c[6]||'',factory_price:parseInt(c[9])||null,cost:parseInt(c[8])||null,memo:c[12]||'',created_at:new Date(_baseTs+i+_ci).toISOString()}});
-        var r=await sb.from('stock_products').insert(chunk);
-        if(r.error){
-          // 새 컬럼(ply/spec/factory_price)이 DB에 없으면 그 컬럼 빼고 재시도
-          if((r.error.message||'').match(/ply|spec|factory_price|column/i)){
-            if(!window._stkColWarned){window._stkColWarned=true;stkToast('⚠️ DB에 P수·재원·공장도가 컬럼이 없어 기본정보만 등록합니다. (관리자: ALTER TABLE 필요)');}
-            var chunk2=newRows.slice(i,i+B).map(function(c,_ci){return {brand:c[1],name:c[2]||(c[3]||'(이름미정)'),code:c[3]||'',size:stkNormSize(c[4]||''),category:c[0]||'일반',created_at:new Date(_baseTs+i+_ci).toISOString()};});
-            var r1b=await sb.from('stock_products').insert(chunk2);
-            if(r1b.error)throw r1b.error;
-          }else throw r.error;
+      // 같은 상품 판정키 = 브랜드+패턴+코드+사이즈+P수+재원+공장도가+카테고리 (완전일치만 동일)
+      var keyOf=function(c){return [c[1],c[2]||(c[3]||'(이름미정)'),c[3]||'',stkNormSize(c[4]||''),c[5]||'',c[6]||'',String(parseInt(c[9])||''),c[0]||'일반'].join('|');};
+      var _baseTs=Date.now();
+      // 기존 마스터 상품 캐시 (메모리 stkP 기준)
+      var pidCache={};
+      stkP.forEach(function(p){pidCache[[p.br,p.name||'',p.code||'',p.size,p.ply||'',p.spec||'',String(p.factory_price||''),p.cat||'일반'].join('|')]=p.id;});
+      var lotOk=0,skip=0,createdN=0,failRows=[];
+      for(var i=0;i<rows.length;i++){
+        var c=rows[i];
+        if(i%20===0)prog('입고 처리… '+i+'/'+rows.length);
+        var fname=c[2]||(c[3]||'(이름미정)');
+        var size=stkNormSize(c[4]||'');
+        var key=keyOf(c);
+        try{
+          var pid=pidCache[key];
+          // 1) 없으면 상품 생성 + .select()로 즉시 id 확보 (재조회 안 함 → 키 어긋남 불가)
+          if(!pid){
+            var payload={brand:c[1],name:fname,code:c[3]||'',size:size,category:c[0]||'일반',ply:c[5]||'',spec:c[6]||'',factory_price:parseInt(c[9])||null,cost:parseInt(c[8])||null,memo:c[12]||'',created_at:new Date(_baseTs+i).toISOString()};
+            var ins=await sb.from('stock_products').insert(payload).select();
+            if(ins.error){
+              if((ins.error.message||'').match(/ply|spec|factory_price|cost|column/i)){
+                if(!window._stkColWarned){window._stkColWarned=true;stkToast('⚠️ DB에 일부 컬럼이 없어 기본정보만 등록합니다.');}
+                ins=await sb.from('stock_products').insert({brand:c[1],name:fname,code:c[3]||'',size:size,category:c[0]||'일반',created_at:new Date(_baseTs+i).toISOString()}).select();
+              }
+              if(ins.error)throw ins.error;
+            }
+            pid=ins.data&&ins.data[0]&&ins.data[0].id;
+            if(!pid)throw new Error('상품 생성 후 ID 없음');
+            pidCache[key]=pid; createdN++;
+          }
+          // 2) lot insert + 검증 (행마다 따로 보존, 합치지 않음)
+          var lr=await sb.from('stock_lots').insert({product_id:pid,dot:c[7]||'',qty:parseInt(c[10])||0,loc:c[11]||'U'});
+          if(lr.error)throw new Error('lot: '+lr.error.message);
+          // 3) 개별 추적 로그 (행 단위 — 누가/언제/무엇을, 위치까지)
+          await stkLog('📥입고',c[1]+' '+fname+(c[3]?' ['+c[3]+']':'')+' '+size+(c[5]?' '+c[5]:'')+(c[7]?' '+c[7]+'년식':'')+' '+(parseInt(c[10])||0)+'개 @'+(c[11]||'미배치'),{product_id:pid,dot:c[7]||'',qty:parseInt(c[10])||0,to_loc:c[11]||'U'});
+          lotOk++;
+        }catch(rowErr){
+          skip++; failRows.push((i+1)+'행: '+c[1]+' '+fname+' '+size+' — '+rowErr.message);
+          console.error('입고 행 실패',i+1,c,rowErr);
         }
       }
-      // 상품 다시 읽어 id 매핑 (브랜드+패턴+코드+사이즈+P수)
-      var prData=await stkSelectAll('stock_products',null);
-      var byKey={};prData.forEach(function(p){byKey[[p.brand,p.name||'',p.code||'',p.size,p.ply||'',p.spec||'',String(p.factory_price||''),p.category||'일반'].join('|')]=p.id});
-      // 2패스: lots 일괄 insert — 행마다 따로 (절대 합치지 않음, 입력한 그대로 보존)
-      var lots=[],skip=0;
-      rows.forEach(function(c){
-        var pid=byKey[keyOf(c)];
-        if(!pid){skip++;return}
-        lots.push({product_id:pid,dot:c[7]||'',qty:parseInt(c[10])||0,loc:c[11]||'U'});
-      });
-      var lotOk=0;
-      for(var j=0;j<lots.length;j+=B){
-        prog('재고 입고 중… '+Math.min(j+B,lots.length)+'/'+lots.length);
-        var r2=await sb.from('stock_lots').insert(lots.slice(j,j+B));
-        if(r2.error){
-          // 한 chunk 실패해도 멈추지 말고 계속 (어느 행이 문제인지 한 건씩 재시도)
-          for(var k=j;k<Math.min(j+B,lots.length);k++){
-            var r2b=await sb.from('stock_lots').insert(lots[k]);
-            if(!r2b.error)lotOk++;
-          }
-        }else lotOk+=lots.slice(j,j+B).length;
-      }
-      ok=lotOk;fail=skip+(lots.length-lotOk);
-    }else if(stkUpMode==='cat'){ // 분류만 변경 — 브랜드+패턴+사이즈 매칭, category만 update (재고·기록 안 건드림)
+      ok=lotOk;fail=skip;
+      if(failRows.length){window._stkUpFailRows=failRows;}
+}else if(stkUpMode==='cat'){ // 분류만 변경 — 브랜드+패턴+사이즈 매칭, category만 update (재고·기록 안 건드림)
       for(var i=0;i<rows.length;i++){
         var c=rows[i];
         if(i%20===0)prog('분류 변경… '+i+'/'+rows.length);
@@ -7006,11 +7029,16 @@ async function stkUpRun(){
         ok++;
       }
     }
-  }catch(e){stkToast('업로드 중 오류: '+e.message+' — 지금까지 '+ok+'건 반영됨')}
-  stkLog({'in':'📥입고업로드','new':'➕신규업로드','price':'📋가격갱신','cat':'🏷️분류일괄변경'}[stkUpMode],ok+'건 성공'+(fail?(' / '+fail+'건 건너뜀'):''),{qty:ok});
+  }catch(e){stkToast('업로드 중 오류: '+e.message+' — 지금까지 '+ok+'건 반영됨');console.error(e);}
+  await stkLog({'in':'📥입고업로드','new':'➕신규업로드','price':'📋가격갱신','cat':'🏷️분류일괄변경'}[stkUpMode],ok+'건 성공'+(fail?(' / '+fail+'건 건너뜀'):''),{qty:ok});
   stkCloseDlg();
+  // 실패 행이 있으면 사람이 볼 수 있게 (조용히 사라지지 않게)
+  if(window._stkUpFailRows&&window._stkUpFailRows.length){
+    alert('⚠ '+window._stkUpFailRows.length+'행이 저장되지 않았습니다:\n\n'+window._stkUpFailRows.slice(0,30).join('\n')+(window._stkUpFailRows.length>30?'\n…외 '+(window._stkUpFailRows.length-30)+'행':'')+'\n\n이 행들을 다시 확인해 주세요.');
+    window._stkUpFailRows=null;
+  }
   stkToast('완료: '+ok+'건'+(fail?(' (건너뜀 '+fail+')'):''));
-  await stkLoad();
+  await stkLoad();await stkLoadLogTab();
 }
 
 // ========== 예약장착방 ==========
