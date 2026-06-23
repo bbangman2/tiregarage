@@ -446,6 +446,7 @@ body.rb-on #app{padding-top:58px}
 .mapres-loc{font-weight:800;color:#15803d;font-size:12px;white-space:nowrap}
 .mapres-nm{flex:1;font-size:12px;color:#1a2035;line-height:1.4}
 .mapres-meta{font-size:11px;color:#6b7280;font-weight:700}
+.mapres-cat{font-size:10.5px;font-weight:800;padding:2px 7px;border-radius:5px;white-space:nowrap;flex-shrink:0}
 .mapres-nm b{color:#0c447c}
 .mapres-q{font-weight:800;font-size:12px;white-space:nowrap}
 .mapres-empty{padding:10px 12px;color:#999;font-size:12px;text-align:center}
@@ -5744,8 +5745,13 @@ function stkRenderMapResults(q,m){
       if(ply)meta.push(ply+'P');
       meta.push(dot?('DOT '+dot):'<span style="color:#dc2626">DOT누락</span>');
       var metaHtml=' <span class="mapres-meta">'+meta.join(' · ')+'</span>';
+      // 카테고리(분류) 뱃지 — 분류 색으로 표시
+      var cat=r.p.cat||'일반';
+      var ccs=stkCatStyle(cat);
+      var catHtml='<span class="mapres-cat" style="background:'+ccs.bg+';color:'+ccs.t+'">'+stkEsc(cat)+'</span>';
       return '<div class="mapres-row'+(canDrag&&r.l.q>0?' mapres-drag':'')+'"'+drag+'>'+
         '<span class="mapres-loc" onclick="stkGoto(\''+r.l.loc+'\',\''+r.l.id+'\')">📍'+loc+'</span>'+
+        catHtml+
         '<span class="mapres-nm">'+stkEsc(r.p.br+' '+r.p.name)+(r.p.code?' <b>'+stkEsc(r.p.code)+'</b>':'')+' '+stkEsc(r.p.size)+metaHtml+'</span>'+
         '<span class="mapres-q"'+(neg?' style="color:#dc2626"':'')+'>'+r.l.q+'개'+(neg?' ⏳':'')+'</span>'+
         '</div>';
