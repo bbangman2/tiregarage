@@ -4287,7 +4287,7 @@ async function jhDoStockOut(o){
   if(!confirm('🔵 재고출고\n'+jhEsc(m.br)+' '+jhEsc(m.name)+' '+jhEsc(m.size)+' @'+jhEsc(lot.loc||'미배치')+'\n재고 '+before+'→'+after+'개 ('+o.qty+'개 차감)\n\n처리할까요?'))return;
   var me_name=(typeof me!=='undefined'&&me)?me.name:'?';
   try{
-    await sb.from('stock_lots').update({qty:after,updated_at:new Date().toISOString()}).eq('id',lot.id);
+    stkChk(await sb.from('stock_lots').update({qty:after,updated_at:new Date().toISOString()}).eq('id',lot.id),'종합방출고');
     lot.q=after;
     if(typeof stkLog==='function') stkLog('📦출고(종합방)', m.br+' '+m.name+(m.code?' ['+m.code+']':'')+' '+m.size+' · 재고 '+before+'→'+after+'개 (−'+o.qty+') · '+(lot.loc||'미배치')+' · 종합방['+o.platform+'] · '+(o.src||''), {product_id:m.id,dot:lot.dot,qty:o.qty,channel:'종합방'});
     await jhMarkDone(o, '재고방', me_name, {lot_id:lot.id, before:before, qty:o.qty});
@@ -4411,7 +4411,7 @@ async function jhCancelOut(id){
         // 재고 복구: before로 되돌림
         var r=await sb.from('stock_lots').select('qty').eq('id',u.lot_id).single();
         var cur=r.data?r.data.qty:0;
-        await sb.from('stock_lots').update({qty:cur+(u.qty||0),updated_at:new Date().toISOString()}).eq('id',u.lot_id);
+        stkChk(await sb.from('stock_lots').update({qty:cur+(u.qty||0),updated_at:new Date().toISOString()}).eq('id',u.lot_id),'종합방취소');
         var lp=(stkP||[]).find(function(p){return p.id===o.matched_id;}); if(lp&&lp.lots){var ll=lp.lots.find(function(x){return x.id===u.lot_id;});if(ll)ll.q=cur+(u.qty||0);}
         if(typeof stkLog==='function') stkLog('↩️출고취소(종합방)', o.brand+' '+o.name+' '+o.size+' · '+(u.qty||0)+'개 복구 · 종합방', {product_id:o.matched_id,qty:u.qty,channel:'종합방취소'});
       }else if(o.case_kind==='ledger'&&u.item_id){
@@ -6098,7 +6098,7 @@ async function stkRtSaveNew(){
       if(ins.error){
         // 새 컬럼(ply) 없으면 빼고 재시도 — 데이터는 반드시 들어가게
         if((ins.error.message||'').match(/ply|column/i)){
-          ins=await sb.from('stock_products').insert({brand:br,name:fname,code:code,size:size,category:cat}).select();
+          ins=stkChk(await sb.from('stock_products').insert({brand:br,name:fname,code:code,size:size,category:cat}).select(),'신규저장');
         }
         if(ins.error)throw ins.error;
       }
@@ -6243,7 +6243,7 @@ async function stkRtSaveFieldLight(pid,dot,field,nv,old,td){
       var n=parseInt(nv);if(isNaN(n)||n<0){if(td)td.textContent=old;return}
       var lots=(p.lots||[]).filter(function(l){return (l.dot||'DOT누락')===(dot||'DOT누락')});
       if(lots.length===0){
-        var ins=await sb.from('stock_lots').insert({product_id:pid,dot:(dot==='DOT누락'?'':dot),qty:n,loc:'U'}).select();
+        var ins=stkChk(await sb.from('stock_lots').insert({product_id:pid,dot:(dot==='DOT누락'?'':dot),qty:n,loc:'U'}).select(),'재고표수정');
         if(ins.data&&ins.data[0])p.lots.push({id:ins.data[0].id,dot:dot==='DOT누락'?'':dot,q:n,loc:'U'});
       }else if(lots.length===1){
         stkChk(await sb.from('stock_lots').update({qty:n,updated_at:new Date().toISOString()}).eq('id',lots[0].id),'수량수정');
@@ -6251,7 +6251,7 @@ async function stkRtSaveFieldLight(pid,dot,field,nv,old,td){
       }else{
         var diff=n-parseInt(old||0);
         var newQ=Math.max(0,lots[0].q+diff);
-        await sb.from('stock_lots').update({qty:newQ,updated_at:new Date().toISOString()}).eq('id',lots[0].id);
+        stkChk(await sb.from('stock_lots').update({qty:newQ,updated_at:new Date().toISOString()}).eq('id',lots[0].id),'재고표수정');
         lots[0].q=newQ;
       }
       stkLog('✏️실사조정',p.br+' '+p.name+' '+p.size+' ('+(dot||'DOT누락')+') '+old+'→'+n+'개',{product_id:pid,dot:(dot==='DOT누락'?'':dot),qty:n});
@@ -6269,7 +6269,7 @@ async function stkRtSaveFieldLight(pid,dot,field,nv,old,td){
       // 1) 재고 lot의 DOT 옮기기 — old와 같은 DOT을 가진 lot 전부 (수량은 그대로)
       var lots2=(p.lots||[]).filter(function(l){return normDot(l.dot)===oldDotVal;});
       for(var i=0;i<lots2.length;i++){
-        await sb.from('stock_lots').update({dot:newDot}).eq('id',lots2[i].id);
+        stkChk(await sb.from('stock_lots').update({dot:newDot}).eq('id',lots2[i].id),'재고표수정');
         lots2[i].dot=newDot;
       }
       // ★ 복제 방지: DOT을 바꾼 행의 모든 셀 data-dot을 새 값으로 즉시 갱신.
@@ -6321,15 +6321,15 @@ async function stkRtSaveFieldLight(pid,dot,field,nv,old,td){
       var todayOut=Object.values(sums[pid+'|'+(dot||'DOT누락')]||{}).reduce(function(s,x){return s+x;},0);
       var newCur=n-todayOut; // lot은 (시작값 - 오늘출고) 가 되어야 함
       if(lots.length===0){
-        var ins=await sb.from('stock_lots').insert({product_id:pid,dot:(dot==='DOT누락'?'':dot),qty:newCur,loc:'U'}).select();
+        var ins=stkChk(await sb.from('stock_lots').insert({product_id:pid,dot:(dot==='DOT누락'?'':dot),qty:newCur,loc:'U'}).select(),'재고표수정');
         if(ins.data&&ins.data[0])p.lots.push({id:ins.data[0].id,dot:dot==='DOT누락'?'':dot,q:newCur,loc:'U'});
       }else if(lots.length===1){
-        await sb.from('stock_lots').update({qty:newCur,updated_at:new Date().toISOString()}).eq('id',lots[0].id);
+        stkChk(await sb.from('stock_lots').update({qty:newCur,updated_at:new Date().toISOString()}).eq('id',lots[0].id),'재고표수정');
         lots[0].q=newCur;
       }else{
         var diff=n-parseInt(old||0);
         var firstQ=Math.max(0,lots[0].q+diff);
-        await sb.from('stock_lots').update({qty:firstQ,updated_at:new Date().toISOString()}).eq('id',lots[0].id);
+        stkChk(await sb.from('stock_lots').update({qty:firstQ,updated_at:new Date().toISOString()}).eq('id',lots[0].id),'재고표수정');
         lots[0].q=firstQ;
       }
       stkLog('✏️수량변경',p.br+' '+p.name+' '+p.size+' ('+(dot||'DOT누락')+') '+old+'→'+n,{product_id:pid,dot:(dot==='DOT누락'?'':dot),qty:n});
@@ -6370,7 +6370,7 @@ async function stkRtSaveFieldLight(pid,dot,field,nv,old,td){
         var _calc=stkCalcRC(p);
         if(_calc!=null){
           p.real_cost=_calc;
-          await sb.from('stock_products').update({real_cost:_calc}).eq('id',pid);
+          stkChk(await sb.from('stock_products').update({real_cost:_calc}).eq('id',pid),'재고표수정');
           // 화면의 실원가 셀 즉시 갱신(검정=자동값)
           try{
             var _rcTd=document.querySelector('#stk-rtTable td.rt-ed[data-pid="'+pid+'"][data-field="real_cost"]');
@@ -6411,14 +6411,14 @@ async function stkRtSaveField(pid,dot,field,nv,old){
       var n=parseInt(nv);if(isNaN(n)||n<0){stkToast('숫자 입력');stkRenderTable();return}
       var lots=(p.lots||[]).filter(function(l){return (l.dot||'DOT누락')===(dot||'DOT누락')});
       if(lots.length===0){stkChk(await sb.from('stock_lots').insert({product_id:pid,dot:(dot==='DOT누락'?'':dot),qty:n,loc:'U'}),'수량수정');}
-      else if(lots.length===1){await sb.from('stock_lots').update({qty:n,updated_at:new Date().toISOString()}).eq('id',lots[0].id);}
-      else{var diff=n-parseInt(old||0);await sb.from('stock_lots').update({qty:Math.max(0,lots[0].q+diff),updated_at:new Date().toISOString()}).eq('id',lots[0].id);}
+      else if(lots.length===1){stkChk(await sb.from('stock_lots').update({qty:n,updated_at:new Date().toISOString()}).eq('id',lots[0].id),'필드저장');}
+      else{var diff=n-parseInt(old||0);stkChk(await sb.from('stock_lots').update({qty:Math.max(0,lots[0].q+diff),updated_at:new Date().toISOString()}).eq('id',lots[0].id),'필드저장');}
       stkLog('✏️실사조정',p.br+' '+p.name+' '+p.size+' ('+(dot||'DOT누락')+') '+old+'→'+n+'개',{product_id:pid,dot:(dot==='DOT누락'?'':dot),qty:n});
     }else if(field==='dot'){
       // 연식 변경 — 해당 lot들의 dot 변경
       var lots2=(p.lots||[]).filter(function(l){return (l.dot||'DOT누락')===(old||'DOT누락')});
       var newDot=(nv==='DOT누락'||nv==='')?'':nv;
-      for(var i=0;i<lots2.length;i++){await sb.from('stock_lots').update({dot:newDot}).eq('id',lots2[i].id);}
+      for(var i=0;i<lots2.length;i++){stkChk(await sb.from('stock_lots').update({dot:newDot}).eq('id',lots2[i].id),'필드저장');}
       stkLog('✏️정보수정',p.br+' '+p.name+' '+p.size+' 연식 '+old+'→'+(nv||'DOT누락'),{product_id:pid});
     }else{
       // 상품 필드 (cat/br/name/code/size)
@@ -6428,7 +6428,7 @@ async function stkRtSaveField(pid,dot,field,nv,old){
       if(field==='size')val=stkNormSize(nv);
       else if(field==='fprice'||field==='cost')val=parseInt(String(nv).replace(/[^0-9]/g,''))||null;
       var upd={};upd[col]=val;
-      await sb.from('stock_products').update(upd).eq('id',pid);
+      stkChk(await sb.from('stock_products').update(upd).eq('id',pid),'필드저장');
       var label={cat:'분류',br:'브랜드',name:'패턴',code:'코드',size:'사이즈'}[field];
       stkLog('✏️정보수정',p.br+' '+p.name+' '+p.size+' '+label+' '+old+'→'+val,{product_id:pid});
     }
@@ -6521,9 +6521,9 @@ async function stkRtEditQty(pid,dot,cur){
   try{
     if(lots.length===0){
       // lot 없으면 새로 생성 (미배치)
-      await sb.from('stock_lots').insert({product_id:pid,dot:(dot==='DOT누락'?'':dot),qty:n,loc:'U'});
+      stkChk(await sb.from('stock_lots').insert({product_id:pid,dot:(dot==='DOT누락'?'':dot),qty:n,loc:'U'}),'수량수정');
     }else if(lots.length===1){
-      await sb.from('stock_lots').update({qty:n,updated_at:new Date().toISOString()}).eq('id',lots[0].id);
+      stkChk(await sb.from('stock_lots').update({qty:n,updated_at:new Date().toISOString()}).eq('id',lots[0].id),'수량수정');
     }else{
       // 여러 위치: 차이를 첫 lot에 반영
       var diff=n-cur;
@@ -6959,7 +6959,7 @@ async function stkPickDrop(destCode){
   else if(pk.type==='cell'&&pk.code!==destCode){
     var m=stkCellMap(),items=m[pk.code]||[];
     var merge=(m[destCode]||[]).length>0,from=pk.code;
-    try{for(var i=0;i<items.length;i++)await sb.from('stock_lots').update({loc:destCode,updated_at:new Date().toISOString()}).eq('id',items[i].l.id);}
+    try{for(var i=0;i<items.length;i++)stkChk(await sb.from('stock_lots').update({loc:destCode,updated_at:new Date().toISOString()}).eq('id',items[i].l.id),'이동');}
     catch(e){stkToast('실패: '+e.message);return true}
     stkLog('📍'+(merge?'합치기':'이동'),from+'→'+destCode+' ('+items.length+'종)',{from_loc:from,to_loc:destCode});
     stkToast(from+' → '+destCode+(merge?' 합치기':' 이동'));await stkLoad();
@@ -7169,23 +7169,23 @@ async function stkMoveLot(lotId,toLoc,n){
       // 전량 이동
       if(mergeTo){
         // 합치기: 도착 lot에 수량 더하고, 원본 lot 삭제
-        await sb.from('stock_lots').update({qty:mergeTo.q+found.q,updated_at:new Date().toISOString()}).eq('id',mergeTo.id);
-        await sb.from('stock_lots').delete().eq('id',lotId);
+        stkChk(await sb.from('stock_lots').update({qty:mergeTo.q+found.q,updated_at:new Date().toISOString()}).eq('id',mergeTo.id),'이동');
+        stkChk(await sb.from('stock_lots').delete().eq('id',lotId),'이동');
         mergeTo.q+=found.q;
         fp.lots=fp.lots.filter(function(l){return l.id!==lotId;});
       }else{
-        await sb.from('stock_lots').update({loc:toLoc,updated_at:new Date().toISOString()}).eq('id',lotId);
+        stkChk(await sb.from('stock_lots').update({loc:toLoc,updated_at:new Date().toISOString()}).eq('id',lotId),'이동');
         found.loc=toLoc;
       }
     }else{
       // 일부 분리
-      await sb.from('stock_lots').update({qty:found.q-n,updated_at:new Date().toISOString()}).eq('id',lotId);
+      stkChk(await sb.from('stock_lots').update({qty:found.q-n,updated_at:new Date().toISOString()}).eq('id',lotId),'이동');
       found.q-=n;
       if(mergeTo){
-        await sb.from('stock_lots').update({qty:mergeTo.q+n,updated_at:new Date().toISOString()}).eq('id',mergeTo.id);
+        stkChk(await sb.from('stock_lots').update({qty:mergeTo.q+n,updated_at:new Date().toISOString()}).eq('id',mergeTo.id),'이동');
         mergeTo.q+=n;
       }else{
-        var ins=await sb.from('stock_lots').insert({product_id:fp.id,dot:found.dot,qty:n,loc:toLoc,price:found.price}).select();
+        var ins=stkChk(await sb.from('stock_lots').insert({product_id:fp.id,dot:found.dot,qty:n,loc:toLoc,price:found.price}).select(),'이동');
         var newId=(ins.data&&ins.data[0]&&ins.data[0].id)||('tmp'+Date.now());
         fp.lots.push({id:newId,dot:found.dot,q:n,loc:toLoc,price:found.price});
       }
@@ -7211,7 +7211,7 @@ async function stkDrop(destCode){
     var m=stkCellMap(),items=m[stkDrag.code]||[];
     var merge=(m[destCode]||[]).length>0,from=stkDrag.code;
     try{for(var i=0;i<items.length;i++)
-      await sb.from('stock_lots').update({loc:destCode,updated_at:new Date().toISOString()}).eq('id',items[i].l.id);
+      stkChk(await sb.from('stock_lots').update({loc:destCode,updated_at:new Date().toISOString()}).eq('id',items[i].l.id),'이동');
     }catch(e){stkToast('실패: '+e.message);stkDrag=null;return}
     items.forEach(function(it){it.l.loc=destCode;}); // 메모리 직접 수정
     await stkConsolidateCell(destCode); // 도착칸 같은 상품 합치기
@@ -7226,7 +7226,7 @@ async function stkDropU(){
   if(!stkLockGuard()){stkDrag=null;return}
   var m=stkCellMap(),items=m[stkDrag.code]||[],from=stkDrag.code;
   try{for(var i=0;i<items.length;i++)
-    await sb.from('stock_lots').update({loc:'U',updated_at:new Date().toISOString()}).eq('id',items[i].l.id);
+    stkChk(await sb.from('stock_lots').update({loc:'U',updated_at:new Date().toISOString()}).eq('id',items[i].l.id),'이동');
   }catch(e){stkToast('실패: '+e.message);stkDrag=null;return}
   items.forEach(function(it){it.l.loc='U';});
   stkRefreshCell(from);stkRefreshStatAndUnassigned();stkRenderSearch();
@@ -7376,7 +7376,7 @@ async function stkDoNewOut(){
   if(exist){pid=exist.id;}
   else{
     try{
-      var ins=await sb.from('stock_products').insert({brand:brand,name:name,code:code,size:size}).select();
+      var ins=stkChk(await sb.from('stock_products').insert({brand:brand,name:name,code:code,size:size}).select(),'신규추가');
       pid=ins.data&&ins.data[0]&&ins.data[0].id;
     }catch(e){stkToast('상품 등록 실패: '+e.message);return}
     if(!pid){stkToast('상품 등록 실패');return}
@@ -7389,7 +7389,7 @@ async function stkDoNewOut(){
   var p=stkP.find(function(x){return x.id===pid});
   var lot;
   try{
-    var li=await sb.from('stock_lots').insert({product_id:pid,dot:'',qty:0,loc:'U'}).select();
+    var li=stkChk(await sb.from('stock_lots').insert({product_id:pid,dot:'',qty:0,loc:'U'}).select(),'신규추가');
     var lid=(li.data&&li.data[0]&&li.data[0].id)||('tmp'+Date.now());
     lot={id:lid,dot:'',q:0,loc:'U',price:null};
     p.lots.push(lot);
@@ -7627,8 +7627,8 @@ async function stkDoEdit(){
   }
   if(!changes.length&&!qtyChanged){stkToast('변경된 내용이 없습니다');return}
   try{
-    await sb.from('stock_products').update({brand:nbr,name:nname,code:ncode,size:nsize,price:np,inst_price:ni,memo:nmemo,category:ncat}).eq('id',p.id);
-    if(qtyChanged){await sb.from('stock_lots').update({qty:nq,updated_at:new Date().toISOString()}).eq('id',stkEditLotId);}
+    stkChk(await sb.from('stock_products').update({brand:nbr,name:nname,code:ncode,size:nsize,price:np,inst_price:ni,memo:nmemo,category:ncat}).eq('id',p.id),'상품수정');
+    if(qtyChanged){stkChk(await sb.from('stock_lots').update({qty:nq,updated_at:new Date().toISOString()}).eq('id',stkEditLotId),'상품수정');}
   }
   catch(e){stkToast('실패: '+e.message);return}
   if(changes.length)stkLog('✏️정보수정',nname+' — '+changes.join(', '),{product_id:p.id});
@@ -7768,8 +7768,8 @@ async function stkResetOpen(){
   if(!confirm('정말 전체 초기화할까요?\n이 작업은 되돌릴 수 없습니다.\n(백업 파일로만 복구 가능)'))return;
   // 4) 삭제 실행
   try{
-    await sb.from('stock_lots').delete().neq('id','00000000-0000-0000-0000-000000000000');
-    await sb.from('stock_products').delete().neq('id','00000000-0000-0000-0000-000000000000');
+    stkChk(await sb.from('stock_lots').delete().neq('id','00000000-0000-0000-0000-000000000000'),'전체초기화');
+    stkChk(await sb.from('stock_products').delete().neq('id','00000000-0000-0000-0000-000000000000'),'전체초기화');
     await sb.from('stock_logs').delete().neq('id',0);
   }catch(e){stkToast('초기화 실패: '+e.message);return}
   stkLog('🔄전체초기화','재고·상품·기록 전체 삭제 (백업함)',{});
