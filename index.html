@@ -242,7 +242,7 @@ body.rb-on #app{padding-top:58px}
 .stk-rt th.th-ch0{background:#e7d9f7}.stk-rt td.ch-0{background:#f5eefd}
 .stk-rt th.th-ch1{background:#cfeadd}.stk-rt td.ch-1{background:#eaf7f1}
 .stk-rt th.th-ch2{background:#fce8c5}.stk-rt td.ch-2{background:#fff5e0}
-.stk-rt th.th-ch3{background:#fcd9b6}.stk-rt td.ch-3{background:#fff0de}
+.stk-rt th.th-ch3{background:#cfddf7}.stk-rt td.ch-3{background:#eaf1fc}
 .stk-rt th.th-ch4{background:#fcd9b6}.stk-rt td.ch-4{background:#fff0de}
 .stk-rt th.th-ch5{background:#cfddf7}.stk-rt td.ch-5{background:#eaf1fc}
 .stk-rt th.th-ch6{background:#cfddf7}.stk-rt td.ch-6{background:#eaf1fc}
@@ -981,6 +981,8 @@ body.rb-on #app{padding-top:58px}
 /* 수량 셀을 비우면 흐린 0 표시 (그대로 저장하면 0, 숫자 입력하면 그 값) */
 .stk-rt td.rt-ed[data-field="qty"]:empty::before{content:"0";opacity:0.32;font-weight:400}
 
+
+
 </style>
 </head>
 <body>
@@ -1714,6 +1716,7 @@ async function selectRoom(room){
     stkLogAllDates=false;    // 출고기록도 기본 오늘
     await stkLoad();
     if(typeof stkLoadEditors==='function')await stkLoadEditors();
+    if(typeof stkLoadRealcostViewers==='function')await stkLoadRealcostViewers();
     if(typeof stkLoadLogTab==='function')stkLoadLogTab();
     stockSub=sb.channel('stock-live')
       .on('postgres_changes',{event:'*',schema:'public',table:'stock_lots'},()=>{stkLoad();})
@@ -5221,7 +5224,7 @@ async function stkLoad(){
     var pr={data:prAll},lr={data:lrAll};
     var prods=pr.data||[], lots=lr.data||[];
     var byId={};
-    stkP=prods.map(function(p,_i){var o={id:p.id,br:p.brand,name:p.name,code:p.code||'',size:p.size,ply:p.ply||'',spec:p.spec||'',factory_price:p.factory_price||null,cost:p.cost||null,price:p.price,inst:p.inst_price,memo:p.memo||'',cat:p.category||'일반',source:p.source||'',real_cost:(p.real_cost==null?'':p.real_cost),_ord:_i,lots:[]};byId[p.id]=o;return o});
+    stkP=prods.map(function(p,_i){var o={id:p.id,br:p.brand,name:p.name,code:p.code||'',size:p.size,ply:p.ply||'',spec:p.spec||'',factory_price:p.factory_price||null,cost:p.cost||null,price:p.price,inst:p.inst_price,memo:p.memo||'',cat:p.category||'일반',source:p.source||'',real_cost:(p.real_cost==null?'':p.real_cost),discount_rate:(p.discount_rate==null?'':p.discount_rate),_ord:_i,lots:[]};byId[p.id]=o;return o});
     lots.forEach(function(l){var p=byId[l.product_id];if(p)p.lots.push({id:l.id,dot:l.dot||'',q:l.qty,loc:l.loc||'U',price:l.price,src_in:l.src_in||'',due_date:l.due_date||''})});
   }catch(e){stkToast('재고 불러오기 실패: '+e.message);return}
   await stkConsolidate(); // 같은 상품+위치+연식 lot 합치기 (분리흔적 정리)
@@ -5363,6 +5366,43 @@ async function stkLoadEditors(){
   if(STK_INLINE_EDITORS.indexOf(ADMIN_NAME)<0)STK_INLINE_EDITORS.push(ADMIN_NAME);
   if(document.getElementById('stk-dlgPerm')&&document.getElementById('stk-dlgPerm').classList.contains('on'))stkRenderPerm();
 }
+
+// ── 실원가(real_cost) 열람 권한 (stock_settings key='realcost_viewers', JSON 명단) ──
+var STK_REALCOST_VIEWERS=['이호준','이정우','김다영'];
+function stkCanSeeRealcost(){ return me&&(stkIsAdmin()||STK_REALCOST_VIEWERS.indexOf(me.name)>=0); }
+// ── 실원가 자동계산: 공장도가 × (1 - 할인율/100) ──
+function stkCalcRC(r){
+  var dr=parseFloat(r.discount_rate), fp=parseInt(r.fprice);
+  if(isNaN(dr)||isNaN(fp)||!fp)return null;     // 할인율·공장도가 없으면 계산 불가
+  return Math.round(fp*(1-dr/100));
+}
+// 실원가가 '수동 수정값'인지(=계산값과 다른지) → 빨강 표시 판단
+function stkRCisManual(r){
+  if(r.real_cost===''||r.real_cost==null)return false;  // 비어 있으면 수동 아님
+  var calc=stkCalcRC(r);
+  if(calc==null)return true;                    // 할인율 기준이 없는데 값이 있으면 수동
+  return parseInt(r.real_cost)!==calc;          // 계산값과 다르면 수동(빨강)
+}
+// 화면에 보여줄 실원가 값 (비어 있고 할인율 있으면 계산값)
+function stkRCdisplay(r){
+  if(r.real_cost!==''&&r.real_cost!=null)return r.real_cost;
+  var calc=stkCalcRC(r);
+  return calc==null?'':calc;
+}
+
+async function stkLoadRealcostViewers(){
+  try{
+    var r=await sb.from('stock_settings').select('*').eq('key','realcost_viewers');
+    if(r.data&&r.data[0]&&r.data[0].value){
+      var arr=JSON.parse(r.data[0].value);
+      if(Array.isArray(arr)){STK_REALCOST_VIEWERS.length=0;arr.forEach(function(n){if(STK_REALCOST_VIEWERS.indexOf(n)<0)STK_REALCOST_VIEWERS.push(n);});}
+    }else{
+      try{await sb.from('stock_settings').insert({key:'realcost_viewers',value:JSON.stringify(STK_REALCOST_VIEWERS)});}catch(e){}
+    }
+  }catch(e){}
+  if(STK_REALCOST_VIEWERS.indexOf(ADMIN_NAME)<0)STK_REALCOST_VIEWERS.push(ADMIN_NAME);
+}
+
 async function stkSaveEditors(){
   var val=JSON.stringify(STK_INLINE_EDITORS);
   var ex=await sb.from('stock_settings').select('key').eq('key','inline_editors');
@@ -5583,8 +5623,17 @@ function stkRenderLogTab(){
   }).join('');
 }
 var stkOpen={};
-var STK_CHANS=['장착','당일직배송','당일택배','택배핑&효성','직배송핑&효성','11번가','스토어팜','롯데온&쿠팡'];
+var STK_CHANS=['장착','당일배송','핑배송','온라인'];
 // 채널별 출고량 집계: product_id → {채널:수량}
+// 채널명(옛/새) → 4개 버킷. 기존 출고기록도 새 채널칸에 정확히 모이게.
+function stkChanBucket(ch){
+  ch=String(ch||'');
+  if(ch.indexOf('장착')>=0)return '장착';
+  if(ch.indexOf('당일')>=0)return '당일배송';                 // 당일직배송·당일택배·당일배송
+  if(ch.indexOf('핑')>=0||ch.indexOf('효성')>=0)return '핑배송'; // 택배핑&효성·직배송핑&효성·핑배송
+  if(/11번가|스토어|롯데|쿠팡|온라인/.test(ch))return '온라인';  // 11번가·스토어팜·롯데온·쿠팡·온라인
+  return null;  // 그 외(종합방 등)는 채널칸 집계 제외 (기존과 동일)
+}
 function stkChannelSums(){
   // product_id + dot(연식) 단위로 채널 출고 집계 — 오늘(KST) 출고만 (어제 것은 이미 실재고에 반영됨)
   var m={};
@@ -5598,7 +5647,8 @@ function stkChannelSums(){
     var ds=g.ts?toKST(g.ts).toISOString().slice(0,10):selDate;
     if(ds!==selDate)return;
     var ch=g.channel||'';
-    var matched=STK_CHANS.find(function(c){return ch===c||ch.indexOf(c)>=0;});
+    // 옛 채널명도 새 4개로 매핑 (장착/당일배송/핑배송/온라인)
+    var matched=stkChanBucket(ch);
     if(!matched)return;
     var q=Math.abs(parseInt(g.qty)||0);
     var key=g.product_id+'|'+(g.dot||'DOT누락');
@@ -5643,16 +5693,17 @@ function stkRtAttachNewRowHandlers(){
     td.addEventListener('blur',updatePh);
     // 자동 확장 paste — 첫 셀에만 (분류/브랜드 어디든 paste 받음)
     td.addEventListener('paste',function(e){
-      var txt=(e.clipboardData||window.clipboardData).getData('text');
-      if(!txt)return;
-      // 여러 줄 또는 탭이 있으면 일괄 처리
+      e.preventDefault();   // 항상 — 이미지/HTML 붙여넣기 차단
+      var cd=e.clipboardData||window.clipboardData;
+      // text/plain 우선 (엑셀 복사 시 탭 보존). 비면 text 시도.
+      var txt=(cd&&(cd.getData('text/plain')||cd.getData('text')))||'';
+      if(!txt.trim())return;  // 텍스트 없으면(이미지뿐) 무시 — 이미지 안 들어감
+      // 여러 줄 또는 탭 → 칸별 분배 일괄 처리
       if(txt.indexOf('\n')>=0||txt.indexOf('\t')>=0){
-        e.preventDefault();
         stkRtBulkPasteIntoCells(txt);
         return;
       }
-      // 단일 값이면 기본 동작 (그냥 그 셀에 텍스트만)
-      e.preventDefault();
+      // 단일 값이면 그 셀에 텍스트만
       document.execCommand('insertText',false,txt.replace(/[\r\n]/g,'').trim());
     });
     td.addEventListener('keydown',function(e){
@@ -5667,16 +5718,12 @@ function stkRtMoveNewCell(td,dir){
   var tr=td.parentElement,tbody=tr.parentElement;
   var rowi=parseInt(td.getAttribute('data-newrow')||'0');
   var field=td.getAttribute('data-newfield');
-  var order=['cat','br','name','code','size','ply','spec','dot','fprice','qty'];
-  var ci=order.indexOf(field);
-  if(dir==='right'&&ci<order.length-1){
-    var nxt=document.querySelector('#stk-rtTable td.rt-newed[data-newrow="'+rowi+'"][data-newfield="'+order[ci+1]+'"]');
-    if(nxt){nxt.focus();return}
-  }
-  if(dir==='left'&&ci>0){
-    var prv=document.querySelector('#stk-rtTable td.rt-newed[data-newrow="'+rowi+'"][data-newfield="'+order[ci-1]+'"]');
-    if(prv){prv.focus();return}
-  }
+  // ★ 하드코딩 순서 대신 '실제 그 행에 있는 편집 셀들'을 순서대로 이동 → 절대 건너뛰지 않음
+  var rowCells=Array.prototype.slice.call(
+    document.querySelectorAll('#stk-rtTable td.rt-newed[data-newrow="'+rowi+'"]'));
+  var ci=rowCells.indexOf(td);
+  if(dir==='right'&&ci>=0&&ci<rowCells.length-1){ rowCells[ci+1].focus(); return; }
+  if(dir==='left'&&ci>0){ rowCells[ci-1].focus(); return; }
   if(dir==='down'){
     var nb=document.querySelector('#stk-rtTable td.rt-newed[data-newrow="'+(rowi+1)+'"][data-newfield="'+field+'"]');
     if(nb){nb.focus();return}
@@ -5698,23 +5745,24 @@ function stkRtBulkPasteIntoCells(txt){
   if(lines.length>500){
     if(!confirm(lines.length+'행은 화면이 느려질 수 있습니다.\n500행 이하 권장. 그래도 진행할까요?'))return;
   }
-  // 양식: 카테고리 | 브랜드 | 패턴 | 패턴코드 | 사이즈 | P수 | 재원 | DOT | 공장도가 | 수량 (10칸)
-  // 칸 수로 일관되게 판단 (행마다 추측 X — 어긋남 방지)
-  // 엑셀 복사 시 모든 행이 같은 칸 수. 첫 줄 칸 수로 전체 모드 결정.
+  // 새 양식(A): 분류 | 출처 | 브랜드 | 패턴 | 패턴코드 | 사이즈 | P수 | 재원 | DOT | 원가 | 공장도가 | 수량 (12칸)
+  // 옛 양식(호환): 분류 | 브랜드 | 패턴 | 패턴코드 | 사이즈 | P수 | 재원 | DOT | 공장도가 | 수량 (10칸)
+  // ★ 추측 안 함 — 양식을 '권한'으로 고정. 칸 위치대로 1:1 매핑.
+  //   권한자(실원가·할인율 열람 권한): 14칸 — 분류·출처·브랜드·패턴·패턴코드·사이즈·P수·재원·DOT·원가·실원가·할인율·공장도가·수량
+  //   일반: 12칸 — 분류·출처·브랜드·패턴·패턴코드·사이즈·P수·재원·DOT·원가·공장도가·수량
   var splitLines=lines.map(function(line){return line.split('\t').map(function(x){return x.trim()});});
-  // 최대 칸 수 (빈 칸이 잘릴 수 있어 max로 판단)
-  var maxCols=Math.max.apply(null,splitLines.map(function(c){return c.length;}));
-  // 10칸 이상이면 카테고리 포함, 9칸 이하면 카테고리 없음(=일반)
-  var hasCatCol=maxCols>=10;
-  var parsed=splitLines.map(function(c){
-    if(hasCatCol)return [c[0]||'',c[1]||'',c[2]||'',c[3]||'',c[4]||'',c[5]||'',c[6]||'',c[7]||'',c[8]||'',c[9]||''];
-    return ['일반',c[0]||'',c[1]||'',c[2]||'',c[3]||'',c[4]||'',c[5]||'',c[6]||'',c[7]||'',c[8]||''];
-  });
+  var fields, parsed;
+  var _rcPaste=(typeof stkCanSeeRealcost==='function'&&stkCanSeeRealcost());
+  if(_rcPaste){
+    fields=['cat','source','br','name','code','size','ply','spec','dot','cost','real_cost','discount_rate','fprice','qty'];
+  }else{
+    fields=['cat','source','br','name','code','size','ply','spec','dot','cost','fprice','qty'];
+  }
+  parsed=splitLines.map(function(c){return fields.map(function(_f,_i){return c[_i]||'';});});
   stkRtAddingCount=parsed.length;
   stkRenderTable();
   setTimeout(function(){
     stkRtAttachNewRowHandlers();
-    var fields=['cat','br','name','code','size','ply','spec','dot','fprice','qty'];
     parsed.forEach(function(row,ri){
       fields.forEach(function(f,fi){
         var cell=document.querySelector('#stk-rtTable td.rt-newed[data-newrow="'+ri+'"][data-newfield="'+f+'"]');
@@ -5742,9 +5790,9 @@ async function stkRtSaveBulkNew(){
     }
     var cat=v('cat')||'일반';
     if(cat&&stkCategories.indexOf(cat)<0){stkCategories.push(cat);saveCategories(stkCategories);}
-    var source=v('source'),br=v('br'),name=v('name'),code=v('code'),size=v('size'),ply=v('ply'),spec=v('spec'),dot=v('dot'),fprice=v('fprice'),qty=parseInt(v('qty'))||0;
+    var source=v('source'),cost=v('cost'),real_cost=v('real_cost'),discount_rate=v('discount_rate'),br=v('br'),name=v('name'),code=v('code'),size=v('size'),ply=v('ply'),spec=v('spec'),dot=v('dot'),fprice=v('fprice'),qty=parseInt(v('qty'))||0;
     if(!br||!size)return; // 필수 (브랜드·사이즈) — 수량 0도 허용
-    items.push({cat:cat,source:source,br:br,name:name,code:code,size:size,ply:ply,spec:spec,dot:dot,fprice:parseInt(fprice)||null,qty:qty});
+    items.push({cat:cat,source:source,cost:cost,real_cost:real_cost,discount_rate:discount_rate,br:br,name:name,code:code,size:size,ply:ply,spec:spec,dot:dot,fprice:parseInt(fprice)||null,qty:qty});
   });
   if(!items.length){stkToast('브랜드·사이즈가 있는 행이 없습니다');return}
   if(!confirm(items.length+'개 행을 등록할까요?'))return;
@@ -5763,7 +5811,7 @@ async function stkRtSaveBulkNew(){
         var pid=pidCache[key];
         // 1) 상품이 없으면 생성하고, .select()로 그 자리에서 id 받기 (재조회 안 함)
         if(!pid){
-          var payload={brand:r.br,name:r._fname,code:r.code||'',size:r._size,category:r.cat,ply:r.ply||'',spec:r.spec||'',factory_price:r.fprice,source:r.source||''};
+          var payload={brand:r.br,name:r._fname,code:r.code||'',size:r._size,category:r.cat,ply:r.ply||'',spec:r.spec||'',factory_price:r.fprice,source:r.source||'',cost:(parseInt(r.cost)||null),real_cost:(parseInt(r.real_cost)||null),discount_rate:(r.discount_rate===''||r.discount_rate==null?null:(parseFloat(r.discount_rate)||null))};
           var ins=await sb.from('stock_products').insert(payload).select();
           if(ins.error){
             // 새 컬럼 없으면 기본정보만으로 재시도 — 반드시 들어가게
@@ -5919,6 +5967,15 @@ function stkRtAttachCellHandlers(){
     var td=e.target;if(!isEd(td))return;
     td.setAttribute('data-old',td.textContent);
     try{var r=document.createRange();r.selectNodeContents(td);var s=window.getSelection();s.removeAllRanges();s.addRange(r);}catch(err){}
+  });
+  tbl.addEventListener('paste',function(e){
+    var td=e.target;if(!isEd(td))return;
+    // 기존 셀에도 이미지/HTML 붙여넣기 차단 — 텍스트만 (탭 있으면 첫 토큰만)
+    e.preventDefault();
+    var cd=e.clipboardData||window.clipboardData;
+    var txt=(cd&&(cd.getData('text/plain')||cd.getData('text')))||'';
+    if(!txt.trim())return;
+    document.execCommand('insertText',false,txt.split(/[\t\r\n]/)[0].trim());
   });
   tbl.addEventListener('input',function(e){
     var td=e.target;if(!isEd(td))return;
@@ -6115,10 +6172,11 @@ async function stkRtSaveFieldLight(pid,dot,field,nv,old,td){
       }
       stkLog('✏️수량변경',p.br+' '+p.name+' '+p.size+' ('+(dot||'DOT누락')+') '+old+'→'+n,{product_id:pid,dot:(dot==='DOT누락'?'':dot),qty:n});
     }else{
-      var col={cat:'category',source:'source',br:'brand',name:'name',code:'code',size:'size',ply:'ply',spec:'spec',fprice:'factory_price',cost:'cost'}[field];
+      var col={cat:'category',source:'source',br:'brand',name:'name',code:'code',size:'size',ply:'ply',spec:'spec',fprice:'factory_price',cost:'cost',real_cost:'real_cost',discount_rate:'discount_rate'}[field];
       if(!col){return}
       var v=nv;
-      if(field==='fprice'||field==='cost')v=parseInt(String(nv).replace(/[^0-9]/g,''))||null;
+      if(field==='fprice'||field==='cost'||field==='real_cost')v=parseInt(String(nv).replace(/[^0-9]/g,''))||null;
+      else if(field==='discount_rate')v=(String(nv).trim()===''?null:(parseFloat(String(nv).replace(/[^0-9.]/g,''))||0));
       else if(field==='size'&&typeof stkNormSize==='function')v=stkNormSize(nv);
       // 분류 자동 등록 — 새 분류면 stkCategories에 추가
       if(field==='cat'&&v&&stkCategories.indexOf(v)<0){stkCategories.push(v);saveCategories(stkCategories);}
@@ -6133,8 +6191,32 @@ async function stkRtSaveFieldLight(pid,dot,field,nv,old,td){
       else if(field==='spec')p.spec=v;
       else if(field==='fprice')p.factory_price=v;
       else if(field==='cost')p.cost=v;
+      else if(field==='real_cost')p.real_cost=v;
+      else if(field==='discount_rate')p.discount_rate=v;
       // DB 저장 (백그라운드)
       await sb.from('stock_products').update({[col]:v}).eq('id',pid);
+      // ── 실원가 자동계산 연동 ──
+      // 할인율 수정 → 실원가 재계산(자동값으로 덮어씀)
+      // 실원가 비움 → 할인율로 재계산해서 채움
+      if(field==='discount_rate'||(field==='real_cost'&&(v===null||v===''))){
+        var _calc=stkCalcRC(p);
+        if(_calc!=null){
+          p.real_cost=_calc;
+          await sb.from('stock_products').update({real_cost:_calc}).eq('id',pid);
+          // 화면의 실원가 셀 즉시 갱신(검정=자동값)
+          try{
+            var _rcTd=document.querySelector('#stk-rtTable td.rt-ed[data-pid="'+pid+'"][data-field="real_cost"]');
+            if(_rcTd){_rcTd.textContent=_calc;_rcTd.style.color='';_rcTd.style.fontWeight='';_rcTd.setAttribute('data-old',_calc);}
+          }catch(_e){}
+        }
+      }
+      // 실원가를 '수동값'으로 직접 입력 → 빨강 표시(계산값과 다르면)
+      if(field==='real_cost'&&v!==null&&v!==''){
+        try{
+          var _rcTd2=td;
+          if(_rcTd2){ if(stkRCisManual(p)){_rcTd2.style.color='#dc2626';_rcTd2.style.fontWeight='700';}else{_rcTd2.style.color='';_rcTd2.style.fontWeight='';} }
+        }catch(_e){}
+      }
       stkLog('✏️정보수정',p.br+' '+p.name+' '+p.size+' '+field+' '+old+'→'+nv,{product_id:pid});
       // 정규화/저장된 값이 입력과 다르면 셀에 즉시 반영 (수정이 사라진 것처럼 보이지 않게)
       if(td&&String(v)!==String(nv))td.textContent=(v===null||v===undefined)?'':String(v);
@@ -6346,7 +6428,7 @@ function stkRenderTable(){
       var ps=sums[p.id+'|'+dk]||{};
       var chArr=STK_CHANS.map(function(c){return ps[c]||0;});
       var chTot=chArr.reduce(function(s,x){return s+x;},0);
-      R.push({p:p,_ord:p._ord||0,cat:p.cat||'일반',source:p.source||'',real_cost:(p.real_cost==null?'':p.real_cost),br:p.br,name:p.name,code:p.code||'',size:p.size,ply:p.ply||'',spec:p.spec||'',dot:dk,cost:p.cost||'',fprice:p.factory_price||'',cur:cur,ch:chArr,qty:cur+chTot});
+      R.push({p:p,_ord:p._ord||0,cat:p.cat||'일반',source:p.source||'',real_cost:(p.real_cost==null?'':p.real_cost),discount_rate:(p.discount_rate==null?'':p.discount_rate),br:p.br,name:p.name,code:p.code||'',size:p.size,ply:p.ply||'',spec:p.spec||'',dot:dk,price:p.price||'',inst:p.inst||'',cost:p.cost||'',fprice:p.factory_price||'',cur:cur,ch:chArr,qty:cur+chTot});
     });
   });
   // 2) 정렬
@@ -6372,13 +6454,19 @@ function stkRenderTable(){
   // 3) 헤더 (정렬 화살표 + 엑셀 스타일 알파벳)
   function arr(col){return stkRtSort.col===col?(stkRtSort.dir>0?' ▲':' ▼'):'';}
   function ab(i){return String.fromCharCode(65+i)}  // 0→A, 1→B...
-  var cols=[['cat','분류'],['source','출처'],['br','브랜드'],['name','패턴'],['code','패턴코드'],['size','사이즈'],['ply','P수'],['spec','재원'],['dot','DOT'],['cost','원가'],['fprice','공장도가'],['qty','수량'],['cur','변동재고']];
+  var cols=[['cat','분류'],['source','출처'],['br','브랜드'],['name','패턴'],['code','패턴코드'],['size','사이즈'],['ply','P수'],['spec','재원'],['dot','DOT'],['price','택배가'],['inst','장착가'],['cost','원가'],['fprice','공장도가'],['qty','수량'],['cur','변동재고']];
+  // 실원가 칼럼은 권한자(이호준·이정우·김다영 등)에게만 — 원가 다음에 끼워넣음
+  var _canRC=(typeof stkCanSeeRealcost==='function'&&stkCanSeeRealcost());
+  if(_canRC){
+    var _ci=cols.findIndex(function(c){return c[0]==='cost';});
+    if(_ci>=0)cols.splice(_ci+1,0,['real_cost','실원가'],['discount_rate','할인율']);
+  }
   var th='<thead><tr>',cabIdx=0;
   var allOutTot=0; Object.keys(sums).forEach(function(k){STK_CHANS.forEach(function(c){allOutTot+=(sums[k][c]||0);});});
   cols.forEach(function(c,i){
     var cls=(c[0]==='cur')?' thcur':'';
     var qtyParen=(c[0]==='qty'&&allOutTot>0)?'<span class="ch-headtot" style="color:#2563eb;font-weight:700;font-size:11px"> ('+allOutTot+')</span>':'';
-    th+='<th class="rtsort'+cls+'" onclick="stkRtSortBy(\''+c[0]+'\')">'+c[1]+qtyParen+arr(c[0])+'<span class="colab">('+ab(cabIdx++)+')</span></th>';
+    th+='<th class="rtsort'+cls+'" data-col="'+c[0]+'" onclick="stkRtSortBy(\''+c[0]+'\')">'+c[1]+qtyParen+arr(c[0])+'<span class="colab">('+ab(cabIdx++)+')</span></th>';
   });
   STK_CHANS.forEach(function(c,i){
     var chSum=0; Object.keys(sums).forEach(function(k){chSum+=(sums[k][c]||0);});
@@ -6426,7 +6514,11 @@ function stkRenderTable(){
       ed('ply',r.ply||'')+
       ed('spec',r.spec||'')+
       ed('dot',r.dot,(r.dot==='DOT누락'?' style="color:#dc2626"':''))+
+      ed_ro('price',r.price||'')+
+      ed_ro('inst',r.inst||'')+
       ed('cost',r.cost||'')+
+      (_canRC?ed('real_cost',stkRCdisplay(r),(stkRCisManual(r)?' style="color:#dc2626;font-weight:700"':'')):'')+
+      (_canRC?ed('discount_rate',r.discount_rate===''||r.discount_rate==null?'':r.discount_rate):'')+
       ed('fprice',r.fprice||'')+
       ed('qty',r.qty)+
       ed_ro('cur',r.cur,(' class="rtv rtcur'+(r.cur<0?' neg':(r.cur===0?' zero':''))+'"'));
@@ -6449,7 +6541,7 @@ function stkRenderTable(){
         return '<td'+(extra||'')+' class="rt-newed" contenteditable="true" spellcheck="false" data-newrow="'+idx+'" data-newfield="'+field+'" data-placeholder="'+ph+'" style="background:'+bg+'"></td>';
       }
       return '<tr class="stk-newrow" data-newrow="'+idx+'" style="background:'+bg+';border-left:4px solid #2563eb">'+
-        ne('cat','분류')+ne('source','출처')+ne('br','브랜드*')+ne('name','패턴')+ne('code','패턴코드')+ne('size','사이즈*')+ne('ply','P수')+ne('spec','재원')+ne('dot','DOT')+ne('fprice','공장도가')+ne('qty','수량*')+
+        ne('cat','분류')+ne('source','출처')+ne('br','브랜드*')+ne('name','패턴')+ne('code','패턴코드')+ne('size','사이즈*')+ne('ply','P수')+ne('spec','재원')+ne('dot','DOT')+'<td style="background:'+bg+';color:#bbb;text-align:center">자동</td>'+'<td style="background:'+bg+';color:#bbb;text-align:center">자동</td>'+ne('cost','원가')+(_canRC?ne('real_cost','실원가'):'')+(_canRC?ne('discount_rate','할인율%'):'')+ne('fprice','공장도가')+ne('qty','수량*')+
         '<td style="background:'+bg+'"></td>'+  // 변동재고 자리 (자동)
         STK_CHANS.map(function(){return '<td style="background:'+bg+'"></td>';}).join('')+
         (idx===0?'<td style="white-space:nowrap;background:'+bg+'"><button onclick="stkRtSaveBulkNew()" style="font-size:11px;padding:3px 7px;border:none;background:#15803d;color:#fff;border-radius:6px;font-weight:800;cursor:pointer;margin-right:3px">N행 등록</button><button onclick="stkRtCancelAdd()" style="font-size:11px;padding:3px 7px;border:1px solid #ccc;background:#fff;color:#666;border-radius:6px;font-weight:800;cursor:pointer">취소</button></td>':'<td style="background:'+bg+'"></td>')+
@@ -7372,19 +7464,27 @@ async function stkDownload(){
   if(stkLocked){stkToast('🔒 잠금 상태에선 다운로드할 수 없어요');return}
   try{await stkLoadXLSX();}catch(e){stkToast(e.message);return}
   var XLSX=window.XLSX;
-  // ── 시트1: 입고양식 (위치 포함, 다시 업로드 가능) ──
-  var aoa1=[['분류','브랜드','패턴','패턴코드','사이즈','P수','재원','DOT','원가','공장도가','수량','위치','비고']];
+  // ── 시트1: 입고양식 (위치 포함, 다시 업로드 가능) — 새 양식(A): 분류·출처·...·원가·(실원가)·공장도가·수량·위치·비고 ──
+  var _dlRC=(typeof stkCanSeeRealcost==='function'&&stkCanSeeRealcost());  // 권한자면 실원가도 내보냄
+  var _h1=['분류','출처','브랜드','패턴','패턴코드','사이즈','P수','재원','DOT','원가'];
+  if(_dlRC)_h1.push('실원가');
+  _h1=_h1.concat(['공장도가','수량','위치','비고']);
+  var aoa1=[_h1];
+  function _row1(p,dot,qty,loc,memo){
+    var r=[p.cat||'일반',p.source||'',p.br,p.name,p.code||'',p.size,p.ply||'',p.spec||'',dot||'',p.cost||''];
+    if(_dlRC)r.push(p.real_cost==null?'':p.real_cost);
+    r=r.concat([p.factory_price||'',qty,loc,memo]);
+    return r;
+  }
   stkP.forEach(function(p){
     if(!p.lots||!p.lots.length){
-      // lot이 아예 없는 상품도 재고 0으로 1줄 보존 (품목 자체 백업)
-      aoa1.push([p.cat||'일반',p.br,p.name,p.code||'',p.size,p.ply||'',p.spec||'','',p.cost||'',p.factory_price||'',0,'',p.memo||'']);
+      aoa1.push(_row1(p,'',0,'',p.memo||''));
       return;
     }
     p.lots.forEach(function(l){
-      // 재고 0도 포함 (품목 보존 — 나중에 다시 입고될 것들). 음수(입고예정)도 포함.
       var memo=p.memo||'';
       if(l.q<0&&l.src_in)memo=(memo?memo+' / ':'')+'입고예정:'+l.src_in+(l.due_date?'('+l.due_date+')':'');
-      aoa1.push([p.cat||'일반',p.br,p.name,p.code||'',p.size,p.ply||'',p.spec||'',l.dot||'',p.cost||'',p.factory_price||'',l.q,l.loc==='U'?'':l.loc,memo]);
+      aoa1.push(_row1(p,l.dot||'',l.q,l.loc==='U'?'':l.loc,memo));
     });
   });
   // ── 시트2: 현황 리포트 (사람이 보기 좋게) ──
@@ -7571,7 +7671,7 @@ function stkUpOpen(mode){
   if(!stkEditGuard())return;
   stkUpMode=mode;stkUpRows=null;
   var t={'in':'📥 입고 업로드','price':'📋 가격 갱신','new':'➕ 신규 상품','cat':'🏷️ 분류 변경'}[mode];
-  var h={'in':'[v3 최신] 입고 양식: 카테고리/브랜드/패턴/패턴코드/사이즈/P수/재원/DOT/공장도가/수량. 완전일치 아니면 따로 등록, 1000행 제한 해결됨',
+  var h={'in':'[v4] 입고 양식: 카테고리/출처/브랜드/패턴/패턴코드/사이즈/P수/재원/DOT/원가/공장도가/수량/위치/비고. 출처 다르면 따로 등록, 완전일치 아니면 따로 등록',
     'price':'템플릿 ②가격 형식: 브랜드/패턴/패턴코드/사이즈/연식/판매가(택배)/장착가 — 연식 비우면 전체 적용',
     'new':'신규 양식: 브랜드/패턴/패턴코드/사이즈/P수/재원/공장도가/판매가/장착가/비고 — 재고 0으로 등록',
     'cat':'분류 변경 형식: 브랜드/패턴/패턴코드/사이즈/카테고리 — 매칭되는 상품의 분류만 바꿉니다 (재고·기록 안 건드림). 카테고리: 일반/행사/오프로드/중고/휠/튜닝'}[mode];
@@ -7590,11 +7690,17 @@ function stkUpParse(){
   var isIn=(stkUpMode==='in');
   lines.forEach(function(line){
     var c=line.split('\t').map(function(x){return x.trim()});
-    var hw=['브랜드','카테고리','분류','패턴','패턴코드','코드','사이즈','P수','피수','재원','DOT','연식','원가','공장도가','공장가','수량','판매가','장착가','위치','비고'];
+    var hw=['브랜드','카테고리','분류','출처','패턴','패턴코드','코드','사이즈','P수','피수','재원','DOT','연식','원가','공장도가','공장가','수량','판매가','장착가','위치','비고'];
     var hits=c.filter(function(x){return hw.indexOf((x||'').replace(/[★*\s]/g,''))>=0;}).length;
     if(hits>=2)return;
     if(isIn){
-      if(!(c[1]||'').trim()||!(c[4]||'').trim())return;
+      // 새 양식(A+출처): 0분류 1출처 2브랜드 3패턴 4패턴코드 5사이즈 6P수 7재원 8DOT 9원가 10공장도가 11수량 12위치 13비고
+      // → 기존 로직이 기대하는 옛 레이아웃(0분류 1브랜드 2패턴 3코드 4사이즈 5P수 6재원 7DOT 8원가 9공장도가 10수량 11위치 12비고)으로 재배열.
+      //   출처는 c[20] 슬롯에 따로 보관(기존 인덱스 안 건드림).
+      var _src=c[1]||'';
+      c=[c[0]||'',c[2]||'',c[3]||'',c[4]||'',c[5]||'',c[6]||'',c[7]||'',c[8]||'',c[9]||'',c[10]||'',c[11]||'',c[12]||'',c[13]||''];
+      c[20]=_src;
+      if(!(c[1]||'').trim()||!(c[4]||'').trim())return; // 브랜드(1)·사이즈(4) 필수
     }else{
       if(!(c[0]||'').trim()||!(c[3]||'').trim())return;
     }
@@ -7617,20 +7723,20 @@ async function stkDownloadTemplate(mode){
     'in':{
       title:'재고방_입고양식',
       sheet:'① 입고',
-      headers:['카테고리','브랜드★','패턴','패턴코드','사이즈★','P수','재원','DOT','원가','공장도가','수량★','위치','비고'],
-      required:[false,true,false,false,true,false,false,false,false,false,true,false,false],
-      colors:['7c3aed','C00000','2563EB','2563EB','C00000','2563EB','2563EB','2563EB','b45309','15803d','C00000','2563EB','2563EB'],
-      widths:[10,14,16,12,12,7,18,10,11,11,8,8,16],
+      headers:['카테고리','출처','브랜드★','패턴','패턴코드','사이즈★','P수','재원','DOT','원가','공장도가','수량★','위치','비고'],
+      required:[false,false,true,false,false,true,false,false,false,false,false,true,false,false],
+      colors:['7c3aed','0891b2','C00000','2563EB','2563EB','C00000','2563EB','2563EB','2563EB','b45309','15803d','C00000','2563EB','2563EB'],
+      widths:[10,10,14,16,12,12,7,18,10,11,11,8,8,16],
       examples:[
-        ['일반','금호','크루젠','HP71','235 55 18','','한국산','2026','',90000,10,'A-1',''],
-        ['행사','사일룬','AT','','265 70 16','4P','중국산 행사상품','2025',60000,8],
-        ['오프로드','BF굿리치','KO3','','285 70 17','6P','OE 마킹','2025',180000,4]
+        ['일반','썬베이','금호','크루젠','HP71','235 55 18','','한국산','2026','',90000,10,'A-1',''],
+        ['행사','한국','사일룬','AT','','265 70 16','4P','중국산 행사상품','2025',60000,8],
+        ['오프로드','넥센','BF굿리치','KO3','','285 70 17','6P','OE 마킹','2025',180000,4]
       ],
       guide:[
         '📥 입고 업로드 양식 — 사용법',
         '',
         '1. 열 순서를 절대 바꾸지 마세요',
-        '   카테고리·브랜드·패턴·패턴코드·사이즈·P수·재원·DOT·공장도가·수량',
+        '   카테고리·출처·브랜드·패턴·패턴코드·사이즈·P수·재원·DOT·원가·공장도가·수량·위치·비고',
         '',
         '2. ★ 표시는 필수: 브랜드, 사이즈, 수량',
         '',
@@ -7816,11 +7922,11 @@ async function stkUpRun(){
       rows.forEach(function(c){var ct=(c[0]||'').trim();if(ct&&stkCategories.indexOf(ct)<0&&newCats.indexOf(ct)<0)newCats.push(ct);});
       if(newCats.length){stkCategories=stkCategories.concat(newCats);await saveCategories(stkCategories);}
       // 같은 상품 판정키 = 브랜드+패턴+코드+사이즈+P수+재원+공장도가+카테고리 (완전일치만 동일)
-      var keyOf=function(c){return [c[1],c[2]||(c[3]||'(이름미정)'),c[3]||'',stkNormSize(c[4]||''),c[5]||'',c[6]||'',String(parseInt(c[9])||''),c[0]||'일반'].join('|');};
+      var keyOf=function(c){return [c[1],c[2]||(c[3]||'(이름미정)'),c[3]||'',stkNormSize(c[4]||''),c[5]||'',c[6]||'',String(parseInt(c[9])||''),c[0]||'일반',c[20]||''].join('|');};
       var _baseTs=Date.now();
       // 기존 마스터 상품 캐시 (메모리 stkP 기준)
       var pidCache={};
-      stkP.forEach(function(p){pidCache[[p.br,p.name||'',p.code||'',p.size,p.ply||'',p.spec||'',String(p.factory_price||''),p.cat||'일반'].join('|')]=p.id;});
+      stkP.forEach(function(p){pidCache[[p.br,p.name||'',p.code||'',p.size,p.ply||'',p.spec||'',String(p.factory_price||''),p.cat||'일반',p.source||''].join('|')]=p.id;});
       var lotOk=0,skip=0,createdN=0,failRows=[];
       for(var i=0;i<rows.length;i++){
         var c=rows[i];
@@ -7832,7 +7938,7 @@ async function stkUpRun(){
           var pid=pidCache[key];
           // 1) 없으면 상품 생성 + .select()로 즉시 id 확보 (재조회 안 함 → 키 어긋남 불가)
           if(!pid){
-            var payload={brand:c[1],name:fname,code:c[3]||'',size:size,category:c[0]||'일반',ply:c[5]||'',spec:c[6]||'',factory_price:parseInt(c[9])||null,cost:parseInt(c[8])||null,memo:c[12]||'',created_at:new Date(_baseTs+i).toISOString()};
+            var payload={brand:c[1],name:fname,code:c[3]||'',size:size,category:c[0]||'일반',ply:c[5]||'',spec:c[6]||'',factory_price:parseInt(c[9])||null,cost:parseInt(c[8])||null,source:c[20]||'',memo:c[12]||'',created_at:new Date(_baseTs+i).toISOString()};
             var ins=await sb.from('stock_products').insert(payload).select();
             if(ins.error){
               if((ins.error.message||'').match(/ply|spec|factory_price|cost|column/i)){
