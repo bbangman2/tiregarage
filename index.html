@@ -977,6 +977,10 @@ body.rb-on #app{padding-top:58px}
 .jh-rawval{flex:1;color:#1b2430;word-break:break-all}
 .jh-rawline{background:#fffbe9;border:1px solid #f0e2a8;border-radius:8px;padding:9px 11px;font-size:11px;font-family:monospace;line-height:1.6;word-break:break-all;margin-top:8px}
 
+
+/* 수량 셀을 비우면 흐린 0 표시 (그대로 저장하면 0, 숫자 입력하면 그 값) */
+.stk-rt td.rt-ed[data-field="qty"]:empty::before{content:"0";opacity:0.32;font-weight:400}
+
 </style>
 </head>
 <body>
@@ -5916,6 +5920,11 @@ function stkRtAttachCellHandlers(){
     td.setAttribute('data-old',td.textContent);
     try{var r=document.createRange();r.selectNodeContents(td);var s=window.getSelection();s.removeAllRanges();s.addRange(r);}catch(err){}
   });
+  tbl.addEventListener('input',function(e){
+    var td=e.target;if(!isEd(td))return;
+    // 수량 셀을 다 지우면 잔여 <br> 제거 → :empty 적용되어 흐린 0 표시
+    if(td.getAttribute('data-field')==='qty' && td.textContent.trim()===''){ td.innerHTML=''; }
+  });
   tbl.addEventListener('focusout',function(e){
     var td=e.target;if(!isEd(td))return;
     var nv=td.textContent.trim();
@@ -6084,7 +6093,9 @@ async function stkRtSaveFieldLight(pid,dot,field,nv,old,td){
       stkLog('✏️정보수정',p.br+' '+p.name+' '+p.size+' 연식 '+(oldDotVal||'DOT누락')+'→'+(newDot||'DOT누락')+' (출고기록 포함)',{product_id:pid});
     }else if(field==='qty'){
       // 수량(시작값) 편집 — lot 합을 새 값으로 맞춤
-      var n=parseInt(nv);if(isNaN(n)||n<0){if(td)td.textContent=old;return}
+      // 빈 값으로 지우면 0으로 저장 (변동재고는 0-출고 = 음수가 될 수도 있음)
+      var n=(nv===''||nv==null)?0:parseInt(nv);
+      if(isNaN(n)||n<0){if(td)td.textContent=old;return}
       var lots=(p.lots||[]).filter(function(l){return (l.dot||'DOT누락')===(dot||'DOT누락')});
       // 채널출고합 (오늘만)
       var sums=stkChannelSums();
