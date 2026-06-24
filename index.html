@@ -1019,6 +1019,7 @@ body.rb-on #app{padding-top:58px}
     <div class="sb-foot">
       <div id="admin-sidebar-btn" style="display:none">
         <button class="admin-btn" onclick="stkOpenPerm()">👥 수정권한</button>
+        <button class="admin-btn" onclick="stkOpenRcPerm()">💰 실원가권한</button>
         <button class="admin-btn" onclick="stkOpenPw()">🔑 비밀번호</button>
         <button class="admin-btn" onclick="openAdmin()">⚙️ 관리자 수정</button>
       </div>
@@ -1107,10 +1108,9 @@ body.rb-on #app{padding-top:58px}
   <div class="stk-pane on" id="stk-pane0">
     <div class="adminbar" id="stk-editbar" style="display:none">📦 재고 관리:
       <button onclick="stkUpOpen('in')">📥 입고 업로드</button>
-      <button onclick="stkUpOpen('price')">📋 가격 갱신</button>
-      <button onclick="stkUpOpen('cat')">🏷️ 분류 변경</button>
       <button onclick="stkUpOpen('new')">➕ 신규 상품</button>
       <button onclick="stkOpenAdd()">✏️ 하나 추가</button>
+      <button id="stk-rcUpBtn" onclick="stkUpOpen('rc')" style="display:none;background:#ecfeff;border-color:#a5f3fc;color:#0891b2">💰 실원가·할인율 업로드</button>
     </div>
     <div class="adminbar" id="stk-adminbar" style="display:none">🔧 관리자:
       <button onclick="stkResetOpen()" style="background:#fef2f2;border-color:#fecaca;color:#dc2626">🔄 전체 초기화</button>
@@ -3851,6 +3851,7 @@ var JH_BIG='all';        // 큰 탭
 var JH_SUB='핑';          // 입력 안 작은 탭
 var JH_ROWS=[];           // DB에서 로드한 그날(+이월) 주문
 var JH_PARSED=[];         // 입력 탭에서 분석한 임시 결과
+var JH_PLAT='all'; // 종합방 채널 필터(핑/스팜/11번가/전화)
 var JH_FILTER='all';      // 종류 필터
 var JH_DATE=null;         // 보는 날짜 (기본 오늘)
 var JH_ROLLING=false;
@@ -3889,6 +3890,7 @@ async function jhInit(){
 function jhSetBig(b){JH_BIG=b;document.querySelectorAll('.jh-bigtab').forEach(function(x){x.classList.toggle('on',x.dataset.jb===b)});jhRenderBig();}
 function jhSetSub(s){JH_SUB=s;jhRenderBig();}
 function jhSetFilter(f){JH_FILTER=(JH_FILTER===f&&f!=='all')?'all':f;jhRenderBig();}
+function jhSetPlat(p){JH_PLAT=(JH_PLAT===p&&p!=='all')?'all':p;jhRenderBig();}
 
 /* ───── DB 로드 ───── */
 async function jhLoad(){
@@ -4084,6 +4086,8 @@ function jhTarget(cs){return cs==='stock'?'재고방':cs==='ledger'?'입고표':
 
 /* ② 전체기록 / ③ 미출고 목록 */
 function jhRenderList(arr,showAge){
+  // 채널(핑/스팜/11번가/전화) 필터 — 전체기록·미출고/대기 공통
+  if(JH_PLAT&&JH_PLAT!=='all')arr=arr.filter(function(o){return (o.platform||'')===JH_PLAT;});
   var doneN=arr.filter(function(o){return o.status==='done'}).length;
   var waitN=arr.filter(function(o){return o.status==='wait'}).length;
   var html='<div class="jh-datebar"><b>📅 '+JH_DATE+'</b> · 전체 '+arr.length+'건 · 대기 '+waitN+(showAge?'건':'건 · 완료 '+doneN+'건')+'</div>';
@@ -4092,6 +4096,11 @@ function jhRenderList(arr,showAge){
     '<span class="jh-chip'+(JH_FILTER==='taekbae'?' on':'')+'" onclick="jhSetFilter(\'taekbae\')">📦 택배</span>'+
     '<span class="jh-chip'+(JH_FILTER==='direct'?' on':'')+'" onclick="jhSetFilter(\'direct\')">🚚 직배송</span>'+
     '<span class="jh-chip'+(JH_FILTER==='install'?' on':'')+'" onclick="jhSetFilter(\'install\')">🔧 장착</span></div>';
+  html+='<div class="jh-flt"><span class="jh-chip'+(JH_PLAT==='all'?' on':'')+'" onclick="jhSetPlat(\'all\')">전체</span>'+
+    '<span class="jh-chip'+(JH_PLAT==='핑'?' on':'')+'" onclick="jhSetPlat(\'핑\')">핑</span>'+
+    '<span class="jh-chip'+(JH_PLAT==='스팜'?' on':'')+'" onclick="jhSetPlat(\'스팜\')">스팜</span>'+
+    '<span class="jh-chip'+(JH_PLAT==='11번가'?' on':'')+'" onclick="jhSetPlat(\'11번가\')">11번가</span>'+
+    '<span class="jh-chip'+(JH_PLAT==='전화'?' on':'')+'" onclick="jhSetPlat(\'전화\')">전화</span></div>';
   var filtered=arr.filter(function(o){return JH_FILTER==='all'||o.dtype===JH_FILTER;});
   JH_TORDER.forEach(function(tk){
     if(JH_FILTER!=='all'&&JH_FILTER!==tk)return;
@@ -5310,6 +5319,8 @@ async function stkLoadLock(){
   if(dlbar)dlbar.style.display=stkLocked?'none':'block'; // 잠금 아니면 누구나 다운로드
   var eb=document.getElementById('stk-editbar');
   if(eb)eb.style.display=stkLocked?'none':'flex'; // 잠금 풀리면 누구나 재고관리
+  var rcBtn=document.getElementById('stk-rcUpBtn'); // 실원가·할인율 업로드는 권한자만
+  if(rcBtn)rcBtn.style.display=(!stkLocked&&typeof stkCanSeeRealcost==='function'&&stkCanSeeRealcost())?'inline-block':'none';
   var ab=document.getElementById('stk-adminbar');
   if(ab)ab.style.display=stkIsAdmin()?'flex':'none';
   var rb=document.getElementById('stk-logrestorebar');
@@ -5325,7 +5336,11 @@ async function stkLoadLogs(){
   }catch(e){}
 }
 async function stkLog(action,note,extra){
-  try{await sb.from('stock_logs').insert(Object.assign({user_name:me?me.name:'?',action:action,note:note},extra||{}));}catch(e){}
+  try{
+    var rec=Object.assign({ts:new Date().toISOString(),user_name:me?me.name:'?',action:action,note:note},extra||{});
+    var r=await sb.from('stock_logs').insert(rec);
+    if(r&&r.error)throw r.error;
+  }catch(e){ if(typeof stkToast==='function')stkToast('⚠️ 기록 저장 실패: '+(e.message||e)+' — 다시 시도하세요'); }
   stkLoadLogs();
 }
 function stkLockGuard(){if(stkLocked&&!stkIsAdmin()){stkToast('🔒 잠겨 있어요 — 관리자만 해제 가능');return false}
@@ -5390,6 +5405,47 @@ function stkRCdisplay(r){
   return calc==null?'':calc;
 }
 
+// ── 사이즈별 배송료 표 [폭,편평비,인치,배송비] (임시: 코드 내장) ──
+var STK_SHIP=[[145,80,13,4000],[155,65,13,4000],[155,70,12,4000],[155,70,13,4000],[155,70,14,4000],[155,80,12,4000],[155,80,13,4000],[165,60,14,4000],[165,60,15,4000],[165,65,13,4000],[165,65,14,4000],[175,50,15,4000],[175,60,13,4000],[175,60,14,4000],[175,65,14,4000],[175,65,15,4000],[175,70,13,4000],[175,70,14,4000],[185,55,15,5000],[185,60,14,5000],[185,60,15,5000],[185,65,14,5000],[185,65,15,5000],[185,80,14,5000],[195,40,17,5000],[195,45,15,5000],[195,45,16,5000],[195,50,15,5000],[195,50,16,5000],[195,55,15,5000],[195,55,16,5000],[195,60,14,5000],[195,60,15,5000],[195,65,15,5000],[195,70,14,5000],[195,70,15,5000],[195,75,16,5000],[195,80,14,5000],[195,80,15,5000],[195,85,16,5000],[205,40,17,5000],[205,40,18,5000],[205,45,16,5000],[205,45,17,5000],[205,50,16,5000],[205,50,17,5000],[205,55,16,5000],[205,55,17,5000],[205,60,15,5000],[205,60,16,5000],[205,65,15,5000],[205,65,16,5000],[205,70,14,5000],[205,70,15,5000],[205,70,16,5000],[205,75,16,5000],[205,85,16,5000],[215,35,18,5000],[215,35,19,5000],[215,40,17,5000],[215,40,18,5000],[215,45,17,5000],[215,45,18,5000],[215,45,20,5000],[215,50,17,5000],[215,50,18,5000],[215,50,19,5000],[215,55,16,5000],[215,55,17,5000],[215,55,18,5000],[215,60,16,5000],[215,60,17,5000],[215,65,15,5000],[215,65,16,5000],[215,65,17,5000],[215,70,15,5000],[215,70,16,5000],[215,75,15,5000],[215,75,16,5000],[225,35,18,5000],[225,35,19,5000],[225,35,20,5000],[225,40,18,5000],[225,40,19,5000],[225,40,20,5000],[225,45,17,5000],[225,45,18,5000],[225,45,19,5000],[225,50,17,5000],[225,50,18,5000],[225,55,16,5000],[225,55,17,5000],[225,55,18,6000],[225,55,19,6000],[225,60,16,6000],[225,60,17,6000],[225,60,18,6000],[225,65,16,6000],[225,65,17,6000],[225,70,15,6000],[225,70,16,6000],[225,75,16,6000],[235,35,19,6000],[235,35,20,6000],[235,40,18,5000],[235,40,19,6000],[235,45,17,5000],[235,45,18,6000],[235,45,19,6000],[235,45,20,6000],[235,45,21,6000],[235,50,17,6000],[235,50,18,6000],[235,50,19,6000],[235,50,20,6000],[235,55,16,6000],[235,55,17,6000],[235,55,18,6000],[235,55,19,6000],[235,55,20,6000],[235,60,16,6000],[235,60,17,6000],[235,60,18,6000],[235,65,16,6000],[235,65,17,6000],[235,65,18,6000],[235,70,16,6000],[235,70,17,6000],[235,75,15,6000],[235,85,16,6000],[245,30,19,6000],[245,30,20,6000],[245,30,22,6000],[245,35,18,6000],[245,35,19,6000],[245,35,20,6000],[245,35,21,6000],[245,40,17,6000],[245,40,18,6000],[245,40,19,6000],[245,40,20,6000],[245,40,21,6000],[245,45,17,6000],[245,45,18,6000],[245,45,19,6000],[245,45,20,6000],[245,45,21,6000],[245,50,18,6000],[245,50,19,6000],[245,50,20,6000],[245,55,17,6000],[245,55,18,6000],[245,55,19,6000],[245,60,17,6000],[245,60,18,6000],[245,65,17,6000],[245,70,16,6000],[245,70,17,6000],[245,75,16,6000],[245,75,17,6000],[255,30,19,6000],[255,30,20,6000],[255,35,18,6000],[255,35,19,6000],[255,35,20,6000],[255,35,21,6000],[255,40,17,6000],[255,40,18,6000],[255,40,19,6000],[255,40,20,6000],[255,40,21,6000],[255,40,22,6000],[255,45,18,6000],[255,45,19,6000],[255,45,20,6000],[255,45,21,6000],[255,45,22,6000],[255,50,19,6000],[255,50,20,6000],[255,55,18,6000],[255,55,19,6000],[255,55,20,6000],[255,60,17,6000],[255,60,18,6000],[255,60,19,6000],[255,65,16,6000],[255,65,17,6000],[255,70,15,6000],[255,70,16,6000],[255,70,18,6000],[255,75,17,6000],[265,30,19,6000],[265,30,20,6000],[265,30,22,6000],[265,35,18,6000],[265,35,19,6000],[265,35,20,6000],[265,35,21,6000],[265,35,22,6000],[265,40,18,6000],[265,40,19,6000],[265,40,20,6000],[265,40,21,6000],[265,40,22,6000],[265,45,19,6000],[265,45,20,6000],[265,45,21,6000],[265,50,19,6000],[265,50,20,6000],[265,55,19,6000],[265,60,18,6000],[265,60,20,6000],[265,65,17,6000],[265,65,18,6000],[265,70,15,6000],[265,70,16,6000],[265,70,17,6000],[265,70,18,6000],[265,75,16,6000],[275,30,19,6000],[275,30,20,6000],[275,30,21,6000],[275,35,18,6000],[275,35,19,6000],[275,35,20,6000],[275,35,21,6000],[275,35,22,6000],[275,40,18,6000],[275,40,19,6000],[275,40,20,6000],[275,40,21,6000],[275,40,22,6000],[275,45,18,6000],[275,45,19,6000],[275,45,20,6000],[275,45,21,6000],[275,45,22,6000],[275,50,20,6000],[275,50,22,6000],[275,55,19,6000],[275,55,20,6000],[275,60,20,6000],[275,65,18,6000],[275,65,20,6000],[275,70,17,8000],[275,70,18,8000],[285,30,19,6000],[285,30,20,6000],[285,30,21,6000],[285,30,22,7000],[285,35,19,6000],[285,35,20,6000],[285,35,21,6000],[285,35,22,7000],[285,40,19,6000],[285,40,20,6000],[285,40,21,6000],[285,40,22,7000],[285,40,23,7000],[285,45,19,6000],[285,45,20,6000],[285,45,21,6000],[285,45,22,7000],[285,50,20,6000],[285,55,20,6000],[285,60,20,6000],[285,70,17,7000],[285,75,16,6000],[285,75,17,7000],[295,30,19,6000],[295,30,20,7000],[295,30,21,6000],[295,30,22,7000],[295,35,20,7000],[295,35,21,6000],[295,35,22,7000],[295,35,23,7000],[295,40,19,6000],[295,40,20,7000],[295,40,21,6000],[295,40,22,7000],[295,45,20,7000],[305,30,20,7000],[305,30,21,7000],[305,30,26,7000],[305,35,21,7000],[305,40,20,7000],[305,55,20,7000],[315,30,21,6000],[315,30,22,7000],[315,35,20,7000],[315,35,21,6000],[315,35,22,7000],[315,40,21,6000],[315,70,17,7000],[325,30,20,7000],[325,30,21,6000],[325,35,20,7000],[325,35,22,7000],[325,35,23,7000],[325,40,22,7000],[325,60,18,7000],[325,60,20,7000],[500,80,12,4000],[550,80,13,4000],[650,80,15,5000],[650,80,16,6000],[295,70,17,10000]];
+function stkParseSize(s){
+  var m=String(s||'').match(/(\d{3})\D+(\d{2})\D+(\d{2})/);
+  if(!m)return null;
+  return [parseInt(m[1]),parseInt(m[2]),parseInt(m[3])];
+}
+// 배송료: 정확일치 → 없으면 폭 우선·인치·편평비 순 가까운 것, 동률이면 높은 배송료
+function stkShipFee(size){
+  var t=stkParseSize(size); if(!t)return null;
+  var best=null,bestD=null;
+  for(var i=0;i<STK_SHIP.length;i++){
+    var e=STK_SHIP[i];
+    if(e[0]===t[0]&&e[1]===t[1]&&e[2]===t[2])return e[3];
+    var d=Math.abs(e[0]-t[0])*10000+Math.abs(e[2]-t[2])*100+Math.abs(e[1]-t[1]);
+    if(bestD===null||d<bestD||(d===bestD&&e[3]>best)){bestD=d;best=e[3];}
+  }
+  return best;
+}
+// 장착비 (인치별): ~18:18000 / 19:19000 / 20:22000 / 21+:25000
+function stkInstallFee(size){
+  var t=stkParseSize(size); if(!t)return null; var inch=t[2];
+  if(inch<=18)return 18000;
+  if(inch===19)return 19000;
+  if(inch===20)return 22000;
+  return 25000;
+}
+// 택배가/장착가 자동계산 = (원가+배송료 또는 장착비)/0.97/0.96, 올림 100원
+function stkCalcTaekbae(cost,size){
+  var c=parseInt(cost); if(isNaN(c)||!c)return null;
+  var ship=stkShipFee(size); if(ship==null)return null;
+  return Math.ceil((c+ship)/0.97/0.96/100)*100;
+}
+function stkCalcJangchak(cost,size){
+  var c=parseInt(cost); if(isNaN(c)||!c)return null;
+  var fee=stkInstallFee(size); if(fee==null)return null;
+  return Math.ceil((c+fee)/0.97/0.96/100)*100;
+}
+function stkFmtAuto(v){return v==null?'':v;}
+
+
 async function stkLoadRealcostViewers(){
   try{
     var r=await sb.from('stock_settings').select('*').eq('key','realcost_viewers');
@@ -5408,6 +5464,43 @@ async function stkSaveEditors(){
   var ex=await sb.from('stock_settings').select('key').eq('key','inline_editors');
   if(ex.data&&ex.data.length){await sb.from('stock_settings').update({value:val}).eq('key','inline_editors');}
   else{await sb.from('stock_settings').insert({key:'inline_editors',value:val});}
+}
+// ── 실원가·할인율 열람 권한 관리 (stock_settings key='realcost_viewers') — 관리자 전용 ──
+async function stkSaveRcViewers(){
+  var val=JSON.stringify(STK_REALCOST_VIEWERS);
+  var ex=await sb.from('stock_settings').select('key').eq('key','realcost_viewers');
+  if(ex.data&&ex.data.length){await sb.from('stock_settings').update({value:val}).eq('key','realcost_viewers');}
+  else{await sb.from('stock_settings').insert({key:'realcost_viewers',value:val});}
+}
+async function stkOpenRcPerm(){
+  if(!stkIsAdmin()){stkToast('관리자 전용입니다');return}
+  if(typeof stkLoadRealcostViewers==='function')await stkLoadRealcostViewers();
+  stkRenderRcPerm();
+  document.getElementById('stk-dlgRcPerm').classList.add('on');
+}
+function stkRenderRcPerm(){
+  var el=document.getElementById('stk-rcPermList');if(!el)return;
+  var names=Object.keys(PW);
+  el.innerHTML=names.map(function(n){
+    if(n===ADMIN_NAME){
+      return '<div class="perm-row"><span class="perm-name">'+stkEsc(n)+' <span class="perm-badge">관리자</span></span><span class="perm-fixed">항상 가능</span></div>';
+    }
+    var on=STK_REALCOST_VIEWERS.indexOf(n)>=0;
+    return '<div class="perm-row"><span class="perm-name">'+stkEsc(n)+'</span>'
+      +'<button class="perm-tog'+(on?' on':'')+'" onclick="stkSetRcViewer(\''+stkEsc(n).replace(/'/g,"")+'\','+(!on)+')">'+(on?'✓ 실원가·할인율 가능':'권한 없음')+'</button></div>';
+  }).join('');
+}
+async function stkSetRcViewer(name,on){
+  if(!stkIsAdmin()){stkToast('관리자 전용입니다');return}
+  if(name===ADMIN_NAME){stkToast('관리자는 항상 가능합니다');return}
+  var idx=STK_REALCOST_VIEWERS.indexOf(name);
+  if(on&&idx<0)STK_REALCOST_VIEWERS.push(name);
+  else if(!on&&idx>=0)STK_REALCOST_VIEWERS.splice(idx,1);
+  try{await stkSaveRcViewers();}catch(e){stkToast('저장 실패: '+e.message);return}
+  stkLog('👥권한변경',name+(on?' 실원가·할인율 권한 부여':' 실원가·할인율 권한 회수'),{});
+  stkToast('✓ '+name+' '+(on?'실원가·할인율 권한 부여':'권한 회수'));
+  stkRenderRcPerm();
+  if(typeof stkRenderTable==='function')stkRenderTable();
 }
 async function stkSetEditor(name,on){
   if(!stkIsAdmin()){stkToast('관리자 전용입니다');return}
@@ -5515,12 +5608,27 @@ function stkToggleLogAll(){
   stkLogAllDates=!stkLogAllDates;
   var b=document.getElementById('stk-logall-btn');
   if(b){b.textContent=stkLogAllDates?'✓ 전체 날짜':'전체 날짜 보기';b.style.background=stkLogAllDates?'#eaf4ff':'#fff';b.style.borderColor=stkLogAllDates?'#2563eb':'rgba(0,0,0,.12)';}
-  stkRenderLogTab();
+  if(stkLogAllDates&&b)b.textContent='⏳ 전체 불러오는 중…';
+  stkLoadLogTab().then(function(){ if(b)b.textContent=stkLogAllDates?'✓ 전체 날짜':'전체 날짜 보기'; });
 }
 var STK_LOG_FILTERS=[['출고','📦 출고'],['이동','📍 이동/합치기'],['실사조정','✏️ 실사조정'],['잠금','🔒 잠금'],['전체','전체']];
+async // stock_logs는 한 번에 최대 1000건만 와서, range로 페이지 넘기며 maxN까지 모음 (최신순)
+async function stkFetchLogs(maxN){
+  var all=[],from=0,page=1000;
+  while(all.length<maxN){
+    var to=from+page-1;
+    var r=await sb.from('stock_logs').select('*').order('ts',{ascending:false}).range(from,to);
+    if(r.error||!r.data||!r.data.length)break;
+    all=all.concat(r.data);
+    if(r.data.length<page)break;   // 마지막 페이지
+    from+=page;
+  }
+  return all;
+}
 async function stkLoadLogTab(){
-  try{var r=await sb.from('stock_logs').select('*').order('ts',{ascending:false}).limit(2000);
-    stkLogRows=r.data||[];}catch(e){stkLogRows=[]}
+  // 전체 날짜 보기면 전부(최대 5만건), 아니면 최근 2000건
+  var cap=stkLogAllDates?50000:2000;
+  try{stkLogRows=await stkFetchLogs(cap);}catch(e){stkLogRows=[]}
   stkRenderLogFilters();stkRenderLogTab();
 }
 function stkRenderLogFilters(){
@@ -6514,8 +6622,8 @@ function stkRenderTable(){
       ed('ply',r.ply||'')+
       ed('spec',r.spec||'')+
       ed('dot',r.dot,(r.dot==='DOT누락'?' style="color:#dc2626"':''))+
-      ed_ro('price',r.price||'')+
-      ed_ro('inst',r.inst||'')+
+      ed_ro('price',stkFmtAuto(stkCalcTaekbae(r.cost,r.size)))+
+      ed_ro('inst',stkFmtAuto(stkCalcJangchak(r.cost,r.size)))+
       ed('cost',r.cost||'')+
       (_canRC?ed('real_cost',stkRCdisplay(r),(stkRCisManual(r)?' style="color:#dc2626;font-weight:700"':'')):'')+
       (_canRC?ed('discount_rate',r.discount_rate===''||r.discount_rate==null?'':r.discount_rate):'')+
@@ -7467,12 +7575,12 @@ async function stkDownload(){
   // ── 시트1: 입고양식 (위치 포함, 다시 업로드 가능) — 새 양식(A): 분류·출처·...·원가·(실원가)·공장도가·수량·위치·비고 ──
   var _dlRC=(typeof stkCanSeeRealcost==='function'&&stkCanSeeRealcost());  // 권한자면 실원가도 내보냄
   var _h1=['분류','출처','브랜드','패턴','패턴코드','사이즈','P수','재원','DOT','원가'];
-  if(_dlRC)_h1.push('실원가');
+  if(_dlRC)_h1.push('실원가','할인율');
   _h1=_h1.concat(['공장도가','수량','위치','비고']);
   var aoa1=[_h1];
   function _row1(p,dot,qty,loc,memo){
     var r=[p.cat||'일반',p.source||'',p.br,p.name,p.code||'',p.size,p.ply||'',p.spec||'',dot||'',p.cost||''];
-    if(_dlRC)r.push(p.real_cost==null?'':p.real_cost);
+    if(_dlRC)r.push(p.real_cost==null?'':p.real_cost, p.discount_rate==null?'':p.discount_rate);
     r=r.concat([p.factory_price||'',qty,loc,memo]);
     return r;
   }
@@ -7503,7 +7611,7 @@ async function stkDownload(){
   // ── 시트3: 전체 기록 (출고기록 포함 — 복원/백업용) ──
   // DB에서 전체 로그 조회 (탭 캐시 말고 최신 전체)
   var allLogs=[];
-  try{var lr=await sb.from('stock_logs').select('*').order('ts',{ascending:true}).limit(5000);allLogs=lr.data||[];}catch(e){}
+  try{allLogs=(await stkFetchLogs(50000)).slice().reverse();}catch(e){}
   var aoa3=[['ts','user_name','action','note','product_id','dot','qty','from_loc','to_loc','channel','ref']];
   allLogs.forEach(function(g){
     aoa3.push([g.ts||'',g.user_name||'',g.action||'',g.note||'',g.product_id||'',g.dot||'',g.qty===null||g.qty===undefined?'':g.qty,g.from_loc||'',g.to_loc||'',g.channel||'',g.ref||'']);
@@ -7647,7 +7755,7 @@ function stkLoadXLSX(){
     document.head.appendChild(s);
   });
 }
-var STK_SHEET={'in':'① 입고','price':'② 가격','new':'③ 신규','cat':'분류'};
+var STK_SHEET={'in':'① 입고','price':'② 가격','new':'③ 신규','cat':'분류','rc':'실원가'};
 async function stkUpFile(file){
   if(!file)return;
   try{
@@ -7670,8 +7778,9 @@ async function stkUpFile(file){
 function stkUpOpen(mode){
   if(!stkEditGuard())return;
   stkUpMode=mode;stkUpRows=null;
-  var t={'in':'📥 입고 업로드','price':'📋 가격 갱신','new':'➕ 신규 상품','cat':'🏷️ 분류 변경'}[mode];
+  var t={'in':'📥 입고 업로드','price':'📋 가격 갱신','new':'➕ 신규 상품','cat':'🏷️ 분류 변경','rc':'💰 실원가·할인율 업로드'}[mode];
   var h={'in':'[v4] 입고 양식: 카테고리/출처/브랜드/패턴/패턴코드/사이즈/P수/재원/DOT/원가/공장도가/수량/위치/비고. 출처 다르면 따로 등록, 완전일치 아니면 따로 등록',
+    'rc':'[권한자 전용] 실원가·할인율 양식: 브랜드/패턴/패턴코드/사이즈/실원가/할인율 — 기존 상품에 매칭해 실원가·할인율만 갱신. 할인율만 넣으면 실원가는 (공장도가×(1-할인율/100))로 자동계산. 재고·가격 안 건드림',
     'price':'템플릿 ②가격 형식: 브랜드/패턴/패턴코드/사이즈/연식/판매가(택배)/장착가 — 연식 비우면 전체 적용',
     'new':'신규 양식: 브랜드/패턴/패턴코드/사이즈/P수/재원/공장도가/판매가/장착가/비고 — 재고 0으로 등록',
     'cat':'분류 변경 형식: 브랜드/패턴/패턴코드/사이즈/카테고리 — 매칭되는 상품의 분류만 바꿉니다 (재고·기록 안 건드림). 카테고리: 일반/행사/오프로드/중고/휠/튜닝'}[mode];
@@ -7782,6 +7891,34 @@ async function stkDownloadTemplate(mode){
         '   둘 중 하나만 채워도 됩니다 (다른 것은 그대로 유지)'
       ]
     },
+    'rc':{
+      title:'재고방_실원가할인율양식',
+      sheet:'실원가',
+      headers:['브랜드★','패턴','패턴코드','사이즈★','실원가','할인율'],
+      required:[true,false,false,true,false,false],
+      colors:['C00000','2563EB','2563EB','C00000','0891b2','0891b2'],
+      widths:[14,16,12,12,11,9],
+      examples:[
+        ['금호','크루젠','HP71','235 55 18','',30],
+        ['넥센','로디안','CT8R','275 65 18',57600,''],
+        ['사일룬','AT','','265 70 16',38000,40]
+      ],
+      guide:[
+        '💰 실원가·할인율 업로드 양식 (권한자 전용)',
+        '',
+        '1. 브랜드·패턴·패턴코드·사이즈로 기존 상품을 찾아 실원가·할인율만 갱신합니다.',
+        '   (재고·판매가는 건드리지 않음)',
+        '',
+        '2. ★ 표시는 필수: 브랜드, 사이즈',
+        '',
+        '3. 할인율만 넣으면 실원가는 자동계산: 공장도가 × (1 - 할인율/100)',
+        '   예) 공장도가 90000, 할인율 36 → 실원가 57600 자동',
+        '',
+        '4. 실원가를 직접 넣으면 그 값으로 저장(자동계산값과 다르면 화면에 빨강 표시)',
+        '',
+        '5. 매칭되는 상품이 없으면 그 줄은 건너뜁니다.'
+      ]
+    },
     'new':{
       title:'재고방_신규상품양식',
       sheet:'③ 신규',
@@ -7886,6 +8023,8 @@ async function stkUpRun(){
       msg.push(rows.length+'건 입고');
       if(newP)msg.push('🆕 마스터에 없는 상품 '+newP+'종 → 자동 신규 등록');
     }else if(stkUpMode==='new'){msg.push(rows.length+'종 신규 등록 (재고 0)')}
+    else if(stkUpMode==='rc'){var miss2=0;rows.forEach(function(c){if(!stkFindProduct(c[0],c[1],c[2]||'',c[3]))miss2++});
+      msg.push(rows.length+'건 실원가·할인율 갱신');if(miss2)msg.push('⚠️ '+miss2+'건은 매칭 상품 없음(건너뜀)');}
     else{var miss=0;rows.forEach(function(c){if(!stkFindProduct(c[0],c[1],c[2]||'',c[3]))miss++});
       msg.push(rows.length+'건 가격 갱신');if(miss)msg.push('⚠ 매칭 안 되는 행 '+miss+'건 (건너뜀)')}
     prev.innerHTML=msg.join('<br>')+'<br>— 아래 [등록 실행]을 누르면 DB에 반영됩니다';
@@ -7964,7 +8103,26 @@ async function stkUpRun(){
       }
       ok=lotOk;fail=skip;
       if(failRows.length){window._stkUpFailRows=failRows;}
-}else if(stkUpMode==='cat'){ // 분류만 변경 — 브랜드+패턴+사이즈 매칭, category만 update (재고·기록 안 건드림)
+}else if(stkUpMode==='rc'){ // [권한자] 실원가·할인율만 갱신 — 브랜드+패턴+코드+사이즈 매칭 (재고·가격 안 건드림)
+      // 양식: c0브랜드 c1패턴 c2패턴코드 c3사이즈 c4실원가 c5할인율
+      for(var i=0;i<rows.length;i++){
+        var c=rows[i];
+        if(i%20===0)prog('실원가·할인율 갱신… '+i+'/'+rows.length);
+        var p2=stkFindProduct(c[0],c[1],c[2]||'',c[3]);
+        if(!p2){fail++;continue}
+        var dr=(c[5]==null||String(c[5]).trim()==='')?null:(parseFloat(String(c[5]).replace(/[^0-9.]/g,''))||0);
+        var rcv=(c[4]==null||String(c[4]).trim()==='')?null:(parseInt(String(c[4]).replace(/[^0-9]/g,''))||null);
+        // 할인율만 있고 실원가 비면 → 공장도가×(1-할인율/100) 자동계산
+        if(rcv==null&&dr!=null){var fp=parseInt(p2.factory_price);if(fp&&!isNaN(fp))rcv=Math.round(fp*(1-dr/100));}
+        var upd={};
+        if(rcv!=null)upd.real_cost=rcv;
+        if(dr!=null)upd.discount_rate=dr;
+        if(!Object.keys(upd).length){fail++;continue}
+        await sb.from('stock_products').update(upd).eq('id',p2.id);
+        stkLog('💰실원가갱신',p2.br+' '+p2.name+' '+p2.size+' · '+(dr!=null?'할인율'+dr+'% ':'')+(rcv!=null?'실원가'+rcv:''),{product_id:p2.id});
+        ok++;
+      }
+    }else if(stkUpMode==='cat'){ // 분류만 변경 — 브랜드+패턴+사이즈 매칭, category만 update (재고·기록 안 건드림)
       for(var i=0;i<rows.length;i++){
         var c=rows[i];
         if(i%20===0)prog('분류 변경… '+i+'/'+rows.length);
@@ -8723,6 +8881,13 @@ async function rsvDelete(id){
   <div class="sub2">권한이 있는 사람만 재고표 셀 수정·행추가·상품추가·삭제가 가능합니다. 변경 즉시 모든 직원·기기에 반영됩니다.</div>
   <div id="stk-permList" style="margin:6px 0 4px;max-height:50vh;overflow:auto"></div>
   <div style="font-size:11px;color:#999;margin-top:6px">※ 출고(채널칸)는 권한과 무관하게 누구나 가능합니다.</div>
+  <div class="stkacts"><button class="stk-ok" onclick="stkCloseDlg()">닫기</button></div>
+</div></div>
+<div class="stkdlgbg" id="stk-dlgRcPerm" onclick="if(event.target===this)stkCloseDlg()"><div class="stkdlg" style="max-width:360px">
+  <h3>💰 실원가·할인율 권한</h3>
+  <div class="sub2">권한이 있는 사람만 재고표에서 실원가·할인율 칸을 보고 수정할 수 있습니다. 변경 즉시 모든 직원·기기에 반영됩니다.</div>
+  <div id="stk-rcPermList" style="margin:6px 0 4px;max-height:50vh;overflow:auto"></div>
+  <div style="font-size:11px;color:#999;margin-top:6px">※ 원가·택배가·장착가·공장도가는 모두에게 보입니다.</div>
   <div class="stkacts"><button class="stk-ok" onclick="stkCloseDlg()">닫기</button></div>
 </div></div>
 <div class="stkdlgbg" id="stk-dlgPw" onclick="if(event.target===this)stkCloseDlg()"><div class="stkdlg" style="max-width:380px">
