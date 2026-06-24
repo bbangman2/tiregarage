@@ -6542,13 +6542,25 @@ async function stkRtDelRow(pid,dot){
   var lots=(p.lots||[]).filter(function(l){return (l.dot||'DOT누락')===(dot||'DOT누락')});
   var totq=lots.reduce(function(s,l){return s+l.q;},0);
   if(!confirm('이 행을 삭제할까요?\n\n'+p.br+' '+p.name+' '+p.size+'\n연식: '+(dot||'DOT누락')+' / 수량: '+totq+'개\n\n(이 연식만 삭제됩니다. 다른 연식·출고기록은 유지)'))return;
+  var otherLots=(p.lots||[]).filter(function(l){return (l.dot||'DOT누락')!==(dot||'DOT누락');});
   try{
     for(var i=0;i<lots.length;i++){stkChk(await sb.from('stock_lots').delete().eq('id',lots[i].id),'행삭제');}
     stkLog('🗑️연식삭제',p.br+' '+p.name+' '+p.size+' ('+(dot||'DOT누락')+') '+totq+'개 삭제',{product_id:pid,dot:(dot==='DOT누락'?'':dot),qty:totq});
-    stkToast('\u2713 삭제됨 (기록 남음)');
+    // 남은 재고(다른 연식)가 없으면 → 상품 통째 삭제 여부 물어봄 (실험용 찌꺼기 정리)
+    if(otherLots.length===0){
+      if(confirm('이 상품은 남은 재고가 없습니다.\n\n'+p.br+' '+p.name+' '+p.size+'\n\n상품을 목록에서 완전히 삭제할까요?\n(출고기록은 남습니다)')){
+        stkChk(await sb.from('stock_products').delete().eq('id',pid),'상품삭제');
+        stkLog('🗑️상품삭제',p.br+' '+p.name+' '+p.size+' — 상품 완전 삭제',{product_id:pid});
+        stkToast('\u2713 상품까지 완전히 삭제됨 (기록 남음)');
+      }else{
+        stkToast('\u2713 재고만 삭제됨 (상품은 유지)');
+      }
+    }else{
+      stkToast('\u2713 삭제됨 (기록 남음)');
+    }
     await stkLoad();await stkLoadLogTab();
     stkRenderTable();if(typeof stkRenderSearch==='function')stkRenderSearch();
-  }catch(e){stkToast('삭제 실패: '+e.message)}
+  }catch(e){stkToast('❌ 삭제 안 됨: '+e.message+' — 새로고침 후 다시 시도하세요')}
 } // col: cat/br/name/code/size/dot/cur/ch0..7/qty, dir:1 asc -1 desc
 function stkRtResetSort(){
   stkRtSort.col=null;stkRtSort.dir=1;
@@ -7449,6 +7461,7 @@ async function stkDoOut(){
   if(!found)return;
   var n=parseInt(document.getElementById('stk-outQty').value)||1; // 재고 초과 허용(마이너스)
   if(n<1){stkToast('수량을 확인하세요');return}
+  if(!stkCurType){stkToast('⚠️ 판매처/채널을 먼저 선택하세요 (장착·당일배송·핑배송·온라인)');return}
   // 장착이면 재고 안 빼고 예약창으로 (예약 저장 시 출고 확정)
   if(BETA_WRITE && stkCurType==='장착' && typeof rsvOpenAdd==='function'){
     stkCloseDlg();
