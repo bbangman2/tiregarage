@@ -983,6 +983,9 @@ body.rb-on #app{padding-top:58px}
 
 
 
+
+.logcard.fail{border-left:4px solid #dc2626;background:#fef2f2}
+.act.fail{background:#dc2626;color:#fff}
 </style>
 </head>
 <body>
@@ -3899,6 +3902,47 @@ async function jhLoad(){
     JH_ROWS=(r.data||[]).filter(function(o){return !o.cancelled;});
   }catch(e){ JH_ROWS=[]; }
 }
+
+// ── 종합방 전체 기록 다운로드 (누가·언제·뭘 했는지 전부) ──
+async function jhDownload(){
+  try{ await stkLoadXLSX(); }catch(e){ alert(e.message); return; }
+  var XLSX=window.XLSX;
+  // 전체 주문 불러오기 (1000건 한도 → 페이지네이션)
+  var all=[],from=0,page=1000;
+  try{
+    while(true){
+      var r=await sb.from('jonghap_orders').select('*').order('created_at',{ascending:true}).range(from,from+page-1);
+      if(r.error||!r.data||!r.data.length)break;
+      all=all.concat(r.data);
+      if(r.data.length<page)break;
+      from+=page;
+      if(from>200000)break;
+    }
+  }catch(e){ alert('불러오기 실패: '+e.message); return; }
+  if(!all.length){ alert('기록이 없습니다.'); return; }
+  function ktime(t){ if(!t)return ''; try{ return toKST(t).toISOString().slice(0,19).replace('T',' '); }catch(_e){ return String(t); } }
+  function dko(d){ return ({install:'장착',direct:'직배송',taekbae:'택배'})[d]||(d||''); }
+  function sko(s){ return ({wait:'대기',done:'출고완료'})[s]||(s||''); }
+  // 시트1: 주문 전체
+  var aoa1=[['등록일','채널','구분','주문번호','출처','브랜드','패턴','패턴코드','사이즈','P수','수량','받는분','연락처','주소','상태','담당','등록자','출고자','출고시각','출고처','취소','메모']];
+  all.forEach(function(o){
+    aoa1.push([o.date_str||'',o.platform||'',dko(o.dtype),o.order_no||'',o.src||'',o.brand||'',o.name||'',o.code||'',o.size||'',o.ply||'',o.qty||'',o.recv||'',o.tel||'',o.addr||'',sko(o.status),o.assignee||'',o.reg_user||'',o.out_user||'',ktime(o.out_at),o.out_target||'',o.cancelled?'취소':'',o.use_note||'']);
+  });
+  // 시트2: 상세 이력 (각 주문의 logs를 한 줄씩 펼침 — 누가·언제·뭘)
+  var aoa2=[['등록일','채널','브랜드','패턴','사이즈','동작','누가','언제','상세']];
+  all.forEach(function(o){
+    var L=Array.isArray(o.logs)?o.logs:[];
+    if(!L.length){ aoa2.push([o.date_str||'',o.platform||'',o.brand||'',o.name||'',o.size||'','(이력없음)','','','']); return; }
+    L.forEach(function(g){
+      aoa2.push([o.date_str||'',o.platform||'',o.brand||'',o.name||'',o.size||'',(g.t||g.type||''),(g.by||''),ktime(g.at),(g.text||g.target||'')]);
+    });
+  });
+  var wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(aoa1),'주문 전체');
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(aoa2),'상세 이력');
+  XLSX.writeFile(wb,'종합방_기록_'+new Date().toISOString().slice(0,10)+'.xlsx');
+}
+
 function jhWaitRows(){return JH_ROWS.filter(function(o){return o.status==='wait';});}
 
 /* ───── 미완료 이월 (직배송방 rolloverDeliveries 방식) ───── */
@@ -4094,7 +4138,8 @@ function jhRenderList(arr,showAge){
   if(JH_PLAT&&JH_PLAT!=='all')arr=arr.filter(function(o){return (o.platform||'')===JH_PLAT;});
   var doneN=arr.filter(function(o){return o.status==='done'}).length;
   var waitN=arr.filter(function(o){return o.status==='wait'}).length;
-  var html='<div class="jh-datebar"><b>📅 '+JH_DATE+'</b> · 전체 '+arr.length+'건 · 대기 '+waitN+(showAge?'건':'건 · 완료 '+doneN+'건')+'</div>';
+  var html='<div class="jh-datebar" style="display:flex;align-items:center;justify-content:space-between;gap:8px"><span><b>📅 '+JH_DATE+'</b> · 전체 '+arr.length+'건 · 대기 '+waitN+(showAge?'건':'건 · 완료 '+doneN+'건')+'</span>'+
+    '<button onclick="jhDownload()" style="font-size:12px;padding:5px 10px;border:1px solid #cfe0f7;border-radius:7px;background:#fff;cursor:pointer;white-space:nowrap;font-weight:700;color:#2563eb">⬇️ 전체 기록 다운로드</button></div>';
   html+='<div class="jh-note">'+(showAge?'<b>출고 안 된 것만</b> 누적(오늘+이월). 카드에 경과일·등록일·등록자 표시.':'그날 주문 <b>전체</b> (출고완료 포함). 담당자가 카드별로 출고 처리.')+'</div>';
   html+='<div class="jh-flt"><span class="jh-chip'+(JH_FILTER==='all'?' on':'')+'" onclick="jhSetFilter(\'all\')">전체</span>'+
     '<span class="jh-chip'+(JH_FILTER==='taekbae'?' on':'')+'" onclick="jhSetFilter(\'taekbae\')">📦 택배</span>'+
@@ -5645,6 +5690,7 @@ function stkRenderLogFilters(){
   });
 }
 function stkLogClass(action){
+  if(action.indexOf('실패')>=0)return'fail';
   if(action.indexOf('출고')>=0)return'out';
   if(action.indexOf('이동')>=0||action.indexOf('합치기')>=0)return'move';
   if(action.indexOf('분리')>=0)return'split';
@@ -5721,7 +5767,7 @@ function stkRenderLogTab(){
     var extra='';
     if(g.channel)extra+=' · 판매처/채널 '+stkEsc(g.channel);
     if(g.ref)extra+=' · 주문/메모 '+stkEsc(g.ref);
-    var isOut=(g.action||'').indexOf('출고')>=0 && (g.action||'').indexOf('취소')<0;
+    var isOut=(g.action||'').indexOf('출고')>=0 && (g.action||'').indexOf('취소')<0 && (g.action||'').indexOf('실패')<0;
     var undone=g.ref&&(''+g.ref).indexOf('[취소됨]')>=0;
     var undoBtn='';
     if(isOut){  // 출고 취소/복원 토글 — 누구나 가능
@@ -6416,28 +6462,45 @@ async function stkRtDoOut(){
   // 해당 연식 lot에서 차감 (여러 위치면 앞에서부터)
   var lots=(p.lots||[]).filter(function(l){return (l.dot||'DOT누락')===(dot||'DOT누락')}).slice();
   var rem=n, fromLoc='U';
+  var beforeQ=lots.reduce(function(s,l){return s+(l.q||0);},0); // 차감 전 총합
+  var noteBase=p.br+' '+p.name+(p.code?' ['+p.code+']':'')+' '+p.size+(p.ply?' '+p.ply:'')+((dot&&dot!=='DOT누락')?' '+dot+'년식':' DOT누락');
   stkOutBusy=true;
   try{
     for(var i=0;i<lots.length&&rem>0;i++){
       var take=Math.min(lots[i].q,rem);
       if(take<=0)continue;
       fromLoc=lots[i].loc||'U';
-      await sb.from('stock_lots').update({qty:lots[i].q-take,updated_at:new Date().toISOString()}).eq('id',lots[i].id);
+      var _u1=await sb.from('stock_lots').update({qty:lots[i].q-take,updated_at:new Date().toISOString()}).eq('id',lots[i].id);
+      if(_u1&&_u1.error)throw _u1.error;   // 차감 실패 → 즉시 중단 (로그 안 남기고 catch로)
       rem-=take;
     }
     // 재고 부족분은 첫 lot에서 마이너스 처리(없으면 미배치 lot 생성)
     if(rem>0){
-      if(lots.length){await sb.from('stock_lots').update({qty:(lots[0].q-Math.min(lots[0].q,n))-(rem),updated_at:new Date().toISOString()}).eq('id',lots[0].id);fromLoc=lots[0].loc||'U';}
-      else{await sb.from('stock_lots').insert({product_id:p.id,dot:(dot==='DOT누락'?'':dot),qty:-rem,loc:'U'});fromLoc='U';}
+      if(lots.length){
+        var _u2=await sb.from('stock_lots').update({qty:(lots[0].q-Math.min(lots[0].q,n))-(rem),updated_at:new Date().toISOString()}).eq('id',lots[0].id);
+        if(_u2&&_u2.error)throw _u2.error;
+        fromLoc=lots[0].loc||'U';
+      }else{
+        var _i1=await sb.from('stock_lots').insert({product_id:p.id,dot:(dot==='DOT누락'?'':dot),qty:-rem,loc:'U'});
+        if(_i1&&_i1.error)throw _i1.error;
+        fromLoc='U';
+      }
     }
-    var beforeQ=lots.reduce(function(s,l){return s+(l.q||0);},0); // 해당 연식 차감 전 총합
-    var note=p.br+' '+p.name+(p.code?' ['+p.code+']':'')+' '+p.size+(p.ply?' '+p.ply:'')+((dot&&dot!=='DOT누락')?' '+dot+'년식':' DOT누락')+' · 재고 '+beforeQ+'→'+(beforeQ-n)+'개 (−'+n+') · '+(fromLoc==='U'?'미배치':fromLoc)+' · '+chName+(memo?' · '+memo:'');
+    // 여기 도달 = 차감 전부 성공 → 정상 출고 기록
+    var note=noteBase+' · 재고 '+beforeQ+'→'+(beforeQ-n)+'개 (−'+n+') · '+(fromLoc==='U'?'미배치':fromLoc)+' · '+chName+(memo?' · '+memo:'');
     stkLog('📦출고',note,{product_id:p.id,dot:(dot==='DOT누락'?'':dot),qty:n,from_loc:fromLoc,channel:chName,ref:memo});
-    stkToast('\u2713 '+chName+' 출고 완료 (기록 남음)');
+    stkToast('\u2705 '+chName+' 출고 차감 완료 · 재고 '+n+'개 차감됨 (기록 남음)');
     stkCloseDlg();
     await stkLoad();await stkLoadLogTab();
     stkRenderTable();
-  }catch(e){stkToast('출고 실패: '+e.message)}
+  }catch(e){
+    // 차감 실패 → 빨간 실패 기록 남기고, 새로고침 후 재시도 안내 (차감 진행 안 함)
+    var emsg=(e&&e.message)?e.message:String(e);
+    var fnote=noteBase+' · ⚠️차감 실패('+chName+', −'+n+'개 시도) · 사유: '+emsg+(memo?' · '+memo:'');
+    stkLog('📛차감실패',fnote,{product_id:p.id,dot:(dot==='DOT누락'?'':dot),qty:n,channel:chName,ref:memo});
+    stkToast('\u274C 차감 안 됨! 새로고침 후 재고를 다시 확인하고 시도하세요. ('+emsg+')');
+    try{await stkLoadLogTab();}catch(_e){}
+  }
   stkOutBusy=false;
 }
 async function stkRtEditQty(pid,dot,cur){
@@ -7393,19 +7456,31 @@ async function stkDoOut(){
   var due=minus?(document.getElementById('stk-outDue').value||''):'';
   if(minus&&!src){stkToast('입고 출처를 적어주세요 (어디서 들어오는지)');return}
   var newQ=found.q-n; // 마이너스 가능
+  var loc=found.loc;
+  var beforeQ=found.q; // 차감 전 수량
+  var noteBase=fp.br+' '+fp.name+(fp.code?' ['+fp.code+']':'')+' '+fp.size+(fp.ply?' '+fp.ply:'')+(found.dot?' '+found.dot+'년식':' DOT누락');
   stkOutBusy=true;
   try{
     var upd={qty:newQ,updated_at:new Date().toISOString()};
     if(minus){upd.src_in=src;upd.due_date=due;}
-    await sb.from('stock_lots').update(upd).eq('id',stkCurOut);
-  }catch(e){stkOutBusy=false;stkToast('출고 실패: '+e.message);return}
-  var loc=found.loc; found.q=newQ;
-  if(minus){found.src_in=src;found.due_date=due;}
-  stkRefreshCell(loc);stkRefreshStatAndUnassigned();stkRenderSearch();
-  stkCloseDlg();stkToast(minus?'⏳ 입고예정분 출고 (재고 '+newQ+')':'출고 완료');
-  var beforeQ=newQ+n; // 차감 전 수량
-  var note=fp.br+' '+fp.name+(fp.code?' ['+fp.code+']':'')+' '+fp.size+(fp.ply?' '+fp.ply:'')+(found.dot?' '+found.dot+'년식':' DOT누락')+' · 재고 '+beforeQ+'→'+newQ+'개 (−'+n+') · '+(loc==='U'?'미배치':loc)+' · '+stkCurType+(memo?' · '+memo:'')+(ref?' · '+ref:'')+(minus?' · ⏳입고예정:'+src+(due?'('+due+')':''):'');
-  stkLog('📦출고',note,{product_id:fp.id,dot:found.dot,qty:n,from_loc:loc,channel:stkCurType,ref:ref+(memo?' '+memo:'')+(minus?' [입고:'+src+' '+due+']':'')});
+    var _u=await sb.from('stock_lots').update(upd).eq('id',stkCurOut);
+    if(_u&&_u.error)throw _u.error;   // 차감 실패 → catch로 (실패 기록, 성공처리 안 함)
+    // 차감 성공 → 로컬 반영 + 정상 출고 기록
+    found.q=newQ;
+    if(minus){found.src_in=src;found.due_date=due;}
+    stkRefreshCell(loc);stkRefreshStatAndUnassigned();stkRenderSearch();
+    stkCloseDlg();
+    stkToast(minus?('\u2705 입고예정분 출고 차감 완료 (재고 '+newQ+', 기록 남음)'):('\u2705 '+stkCurType+' 출고 차감 완료 · '+n+'개 차감됨 (기록 남음)'));
+    var note=noteBase+' · 재고 '+beforeQ+'→'+newQ+'개 (−'+n+') · '+(loc==='U'?'미배치':loc)+' · '+stkCurType+(memo?' · '+memo:'')+(ref?' · '+ref:'')+(minus?' · ⏳입고예정:'+src+(due?'('+due+')':''):'');
+    stkLog('📦출고',note,{product_id:fp.id,dot:found.dot,qty:n,from_loc:loc,channel:stkCurType,ref:ref+(memo?' '+memo:'')+(minus?' [입고:'+src+' '+due+']':'')});
+  }catch(e){
+    // 차감 실패 → 빨간 실패 기록 + 새로고침 후 재시도 안내 (로컬·성공처리 안 함)
+    var emsg=(e&&e.message)?e.message:String(e);
+    var fnote=noteBase+' · ⚠️차감 실패('+stkCurType+', −'+n+'개 시도) · 사유: '+emsg+(memo?' · '+memo:'')+(ref?' · '+ref:'');
+    stkLog('📛차감실패',fnote,{product_id:fp.id,dot:found.dot,qty:n,channel:stkCurType,ref:ref});
+    stkToast('\u274C 차감 안 됨! 새로고침 후 재고를 다시 확인하고 시도하세요. ('+emsg+')');
+    try{await stkLoadLogTab();}catch(_e){}
+  }
   stkOutBusy=false;
 }
 // ── 이동(다이얼로그) ──
@@ -8817,13 +8892,9 @@ async function rsvDelete(id){
   </div>
   <div class="row"><label>판매처 / 채널</label><div class="stk-chbtns" id="stk-outTypes">
     <button class="stk-chb" data-grp="jang" onclick="stkSelType(this)">장착</button>
-    <button class="stk-chb" data-grp="dae" onclick="stkSelType(this)">당일직배송</button>
-    <button class="stk-chb" data-grp="dae" onclick="stkSelType(this)">당일택배</button>
-    <button class="stk-chb" data-grp="ping" onclick="stkSelType(this)">택배핑&효성</button>
-    <button class="stk-chb" data-grp="ping" onclick="stkSelType(this)">직배송핑&효성</button>
-    <button class="stk-chb" data-grp="on" onclick="stkSelType(this)">11번가</button>
-    <button class="stk-chb" data-grp="on" onclick="stkSelType(this)">스토어팜</button>
-    <button class="stk-chb" data-grp="on" onclick="stkSelType(this)">롯데온&쿠팡</button>
+    <button class="stk-chb" data-grp="dae" onclick="stkSelType(this)">당일배송</button>
+    <button class="stk-chb" data-grp="ping" onclick="stkSelType(this)">핑배송</button>
+    <button class="stk-chb" data-grp="on" onclick="stkSelType(this)">온라인</button>
   </div></div>
   <div class="row"><label id="stk-refLbl">주문번호</label><input id="stk-outRef" placeholder="예) 2026061200123"></div>
   <div class="row"><label>용도 메모 (한 줄, 그대로 기록에 남음)</label><input id="stk-outMemo" placeholder="예) 핑 택배 / 서울경기 택배 / 전화 남양주장착 / 핑 직배송"></div>
