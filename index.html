@@ -5612,7 +5612,7 @@ function stkToggleLogAll(){
   stkLoadLogTab().then(function(){ if(b)b.textContent=stkLogAllDates?'✓ 전체 날짜':'전체 날짜 보기'; });
 }
 var STK_LOG_FILTERS=[['출고','📦 출고'],['이동','📍 이동/합치기'],['실사조정','✏️ 실사조정'],['잠금','🔒 잠금'],['전체','전체']];
-async // stock_logs는 한 번에 최대 1000건만 와서, range로 페이지 넘기며 maxN까지 모음 (최신순)
+// stock_logs는 한 번에 최대 1000건만 와서, range로 페이지 넘기며 maxN까지 모음 (최신순)
 async function stkFetchLogs(maxN){
   var all=[],from=0,page=1000;
   while(all.length<maxN){
