@@ -5483,6 +5483,12 @@ function stkCostIsManual(r){ // 원가 직접 수정됨? (자동값과 다르면
   if(c==null)return true;
   return parseInt(r.cost)!==c;
 }
+
+// ── 택배가(price)·장착가(inst): 직접 수정 시 그 값 고정(빨강), 비우면 원가 기준 수식 (권한자만 수정)
+function stkPriceDisplay(r){ if(r.price!==''&&r.price!=null)return parseInt(r.price); var c=stkCalcTaekbae(stkCostDisplay(r),r.size); return c==null?'':c; }
+function stkPriceIsManual(r){ if(r.price===''||r.price==null)return false; var c=stkCalcTaekbae(stkCostDisplay(r),r.size); if(c==null)return true; return parseInt(r.price)!==c; }
+function stkInstDisplay(r){ if(r.inst!==''&&r.inst!=null)return parseInt(r.inst); var c=stkCalcJangchak(stkCostDisplay(r),r.size); return c==null?'':c; }
+function stkInstIsManual(r){ if(r.inst===''||r.inst==null)return false; var c=stkCalcJangchak(stkCostDisplay(r),r.size); if(c==null)return true; return parseInt(r.inst)!==c; }
 // 화면에 보여줄 실원가 값 (비어 있고 할인율 있으면 계산값)
 function stkRCdisplay(r){
   if(r.real_cost!==''&&r.real_cost!=null)return r.real_cost;
@@ -6366,10 +6372,11 @@ async function stkRtSaveFieldLight(pid,dot,field,nv,old,td){
       }
       stkLog('✏️수량변경',p.br+' '+p.name+' '+p.size+' ('+(dot||'DOT누락')+') '+old+'→'+n,{product_id:pid,dot:(dot==='DOT누락'?'':dot),qty:n});
     }else{
-      var col={cat:'category',source:'source',br:'brand',name:'name',code:'code',size:'size',ply:'ply',spec:'spec',fprice:'factory_price',cost:'cost',real_cost:'real_cost',discount_rate:'discount_rate'}[field];
+      var col={cat:'category',source:'source',br:'brand',name:'name',code:'code',size:'size',ply:'ply',spec:'spec',fprice:'factory_price',cost:'cost',real_cost:'real_cost',discount_rate:'discount_rate',price:'price',inst:'inst_price'}[field];
       if(!col){return}
+      if((field==='price'||field==='inst')&&!(typeof stkCanSeeRealcost==='function'&&stkCanSeeRealcost())){ if(td)td.textContent=old; stkToast('택배가·장착가 수정 권한이 없습니다'); return; }
       var v=nv;
-      if(field==='fprice'||field==='cost'||field==='real_cost')v=parseInt(String(nv).replace(/[^0-9]/g,''))||null;
+      if(field==='fprice'||field==='cost'||field==='real_cost'||field==='price'||field==='inst')v=parseInt(String(nv).replace(/[^0-9]/g,''))||null;
       else if(field==='discount_rate')v=(String(nv).trim()===''?null:(parseFloat(String(nv).replace(/[^0-9.]/g,''))||0));
       else if(field==='size'&&typeof stkNormSize==='function')v=stkNormSize(nv);
       // 분류 자동 등록 — 새 분류면 stkCategories에 추가
@@ -6387,6 +6394,8 @@ async function stkRtSaveFieldLight(pid,dot,field,nv,old,td){
       else if(field==='cost')p.cost=v;
       else if(field==='real_cost')p.real_cost=v;
       else if(field==='discount_rate')p.discount_rate=v;
+      else if(field==='price')p.price=v;
+      else if(field==='inst')p.inst=v;
       // DB 저장 — 실패하면 조용히 넘기지 말고 바로 경고 (어떤 항목이든)
       var _ur=await sb.from('stock_products').update({[col]:v}).eq('id',pid);
       if(_ur&&_ur.error){
@@ -6422,7 +6431,7 @@ async function stkRtSaveFieldLight(pid,dot,field,nv,old,td){
       if(td&&String(v)!==String(nv))td.textContent=(v===null||v===undefined)?'':String(v);
     }
     // 원가에 영향 주는 칸(실원가·할인율·공장도가·원가) 수정 → 원가·택배가·장착가 재계산 위해 표 다시 그림
-    if(field==='cost'||field==='real_cost'||field==='discount_rate'||field==='fprice'){
+    if(field==='cost'||field==='real_cost'||field==='discount_rate'||field==='fprice'||field==='price'||field==='inst'){
       if(typeof stkRenderTable==='function')stkRenderTable();
       if(typeof stkRenderSearch==='function')stkRenderSearch();
     }
@@ -6770,8 +6779,8 @@ function stkRenderTable(){
       ed('ply',r.ply||'')+
       ed('spec',r.spec||'')+
       ed('dot',r.dot,(r.dot==='DOT누락'?' style="color:#dc2626"':''))+
-      ed_ro('price',stkFmtAuto(stkCalcTaekbae(stkCostDisplay(r),r.size)))+
-      ed_ro('inst',stkFmtAuto(stkCalcJangchak(stkCostDisplay(r),r.size)))+
+      ((_canRC&&canInline)?ed('price',stkPriceDisplay(r),(stkPriceIsManual(r)?' style="color:#dc2626;font-weight:700"':'')):ed_ro('price',stkFmtAuto(stkPriceDisplay(r))))+
+      ((_canRC&&canInline)?ed('inst',stkInstDisplay(r),(stkInstIsManual(r)?' style="color:#dc2626;font-weight:700"':'')):ed_ro('inst',stkFmtAuto(stkInstDisplay(r))))+
       ed('cost',stkCostDisplay(r),(stkCostIsManual(r)?' style="color:#dc2626;font-weight:700"':''))+
       (_canRC?ed('real_cost',stkRCdisplay(r),(stkRCisManual(r)?' style="color:#dc2626;font-weight:700"':'')):'')+
       (_canRC?ed('discount_rate',r.discount_rate===''||r.discount_rate==null?'':r.discount_rate):'')+
