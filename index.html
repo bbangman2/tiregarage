@@ -1211,7 +1211,7 @@ body.rb-on #app{padding-top:58px}
   </div>
   <div id="rsv-summary" class="rsv-summary"></div>
   <div style="padding:6px 14px;background:#fff;border-bottom:1px solid #eee">
-    <input id="rsv-search" placeholder="🔍 예약 검색 (차량·고객·타이어·날짜·작성자)" oninput="renderReserve()" style="width:100%;height:38px;border:1.5px solid #ddd;border-radius:9px;padding:0 12px;font-size:13px">
+    <input id="rsv-search" placeholder="🔍 전화·차량번호·차량명·타이어·메모·작성자" oninput="renderReserve()" style="width:100%;height:38px;border:1.5px solid #ddd;border-radius:9px;padding:0 12px;font-size:13px"><div style="display:inline-flex;align-items:center;gap:5px;background:#f1f3f6;border:1.5px solid #e6e9ef;border-radius:9px;padding:5px 9px;margin-top:7px"><button class="range-toggle" id="rsv-srch-all" onclick="rsvSrchAll()" style="background:#1e2a4a;color:#fff;border-color:#1e2a4a">전체기간</button><input type="date" id="rsv-srch-from" onchange="renderReserve()" style="display:none"><span class="date-sep" id="rsv-srch-sep" style="display:none">~</span><input type="date" id="rsv-srch-to" onchange="renderReserve()" style="display:none"><button class="range-toggle" id="rsv-srch-rangebtn" onclick="rsvSrchRange()">범위</button></div>
   </div>
   <div id="rsv-cal" class="rsv-cal"></div>
 </div>
@@ -1236,7 +1236,7 @@ body.rb-on #app{padding-top:58px}
       <div id="rsv-dt12out" style="font-size:12px;color:#185fa5;margin:-4px 0 6px"></div>
       <div id="rsv-chipday" class="rsv-chiprow"></div>
       <div id="rsv-chiptime" class="rsv-chiprow" style="margin-bottom:9px"></div>
-      <label>내용 (차량·고객·전화·특이사항)<input id="rsv-memo" placeholder="예: 그랜저 김OO 010-1234-5678 / 휠보관"></label>
+      <label>전화번호<input id="rsv-phone" inputmode="tel" placeholder="010-1234-5678"></label><label>차량번호<input id="rsv-carno" placeholder="12가 3456"></label><label>차량명<input id="rsv-carname" placeholder="그랜저 IG"></label><label>특이사항<input id="rsv-memo" placeholder="예: 앞쪽 편마모 / 휠보관 1짝"></label>
       <div id="rsv-tireline" style="font-size:12px;color:#666;background:#f3f3f0;border-radius:7px;padding:7px 9px;margin:6px 0;display:none"></div>
       <div id="rsv-outqtyrow" style="display:none;align-items:center;gap:7px;margin:6px 0">
         <span style="font-size:13px;color:#5f5e5a;min-width:64px">출고 수량</span>
@@ -8429,6 +8429,52 @@ function rsvSetView(v){
   document.getElementById('rsv-vw').classList.toggle('on',v==='week');
   renderReserve();
 }
+function _rsvPill(el,on){
+  if(!el)return;
+  if(on){el.style.background='#1e2a4a';el.style.color='#fff';el.style.borderColor='#1e2a4a';}
+  else{el.style.background='#fff';el.style.color='';el.style.borderColor='';}
+}
+function _rsvDateShow(show){
+  var fe=document.getElementById('rsv-srch-from'),te=document.getElementById('rsv-srch-to'),sp=document.getElementById('rsv-srch-sep');
+  if(fe)fe.style.display=show?'':'none';
+  if(te)te.style.display=show?'':'none';
+  if(sp)sp.style.display=show?'':'none';
+}
+function rsvSrchAll(){
+  var fe=document.getElementById('rsv-srch-from'),te=document.getElementById('rsv-srch-to');
+  if(fe)fe.value='';if(te)te.value='';
+  _rsvDateShow(false);
+  _rsvPill(document.getElementById('rsv-srch-all'),true);
+  _rsvPill(document.getElementById('rsv-srch-rangebtn'),false);
+  renderReserve();
+}
+function rsvSrchRange(){
+  var c=reserveCursor||new Date(),y=c.getFullYear(),m=c.getMonth();
+  var pad=function(n){return String(n).padStart(2,'0');};
+  var first=y+'-'+pad(m+1)+'-01';
+  var last=new Date(y,m+1,0),lastStr=last.getFullYear()+'-'+pad(last.getMonth()+1)+'-'+pad(last.getDate());
+  var fe=document.getElementById('rsv-srch-from'),te=document.getElementById('rsv-srch-to');
+  if(fe&&!fe.value)fe.value=first;
+  if(te&&!te.value)te.value=lastStr;
+  _rsvDateShow(true);
+  _rsvPill(document.getElementById('rsv-srch-rangebtn'),true);
+  _rsvPill(document.getElementById('rsv-srch-all'),false);
+  renderReserve();
+}
+async function rsvSetChk(id,field,val){
+  var r=reservations.find(function(x){return x.id===id;}); if(!r)return;
+  if(r[field]===val){ val=(field==='chk_align')?null:false; }
+  try{ var o={}; o[field]=val; var resu=await sb.from('reservations').update(o).eq('id',id); if(resu.error)throw resu.error; r[field]=val; }
+  catch(e){ alert('저장 실패: '+e.message); return; }
+  rsvShowDetail(id);
+}
+async function rsvSaveWorkNote(id,val){
+  var r=reservations.find(function(x){return x.id===id;}); if(!r)return;
+  val=(val||'').trim();
+  if((r.work_note||'')===val)return;
+  try{ var resu=await sb.from('reservations').update({work_note:val}).eq('id',id); if(resu.error)throw resu.error; r.work_note=val; }
+  catch(e){ console.error('작업메모 저장 실패',e); }
+}
 function rsvByDate(ds){return reservations.filter(function(r){return r.date_str===ds;}).sort(function(a,b){return (a.time_slot||'').localeCompare(b.time_slot||'');});}
 function rsvEngLine(r){
   var parts=[];
@@ -8448,19 +8494,38 @@ function renderReserve(){
   var sumEl=document.getElementById('rsv-summary');
   if(sumEl)sumEl.innerHTML='오늘 예약 <b>'+todays.length+'</b>건 · 완료 <b>'+done+'</b>건 · 대기 <b>'+(todays.filter(function(r){return r.status!=='완료'&&r.status!=='취소';}).length)+'</b>건';
   var sq=((document.getElementById('rsv-search')||{}).value||'').trim();
-  if(sq){ rsvRenderSearchList(sq); return; }
+  var _hasRange=((document.getElementById('rsv-srch-from')||{}).value)||((document.getElementById('rsv-srch-to')||{}).value);
+  if(sq||_hasRange){ rsvRenderSearchList(sq); return; }
   if(reserveView==='month')renderReserveMonth();
   else renderReserveWeek();
 }
 function rsvRenderSearchList(q){
-  var ql=q.toLowerCase();
+  var ql=(q||'').toLowerCase();
+  var _f=(document.getElementById('rsv-srch-from')||{}).value||'';
+  var _t=(document.getElementById('rsv-srch-to')||{}).value||'';
   var list=reservations.filter(function(r){
-    return [r.memo,r.tire_spec,r.user_name,r.date_str,r.time_slot,r.status].filter(Boolean).join(' ').toLowerCase().indexOf(ql)>-1;
+    var ds=r.date_str||'';
+    if(_f && ds<_f) return false;
+    if(_t && ds>_t) return false;
+    if(ql){
+      var _payn=parseInt(String(r.pay_amount||'').replace(/[^0-9]/g,''),10)||0;
+      var _algn=(r.align_state==='take')?(parseInt(r.align_amount||0,10)||0):0;
+      var _amts=[r.pay_amount,r.align_amount,_payn?rsvWon(_payn):'',_algn?rsvWon(_algn):'',(_payn+_algn)?rsvWon(_payn+_algn):''];
+      var _chk=[];
+      if(r.chk_align==='done')_chk.push('얼라인함');
+      if(r.chk_align==='skip')_chk.push('얼라인안함 편마모');
+      if(r.chk_balance)_chk.push('휠밸런스 밸런스');
+      if(r.chk_air)_chk.push('공기압');
+      if(r.chk_tpms)_chk.push('TPMS');
+      var hay=[r.memo,r.work_note,r.tire_spec,r.tire_pattern,r.phone,r.car_no,r.car_name,r.user_name,r.date_str,r.time_slot,r.status].concat(_amts).concat(_chk).filter(Boolean).join(' ').toLowerCase();
+      if(hay.indexOf(ql)<0) return false;
+    }
+    return true;
   });
   list.sort(function(a,b){return (b.date_str+(b.time_slot||'')).localeCompare(a.date_str+(a.time_slot||''));});
   var el=document.getElementById('rsv-cal'); if(!el)return;
   document.getElementById('rsv-title').textContent='검색';
-  if(!list.length){el.innerHTML='<div style="text-align:center;color:#aaa;padding:24px 0;font-size:13px">검색 결과 없음 — "'+esc(q)+'"</div>';return;}
+  if(!list.length){el.innerHTML='<div style="text-align:center;color:#aaa;padding:24px 0;font-size:13px">검색 결과 없음'+(q?' — "'+esc(q)+'"':'')+'</div>';return;}
   var h='<div style="font-size:12px;color:#888;margin-bottom:8px">검색 결과 '+list.length+'건</div>';
   list.forEach(function(r){
     var _pv=r.pay_amount?(parseInt(String(r.pay_amount).replace(/[^0-9]/g,''),10)||0):0;
@@ -8469,7 +8534,7 @@ function rsvRenderSearchList(q){
     var dd=new Date(r.date_str+'T00:00:00');
     var dow=['일','월','화','수','목','금','토'][dd.getDay()];
     h+='<div class="rsv-dl-card" onclick="rsvShowDetail(\''+r.id+'\')">'+
-       '<div class="rsv-dl-time">'+r.date_str+' ('+dow+') '+(r.time_slot||'')+' <span style="color:'+stc+'">· '+r.status+'</span></div>'+
+       '<div class="rsv-dl-time">'+r.date_str+' ('+dow+') '+(r.time_slot||'')+' <span style="color:'+stc+'">· '+r.status+'</span></div>'+((r.car_name||r.car_no||r.phone)?'<div style="font-size:12.5px;color:#3a4256;font-weight:600;margin:2px 0">'+esc([r.car_name,r.car_no].filter(Boolean).join(' · '))+(r.phone?' <span style="color:#8a93a5;font-weight:500">'+esc(r.phone)+'</span>':'')+'</div>':'')+(function(){var cs='';var cp=function(t,bg,fg){return '<span style="font-size:10px;font-weight:800;border-radius:5px;padding:2px 6px;background:'+bg+';color:'+fg+'">'+t+'</span>';};if(r.chk_align==='done')cs+=cp('얼라인 ✓','#e7f5ec','#15803d');else if(r.chk_align==='skip')cs+=cp('얼라인 ✗','#fdeaea','#dc2626');else if(r.align_state==='take'||r.align_state==='inform')cs+=cp('얼라인 요청','#fef3e2','#b45309');if(r.chk_balance)cs+=cp('밸런스 ✓','#e7f5ec','#15803d');if(r.chk_air)cs+=cp('공기압 ✓','#e7f5ec','#15803d');if(r.chk_tpms)cs+=cp('TPMS ✓','#e7f5ec','#15803d');return cs?'<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px">'+cs+'</div>':'';})()+
        '<div class="rsv-dl-eng">'+esc(rsvEngLine(r))+'</div>'+
        (_tot>0?'<div class="rsv-dl-pay">현장 합계 '+rsvWon(_tot)+'</div>':'')+
        '</div>';
@@ -8841,6 +8906,7 @@ function rsvOpenAdd(ds,out){
   }
   document.getElementById('rsv-dt12').value=dt12;
   document.getElementById('rsv-memo').value='';
+  document.getElementById('rsv-phone').value='';document.getElementById('rsv-carno').value='';document.getElementById('rsv-carname').value='';
   document.getElementById('rsv-payunit').value=''; document.getElementById('rsv-payqty').value='';
   document.getElementById('rsv-algamt').value='';
   rsvSetAlg('inform');
@@ -8863,6 +8929,7 @@ function rsvOpenEdit(id){
   rsvOutInfo=(r.tire_spec)?{spec:r.tire_spec,qty:r.qty}:null;
   document.getElementById('rsv-dt12').value=(r.date_str||'').replace(/-/g,'')+(r.time_slot||'').replace(/[^0-9]/g,'');
   document.getElementById('rsv-memo').value=r.memo||'';
+  document.getElementById('rsv-phone').value=r.phone||'';document.getElementById('rsv-carno').value=r.car_no||'';document.getElementById('rsv-carname').value=r.car_name||'';
   document.getElementById('rsv-payunit').value=(r.pay_amount||'').replace(/[^0-9]/g,'');
   document.getElementById('rsv-payqty').value='';
   document.getElementById('rsv-algamt').value=(r.align_amount||'');
@@ -8881,6 +8948,9 @@ async function rsvSubmit(){
   var rec={
     date_str:p.date_str, time_slot:p.time_slot, user_name:me?me.name:'?',
     memo:document.getElementById('rsv-memo').value.trim(),
+    phone:document.getElementById('rsv-phone').value.trim(),
+    car_no:document.getElementById('rsv-carno').value.trim(),
+    car_name:document.getElementById('rsv-carname').value.trim(),
     align_state:rsvAlg,
     align_amount:((rsvAlg==='take'||rsvAlg==='inform')?a:null),
     pay_amount:(pc.val>0?String(pc.val):''),
@@ -8953,6 +9023,7 @@ function rsvShowDetail(id){
   function row(k,v){if(v!==undefined&&v!==null&&v!=='')rows.push('<div class="rsv-detail-row"><div class="k">'+k+'</div><div class="v">'+esc(String(v))+'</div></div>');}
   row('일시',(r.date_str||'')+' '+(r.time_slot||''));
   row('상태',r.status);
+  row('전화',r.phone);row('차량번호',r.car_no);row('차량명',r.car_name);
   row('타이어',r.tire_spec);row('수량',r.qty?r.qty+'짝':'');
   if(r.align_state==='take')row('얼라이먼트','받기로함 · '+rsvWon(r.align_amount||0));
   else if(r.align_state==='inform')row('얼라이먼트','안내함'+(r.align_amount?' · '+rsvWon(r.align_amount):''));
@@ -8961,7 +9032,7 @@ function rsvShowDetail(id){
   var _av=r.align_state==='take'?(r.align_amount||0):0;
   if(_pv>0)row('현장결제',rsvWon(_pv));
   if(_pv+_av>0)row('현장 합계',rsvWon(_pv+_av));
-  row('내용',r.memo);row('작성자',r.user_name);
+  row('특이사항',r.memo);row('작성자',r.user_name);
   var isTmp=!(r.src_kind&&r.src_product_id); // 출고 안 한 임시예약
   var acts='<div class="rsv-detail-acts">';
   if(r.status==='완료'){
@@ -8983,7 +9054,21 @@ function rsvShowDetail(id){
   acts+='<div style="margin-top:8px"><button onclick="rsvOpenEdit(\''+r.id+'\')" style="width:100%;border:1.5px solid #2563eb;background:#fff;color:#2563eb;padding:10px;border-radius:9px;font-size:14px;font-weight:800;cursor:pointer">✏️ 내용 수정</button></div>';
   acts+='<div style="margin-top:6px"><button onclick="rsvCloseDetail()" style="width:100%;border:1px solid #ddd;background:#fff;color:#666;padding:9px;border-radius:9px;font-size:13px;font-weight:600;cursor:pointer">닫기</button></div>';
   var _pt=document.querySelector('#rsv-detail-modal .pt'); if(_pt)_pt.textContent='예약 상세';
-  document.getElementById('rsv-detail-body').innerHTML=rows.join('')+acts;
+  var _alg=r.chk_align||'';
+  var _reqAlign=(r.align_state==='take'||r.align_state==='inform');
+  function _chkTg(field,icon,name){var on=!!r[field];return '<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid #f0f2f6"><span style="font-size:14px">'+icon+'</span><span style="font-size:13.5px;font-weight:700">'+name+'</span><span style="flex:1"></span><button onclick="rsvSetChk(\''+r.id+'\',\''+field+'\',true)" style="width:42px;height:25px;border-radius:13px;border:none;cursor:pointer;background:'+(on?'#15803d':'#d4d9e2')+';position:relative"><span style="position:absolute;top:3px;left:'+(on?'20px':'3px')+';width:19px;height:19px;border-radius:50%;background:#fff"></span></button></div>';}
+  var chk='<div style="margin:8px 0;border:1px solid #e6e9ef;border-radius:11px;padding:6px 12px 10px">';
+  chk+='<div style="font-size:12px;font-weight:800;color:#5b6478;padding:6px 0 4px">작업 체크</div>';
+  chk+='<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid #f0f2f6"><span style="font-size:14px">🎯</span><span style="font-size:13.5px;font-weight:700">얼라이먼트</span>'+(_reqAlign?'<span style="font-size:10px;font-weight:800;color:#b45309;background:#fef3e2;border-radius:4px;padding:1px 5px;margin-left:4px">요청</span>':'')+'<span style="flex:1"></span>';
+  chk+='<button onclick="rsvSetChk(\''+r.id+'\',\'chk_align\',\'done\')" style="font-size:11px;font-weight:800;border-radius:7px;padding:5px 9px;cursor:pointer;border:1.4px solid '+(_alg==='done'?'#15803d':'#e6e9ef')+';background:'+(_alg==='done'?'#e7f5ec':'#fafbfc')+';color:'+(_alg==='done'?'#15803d':'#9aa3af')+'">✓했음</button>';
+  chk+='<button onclick="rsvSetChk(\''+r.id+'\',\'chk_align\',\'skip\')" style="margin-left:4px;font-size:11px;font-weight:800;border-radius:7px;padding:5px 9px;cursor:pointer;border:1.4px solid '+(_alg==='skip'?'#dc2626':'#e6e9ef')+';background:'+(_alg==='skip'?'#fdeaea':'#fafbfc')+';color:'+(_alg==='skip'?'#dc2626':'#9aa3af')+'">✗안함</button></div>';
+  chk+=_chkTg('chk_balance','⚖️','휠 밸런스');
+  chk+=_chkTg('chk_air','🔧','공기압 점검');
+  chk+=_chkTg('chk_tpms','📡','TPMS 이식');
+  if(_reqAlign&&_alg==='skip')chk+='<div style="background:#fdeaea;border:1px solid #f5b9b9;border-radius:9px;padding:8px 10px;font-size:11.5px;color:#9b1c1c;font-weight:600;margin-top:8px">⚠ 얼라인 요청했으나 미진행 — 편마모 위험. 기록·검색에 남습니다.</div>';
+  chk+='<div style="padding:9px 0 2px"><div style="font-size:11.5px;font-weight:700;color:#5b6478;margin-bottom:5px">작업 후 특이사항</div><input value="'+esc(r.work_note||'')+'" onblur="rsvSaveWorkNote(\''+r.id+'\',this.value)" placeholder="작업하며 발견한 점 (예: 안쪽 편마모 심함)" style="width:100%;height:34px;border:1.5px solid #e6e9ef;border-radius:8px;padding:0 10px;font-size:13px;box-sizing:border-box"></div>';
+  chk+='</div>';
+  document.getElementById('rsv-detail-body').innerHTML=rows.join('')+chk+acts;
   document.getElementById('rsv-detail-modal').classList.add('on');
 }
 function rsvCloseDetail(){document.getElementById('rsv-detail-modal').classList.remove('on');}
