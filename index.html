@@ -279,12 +279,14 @@ body.rb-on #app{padding-top:58px}
 .stk-hint{font-size:11px;color:#bbb;margin:5px 2px 8px}
 .adminbar{background:#fffbe6;border:1px solid #f3e2a0;border-radius:9px;padding:6px 10px;font-size:11px;color:#7a5d00;display:flex;gap:6px;align-items:center;margin-bottom:8px;flex-wrap:wrap}
 .adminbar button{font-size:11px;font-weight:700;border:1px solid #e3cd7a;background:#fff;border-radius:7px;padding:5px 8px;color:#7a5d00}
-.pcard{background:#fff;border:1px solid rgba(0,0,0,.1);border-radius:9px;margin-bottom:5px;overflow:hidden}
-.prow{padding:9px 12px}
-.pcatbadge{font-size:10px;font-weight:800;padding:2px 7px;border-radius:9px}
+.pcard{background:#fff;border:1px solid rgba(0,0,0,.1);border-radius:9px;margin-bottom:5px;overflow:hidden;display:flex}
+.prow{padding:9px 12px;flex:1;min-width:0}
+.pcatline{margin-bottom:5px}
+.pcatbadge{font-size:14px;font-weight:800;padding:2px 10px;border-radius:7px}
 .pline1{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
 .pbrand{font-size:10px;font-weight:800;color:#fff;background:#1a2035;padding:2px 7px;border-radius:9px}
-.pbrandband{font-size:15px;font-weight:900;color:#fff;padding:5px 12px;letter-spacing:.5px;line-height:1.25}
+.pbrandband{width:34px;flex-shrink:0;color:#fff;display:flex;align-items:center;justify-content:center;padding:8px 0}
+.pbrandvert{writing-mode:vertical-rl;font-size:15px;font-weight:700;letter-spacing:2px;line-height:1}
 .pname{font-size:15px;font-weight:800;color:#1a2035}
 .psize{font-size:16px;font-weight:900;color:#5b35b0}
 .pply{font-size:16px;font-weight:900;color:#5b35b0}
@@ -5517,7 +5519,7 @@ function stkParseSize(s){
 // 배송료: 정확일치 → 없으면 폭 우선·인치·편평비 순 가까운 것, 동률이면 높은 배송료
 function stkShipFee(size){
   var t=stkParseSize(size); if(!t)return null;
-  if(t[0]<100)return null;  // 플로테이션(예 31x10.5R15)은 메트릭 배송비표에 없음 → 자동계산 안 함(틀린값 방지). 택배가는 수동입력
+  if(t[0]<100)return 15000;  // 플로테이션(예 31x10.5R15)은 배송비 15,000원 고정
   var best=null,bestD=null;
   for(var i=0;i<STK_SHIP.length;i++){
     var e=STK_SHIP[i];
@@ -6444,7 +6446,7 @@ async function stkRtSaveFieldLight(pid,dot,field,nv,old,td){
       if(td&&String(v)!==String(nv))td.textContent=(v===null||v===undefined)?'':String(v);
     }
     // 원가에 영향 주는 칸(실원가·할인율·공장도가·원가) 수정 → 원가·택배가·장착가 재계산 위해 표 다시 그림
-    if(field==='cost'||field==='real_cost'||field==='discount_rate'||field==='fprice'||field==='price'||field==='inst'){
+    if(field==='cost'||field==='real_cost'||field==='discount_rate'||field==='fprice'||field==='price'||field==='inst'||field==='cat'||field==='name'||field==='code'){
       if(typeof stkRenderTable==='function')stkRenderTable();
       if(typeof stkRenderSearch==='function')stkRenderSearch();
     }
@@ -6871,7 +6873,7 @@ function stkRenderSearch(){
   el.innerHTML='';
   list.slice(0,80).forEach(function(p){
     var qty=stkTq(p);
-    var c=document.createElement('div');c.className='pcard'+(stkOpen[p.id]?' open':'');c.style.borderLeft='4px solid '+stkCatStyle(p.cat).c;
+    var c=document.createElement('div');c.className='pcard'+(stkOpen[p.id]?' open':'');
     var lots=p.lots.filter(function(l){return l.q!==0}).sort(function(a,b){return stkLotPrice(p,b)-stkLotPrice(p,a)})
       .map(function(l){
         var isMinus=l.q<0;
@@ -6889,8 +6891,8 @@ function stkRenderSearch(){
       (p.factory_price?'<span>🏭 공장도 <b style="color:#555">'+stkWon(p.factory_price)+'</b></span>':'')+'</div>';
     var memoLine=p.memo?'<div style="font-size:11px;color:#9a6b1f;padding:2px 0">📝 '+stkEsc(p.memo)+'</div>':'';
     var editBtn=(!stkLocked)?'<button class="lotbtn" style="background:#fffbe6;border-color:#f3e2a0;color:#7a5d00;margin-top:5px" onclick="event.stopPropagation();stkOpenEdit(\''+p.id+'\')">✏️ 정보 수정</button>':'';
-    c.innerHTML='<div class="pbrandband" style="background:'+(STK_BC[p.br]||stkBrandColor(p.br))+'">'+stkEsc(p.br)+'</div>'+'<div class="prow" data-pid="'+p.id+'">'+
-      '<div class="pline1"><span class="pcatbadge" style="background:'+stkCatStyle(p.cat).bg+';color:'+stkCatStyle(p.cat).t+'">'+stkEsc(p.cat||'일반')+'</span><span class="psize">'+stkEsc(p.size)+'</span>'+(p.ply?'<span class="pply">'+stkEsc(p.ply)+'</span>':'')+'<span class="pname">'+stkEsc(p.name)+'</span>'+(p.code?'<span class="pcode"'+('피렐리'===p.br?' style="color:#c00;font-weight:800"':'')+'>'+stkEsc(p.code)+'</span>':'')+(p.spec?'<span class="pspec">'+stkEsc(p.spec)+'</span>':'')+'</div>'+
+    c.innerHTML='<div class="pbrandband" style="background:'+(STK_BC[p.br]||stkBrandColor(p.br))+'"><span class="pbrandvert">'+stkEsc(p.br)+'</span></div>'+'<div class="prow" data-pid="'+p.id+'">'+
+      '<div class="pcatline"><span class="pcatbadge" style="background:'+stkCatStyle(p.cat).bg+';color:'+stkCatStyle(p.cat).t+'">'+stkEsc(p.cat||'일반')+'</span></div><div class="pline1"><span class="psize">'+stkEsc(p.size)+'</span>'+(p.ply?'<span class="pply">'+stkEsc(p.ply)+'</span>':'')+'<span class="pname">'+stkEsc(p.name)+'</span>'+(p.code?'<span class="pcode"'+('피렐리'===p.br?' style="color:#c00;font-weight:800"':'')+'>'+stkEsc(p.code)+'</span>':'')+(p.spec?'<span class="pspec">'+stkEsc(p.spec)+'</span>':'')+'</div>'+
       '<div class="pline2"><span class="pprice">'+(p.inst?stkWon(p.inst)+' <small>장착가</small>':(stkTopPrice(p)?stkWon(stkTopPrice(p))+' <small>택배가</small>':'가격 미정'))+'</span>'+
       ((function(){var ds=p.lots.filter(function(l){return l.q!==0&&l.dot;}).map(function(l){return l.dot;});ds=ds.filter(function(v,i){return ds.indexOf(v)===i;});return ds.length?'<span class="pinfo">📅 '+ds.join(',')+'</span>':'';})())+
       (qty>0?'<span class="pstock">재고 '+qty+'개 ▾</span>':(qty<0?'<span class="pstock" style="color:#dc2626">재고 '+qty+'개 ⏳ ▾</span>':'<span class="pstock n">재고 없음</span>'))+
