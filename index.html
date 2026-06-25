@@ -5451,6 +5451,30 @@ function stkRCisManual(r){
   if(calc==null)return true;                    // 할인율 기준이 없는데 값이 있으면 수동
   return parseInt(r.real_cost)!==calc;          // 계산값과 다르면 수동(빨강)
 }
+
+// ── 원가(cost) 수식: 실원가 × 1.02, 100원 단위 올림. 원가 직접 수정 시 그 값 고정(빨강).
+function stkEffRC(r){ // 유효 실원가 (수동값 or 자동값)
+  if(r.real_cost!==''&&r.real_cost!=null)return parseInt(r.real_cost);
+  var fp=parseInt((r.fprice!=null&&r.fprice!=='')?r.fprice:r.factory_price);
+  var dr=parseFloat(r.discount_rate);
+  if(isNaN(fp)||!fp||isNaN(dr))return null;
+  return Math.round(fp*(1-dr/100));
+}
+function stkCalcCostAuto(r){ // 원가 자동값 = 실원가×1.02, 100원 올림
+  var rc=stkEffRC(r);
+  if(rc==null||isNaN(rc))return null;
+  return Math.ceil(rc*1.02/100)*100;
+}
+function stkCostDisplay(r){ // 표시/가격용 유효 원가 (수동값 있으면 그것, 없으면 자동값)
+  if(r.cost!==''&&r.cost!=null)return parseInt(r.cost);
+  var c=stkCalcCostAuto(r);return c==null?'':c;
+}
+function stkCostIsManual(r){ // 원가 직접 수정됨? (자동값과 다르면 수동=빨강)
+  if(r.cost===''||r.cost==null)return false;
+  var c=stkCalcCostAuto(r);
+  if(c==null)return true;
+  return parseInt(r.cost)!==c;
+}
 // 화면에 보여줄 실원가 값 (비어 있고 할인율 있으면 계산값)
 function stkRCdisplay(r){
   if(r.real_cost!==''&&r.real_cost!=null)return r.real_cost;
@@ -6389,6 +6413,11 @@ async function stkRtSaveFieldLight(pid,dot,field,nv,old,td){
       // 정규화/저장된 값이 입력과 다르면 셀에 즉시 반영 (수정이 사라진 것처럼 보이지 않게)
       if(td&&String(v)!==String(nv))td.textContent=(v===null||v===undefined)?'':String(v);
     }
+    // 원가에 영향 주는 칸(실원가·할인율·공장도가·원가) 수정 → 원가·택배가·장착가 재계산 위해 표 다시 그림
+    if(field==='cost'||field==='real_cost'||field==='discount_rate'||field==='fprice'){
+      if(typeof stkRenderTable==='function')stkRenderTable();
+      if(typeof stkRenderSearch==='function')stkRenderSearch();
+    }
     // 수정 후: 줄이 실제로 합쳐졌을 때만 표를 다시 그린다.
     // (값만 바뀐 경우엔 위에서 td.textContent로 이미 그 자리 반영됨 → 엑셀처럼 자연스럽게 유지)
     if((field==='dot'||field==='cur'||field==='qty')&&typeof stkConsolidate==='function'){
@@ -6632,16 +6661,38 @@ function stkRenderTable(){
   var sc=stkRtSort.col, dir=stkRtSort.dir;
   var rsb=document.getElementById('stk-rtResetSort');if(rsb)rsb.style.display=sc?'':'none';
   if(sc){
+    // 숫자 칼럼: 화면에 보이는 값(유효원가/계산가) 기준으로 숫자 비교, 빈칸은 항상 맨 끝
+    var NUMCOLS=['cost','price','inst','real_cost','fprice','discount_rate','qty','cur'];
+    var isNum=(NUMCOLS.indexOf(sc)>=0)||(sc.indexOf('ch')===0);
+    function sortNum(r){
+      if(sc==='cost')return stkCostDisplay(r);                          // 원가 = 유효원가(수동 or 수식)
+      if(sc==='price')return stkCalcTaekbae(stkCostDisplay(r),r.size);  // 택배가 = 계산값
+      if(sc==='inst')return stkCalcJangchak(stkCostDisplay(r),r.size);  // 장착가 = 계산값
+      if(sc==='real_cost')return stkRCdisplay(r);                       // 실원가 = 유효값
+      if(sc==='fprice')return parseInt(r.fprice);
+      if(sc==='discount_rate')return parseFloat(r.discount_rate);
+      if(sc==='qty')return r.qty;
+      if(sc==='cur')return r.cur;
+      if(sc.indexOf('ch')===0)return r.ch[parseInt(sc.slice(2))];
+      return null;
+    }
     R.sort(function(a,b){
-      var x,y;
-      if(sc==='cur'){x=a.cur;y=b.cur;}
-      else if(sc==='qty'){x=a.qty;y=b.qty;}
-      else if(sc.indexOf('ch')===0){var i=parseInt(sc.slice(2));x=a.ch[i];y=b.ch[i];}
-      else if(sc==='dot'){ // 연식: DOT누락 끝
-        x=(a.dot==='DOT누락'?'0000':a.dot);y=(b.dot==='DOT누락'?'0000':b.dot);
+      if(isNum){
+        var x=sortNum(a),y=sortNum(b);
+        x=(x===''||x==null||isNaN(x))?null:Number(x);
+        y=(y===''||y==null||isNaN(y))?null:Number(y);
+        if(x==null&&y==null)return 0;
+        if(x==null)return 1;   // 빈칸·계산불가 → 항상 맨 끝
+        if(y==null)return -1;
+        return (x-y)*dir;
       }
+      // 텍스트 칼럼: 빈칸은 항상 맨 끝
+      var x,y;
+      if(sc==='dot'){x=(a.dot==='DOT누락'?'0000':a.dot)||'';y=(b.dot==='DOT누락'?'0000':b.dot)||'';}
       else{x=a[sc]||'';y=b[sc]||'';}
-      if(typeof x==='number'&&typeof y==='number')return (x-y)*dir;
+      var xe=(x===''),ye=(y==='');
+      if(xe&&ye)return 0;
+      if(xe)return 1; if(ye)return -1;
       return (''+x).localeCompare(''+y,'ko')*dir;
     });
   } else {
@@ -6711,9 +6762,9 @@ function stkRenderTable(){
       ed('ply',r.ply||'')+
       ed('spec',r.spec||'')+
       ed('dot',r.dot,(r.dot==='DOT누락'?' style="color:#dc2626"':''))+
-      ed_ro('price',stkFmtAuto(stkCalcTaekbae(r.cost,r.size)))+
-      ed_ro('inst',stkFmtAuto(stkCalcJangchak(r.cost,r.size)))+
-      ed('cost',r.cost||'')+
+      ed_ro('price',stkFmtAuto(stkCalcTaekbae(stkCostDisplay(r),r.size)))+
+      ed_ro('inst',stkFmtAuto(stkCalcJangchak(stkCostDisplay(r),r.size)))+
+      ed('cost',stkCostDisplay(r),(stkCostIsManual(r)?' style="color:#dc2626;font-weight:700"':''))+
       (_canRC?ed('real_cost',stkRCdisplay(r),(stkRCisManual(r)?' style="color:#dc2626;font-weight:700"':'')):'')+
       (_canRC?ed('discount_rate',r.discount_rate===''||r.discount_rate==null?'':r.discount_rate):'')+
       ed('fprice',r.fprice||'')+
@@ -6793,9 +6844,9 @@ function stkRenderSearch(){
           '<button class="lotbtn" onclick="event.stopPropagation();stkOpenOut(\''+l.id+'\')">📦 출고</button>'+srcLine+'</div>';
       }).join('')||'<div class="lotrow" style="color:#bbb">창고 재고 없음 — 출고하면 입고예정(마이너스)으로 잡힙니다</div>';
     var priceLine='<div style="font-size:12px;color:#444;padding:3px 0;display:flex;gap:14px;flex-wrap:wrap">'+
-      '<span>🔧 장착가 <b style="color:#c2410c">'+(p.inst?stkWon(p.inst):'미정')+'</b></span>'+
-      '<span>📦 택배가 <b style="color:#0c447c">'+(stkTopPrice(p)?stkWon(stkTopPrice(p)):'미정')+'</b></span>'+
-      (p.cost?'<span>💰 원가 <b style="color:#b45309">'+stkWon(p.cost)+'</b></span>':'')+
+      '<span>🔧 장착가 <b style="color:#c2410c">'+(stkCalcJangchak(stkCostDisplay(p),p.size)?stkWon(stkCalcJangchak(stkCostDisplay(p),p.size)):'미정')+'</b></span>'+
+      '<span>📦 택배가 <b style="color:#0c447c">'+(stkCalcTaekbae(stkCostDisplay(p),p.size)?stkWon(stkCalcTaekbae(stkCostDisplay(p),p.size)):'미정')+'</b></span>'+
+      ((stkCostDisplay(p)!=='')?'<span>💰 원가 <b style="color:#b45309">'+stkWon(stkCostDisplay(p))+'</b></span>':'')+
       (p.factory_price?'<span>🏭 공장도 <b style="color:#555">'+stkWon(p.factory_price)+'</b></span>':'')+'</div>';
     var memoLine=p.memo?'<div style="font-size:11px;color:#9a6b1f;padding:2px 0">📝 '+stkEsc(p.memo)+'</div>':'';
     var editBtn=(!stkLocked)?'<button class="lotbtn" style="background:#fffbe6;border-color:#f3e2a0;color:#7a5d00;margin-top:5px" onclick="event.stopPropagation();stkOpenEdit(\''+p.id+'\')">✏️ 정보 수정</button>':'';
@@ -7681,7 +7732,7 @@ async function stkDownload(){
   _h1=_h1.concat(['공장도가','수량','위치','비고']);
   var aoa1=[_h1];
   function _row1(p,dot,qty,loc,memo){
-    var r=[p.cat||'일반',p.source||'',p.br,p.name,p.code||'',p.size,p.ply||'',p.spec||'',dot||'',p.cost||''];
+    var r=[p.cat||'일반',p.source||'',p.br,p.name,p.code||'',p.size,p.ply||'',p.spec||'',dot||'',(stkCostDisplay(p)===''?'':stkCostDisplay(p))];
     if(_dlRC)r.push(p.real_cost==null?'':p.real_cost, p.discount_rate==null?'':p.discount_rate);
     r=r.concat([p.factory_price||'',qty,loc,memo]);
     return r;
@@ -8776,6 +8827,7 @@ async function rsvSubmit(){
 }
 // 예약 저장 시 재고 출고(차감) + 로그 한 줄
 async function rsvStockOut(o,n,memo){
+  if(!BETA_WRITE){ if(typeof stkToast==='function')stkToast('🚧 재고 차감은 업데이트 이후 가능합니다 (예약·상태는 정상 저장됨)'); return; }
   var ts=new Date().toISOString();
   if(o.kind==='lot'){
     var cur=await sb.from('stock_lots').select('qty').eq('id',o.lot_id).maybeSingle();
@@ -8796,6 +8848,7 @@ async function rsvStockOut(o,n,memo){
 }
 // 예약 취소/삭제 시 출고했던 재고 되돌리기 + 기록(누가 취소했는지 자동)
 async function rsvStockRestore(r,memo){
+  if(!BETA_WRITE){ if(typeof stkToast==='function')stkToast('🚧 재고 차감은 업데이트 이후 가능합니다 (예약·상태는 정상 저장됨)'); return; }
   var ts=new Date().toISOString();
   var n=r.src_qty||r.qty||1;
   if(r.src_kind==='lot' && r.src_lot_id){
