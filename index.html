@@ -5487,8 +5487,8 @@ function stkCostIsManual(r){ // 원가 직접 수정됨? (자동값과 다르면
 // ── 택배가(price)·장착가(inst): 직접 수정 시 그 값 고정(빨강), 비우면 원가 기준 수식 (권한자만 수정)
 function stkPriceDisplay(r){ if(r.price!==''&&r.price!=null)return parseInt(r.price); var c=stkCalcTaekbae(stkCostDisplay(r),r.size); return c==null?'':c; }
 function stkPriceIsManual(r){ if(r.price===''||r.price==null)return false; var c=stkCalcTaekbae(stkCostDisplay(r),r.size); if(c==null)return true; return parseInt(r.price)!==c; }
-function stkInstDisplay(r){ if(r.inst!==''&&r.inst!=null)return parseInt(r.inst); var c=stkCalcJangchak(stkCostDisplay(r),r.size); return c==null?'':c; }
-function stkInstIsManual(r){ if(r.inst===''||r.inst==null)return false; var c=stkCalcJangchak(stkCostDisplay(r),r.size); if(c==null)return true; return parseInt(r.inst)!==c; }
+function stkInstDisplay(r){ if(r.inst!==''&&r.inst!=null)return parseInt(r.inst); var c=stkCalcJangchak(stkCostDisplay(r),r.size,stkIsOffroad(r)); return c==null?'':c; }
+function stkInstIsManual(r){ if(r.inst===''||r.inst==null)return false; var c=stkCalcJangchak(stkCostDisplay(r),r.size,stkIsOffroad(r)); if(c==null)return true; return parseInt(r.inst)!==c; }
 // 화면에 보여줄 실원가 값 (비어 있고 할인율 있으면 계산값)
 function stkRCdisplay(r){
   if(r.real_cost!==''&&r.real_cost!=null)return r.real_cost;
@@ -5498,14 +5498,24 @@ function stkRCdisplay(r){
 
 // ── 사이즈별 배송료 표 [폭,편평비,인치,배송비] (임시: 코드 내장) ──
 var STK_SHIP=[[145,80,13,4000],[155,65,13,4000],[155,70,12,4000],[155,70,13,4000],[155,70,14,4000],[155,80,12,4000],[155,80,13,4000],[165,60,14,4000],[165,60,15,4000],[165,65,13,4000],[165,65,14,4000],[175,50,15,4000],[175,60,13,4000],[175,60,14,4000],[175,65,14,4000],[175,65,15,4000],[175,70,13,4000],[175,70,14,4000],[185,55,15,5000],[185,60,14,5000],[185,60,15,5000],[185,65,14,5000],[185,65,15,5000],[185,80,14,5000],[195,40,17,5000],[195,45,15,5000],[195,45,16,5000],[195,50,15,5000],[195,50,16,5000],[195,55,15,5000],[195,55,16,5000],[195,60,14,5000],[195,60,15,5000],[195,65,15,5000],[195,70,14,5000],[195,70,15,5000],[195,75,16,5000],[195,80,14,5000],[195,80,15,5000],[195,85,16,5000],[205,40,17,5000],[205,40,18,5000],[205,45,16,5000],[205,45,17,5000],[205,50,16,5000],[205,50,17,5000],[205,55,16,5000],[205,55,17,5000],[205,60,15,5000],[205,60,16,5000],[205,65,15,5000],[205,65,16,5000],[205,70,14,5000],[205,70,15,5000],[205,70,16,5000],[205,75,16,5000],[205,85,16,5000],[215,35,18,5000],[215,35,19,5000],[215,40,17,5000],[215,40,18,5000],[215,45,17,5000],[215,45,18,5000],[215,45,20,5000],[215,50,17,5000],[215,50,18,5000],[215,50,19,5000],[215,55,16,5000],[215,55,17,5000],[215,55,18,5000],[215,60,16,5000],[215,60,17,5000],[215,65,15,5000],[215,65,16,5000],[215,65,17,5000],[215,70,15,5000],[215,70,16,5000],[215,75,15,5000],[215,75,16,5000],[225,35,18,5000],[225,35,19,5000],[225,35,20,5000],[225,40,18,5000],[225,40,19,5000],[225,40,20,5000],[225,45,17,5000],[225,45,18,5000],[225,45,19,5000],[225,50,17,5000],[225,50,18,5000],[225,55,16,5000],[225,55,17,5000],[225,55,18,6000],[225,55,19,6000],[225,60,16,6000],[225,60,17,6000],[225,60,18,6000],[225,65,16,6000],[225,65,17,6000],[225,70,15,6000],[225,70,16,6000],[225,75,16,6000],[235,35,19,6000],[235,35,20,6000],[235,40,18,5000],[235,40,19,6000],[235,45,17,5000],[235,45,18,6000],[235,45,19,6000],[235,45,20,6000],[235,45,21,6000],[235,50,17,6000],[235,50,18,6000],[235,50,19,6000],[235,50,20,6000],[235,55,16,6000],[235,55,17,6000],[235,55,18,6000],[235,55,19,6000],[235,55,20,6000],[235,60,16,6000],[235,60,17,6000],[235,60,18,6000],[235,65,16,6000],[235,65,17,6000],[235,65,18,6000],[235,70,16,6000],[235,70,17,6000],[235,75,15,6000],[235,85,16,6000],[245,30,19,6000],[245,30,20,6000],[245,30,22,6000],[245,35,18,6000],[245,35,19,6000],[245,35,20,6000],[245,35,21,6000],[245,40,17,6000],[245,40,18,6000],[245,40,19,6000],[245,40,20,6000],[245,40,21,6000],[245,45,17,6000],[245,45,18,6000],[245,45,19,6000],[245,45,20,6000],[245,45,21,6000],[245,50,18,6000],[245,50,19,6000],[245,50,20,6000],[245,55,17,6000],[245,55,18,6000],[245,55,19,6000],[245,60,17,6000],[245,60,18,6000],[245,65,17,6000],[245,70,16,6000],[245,70,17,6000],[245,75,16,6000],[245,75,17,6000],[255,30,19,6000],[255,30,20,6000],[255,35,18,6000],[255,35,19,6000],[255,35,20,6000],[255,35,21,6000],[255,40,17,6000],[255,40,18,6000],[255,40,19,6000],[255,40,20,6000],[255,40,21,6000],[255,40,22,6000],[255,45,18,6000],[255,45,19,6000],[255,45,20,6000],[255,45,21,6000],[255,45,22,6000],[255,50,19,6000],[255,50,20,6000],[255,55,18,6000],[255,55,19,6000],[255,55,20,6000],[255,60,17,6000],[255,60,18,6000],[255,60,19,6000],[255,65,16,6000],[255,65,17,6000],[255,70,15,6000],[255,70,16,6000],[255,70,18,6000],[255,75,17,6000],[265,30,19,6000],[265,30,20,6000],[265,30,22,6000],[265,35,18,6000],[265,35,19,6000],[265,35,20,6000],[265,35,21,6000],[265,35,22,6000],[265,40,18,6000],[265,40,19,6000],[265,40,20,6000],[265,40,21,6000],[265,40,22,6000],[265,45,19,6000],[265,45,20,6000],[265,45,21,6000],[265,50,19,6000],[265,50,20,6000],[265,55,19,6000],[265,60,18,6000],[265,60,20,6000],[265,65,17,6000],[265,65,18,6000],[265,70,15,6000],[265,70,16,6000],[265,70,17,6000],[265,70,18,6000],[265,75,16,6000],[275,30,19,6000],[275,30,20,6000],[275,30,21,6000],[275,35,18,6000],[275,35,19,6000],[275,35,20,6000],[275,35,21,6000],[275,35,22,6000],[275,40,18,6000],[275,40,19,6000],[275,40,20,6000],[275,40,21,6000],[275,40,22,6000],[275,45,18,6000],[275,45,19,6000],[275,45,20,6000],[275,45,21,6000],[275,45,22,6000],[275,50,20,6000],[275,50,22,6000],[275,55,19,6000],[275,55,20,6000],[275,60,20,6000],[275,65,18,6000],[275,65,20,6000],[275,70,17,8000],[275,70,18,8000],[285,30,19,6000],[285,30,20,6000],[285,30,21,6000],[285,30,22,7000],[285,35,19,6000],[285,35,20,6000],[285,35,21,6000],[285,35,22,7000],[285,40,19,6000],[285,40,20,6000],[285,40,21,6000],[285,40,22,7000],[285,40,23,7000],[285,45,19,6000],[285,45,20,6000],[285,45,21,6000],[285,45,22,7000],[285,50,20,6000],[285,55,20,6000],[285,60,20,6000],[285,70,17,7000],[285,75,16,6000],[285,75,17,7000],[295,30,19,6000],[295,30,20,7000],[295,30,21,6000],[295,30,22,7000],[295,35,20,7000],[295,35,21,6000],[295,35,22,7000],[295,35,23,7000],[295,40,19,6000],[295,40,20,7000],[295,40,21,6000],[295,40,22,7000],[295,45,20,7000],[305,30,20,7000],[305,30,21,7000],[305,30,26,7000],[305,35,21,7000],[305,40,20,7000],[305,55,20,7000],[315,30,21,6000],[315,30,22,7000],[315,35,20,7000],[315,35,21,6000],[315,35,22,7000],[315,40,21,6000],[315,70,17,7000],[325,30,20,7000],[325,30,21,6000],[325,35,20,7000],[325,35,22,7000],[325,35,23,7000],[325,40,22,7000],[325,60,18,7000],[325,60,20,7000],[500,80,12,4000],[550,80,13,4000],[650,80,15,5000],[650,80,16,6000],[295,70,17,10000]];
+function stkIsOffroad(r){
+  if(!r)return false;
+  if(String(r.cat||'').indexOf('오프로드')>=0)return true;            // 분류에 '오프로드' 포함
+  var s=((r.name||'')+' '+(r.code||'')).toUpperCase();
+  return /(^|[^A-Z0-9])(AT2|AT|MT|RT)([^A-Z0-9]|$)/.test(s);          // 패턴/코드에 AT·AT2·MT·RT
+}
 function stkParseSize(s){
-  var m=String(s||'').match(/(\d{3})\D+(\d{2})\D+(\d{2})/);
-  if(!m)return null;
-  return [parseInt(m[1]),parseInt(m[2]),parseInt(m[3])];
+  s=String(s||'');
+  var m=s.match(/(\d{3})\D+(\d{2})\D+(\d{2})/);          // 표준 메트릭 235/55R18
+  if(m)return [parseInt(m[1]),parseInt(m[2]),parseInt(m[3])];
+  var f=s.match(/(\d{2})\s*[xX]\s*(\d{1,2}(?:\.\d+)?)\s*[Rr\/\-\s]*(\d{2})/);  // 플로테이션 31x10.5R15
+  if(f)return [parseInt(f[1]),Math.round(parseFloat(f[2])),parseInt(f[3])];
+  return null;
 }
 // 배송료: 정확일치 → 없으면 폭 우선·인치·편평비 순 가까운 것, 동률이면 높은 배송료
 function stkShipFee(size){
   var t=stkParseSize(size); if(!t)return null;
+  if(t[0]<100)return null;  // 플로테이션(예 31x10.5R15)은 메트릭 배송비표에 없음 → 자동계산 안 함(틀린값 방지). 택배가는 수동입력
   var best=null,bestD=null;
   for(var i=0;i<STK_SHIP.length;i++){
     var e=STK_SHIP[i];
@@ -5516,8 +5526,9 @@ function stkShipFee(size){
   return best;
 }
 // 장착비 (인치별): ~18:18000 / 19:19000 / 20:22000 / 21+:25000
-function stkInstallFee(size){
+function stkInstallFee(size,offroad){
   var t=stkParseSize(size); if(!t)return null; var inch=t[2];
+  if(offroad){ return inch<=19?35000:40000; }  // 오프로드: 19인치↓ 35000 / 20인치↑ 40000
   if(inch<=18)return 18000;
   if(inch===19)return 19000;
   if(inch===20)return 22000;
@@ -5529,9 +5540,9 @@ function stkCalcTaekbae(cost,size){
   var ship=stkShipFee(size); if(ship==null)return null;
   return Math.ceil((c+ship)/0.97/0.96/100)*100;
 }
-function stkCalcJangchak(cost,size){
+function stkCalcJangchak(cost,size,offroad){
   var c=parseInt(cost); if(isNaN(c)||!c)return null;
-  var fee=stkInstallFee(size); if(fee==null)return null;
+  var fee=stkInstallFee(size,offroad); if(fee==null)return null;
   return Math.ceil((c+fee)/0.97/0.96/100)*100;
 }
 function stkFmtAuto(v){return v==null?'':v;}
@@ -6684,7 +6695,7 @@ function stkRenderTable(){
     function sortNum(r){
       if(sc==='cost')return stkCostDisplay(r);                          // 원가 = 유효원가(수동 or 수식)
       if(sc==='price')return stkCalcTaekbae(stkCostDisplay(r),r.size);  // 택배가 = 계산값
-      if(sc==='inst')return stkCalcJangchak(stkCostDisplay(r),r.size);  // 장착가 = 계산값
+      if(sc==='inst')return stkCalcJangchak(stkCostDisplay(r),r.size,stkIsOffroad(r));  // 장착가 = 계산값
       if(sc==='real_cost')return stkRCdisplay(r);                       // 실원가 = 유효값
       if(sc==='fprice')return parseInt(r.fprice);
       if(sc==='discount_rate')return parseFloat(r.discount_rate);
@@ -6758,6 +6769,15 @@ function stkRenderTable(){
       ex=ex.replace(/ class="[^"]*"/,'');
       return '<td'+ex+' class="'+cls+'" contenteditable="true" spellcheck="false" data-pid="'+pid+'" data-dot="'+stkEsc(dotv)+'" data-field="'+field+'" data-old="'+stkEsc(val)+'">'+stkEsc(val)+'</td>';
     }
+    // 택배가·장착가 전용: 실원가 권한자(_canRC)면 canInline 없이도 편집 가능, 아니면 읽기전용(포맷)
+    function edRC(field,val,extra){
+      if(!_canRC)return '<td>'+stkEsc(stkFmtAuto(val))+'</td>';
+      var ex=extra||'';
+      var clsMatch=ex.match(/ class="([^"]*)"/);
+      var cls='rt-ed'+(clsMatch?' '+clsMatch[1]:'');
+      ex=ex.replace(/ class="[^"]*"/,'');
+      return '<td'+ex+' class="'+cls+'" contenteditable="true" spellcheck="false" data-pid="'+pid+'" data-dot="'+stkEsc(dotv)+'" data-field="'+field+'" data-old="'+stkEsc(val)+'">'+stkEsc(val)+'</td>';
+    }
     // 변동재고 등 — 자동 계산 칼럼, 편집 불가
     function ed_ro(field,val,extra){
       return '<td'+(extra||'')+'>'+stkEsc(val)+'</td>';
@@ -6779,8 +6799,8 @@ function stkRenderTable(){
       ed('ply',r.ply||'')+
       ed('spec',r.spec||'')+
       ed('dot',r.dot,(r.dot==='DOT누락'?' style="color:#dc2626"':''))+
-      ((_canRC&&canInline)?ed('price',stkPriceDisplay(r),(stkPriceIsManual(r)?' style="color:#dc2626;font-weight:700"':'')):ed_ro('price',stkFmtAuto(stkPriceDisplay(r))))+
-      ((_canRC&&canInline)?ed('inst',stkInstDisplay(r),(stkInstIsManual(r)?' style="color:#dc2626;font-weight:700"':'')):ed_ro('inst',stkFmtAuto(stkInstDisplay(r))))+
+      edRC('price',stkPriceDisplay(r),(stkPriceIsManual(r)?' style="color:#dc2626;font-weight:700"':''))+
+      edRC('inst',stkInstDisplay(r),(stkInstIsManual(r)?' style="color:#dc2626;font-weight:700"':''))+
       ed('cost',stkCostDisplay(r),(stkCostIsManual(r)?' style="color:#dc2626;font-weight:700"':''))+
       (_canRC?ed('real_cost',stkRCdisplay(r),(stkRCisManual(r)?' style="color:#dc2626;font-weight:700"':'')):'')+
       (_canRC?ed('discount_rate',r.discount_rate===''||r.discount_rate==null?'':r.discount_rate):'')+
@@ -6821,7 +6841,7 @@ function stkRenderTable(){
     '<tfoot><tr><td colspan="8">합계 '+R.length+'행</td><td colspan="3" class="rtv">'+totV+'</td>'+
     STK_CHANS.map(function(){return '<td></td>';}).join('')+(canInline?'<td></td>':'')+'</tr></tfoot>';
   // 셀 핸들러 부착 (contenteditable 셀에 focus/blur/keydown)
-  if(canInline)stkRtAttachCellHandlers();
+  if(canInline||(typeof stkCanSeeRealcost==='function'&&stkCanSeeRealcost()))stkRtAttachCellHandlers();
 }
 function stkRenderSearch(){
   var q=document.getElementById('stk-q').value||'';
@@ -6861,7 +6881,7 @@ function stkRenderSearch(){
           '<button class="lotbtn" onclick="event.stopPropagation();stkOpenOut(\''+l.id+'\')">📦 출고</button>'+srcLine+'</div>';
       }).join('')||'<div class="lotrow" style="color:#bbb">창고 재고 없음 — 출고하면 입고예정(마이너스)으로 잡힙니다</div>';
     var priceLine='<div style="font-size:12px;color:#444;padding:3px 0;display:flex;gap:14px;flex-wrap:wrap">'+
-      '<span>🔧 장착가 <b style="color:#c2410c">'+(stkCalcJangchak(stkCostDisplay(p),p.size)?stkWon(stkCalcJangchak(stkCostDisplay(p),p.size)):'미정')+'</b></span>'+
+      '<span>🔧 장착가 <b style="color:#c2410c">'+(stkCalcJangchak(stkCostDisplay(p),p.size,stkIsOffroad(p))?stkWon(stkCalcJangchak(stkCostDisplay(p),p.size,stkIsOffroad(p))):'미정')+'</b></span>'+
       '<span>📦 택배가 <b style="color:#0c447c">'+(stkCalcTaekbae(stkCostDisplay(p),p.size)?stkWon(stkCalcTaekbae(stkCostDisplay(p),p.size)):'미정')+'</b></span>'+
       ((stkCostDisplay(p)!=='')?'<span>💰 원가 <b style="color:#b45309">'+stkWon(stkCostDisplay(p))+'</b></span>':'')+
       (p.factory_price?'<span>🏭 공장도 <b style="color:#555">'+stkWon(p.factory_price)+'</b></span>':'')+'</div>';
@@ -7777,7 +7797,7 @@ async function stkDownload(){
     var dots=lots.map(function(l){return l.dot||'DOT없음';}).join(', ');
     var memo=p.memo||'';
     lots.forEach(function(l){if(l.q<0&&l.src_in)memo=(memo?memo+' / ':'')+'입고예정:'+l.src_in+(l.due_date?'('+l.due_date+')':'');});
-    var _c=stkCostDisplay(p), _sh=stkShipFee(p.size), _in=stkInstallFee(p.size);
+    var _c=stkCostDisplay(p), _sh=stkShipFee(p.size), _in=stkInstallFee(p.size,stkIsOffroad(p));
     aoa2.push([p.br,p.name,p.code||'',p.size,tot,status,locs,dots,(_c===''?'':_c),(_sh==null?'':_sh),'',(_in==null?'':_in),'',memo]);
   });
   // ── 시트3: 전체 기록 (출고기록 포함 — 복원/백업용) ──
