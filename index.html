@@ -3541,7 +3541,7 @@ async function clearDlvLogs(){
 var dlvPasteFmt='ping';
 var dlvParsed=[];
 const DLV_FMT_DESC={
-  ping:'<b>핑</b>(판매처=핑): 시트에서 복사해 붙여넣기. 코드 있으면 맨 앞. 여러 줄=여러 건.',
+  ping:'<b>핑</b>(판매처=핑): 시트 그대로 복사해 붙여넣기 (주문일·주문번호·제품코드·확정·<b>배송방법</b>·출고지·품명·사이즈·세부·DOT·제조사·수량·우편·주소·받는분·연락처·메모). 여러 줄=여러 건.',
   online:'<b>온라인</b>(스팜/11번가/전화주문 자동인식): 시트에서 복사해 붙여넣기. 빈 칸도 탭 유지하면 정확.',
   trade:'<b>거래처</b>: 자유롭게 한 줄씩 적되, <b>맨 앞에 "거래처"</b>를 꼭 쓰세요. 나머지는 그대로 표시됩니다. (한 줄=한 건)'
 };
@@ -3591,16 +3591,24 @@ function dlvPastePreview(){
     const n=cols.length;
     let d;
     if(dlvPasteFmt==='ping'){
-      // 핑: (코드) 날짜 출고지 품명 싸이즈 세부 년식 제조사 수량 우편 주소 배송지 연락처
-      // 코드 없으면 12칸(맨앞 코드 빠짐), 있으면 13칸. 코드 뒤는 동일하므로 offset으로 처리
-      const off=(n>=13)?1:0;  // 코드 있으면 1칸 밀림
-      // 세부 칸(싸이즈 다음: P수·로드인덱스·차종메모)을 버리지 않고 싸이즈에 합침
-      const _detail=(cols[off+4]||'').trim();
-      d={channel:'ping',code:off?(cols[0]||''):'',
-        src:cols[off+1]||'',tire:cols[off+2]||'',
-        spec:(dlvNormSize(cols[off+3]||'')+(_detail?' '+_detail:'')).trim(),
-        year:cols[off+5]||'',brand:cols[off+6]||'',qty:cols[off+7]||'',
-        addr:cols[off+9]||'',recv:cols[off+10]||'',tel:cols[off+11]||''};
+      if(n>=15){
+        // 새 핑 양식(시트 그대로 17칸): 주문일0 주문번호1 제품코드2 확정3 배송방법4 출고지5 품명6 사이즈7 세부8 DOT9 제조사10 수량11 우편12 주소13 받는분14 연락처15 메모16
+        const _detail=(cols[8]||'').trim();
+        d={channel:'ping',code:(cols[2]||'').trim(),
+          src:(cols[5]||'').trim(),tire:(cols[6]||'').trim(),
+          spec:(dlvNormSize(cols[7]||'')+(_detail?' '+_detail:'')).trim(),
+          year:(cols[9]||'').trim(),brand:(cols[10]||'').trim(),qty:(cols[11]||'').trim(),
+          addr:(cols[13]||'').trim(),recv:(cols[14]||'').trim(),tel:(cols[15]||'').trim()};
+      }else{
+        // (이전 양식 호환) (코드) 날짜 출고지 품명 싸이즈 세부 년식 제조사 수량 우편 주소 배송지 연락처
+        const off=(n>=13)?1:0;
+        const _detail=(cols[off+4]||'').trim();
+        d={channel:'ping',code:off?(cols[0]||''):'',
+          src:cols[off+1]||'',tire:cols[off+2]||'',
+          spec:(dlvNormSize(cols[off+3]||'')+(_detail?' '+_detail:'')).trim(),
+          year:cols[off+5]||'',brand:cols[off+6]||'',qty:cols[off+7]||'',
+          addr:cols[off+9]||'',recv:cols[off+10]||'',tel:cols[off+11]||''};
+      }
     }else{
       // 온라인: 판매처 날짜 출고지 품명 싸이즈 코드 DOT 제조사 수량 우편 주소 배송지 연락처
       // 빈칸도 탭으로 유지되면 항상 13칸 고정. (코드 칸은 비어도 자리 유지)
@@ -7749,7 +7757,8 @@ async function stkDownload(){
     });
   });
   // ── 시트2: 현황 리포트 (사람이 보기 좋게) ──
-  var aoa2=[['브랜드','패턴(제품명)','패턴코드','사이즈','총수량','상태','위치들','연식들','택배가','장착가','비고']];
+  // 현황리포트: 원가·적용배송비·적용장착비는 값, 택배가·장착가는 엑셀 수식(원가 바꾸면 자동 재계산)
+  var aoa2=[['브랜드','패턴(제품명)','패턴코드','사이즈','총수량','상태','위치들','연식들','원가','적용배송비','택배가(수식)','적용장착비','장착가(수식)','비고']];
   stkP.forEach(function(p){
     var lots=p.lots.filter(function(l){return l.q!==0});
     var tot=lots.reduce(function(s,l){return s+l.q;},0);
@@ -7759,7 +7768,8 @@ async function stkDownload(){
     var dots=lots.map(function(l){return l.dot||'DOT없음';}).join(', ');
     var memo=p.memo||'';
     lots.forEach(function(l){if(l.q<0&&l.src_in)memo=(memo?memo+' / ':'')+'입고예정:'+l.src_in+(l.due_date?'('+l.due_date+')':'');});
-    aoa2.push([p.br,p.name,p.code||'',p.size,tot,status,locs,dots,p.price||'',p.inst||'',memo]);
+    var _c=stkCostDisplay(p), _sh=stkShipFee(p.size), _in=stkInstallFee(p.size);
+    aoa2.push([p.br,p.name,p.code||'',p.size,tot,status,locs,dots,(_c===''?'':_c),(_sh==null?'':_sh),'',(_in==null?'':_in),'',memo]);
   });
   // ── 시트3: 전체 기록 (출고기록 포함 — 복원/백업용) ──
   // DB에서 전체 로그 조회 (탭 캐시 말고 최신 전체)
@@ -7781,6 +7791,20 @@ async function stkDownload(){
   var wb=XLSX.utils.book_new();
   var ws1=XLSX.utils.aoa_to_sheet(aoa1);
   var ws2=XLSX.utils.aoa_to_sheet(aoa2);
+  // 택배가(K열)·장착가(M열) = 엑셀 수식: ROUNDUP((원가+배송비)/0.97/0.96, -2) → 100원 올림
+  for(var _i=1;_i<aoa2.length;_i++){
+    var _R=_i+1; // 엑셀 행번호(헤더=1)
+    var _cost=aoa2[_i][8], _ship=aoa2[_i][9], _inst=aoa2[_i][11];
+    if(typeof _cost==='number'&&typeof _ship==='number'){
+      var _tk=Math.ceil((_cost+_ship)/0.97/0.96/100)*100;  // 캐시값(없으면 저장 시 셀이 버려짐)
+      ws2['K'+_R]={t:'n',f:'ROUNDUP((I'+_R+'+J'+_R+')/0.97/0.96,-2)',v:_tk};
+    }
+    if(typeof _cost==='number'&&typeof _inst==='number'){
+      var _jc=Math.ceil((_cost+_inst)/0.97/0.96/100)*100;
+      ws2['M'+_R]={t:'n',f:'ROUNDUP((I'+_R+'+L'+_R+')/0.97/0.96,-2)',v:_jc};
+    }
+  }
+  ws2['!cols']=[{wch:8},{wch:16},{wch:12},{wch:11},{wch:7},{wch:9},{wch:18},{wch:14},{wch:9},{wch:9},{wch:11},{wch:9},{wch:11},{wch:20}];
   var ws3=XLSX.utils.aoa_to_sheet(aoa3);
   var ws4=XLSX.utils.aoa_to_sheet(aoa4);
   ws4['!cols']=[{wch:8},{wch:18},{wch:10},{wch:12},{wch:9},{wch:13},{wch:11}];
