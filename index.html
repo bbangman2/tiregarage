@@ -284,11 +284,12 @@ body.rb-on #app{padding-top:58px}
 .pcatbadge{font-size:10px;font-weight:800;padding:2px 7px;border-radius:9px}
 .pline1{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
 .pbrand{font-size:10px;font-weight:800;color:#fff;background:#1a2035;padding:2px 7px;border-radius:9px}
+.pbrandband{font-size:15px;font-weight:900;color:#fff;padding:5px 12px;letter-spacing:.5px;line-height:1.25}
 .pname{font-size:15px;font-weight:800;color:#1a2035}
 .psize{font-size:16px;font-weight:900;color:#5b35b0}
 .pply{font-size:16px;font-weight:900;color:#5b35b0}
 .pspec{font-size:12px;font-weight:600;color:#777;font-style:italic}
-.pcode{font-size:12px;font-weight:800;color:#0c447c;background:#eef4fb;border:1px solid #cfe0f5;padding:1px 7px;border-radius:7px;font-family:Consolas,monospace}
+.pcode{font-size:15px;font-weight:800;color:#1a2035;margin-left:5px}
 .pline2{display:flex;align-items:center;gap:10px;margin-top:4px;flex-wrap:wrap}
 .pprice{font-size:15px;font-weight:900;color:#15803d}
 .pprice small{font-size:11px;font-weight:700;color:#666}
@@ -5238,7 +5239,8 @@ var STK_FL={A:'1층',B:'2층',Y:'야외'};
 var STK_ZOOM=[{fit:true,h:54,m:1},{h:64,m:1},{h:80,m:2},{h:100,m:2}];
 var STK_CAT={'일반':{c:'#378ADD',bg:'#E6F1FB',t:'#0C447C'},'오프로드':{c:'#D85A30',bg:'#FAECE7',t:'#712B13'},'휠':{c:'#1D9E75',bg:'#E1F5EE',t:'#085041'},'튜닝':{c:'#7F77DD',bg:'#EEEDFE',t:'#3C3489'},'행사':{c:'#E24B4A',bg:'#FCEBEB',t:'#A32D2D'},'중고':{c:'#888780',bg:'#F1EFE8',t:'#444441'}};
 function stkCatStyle(cat){return STK_CAT[cat]||STK_CAT['일반'];}
-var STK_BC={'한국':'#e24b4a','금호':'#0c447c','넥센':'#1d9e75','미쉐린':'#ba7517','피렐리':'#7a4fcf','사일룬':'#c0691f','레이다':'#2a8f8f','브리지스톤':'#444','브릿지스톤':'#444','콘티넨탈':'#b8453f','켄다':'#777','굿이어':'#2255aa','윈런':'#888','맥스트랙':'#555'};
+var STK_BC={'한국':'#ef6c00','금호':'#1565c0','넥센':'#7b3fb5','미쉐린':'#00897b','피렐리':'#c62828','사일룬':'#6d4c41','레이다':'#00838f','브리지스톤':'#ad1457','브릿지스톤':'#ad1457','콘티넨탈':'#455a64','켄다':'#827717','굿이어':'#2e7d32','윈런':'#757575','맥스트랙':'#546e7a'}
+function stkBrandColor(name){ var h=0,s=String(name||''); for(var i=0;i<s.length;i++)h=(h*31+s.charCodeAt(i))%360; return 'hsl('+h+',58%,36%)'; };
 var STK_FX={
  A:[{l1:1,l2:2,i1:9,i2:10,cls:'office',label:'🏢 사무실'},
     {l1:5,l2:6,i1:9,i2:10,cls:'rest',label:'☕ 휴게실'},
@@ -5502,7 +5504,7 @@ function stkIsOffroad(r){
   if(!r)return false;
   if(String(r.cat||'').indexOf('오프로드')>=0)return true;            // 분류에 '오프로드' 포함
   var s=((r.name||'')+' '+(r.code||'')).toUpperCase();
-  return /(^|[^A-Z0-9])(AT2|AT|MT|RT)([^A-Z0-9]|$)/.test(s);          // 패턴/코드에 AT·AT2·MT·RT
+  return /(^|[^A-Z])(AT|MT|RT)/.test(s);          // 패턴/코드에 AT·AT2·MT·RT (단어 시작 위치, MT2·RT05·ATM 등 포함)
 }
 function stkParseSize(s){
   s=String(s||'');
@@ -6887,8 +6889,8 @@ function stkRenderSearch(){
       (p.factory_price?'<span>🏭 공장도 <b style="color:#555">'+stkWon(p.factory_price)+'</b></span>':'')+'</div>';
     var memoLine=p.memo?'<div style="font-size:11px;color:#9a6b1f;padding:2px 0">📝 '+stkEsc(p.memo)+'</div>':'';
     var editBtn=(!stkLocked)?'<button class="lotbtn" style="background:#fffbe6;border-color:#f3e2a0;color:#7a5d00;margin-top:5px" onclick="event.stopPropagation();stkOpenEdit(\''+p.id+'\')">✏️ 정보 수정</button>':'';
-    c.innerHTML='<div class="prow" data-pid="'+p.id+'">'+
-      '<div class="pline1"><span class="pcatbadge" style="background:'+stkCatStyle(p.cat).bg+';color:'+stkCatStyle(p.cat).t+'">'+stkEsc(p.cat||'일반')+'</span><span class="pbrand" style="background:'+(STK_BC[p.br]||'#888')+'">'+stkEsc(p.br)+'</span><span class="psize">'+stkEsc(p.size)+'</span>'+(p.ply?'<span class="pply">'+stkEsc(p.ply)+'</span>':'')+'<span class="pname">'+stkEsc(p.name)+'</span>'+(p.code?'<span class="pcode"'+('피렐리'===p.br?' style="color:#c00;font-weight:800"':'')+'>'+stkEsc(p.code)+'</span>':'')+(p.spec?'<span class="pspec">'+stkEsc(p.spec)+'</span>':'')+'</div>'+
+    c.innerHTML='<div class="pbrandband" style="background:'+(STK_BC[p.br]||stkBrandColor(p.br))+'">'+stkEsc(p.br)+'</div>'+'<div class="prow" data-pid="'+p.id+'">'+
+      '<div class="pline1"><span class="pcatbadge" style="background:'+stkCatStyle(p.cat).bg+';color:'+stkCatStyle(p.cat).t+'">'+stkEsc(p.cat||'일반')+'</span><span class="psize">'+stkEsc(p.size)+'</span>'+(p.ply?'<span class="pply">'+stkEsc(p.ply)+'</span>':'')+'<span class="pname">'+stkEsc(p.name)+'</span>'+(p.code?'<span class="pcode"'+('피렐리'===p.br?' style="color:#c00;font-weight:800"':'')+'>'+stkEsc(p.code)+'</span>':'')+(p.spec?'<span class="pspec">'+stkEsc(p.spec)+'</span>':'')+'</div>'+
       '<div class="pline2"><span class="pprice">'+(p.inst?stkWon(p.inst)+' <small>장착가</small>':(stkTopPrice(p)?stkWon(stkTopPrice(p))+' <small>택배가</small>':'가격 미정'))+'</span>'+
       ((function(){var ds=p.lots.filter(function(l){return l.q!==0&&l.dot;}).map(function(l){return l.dot;});ds=ds.filter(function(v,i){return ds.indexOf(v)===i;});return ds.length?'<span class="pinfo">📅 '+ds.join(',')+'</span>':'';})())+
       (qty>0?'<span class="pstock">재고 '+qty+'개 ▾</span>':(qty<0?'<span class="pstock" style="color:#dc2626">재고 '+qty+'개 ⏳ ▾</span>':'<span class="pstock n">재고 없음</span>'))+
