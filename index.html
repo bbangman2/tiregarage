@@ -280,7 +280,8 @@ body.rb-on #app{padding-top:58px}
 .adminbar{background:#fffbe6;border:1px solid #f3e2a0;border-radius:9px;padding:6px 10px;font-size:11px;color:#7a5d00;display:flex;gap:6px;align-items:center;margin-bottom:8px;flex-wrap:wrap}
 .adminbar button{font-size:11px;font-weight:700;border:1px solid #e3cd7a;background:#fff;border-radius:7px;padding:5px 8px;color:#7a5d00}
 .pcard{background:#fff;border:1px solid rgba(0,0,0,.1);border-radius:9px;margin-bottom:5px;overflow:hidden;display:flex}
-.prow{padding:9px 12px;flex:1;min-width:0}
+.prow{padding:9px 12px}
+.pcardbody{flex:1;min-width:0}
 .pcatline{margin-bottom:5px}
 .pcatbadge{font-size:14px;font-weight:800;padding:2px 10px;border-radius:7px}
 .pline1{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
@@ -5514,6 +5515,12 @@ function stkParseSize(s){
   if(m)return [parseInt(m[1]),parseInt(m[2]),parseInt(m[3])];
   var f=s.match(/(\d{2})\s*[xX]\s*(\d{1,2}(?:\.\d+)?)\s*[Rr\/\-\s]*(\d{2})/);  // 플로테이션 31x10.5R15
   if(f)return [parseInt(f[1]),Math.round(parseFloat(f[2])),parseInt(f[3])];
+  // 편평비 생략형(예 "155 12" = 폭155 · 편평비80생략 · 12인치). 맨 우측 숫자=인치
+  var nums=s.match(/\d+/g);
+  if(nums&&nums.length>=2){
+    var w=parseInt(nums[0]); var inch=parseInt(nums[nums.length-1]);
+    if(w>=100&&inch>=8&&inch<=30) return [w,80,inch];
+  }
   return null;
 }
 // 배송료: 정확일치 → 없으면 폭 우선·인치·편평비 순 가까운 것, 동률이면 높은 배송료
@@ -6289,7 +6296,10 @@ function stkRtInlineCat(td,pid){
 }
 // 가벼운 저장: 메모리(stkP)만 즉시 업데이트, DB는 백그라운드, 전체 재렌더 안 함
 async function stkRtSaveFieldLight(pid,dot,field,nv,old,td){
-  if(!stkCanInline())return;
+  // 즉시수정 권한이 없어도, 택배가·장착가는 실원가 권한자(김다영·이정우 등)가 편집 가능
+  if(!stkCanInline()){
+    if(!((field==='price'||field==='inst')&&typeof stkCanSeeRealcost==='function'&&stkCanSeeRealcost()))return;
+  }
   var p=stkP.find(function(x){return x.id===pid});if(!p)return;
   try{
     if(field==='cur'){
@@ -6447,8 +6457,24 @@ async function stkRtSaveFieldLight(pid,dot,field,nv,old,td){
     }
     // 원가에 영향 주는 칸(실원가·할인율·공장도가·원가) 수정 → 원가·택배가·장착가 재계산 위해 표 다시 그림
     if(field==='cost'||field==='real_cost'||field==='discount_rate'||field==='fprice'||field==='price'||field==='inst'||field==='cat'||field==='name'||field==='code'){
-      if(typeof stkRenderTable==='function')stkRenderTable();
-      if(typeof stkRenderSearch==='function')stkRenderSearch();
+      // ① 방금 고친 행의 원가·택배가·장착가 셀을 직접 즉시 갱신 (전체 재렌더가 실패해도 이 행은 무조건 반영)
+      try{
+        var _tr=(td&&td.closest)?td.closest('tr'):(td?td.parentElement:null);
+        if(_tr){
+          var _set=function(f,val,manual){
+            var cell=_tr.querySelector('td[data-field="'+f+'"]');
+            if(cell){ var sv=(val===''||val==null)?'':String(val); cell.textContent=sv; cell.setAttribute('data-old',sv); cell.style.color=manual?'#dc2626':''; cell.style.fontWeight=manual?'700':''; }
+          };
+          if(field!=='cost') _set('cost', stkCostDisplay(p), stkCostIsManual(p));
+          if(field!=='price') _set('price', stkPriceDisplay(p), stkPriceIsManual(p));
+          if(field!=='inst') _set('inst', stkInstDisplay(p), stkInstIsManual(p));
+        }
+      }catch(_ce){ console.error('행 셀 갱신 오류',_ce); }
+      // ② 전체 재렌더(정렬·요약 반영) — 실패해도 ①로 이미 반영됨
+      try{
+        if(typeof stkRenderTable==='function')stkRenderTable();
+        if(typeof stkRenderSearch==='function')stkRenderSearch();
+      }catch(_re){ console.error('재렌더 오류(저장·셀갱신은 완료됨)',_re); }
     }
     // 수정 후: 줄이 실제로 합쳐졌을 때만 표를 다시 그린다.
     // (값만 바뀐 경우엔 위에서 td.textContent로 이미 그 자리 반영됨 → 엑셀처럼 자연스럽게 유지)
@@ -6891,13 +6917,13 @@ function stkRenderSearch(){
       (p.factory_price?'<span>🏭 공장도 <b style="color:#555">'+stkWon(p.factory_price)+'</b></span>':'')+'</div>';
     var memoLine=p.memo?'<div style="font-size:11px;color:#9a6b1f;padding:2px 0">📝 '+stkEsc(p.memo)+'</div>':'';
     var editBtn=(!stkLocked)?'<button class="lotbtn" style="background:#fffbe6;border-color:#f3e2a0;color:#7a5d00;margin-top:5px" onclick="event.stopPropagation();stkOpenEdit(\''+p.id+'\')">✏️ 정보 수정</button>':'';
-    c.innerHTML='<div class="pbrandband" style="background:'+(STK_BC[p.br]||stkBrandColor(p.br))+'"><span class="pbrandvert">'+stkEsc(p.br)+'</span></div>'+'<div class="prow" data-pid="'+p.id+'">'+
+    c.innerHTML='<div class="pbrandband" style="background:'+(STK_BC[p.br]||stkBrandColor(p.br))+'"><span class="pbrandvert">'+stkEsc(p.br)+'</span></div>'+'<div class="pcardbody"><div class="prow" data-pid="'+p.id+'">'+
       '<div class="pcatline"><span class="pcatbadge" style="background:'+stkCatStyle(p.cat).bg+';color:'+stkCatStyle(p.cat).t+'">'+stkEsc(p.cat||'일반')+'</span></div><div class="pline1"><span class="psize">'+stkEsc(p.size)+'</span>'+(p.ply?'<span class="pply">'+stkEsc(p.ply)+'</span>':'')+'<span class="pname">'+stkEsc(p.name)+'</span>'+(p.code?'<span class="pcode"'+('피렐리'===p.br?' style="color:#c00;font-weight:800"':'')+'>'+stkEsc(p.code)+'</span>':'')+(p.spec?'<span class="pspec">'+stkEsc(p.spec)+'</span>':'')+'</div>'+
       '<div class="pline2"><span class="pprice">'+(p.inst?stkWon(p.inst)+' <small>장착가</small>':(stkTopPrice(p)?stkWon(stkTopPrice(p))+' <small>택배가</small>':'가격 미정'))+'</span>'+
       ((function(){var ds=p.lots.filter(function(l){return l.q!==0&&l.dot;}).map(function(l){return l.dot;});ds=ds.filter(function(v,i){return ds.indexOf(v)===i;});return ds.length?'<span class="pinfo">📅 '+ds.join(',')+'</span>':'';})())+
       (qty>0?'<span class="pstock">재고 '+qty+'개 ▾</span>':(qty<0?'<span class="pstock" style="color:#dc2626">재고 '+qty+'개 ⏳ ▾</span>':'<span class="pstock n">재고 없음</span>'))+
       '</div></div>'+
-      '<div class="pdet">'+priceLine+memoLine+lots+editBtn+'</div>';
+      '<div class="pdet">'+priceLine+memoLine+lots+editBtn+'</div></div>';
     c.setAttribute('data-pid',p.id);
     el.appendChild(c);
   });
