@@ -795,6 +795,7 @@ body.rb-on #app{padding-top:58px}
 .ldg-chan.on{background:#16a36a;border-color:#16a36a;color:#fff}
 .rsv-pill.done{background:#f0f0f0;color:#999;text-decoration:line-through}
 .rsv-pill.cancel{background:#fee2e2;color:#dc2626;text-decoration:line-through}
+   .rsv-pill.need{background:#fde2e2;color:#dc2626;font-weight:700}
 .rsv-pill.more{background:none;color:#888;text-align:center}
 /* 주 뷰 */
 .rsv-tl{overflow-x:auto}
@@ -812,7 +813,22 @@ body.rb-on #app{padding-top:58px}
 .rsv-blk{position:absolute;border-radius:5px;padding:2px 4px;font-size:10px;line-height:1.2;overflow:hidden;cursor:grab;color:#0c447c;background:#dbeafe;border:1px solid #93c5fd;user-select:none;touch-action:none;box-shadow:0 1px 2px rgba(0,0,0,0.07)}
 .rsv-blk .bt{font-weight:700;font-size:9.5px}
 .rsv-blk.align{background:#fde9d2;border-color:#f5b97a;color:#8a4b12}
-.rsv-blk.done{opacity:0.5}
+.rsv-blk.done{opacity:0.55;text-decoration:line-through}
+   .rsv-blk.need{background:#fde2e2;border-color:#f5a5a5;color:#b91c1c}
+   .rsv-unsched{margin:0 0 10px;background:#fffbe8;border:1.5px solid #f0d878;border-radius:11px;padding:9px 10px}
+   .rsv-unsched-head{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:7px}
+   .rsv-unsched-head .ruh-t{font-size:13px;font-weight:800;color:#8a6d00}
+   .rsv-unsched-head .ruh-t b{color:#b45309}
+   .rsv-unsched-head .ruh-s{font-size:11px;color:#a98a3a}
+   .rsv-unsched-row{display:flex;gap:8px;overflow-x:auto;padding-bottom:3px;-webkit-overflow-scrolling:touch}
+   .rsv-unsched-card{flex:0 0 auto;min-width:124px;max-width:172px;background:#fff;border:1.5px solid #e7cf7a;border-radius:9px;padding:8px 9px;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,0.05)}
+   .rsv-unsched-card:active{transform:scale(0.98)}
+   .rsv-unsched-card .ruc-name{font-size:13px;font-weight:800;color:#1e2a4a}
+   .rsv-unsched-card .ruc-tire{font-size:11px;color:#4b5563;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+   .rsv-unsched-card .ruc-sub{font-size:10.5px;color:#8a8f9a;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+   .rsv-unsched-card .ruc-edit{font-size:10.5px;font-weight:700;color:#b45309;margin-top:5px}
+   .rsv-unsched-card.dragging{opacity:0.5}
+   .rsv-day.dropover{background:#fff7d6 !important;outline:2px dashed #d6b53a;outline-offset:-2px}
 .rsv-blk.dragging{opacity:0.85;cursor:grabbing;z-index:100;box-shadow:0 4px 12px rgba(0,0,0,0.2)}
 .rsv-blk.resizing{opacity:0.9;z-index:60}
 .rsv-blk .rsz{position:absolute;left:0;right:0;bottom:0;height:8px;cursor:ns-resize;background:linear-gradient(to bottom,transparent,rgba(0,0,0,0.06))}
@@ -1080,6 +1096,7 @@ body.rb-on #app{padding-top:58px}
         <input id="item-search-input" placeholder="🔍 모델·규격·출처·용도 검색" oninput="onSearchInput()">
         <button class="isearch-clear" id="isearch-clear" onclick="clearItemSearch()" style="display:none">✕</button>
       </div>
+      <div id="item-dlbar" style="display:none;padding:2px 12px 8px"><button onclick="openItemExport()" style="width:100%;padding:11px;border:none;background:#eef4fb;color:#0c447c;border-radius:9px;font-size:13px;font-weight:800;cursor:pointer">📥 입고표 엑셀 다운로드 (기간 선택)</button></div>
       <div class="item-body" id="item-body"></div>
       <!-- 타이어 입력 -->
       <div class="item-input-zone" id="item-input-zone">
@@ -1213,6 +1230,7 @@ body.rb-on #app{padding-top:58px}
   <div style="padding:6px 14px;background:#fff;border-bottom:1px solid #eee">
     <input id="rsv-search" placeholder="🔍 전화·차량번호·차량명·타이어·메모·작성자" oninput="renderReserve()" style="width:100%;height:38px;border:1.5px solid #ddd;border-radius:9px;padding:0 12px;font-size:13px"><div style="display:inline-flex;align-items:center;gap:5px;background:#f1f3f6;border:1.5px solid #e6e9ef;border-radius:9px;padding:5px 9px;margin-top:7px"><button class="range-toggle" id="rsv-srch-all" onclick="rsvSrchAll()" style="background:#1e2a4a;color:#fff;border-color:#1e2a4a">전체기간</button><input type="date" id="rsv-srch-from" onchange="renderReserve()" style="display:none"><span class="date-sep" id="rsv-srch-sep" style="display:none">~</span><input type="date" id="rsv-srch-to" onchange="renderReserve()" style="display:none"><button class="range-toggle" id="rsv-srch-rangebtn" onclick="rsvSrchRange()">범위</button></div>
   </div>
+  <div id="rsv-unsched" style="display:none"></div>
   <div id="rsv-cal" class="rsv-cal"></div>
 </div>
 <!-- ===== 종합방 (1단계: 붙여넣기·분류·표시) ===== -->
@@ -1263,7 +1281,7 @@ body.rb-on #app{padding-top:58px}
       </div>
       <div id="rsv-paycalc" style="font-size:12px;color:#185fa5;text-align:right;min-height:15px"></div>
       <div id="rsv-totline" style="font-size:13px;font-weight:600;text-align:right;margin:6px 0;border-top:0.5px solid #eee;padding-top:8px"></div>
-      <button class="rsv-submit" onclick="rsvSubmit()">예약 등록</button>
+      <button class="rsv-submit" id="rsv-submit-btn" onclick="rsvSubmit()">예약 등록</button>
     </div>
   </div>
 </div>
@@ -1391,7 +1409,7 @@ body.rb-on #app{padding-top:58px}
   <div class="settings-modal">
     <button class="modal-close" onclick="closeItemExport()">×</button>
     <div class="modal-title">📥 종합본 엑셀 다운로드</div>
-    <div class="admin-panel-sub" style="margin-bottom:18px">날짜 범위를 골라 입고 종합본을 CSV(엑셀)로 받습니다. 수정·삭제 없이 다운로드만 합니다.</div>
+    <div class="admin-panel-sub" style="margin-bottom:18px">날짜 범위를 골라 입고표를 엑셀(.xlsx)로 받습니다. 값으로 저장돼 기록이 그대로 보존됩니다. 수정·삭제 없이 다운로드만 합니다.</div>
     <div class="del-row" style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
       <label style="font-size:13px;font-weight:700;color:var(--text2)">시작</label>
       <select class="del-select" id="exp-from"></select>
@@ -1696,6 +1714,7 @@ async function selectRoom(room){
   document.getElementById('settings-btn').style.display='none';
   document.getElementById('item-search-btn').style.display=(isItems||isDelivery)?'flex':'none';
   document.getElementById('item-export-btn').style.display=isItems?'flex':'none';
+  var _idb=document.getElementById('item-dlbar'); if(_idb)_idb.style.display=isItems?'block':'none';
   // 방 바꾸면 검색 초기화
   itemSearchQuery='';
   dlvSearchQuery='';
@@ -2432,18 +2451,22 @@ async function exportItemsCSV(){
     data=r.data||[];
   }catch(e){alert('불러오기 실패: '+e.message);return;}
   if(!data.length){alert('해당 기간에 입고 기록이 없어요.');return;}
-  const headers=['날짜','거래처명','패턴명','사이즈','수량','용도','직원명'];
-  let csv=headers.join(',')+'\n';
+  try{ await stkLoadXLSX(); }catch(e){ alert('엑셀 라이브러리 로드 실패'); return; }
+  var XLSX=window.XLSX;
+  var headers=['날짜','거래처','패턴/모델','사이즈','입고수량','취소','출고','잔여','용도','직원','구분','등록일시'];
+  var aoa=[headers];
   data.forEach(function(it){
-    const row=[it.date_str||'',it.src||'',it.model||'',it.spec||'',(it.qty!=null?it.qty:''),it.use_note||'',it.user_name||''];
-    csv+=row.map(csvCell).join(',')+'\n';
+    var q=Number(it.qty)||0, cc=Number(it.cancel_qty)||0, oo=Number(it.out_qty)||0;
+    var rem=q-cc-oo; if(rem<0)rem=0;
+    var kind=(it.is_return===true||it.is_return==='true')?'반품':'입고';
+    var reg=it.created_at?String(it.created_at).slice(0,16).replace('T',' '):'';
+    aoa.push([it.date_str||'',it.src||'',it.model||'',it.spec||'',q,cc,oo,rem,it.use_note||'',it.user_name||'',kind,reg]);
   });
-  const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement('a');
-  a.href=url; a.download='입고종합본_'+from+'_'+to+'.csv';
-  document.body.appendChild(a); a.click(); document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  var ws=XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols']=[{wch:11},{wch:16},{wch:14},{wch:14},{wch:8},{wch:6},{wch:6},{wch:6},{wch:20},{wch:9},{wch:7},{wch:17}];
+  var wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'입고표');
+  XLSX.writeFile(wb,'입고표_'+from+'_'+to+'.xlsx');
   closeItemExport();
 }
 async function backupCSV(){
@@ -6529,7 +6552,7 @@ function stkRtOpenOut(pid,dot,chIdx){
   var p=stkP.find(function(x){return x.id===pid});if(!p){stkToast('상품 없음');return}
   var chName=STK_CHANS[chIdx];
   // 장착 칼럼이면 출고창 대신 예약창 바로 (예약 저장 시 출고 확정)
-  if(BETA_WRITE && chName==='장착' && typeof rsvOpenAdd==='function'){
+  if(chName==='장착' && typeof rsvOpenAdd==='function'){
     rsvOpenAdd(null,{spec:p.br+' '+p.name+' '+p.size+(dot&&dot!=='DOT누락'?' '+dot:'')+(p.ply?' '+p.ply+'P':''),qty:1,kind:'rt',product_id:p.id,dot:(dot==='DOT누락'?'':dot),channel:'장착'});
     return;
   }
@@ -7581,7 +7604,7 @@ async function stkDoOut(){
   if(n<1){stkToast('수량을 확인하세요');return}
   if(!stkCurType){stkToast('⚠️ 판매처/채널을 먼저 선택하세요 (장착·당일배송·핑배송·온라인)');return}
   // 장착이면 재고 안 빼고 예약창으로 (예약 저장 시 출고 확정)
-  if(BETA_WRITE && stkCurType==='장착' && typeof rsvOpenAdd==='function'){
+  if(stkCurType==='장착' && typeof rsvOpenAdd==='function'){
     stkCloseDlg();
     rsvOpenAdd(null,{spec:fp.br+' '+fp.name+' '+fp.size+(found.dot?' '+found.dot:'')+(fp.ply?' '+fp.ply+'P':''),qty:n,kind:'lot',product_id:fp.id,dot:found.dot||'',lot_id:stkCurOut,loc:found.loc,channel:'장착'});
     return;
@@ -8493,6 +8516,7 @@ function renderReserve(){
   var done=todays.filter(function(r){return r.status==='완료';}).length;
   var sumEl=document.getElementById('rsv-summary');
   if(sumEl)sumEl.innerHTML='오늘 예약 <b>'+todays.length+'</b>건 · 완료 <b>'+done+'</b>건 · 대기 <b>'+(todays.filter(function(r){return r.status!=='완료'&&r.status!=='취소';}).length)+'</b>건';
+  rsvRenderUnscheduled();
   var sq=((document.getElementById('rsv-search')||{}).value||'').trim();
   var _hasRange=((document.getElementById('rsv-srch-from')||{}).value)||((document.getElementById('rsv-srch-to')||{}).value);
   if(sq||_hasRange){ rsvRenderSearchList(sq); return; }
@@ -8558,13 +8582,13 @@ function renderReserveMonth(){
       var ds=rsvDateStr(d), inMonth=(d.getMonth()===mo), dow=d.getDay();
       var list=rsvByDate(ds);
       if(dow===0){                                // 일요일: 작은 칸(날짜+개수만)
-        h+='<div class="rsv-day sun'+(inMonth?'':' other')+(ds===todayDs?' today':'')+'" onclick="rsvDayClick(\''+ds+'\')"><div class="dnum">'+d.getDate()+'</div>'+(list.length?'<div class="dcount">'+list.length+'</div>':'')+'</div>';
+        h+='<div class="rsv-day sun'+(inMonth?'':' other')+(ds===todayDs?' today':'')+'" onclick="rsvDayClick(\''+ds+'\')" ondragover="rsvDayDragOver(event,this)" ondragleave="rsvDayDragLeave(this)" ondrop="rsvDayDrop(event,\''+ds+'\')"><div class="dnum">'+d.getDate()+'</div>'+(list.length?'<div class="dcount">'+list.length+'</div>':'')+'</div>';
       }else{
-        h+='<div class="rsv-day'+(inMonth?'':' other')+(ds===todayDs?' today':'')+'" onclick="rsvDayClick(\''+ds+'\')">';
+        h+='<div class="rsv-day'+(inMonth?'':' other')+(ds===todayDs?' today':'')+'" onclick="rsvDayClick(\''+ds+'\')" ondragover="rsvDayDragOver(event,this)" ondragleave="rsvDayDragLeave(this)" ondrop="rsvDayDrop(event,\''+ds+'\')">';
         h+='<div class="dnum'+(dow===6?' sat':'')+'">'+d.getDate()+'</div>';
         if(list.length)h+='<div class="dcount">'+list.length+'</div>';
         list.slice(0,3).forEach(function(r){
-          var cls=r.status==='완료'?' done':(r.status==='취소'?' cancel':'');
+          var cls=r.status==='완료'?' done':(r.status==='취소'?' cancel':((r.src_product_id||r.stock_done)?'':' need'));
           h+='<div class="rsv-pill'+cls+'">'+(r.time_slot||'')+' '+esc(rsvEngLine(r)).slice(0,10)+'</div>';
         });
         if(list.length>3)h+='<div class="rsv-pill more">+'+(list.length-3)+'</div>';
@@ -8595,7 +8619,7 @@ function renderReserveWeek(){
   for(var hh=RSV_H0;hh<RSV_H1;hh++)html+='<div class="rsv-tlabel">'+hh+'시</div>';
   html+='</div>';
   days.forEach(function(d){var ds=rsvDateStr(d);var tcls=(ds===todayDs)?' today':'';
-    html+='<div class="rsv-daycol'+tcls+'" data-date="'+ds+'" onclick="rsvColClick(event,\''+ds+'\')">';
+    html+='<div class="rsv-daycol'+tcls+'" data-date="'+ds+'" onclick="rsvColClick(event,\''+ds+'\')" ondragover="rsvColDragOver(event,\''+ds+'\')" ondrop="rsvColDrop(event,\''+ds+'\')">';
     for(var hh2=RSV_H0;hh2<RSV_H1;hh2++)html+='<div class="rsv-hourline"></div>';
     html+='</div>';});
   html+='</div></div></div>';
@@ -8624,7 +8648,7 @@ function rsvTlPlaceBlock(ds,e){
   var _av=e.align_state==='take'?(e.align_amount||0):0; var _tot=_pv+_av;
   var sub=_tot>0?(' · '+rsvWon(_tot)):'';
   var b=document.createElement('div');
-  b.className='rsv-blk'+(e.align_state==='take'?' align':'')+(e.status==='완료'?' done':'');
+  b.className='rsv-blk'+((e.status!=='완료'&&!(e.src_product_id||e.stock_done))?' need':'')+(e.status==='완료'?' done':'');
   b.style.top=top+'px';b.style.height=ht+'px';
   b.style.left='calc('+(e._col*w)+'% + 1px)';b.style.width='calc('+w+'% - 2px)';
   b.innerHTML='<div class="bt">'+(e.time_slot||'')+sub+'</div>'+esc(rsvEngLine(e))+'<div class="rsz"></div>';
@@ -8895,6 +8919,7 @@ function rsvCalc(){
 function rsvOpenAdd(ds,out){
   rsvEditId=null; rsvOutInfo=out||null;
   document.getElementById('rsv-modal-title').textContent='예약 등록';
+  var _sb=document.getElementById('rsv-submit-btn');if(_sb)_sb.textContent='예약 등록';
   var dt12='';
   if(out&&out.dt12)dt12=out.dt12;
   else{
@@ -8920,12 +8945,13 @@ function rsvOpenAdd(ds,out){
   rsvSyncDt(); rsvCalc();
   document.getElementById('rsv-modal').classList.add('on');
 }
-function rsvCloseModal(){document.getElementById('rsv-modal').classList.remove('on');}
+function rsvCloseModal(){document.getElementById('rsv-modal').classList.remove('on');rsvEditId=null;rsvOutInfo=null;}
 function rsvOpenEdit(id){
   var r=reservations.find(function(x){return x.id===id;});if(!r)return;
   rsvCloseDetail();
   rsvEditId=id;
   document.getElementById('rsv-modal-title').textContent='예약 수정';
+  var _sb=document.getElementById('rsv-submit-btn');if(_sb)_sb.textContent='수정 저장';
   rsvOutInfo=(r.tire_spec)?{spec:r.tire_spec,qty:r.qty}:null;
   document.getElementById('rsv-dt12').value=(r.date_str||'').replace(/-/g,'')+(r.time_slot||'').replace(/[^0-9]/g,'');
   document.getElementById('rsv-memo').value=r.memo||'';
@@ -9021,7 +9047,7 @@ function rsvShowDetail(id){
   var r=reservations.find(function(x){return x.id===id;});if(!r)return;
   var rows=[];
   function row(k,v){if(v!==undefined&&v!==null&&v!=='')rows.push('<div class="rsv-detail-row"><div class="k">'+k+'</div><div class="v">'+esc(String(v))+'</div></div>');}
-  row('일시',(r.date_str||'')+' '+(r.time_slot||''));
+  row('일시',(r.date_str?((r.date_str||'')+' '+(r.time_slot||'')):'📌 미지정 (날짜 미정)'));
   row('상태',r.status);
   row('전화',r.phone);row('차량번호',r.car_no);row('차량명',r.car_name);
   row('타이어',r.tire_spec);row('수량',r.qty?r.qty+'짝':'');
@@ -9051,6 +9077,7 @@ function rsvShowDetail(id){
       '<button onclick="rsvOutFromInbound(\''+r.id+'\')" style="flex:1;border:1.5px solid #e08a2b;background:#fff;color:#e08a2b;padding:10px;border-radius:9px;font-size:13px;font-weight:800;cursor:pointer">🆕 입고분에서 출고</button>'+
       '</div>';
   }
+  if(r.date_str && r.status!=='완료' && r.status!=='취소'){ acts+='<div style="margin-top:8px"><button onclick="rsvToUnscheduled(\''+r.id+'\')" style="width:100%;border:1.5px solid #d6b53a;background:#fffbe8;color:#8a6d00;border-radius:9px;padding:10px;font-weight:800;cursor:pointer">📌 미지정으로 보내기 (날짜 미정 보관함)</button></div>'; }
   acts+='<div style="margin-top:8px"><button onclick="rsvOpenEdit(\''+r.id+'\')" style="width:100%;border:1.5px solid #2563eb;background:#fff;color:#2563eb;padding:10px;border-radius:9px;font-size:14px;font-weight:800;cursor:pointer">✏️ 내용 수정</button></div>';
   acts+='<div style="margin-top:6px"><button onclick="rsvCloseDetail()" style="width:100%;border:1px solid #ddd;background:#fff;color:#666;padding:9px;border-radius:9px;font-size:13px;font-weight:600;cursor:pointer">닫기</button></div>';
   var _pt=document.querySelector('#rsv-detail-modal .pt'); if(_pt)_pt.textContent='예약 상세';
@@ -9090,6 +9117,60 @@ async function rsvSetStatus(id,status){
   }catch(e){alert('변경 실패: '+e.message);return;}
   rsvCloseDetail();await loadReservations();
 }
+// ===== 미지정 예약 보관함 (날짜 미정 = date_str 빈값) =====
+function rsvRenderUnscheduled(){
+  var el=document.getElementById('rsv-unsched'); if(!el)return;
+  var list=(reservations||[]).filter(function(r){return (!r.date_str||r.date_str==='') && r.status!=='취소' && r.status!=='완료';});
+  if(!list.length){ el.style.display='none'; el.innerHTML=''; return; }
+  el.style.display='block';
+  var h='<div class="rsv-unsched-head"><span class="ruh-t">📌 미지정 예약 <b>'+list.length+'</b></span><span class="ruh-s">날짜 미정 · 카드를 눌러 날짜 지정</span></div>';
+  h+='<div class="rsv-unsched-row">';
+  list.forEach(function(r){
+    var nm=esc(r.user_name||'?');
+    var tire=esc(r.tire_spec||rsvEngLine(r)||'');
+    var sub=[r.car_name,r.car_no,r.phone].filter(function(x){return x;}).map(esc).join(' · ');
+    h+='<div class="rsv-unsched-card" draggable="true" onclick="rsvOpenEdit(\''+r.id+'\')" ondragstart="rsvUnschedDragStart(event,\''+r.id+'\')" ondragend="rsvUnschedDragEnd(event)">';
+    h+='<div class="ruc-name">'+nm+'</div>';
+    if(tire)h+='<div class="ruc-tire">'+tire+'</div>';
+    if(sub)h+='<div class="ruc-sub">'+sub+'</div>';
+    h+='<div class="ruc-edit">✎ 날짜 지정</div>';
+    h+='</div>';
+  });
+  h+='</div>';
+  el.innerHTML=h;
+}
+async function rsvToUnscheduled(id){
+  var r=(reservations||[]).find(function(x){return x.id===id;}); if(!r)return;
+  if(!confirm('이 예약을 날짜 미정(보관함)으로 보낼까요?\n날짜·시간이 비워지고 최상단 미지정 보관함으로 이동합니다.\n(되돌리려면 보관함 카드를 눌러 날짜를 다시 지정하면 됩니다.)'))return;
+  try{
+    var rr=await sb.from('reservations').update({date_str:'',time_slot:''}).eq('id',id);
+    if(rr&&rr.error)throw rr.error;
+  }catch(e){ alert('이동 실패: '+e.message); return; }
+  rsvCloseDetail(); await loadReservations();
+}
+// ===== 미지정 보관함 드래그 → 달력 드롭 (Stage 2) =====
+var rsvDragId=null;
+function rsvUnschedDragStart(ev,id){ rsvDragId=id; try{ev.dataTransfer.setData('text/plain',id);ev.dataTransfer.effectAllowed='move';}catch(e){} try{ev.currentTarget.classList.add('dragging');}catch(e){} }
+function rsvUnschedDragEnd(ev){ try{ev.currentTarget.classList.remove('dragging');}catch(e){} document.querySelectorAll('.rsv-day.dropover').forEach(function(c){c.classList.remove('dropover');}); document.querySelectorAll('.rsv-daycol.over').forEach(function(c){c.classList.remove('over');}); rsvDragId=null; }
+function rsvDayDragOver(ev,el){ if(!rsvDragId)return; ev.preventDefault(); if(el)el.classList.add('dropover'); }
+function rsvDayDragLeave(el){ if(el)el.classList.remove('dropover'); }
+function rsvDayDrop(ev,ds){ if(!rsvDragId)return; ev.preventDefault(); var id=rsvDragId; rsvDragId=null; document.querySelectorAll('.rsv-day.dropover').forEach(function(c){c.classList.remove('dropover');}); rsvScheduleDrop(id,ds,null); }
+function rsvColDragOver(ev,ds){ if(!rsvDragId)return; ev.preventDefault(); var col=document.querySelector('.rsv-daycol[data-date="'+ds+'"]'); if(col)col.classList.add('over'); }
+function rsvColDrop(ev,ds){ if(!rsvDragId)return; ev.preventDefault(); var id=rsvDragId; rsvDragId=null; var col=document.querySelector('.rsv-daycol[data-date="'+ds+'"]'); var ts=''; if(col){ var r=col.getBoundingClientRect(); var cy=(ev.clientY||0)-r.top; var mins=RSV_H0*60+Math.round((cy/RSV_ROW*60)/30)*30; mins=Math.max(RSV_H0*60,Math.min(RSV_H1*60-30,mins)); ts=rsvTlTime(mins); } document.querySelectorAll('.rsv-daycol.over').forEach(function(c){c.classList.remove('over');}); rsvScheduleDrop(id,ds,ts); }
+async function rsvScheduleDrop(id,ds,timeSlot){
+  var r=(reservations||[]).find(function(x){return x.id===id;}); if(!r)return;
+  if(timeSlot){
+    try{ var rr=await sb.from('reservations').update({date_str:ds,time_slot:timeSlot}).eq('id',id); if(rr&&rr.error)throw rr.error; }
+    catch(e){ alert('예약 확정 실패: '+e.message); return; }
+    await loadReservations();
+  }else{
+    rsvOpenEdit(id);
+    var fld=document.getElementById('rsv-dt12');
+    if(fld){ var tt=r.time_slot?r.time_slot.replace(/[^0-9]/g,''):''; if(tt.length<4)tt='0900'; fld.value=ds.replace(/-/g,'')+tt.slice(0,4); try{fld.focus();}catch(e){} }
+  }
+}
+
+
 async function rsvDelete(id){
   if(!confirm('이 예약을 완전히 삭제할까요? (되돌릴 수 없음)'))return;
   var r=reservations.find(function(x){return x.id===id;});
