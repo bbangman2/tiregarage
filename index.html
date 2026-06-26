@@ -7840,7 +7840,9 @@ async function stkDownload(){
   });
   // ── 시트2: 현황 리포트 (사람이 보기 좋게) ──
   // 현황리포트: 원가·적용배송비·적용장착비는 값, 택배가·장착가는 엑셀 수식(원가 바꾸면 자동 재계산)
-  var aoa2=[['브랜드','패턴(제품명)','패턴코드','사이즈','총수량','상태','위치들','연식들','원가','적용배송비','택배가(수식)','적용장착비','장착가(수식)','비고']];
+  var _h2=['브랜드','패턴(제품명)','패턴코드','사이즈','총수량','상태','위치들','연식들','원가','적용배송비','택배가(수식)','적용장착비','장착가(수식)','비고'];
+  if(_dlRC)_h2=_h2.concat(['실원가','할인율','공장도가']);
+  var aoa2=[_h2];
   stkP.forEach(function(p){
     var lots=p.lots.filter(function(l){return l.q!==0});
     var tot=lots.reduce(function(s,l){return s+l.q;},0);
@@ -7851,7 +7853,9 @@ async function stkDownload(){
     var memo=p.memo||'';
     lots.forEach(function(l){if(l.q<0&&l.src_in)memo=(memo?memo+' / ':'')+'입고예정:'+l.src_in+(l.due_date?'('+l.due_date+')':'');});
     var _c=stkCostDisplay(p), _sh=stkShipFee(p.size), _in=stkInstallFee(p.size,stkIsOffroad(p));
-    aoa2.push([p.br,p.name,p.code||'',p.size,tot,status,locs,dots,(_c===''?'':_c),(_sh==null?'':_sh),'',(_in==null?'':_in),'',memo]);
+    var _row2=[p.br,p.name,p.code||'',p.size,tot,status,locs,dots,(_c===''?'':_c),(_sh==null?'':_sh),'',(_in==null?'':_in),'',memo];
+    if(_dlRC)_row2=_row2.concat([p.real_cost==null?'':p.real_cost, p.discount_rate==null?'':p.discount_rate, p.factory_price||'']);
+    aoa2.push(_row2);
   });
   // ── 시트3: 전체 기록 (출고기록 포함 — 복원/백업용) ──
   // DB에서 전체 로그 조회 (탭 캐시 말고 최신 전체)
