@@ -5412,14 +5412,66 @@ async function stkLoadLock(){
   if(rb)rb.style.display=stkIsAdmin()?'block':'none';
 }
 async function stkLoadLogs(){
-  try{var r=await sb.from('stock_logs').select('*').order('ts',{ascending:false}).limit(6);
+  try{var r=await sb.from('stock_logs').select('*').order('ts',{ascending:false}).limit(10);
     var el=document.getElementById('stk-log');
+    var _e=function(v){return String(v==null?'':v).replace(/'/g,"\\'");};
     if(el)el.innerHTML='📜 <b>이동/출고 기록</b> (전부 보존·실시간 공유)<br>'+
       ((r.data&&r.data.length)?r.data.map(function(g){
         var t=new Date(new Date(g.ts).getTime()+9*3600*1000).toISOString().slice(11,16);
-        return t+' '+g.action+' '+(g.note||'')+' · '+g.user_name}).join('<br>'):'아직 없음');
+        var line=t+' '+g.action+' '+(g.note||'')+' · '+g.user_name;
+        if(g.action&&g.action.indexOf('이동')>=0&&g.from_loc&&g.to_loc&&g.product_id){
+          line+=' <button onclick="stkUndoMove(\''+_e(g.to_loc)+'\',\''+_e(g.from_loc)+'\',\''+_e(g.product_id)+'\',\''+_e(g.dot)+'\','+(Number(g.qty)||0)+')" style="margin-left:6px;font-size:11px;font-weight:700;border:1px solid #f3c9c9;background:#fff;color:#dc2626;border-radius:6px;padding:2px 7px;cursor:pointer">↩️ 되돌리기</button>';
+        }
+        return line;}).join('<br>'):'아직 없음');
   }catch(e){}
 }
+async function stkUndoMove(toLoc,fromLoc,pid,dot,qty){
+  if(!stkLockGuard())return;
+  var _nm=function(v){return (v===null||v===undefined?'':String(v)).trim();};
+  var lot=null,fp=null;
+  stkP.forEach(function(p){ if(String(p.id)!==String(pid))return; (p.lots||[]).forEach(function(l){ if(!lot&&l.loc===toLoc&&_nm(l.dot)===_nm(dot)){lot=l;fp=p;} }); });
+  if(!lot){ stkToast('🔍 '+toLoc+' 칸에 그 품목이 없어요 (이미 옮겨졌을 수 있어요)'); return; }
+  var n=Math.min(Number(qty)||lot.q, lot.q);
+  if(!confirm((fp.name||'')+' '+n+'개\n'+toLoc+' → '+fromLoc+'\n원래 자리로 되돌릴까요?'))return;
+  await stkMoveLot(lot.id, fromLoc, n);
+  stkToast('↩️ '+(fp.name||'')+' '+n+'개 되돌렸어요 ('+toLoc+'→'+fromLoc+')');
+}
+async function stkUndoCellMove(logId){
+  if(!stkLockGuard())return;
+  var g=(stkLogRows||[]).find(function(x){return String(x.id)===String(logId);});
+  if(!g||!g.from_loc||!g.to_loc){ stkToast('되돌릴 이동 정보를 찾지 못했어요'); return; }
+  var moved=[];
+  try{ moved=JSON.parse(g.ref||'[]'); }catch(e){ moved=[]; }
+  if(!Array.isArray(moved)||!moved.length){ stkToast('⚠️ 이 이동은 상세 기록이 없어 자동 되돌리기가 안 돼요 (지도에서 직접 옮겨주세요)'); return; }
+  var _nm=function(v){return (v===null||v===undefined?'':String(v)).trim();};
+  var plan=[], short=0;
+  moved.forEach(function(mv){
+    var need=Number(mv.q)||0; if(need<=0)return;
+    stkP.forEach(function(p){ if(String(p.id)!==String(mv.i))return;
+      (p.lots||[]).forEach(function(l){ if(need<=0)return; if(l.loc!==g.to_loc)return; if(_nm(l.dot)!==_nm(mv.d))return;
+        var take=Math.min(need,l.q); if(take>0){ plan.push({id:l.id,qty:take}); need-=take; }
+      });
+    });
+    if(need>0)short+=need;
+  });
+  if(!plan.length){ stkToast('🔍 되돌릴 품목이 '+g.to_loc+' 칸에 없어요 (그 뒤 다른 곳으로 옮겨졌어요)'); return; }
+  var total=plan.reduce(function(a,b){return a+b.qty;},0);
+  if(!confirm('내가 옮겼던 '+total+'개를\n'+g.to_loc+' → '+g.from_loc+'(으)로 되돌릴까요?'+(short?'\n※ 그 뒤 다시 옮겨진 '+short+'개는 그대로 둡니다.':'')))return;
+  try{
+    for(var i=0;i<plan.length;i++){ await stkMoveLot(plan[i].id, g.from_loc, plan[i].qty); }
+  }catch(e){ stkToast('되돌리기 실패: '+e.message); return; }
+  stkToast('↩️ '+total+'개 되돌렸어요 ('+g.to_loc+'→'+g.from_loc+')');
+  await stkLoad();
+}
+function stkCellDesc(loc){
+  try{
+    var m=stkCellMap(), items=m[loc]||[];
+    if(!items.length)return '비어있음';
+    return items.map(function(x){return (x.p.br||'')+' '+(x.p.name||'')+(x.p.code?' ['+x.p.code+']':'')+' '+(x.p.size||'')+(x.l.dot&&x.l.dot!=='DOT누락'?' '+x.l.dot:'')+' '+x.l.q+'개';}).join(', ');
+  }catch(e){return '';}
+}
+
+
 // ── 재고 쓰기 결과 검사: 실패하면 throw (조용한 실패 방지) ──
 // Supabase는 update/insert/delete 실패 시 에러를 "던지지" 않고 {error}로 줌.
 // 이 함수로 감싸면 실패가 각 함수의 try/catch로 흘러가 경고가 뜸.
@@ -5853,7 +5905,7 @@ function stkRenderLogTab(){
     var ts=t.toISOString().slice(0,16).replace('T',' ');
     var extra='';
     if(g.channel)extra+=' · 판매처/채널 '+stkEsc(g.channel);
-    if(g.ref)extra+=' · 주문/메모 '+stkEsc(g.ref);
+    if(g.ref && (g.action||'').indexOf('출고')>=0)extra+=' · 주문/메모 '+stkEsc(g.ref);
     var isOut=(g.action||'').indexOf('출고')>=0 && (g.action||'').indexOf('취소')<0 && (g.action||'').indexOf('실패')<0;
     var undone=g.ref&&(''+g.ref).indexOf('[취소됨]')>=0;
     var undoBtn='';
@@ -5861,8 +5913,17 @@ function stkRenderLogTab(){
       if(undone)undoBtn='<span style="font-size:11px;color:#c0392b;font-weight:800;margin-right:5px">✗ 취소됨</span><button onclick="stkUndoOut(\''+g.id+'\')" style="font-size:11px;padding:4px 9px;border:1px solid #b9e0c9;background:#eaf7ef;color:#15803d;border-radius:7px;font-weight:800;cursor:pointer">↩️ 되돌리기</button>';
       else undoBtn='<button onclick="stkUndoOut(\''+g.id+'\')" style="font-size:11px;padding:4px 9px;border:1px solid #f3c2c2;background:#fdf2f2;color:#c0392b;border-radius:7px;font-weight:800;cursor:pointer">✗ 출고 취소</button>';
     }
+    if(!undoBtn && ((g.action||'').indexOf('이동')>=0||(g.action||'').indexOf('합치기')>=0) && (g.action||'').indexOf('취소')<0 && g.from_loc && g.to_loc){
+      var _e2=function(v){return String(v==null?'':v).replace(/'/g,"\\'");};
+      if(g.product_id) undoBtn='<button onclick="stkUndoMove(\''+_e2(g.to_loc)+'\',\''+_e2(g.from_loc)+'\',\''+_e2(g.product_id)+'\',\''+_e2(g.dot)+'\','+(Number(g.qty)||0)+')" style="font-size:11px;padding:4px 9px;border:1px solid #f3c2c2;background:#fdf2f2;color:#c0392b;border-radius:7px;font-weight:800;cursor:pointer">↩️ 위치 되돌리기</button>';
+      else undoBtn='<button onclick="stkUndoCellMove(\''+_e2(g.id)+'\')" style="font-size:11px;padding:4px 9px;border:1px solid #f3c2c2;background:#fdf2f2;color:#c0392b;border-radius:7px;font-weight:800;cursor:pointer">↩️ 위치 되돌리기</button>';
+    }
+    var moveHint='';
+    if(((g.action||'').indexOf('이동')>=0||(g.action||'').indexOf('합치기')>=0) && g.to_loc && /\d+종\)/.test(g.note||'')){
+      moveHint='<div style="font-size:11.5px;color:#5b6478;margin-top:3px">📦 지금 '+stkEsc(g.to_loc)+' 칸: '+stkEsc(stkCellDesc(g.to_loc))+'</div>';
+    }
     return '<div class="logcard '+cls+'"><div class="l1"><span class="act '+cls+'">'+stkEsc(g.action||'')+'</span>'+
-      '<span class="note">'+stkEsc(g.note||'')+'</span></div>'+
+      '<span class="note">'+stkEsc(g.note||'')+'</span></div>'+moveHint+
       '<div class="meta"><span class="who">'+stkEsc(g.user_name||'?')+'</span> · '+ts+extra+'</div>'+
       (undoBtn?'<div style="margin-top:6px;text-align:right">'+undoBtn+'</div>':'')+'</div>';
   }).join('');
@@ -7112,9 +7173,11 @@ async function stkPickDrop(destCode){
   else if(pk.type==='cell'&&pk.code!==destCode){
     var m=stkCellMap(),items=m[pk.code]||[];
     var merge=(m[destCode]||[]).length>0,from=pk.code;
+    var _mv=JSON.stringify(items.map(function(x){return {i:x.p.id,d:(x.l.dot||''),q:x.l.q};}));
+    var _mvtxt=items.map(function(x){return (x.p.br||'')+' '+(x.p.name||'')+(x.p.code?' ['+x.p.code+']':'')+' '+(x.p.size||'')+(x.l.dot&&x.l.dot!=='DOT누락'?' '+x.l.dot:'')+' '+x.l.q+'개';}).join(', ');
     try{for(var i=0;i<items.length;i++)stkChk(await sb.from('stock_lots').update({loc:destCode,updated_at:new Date().toISOString()}).eq('id',items[i].l.id),'이동');}
     catch(e){stkToast('실패: '+e.message);return true}
-    stkLog('📍'+(merge?'합치기':'이동'),from+'→'+destCode+' ('+items.length+'종)',{from_loc:from,to_loc:destCode});
+    stkLog('📍'+(merge?'합치기':'이동'),_mvtxt+' · '+from+'→'+destCode,{from_loc:from,to_loc:destCode,ref:_mv});
     stkToast(from+' → '+destCode+(merge?' 합치기':' 이동'));await stkLoad();
   }
   return true;
@@ -7348,7 +7411,7 @@ async function stkMoveLot(lotId,toLoc,n){
   if(from!==toLoc)await stkConsolidateCell(from);
   stkRefreshCell(from);stkRefreshCell(toLoc);stkRefreshStatAndUnassigned();stkRenderSearch();
   stkToast('이동 완료');
-  stkLog('📍이동',fp.name+' '+n+'개 '+(from==='U'?'미배치':from)+'→'+(toLoc==='U'?'미배치':toLoc),{product_id:fp.id,dot:found.dot,qty:n,from_loc:from,to_loc:toLoc});
+  stkLog('📍이동',fp.name+(fp.size?' '+fp.size:'')+(found.dot&&found.dot!=='DOT누락'?' ('+found.dot+')':'')+' '+n+'개 '+(from==='U'?'미배치':from)+'→'+(toLoc==='U'?'미배치':toLoc),{product_id:fp.id,dot:found.dot,qty:n,from_loc:from,to_loc:toLoc});
 }
 function stkDragEnd(){
   stkDragging=false;
@@ -7363,6 +7426,8 @@ async function stkDrop(destCode){
   else if(stkDrag.type==='cell'&&stkDrag.code!==destCode){
     var m=stkCellMap(),items=m[stkDrag.code]||[];
     var merge=(m[destCode]||[]).length>0,from=stkDrag.code;
+    var _mv=JSON.stringify(items.map(function(x){return {i:x.p.id,d:(x.l.dot||''),q:x.l.q};}));
+    var _mvtxt=items.map(function(x){return (x.p.br||'')+' '+(x.p.name||'')+(x.p.code?' ['+x.p.code+']':'')+' '+(x.p.size||'')+(x.l.dot&&x.l.dot!=='DOT누락'?' '+x.l.dot:'')+' '+x.l.q+'개';}).join(', ');
     try{for(var i=0;i<items.length;i++)
       stkChk(await sb.from('stock_lots').update({loc:destCode,updated_at:new Date().toISOString()}).eq('id',items[i].l.id),'이동');
     }catch(e){stkToast('실패: '+e.message);stkDrag=null;return}
@@ -7370,7 +7435,7 @@ async function stkDrop(destCode){
     await stkConsolidateCell(destCode); // 도착칸 같은 상품 합치기
     stkRefreshCell(from);stkRefreshCell(destCode);stkRefreshStatAndUnassigned();stkRenderSearch();
     stkToast(from+' → '+destCode+(merge?' 합치기':' 이동'));
-    stkLog('📍'+(merge?'합치기':'이동'),from+'→'+destCode+' ('+items.length+'종)',{from_loc:from,to_loc:destCode});
+    stkLog('📍'+(merge?'합치기':'이동'),_mvtxt+' · '+from+'→'+destCode,{from_loc:from,to_loc:destCode,ref:_mv});
   }
   stkDrag=null;
 }
