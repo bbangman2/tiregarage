@@ -5471,6 +5471,108 @@ function stkCellDesc(loc){
   }catch(e){return '';}
 }
 
+/* ===== 전체 데이터 백업 / 삭제 / 복구 (대표 전용) ===== */
+var DB_TABLES=['rooms','users','settings','stock_settings','stock_products','stock_lots','stock_logs','reservations','items','deliveries','delivery_logs','jonghap_orders','messages']; // 복구=부모먼저, 삭제=역순
+function dbIsAdmin(){ try{ return (typeof stkIsAdmin==='function'&&stkIsAdmin())||(window.me&&me.name==='이호준'); }catch(e){ return false; } }
+function dbBackupOpen(){ if(!dbIsAdmin()){alert('대표 전용입니다');return;} var m=document.getElementById('db-bk-modal'); if(m)m.style.display='block'; }
+function dbBackupClose(){ var m=document.getElementById('db-bk-modal'); if(m)m.style.display='none'; }
+function dbToast(s){ try{ if(typeof stkToast==='function'){stkToast(s);return;} }catch(e){} alert(s); }
+
+async function dbExportAll(){
+  if(!dbIsAdmin()){alert('대표 전용입니다');return;}
+  var out={meta:{app:'tiregarage',ts:new Date().toISOString(),by:(window.me&&me.name)||'',tables:{}},data:{}};
+  try{
+    for(var ti=0;ti<DB_TABLES.length;ti++){
+      var t=DB_TABLES[ti], rows=[], from=0, STEP=1000;
+      while(true){
+        var r=await sb.from(t).select('*').range(from,from+STEP-1);
+        if(r.error) throw new Error(t+': '+r.error.message);
+        rows=rows.concat(r.data||[]);
+        if(!r.data||r.data.length<STEP) break;
+        from+=STEP;
+      }
+      out.data[t]=rows; out.meta.tables[t]=rows.length;
+    }
+  }catch(e){ alert('백업 중 오류: '+e.message); return; }
+  var total=Object.keys(out.meta.tables).reduce(function(a,k){return a+out.meta.tables[k];},0);
+  out.meta.total=total;
+  var blob=new Blob([JSON.stringify(out)],{type:'application/json'});
+  var url=URL.createObjectURL(blob), a=document.createElement('a');
+  a.href=url; a.download='티지_전체백업_'+new Date().toISOString().slice(0,10)+'_'+total+'행.json';
+  document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+  window._dbBackupAt=Date.now();
+  try{ if(typeof stkLog==='function') stkLog('💾전체백업','테이블 '+DB_TABLES.length+'개·총 '+total+'행'); }catch(e){}
+  alert('백업 완료 (총 '+total+'행)\n'+DB_TABLES.map(function(t){return t+': '+out.meta.tables[t];}).join('\n'));
+}
+
+async function dbUpsertTolerant(t,chunk){
+  var data=chunk;
+  for(var attempt=0;attempt<12;attempt++){
+    var r=await sb.from(t).upsert(data);
+    if(!r.error) return {ok:true};
+    var msg=r.error.message||'';
+    var m=msg.match(/'([^']+)' column/)||msg.match(/column "([^"]+)"/)||msg.match(/Could not find the '([^']+)'/);
+    if(m&&m[1]){ var col=m[1]; data=data.map(function(row){var c=Object.assign({},row); delete c[col]; return c;}); continue; }
+    return {ok:false,error:msg};
+  }
+  return {ok:false,error:'알 수 없는 컬럼이 너무 많음'};
+}
+
+async function dbRestoreFile(file){
+  if(!dbIsAdmin()){alert('대표 전용입니다');return;}
+  if(!file){return;}
+  var obj;
+  try{ obj=JSON.parse(await file.text()); }catch(e){ alert('JSON 파일이 아니에요'); return; }
+  if(!obj||!obj.data||!obj.meta){ alert('백업 파일 형식이 아니에요'); return; }
+  var sum=DB_TABLES.filter(function(t){return obj.data[t];}).map(function(t){return t+' '+(obj.meta.tables[t]||0);}).join(', ');
+  if(!confirm('이 파일로 복구합니다 (현재 데이터에 덮어씀):\n총 '+(obj.meta.total||'?')+'행\n'+sum+'\n\n진행할까요?')) return;
+  var STEP=500, report=[], idSample=null;
+  for(var ti=0;ti<DB_TABLES.length;ti++){
+    var t=DB_TABLES[ti], rows=obj.data[t]||[];
+    if(!rows.length){ report.push(t+': 0'); continue; }
+    if(idSample===null && rows[0] && rows[0].id!==undefined) idSample=rows[0].id;
+    for(var i=0;i<rows.length;i+=STEP){
+      var res=await dbUpsertTolerant(t,rows.slice(i,i+STEP));
+      if(!res.ok){ alert(t+' 복구 실패: '+res.error+'\n(여기까지 들어간 건 유지됨, 멈춥니다)'); return; }
+    }
+    report.push(t+': '+rows.length);
+  }
+  // 복구 후 건수 검증
+  var verify=[];
+  for(var ti2=0;ti2<DB_TABLES.length;ti2++){
+    var t2=DB_TABLES[ti2];
+    try{ var c=await sb.from(t2).select('*',{count:'exact',head:true});
+      var got=(c.count!=null)?c.count:'?', want=(obj.meta.tables||{})[t2]||0;
+      verify.push(t2+': '+got+'/'+want+(String(got)===String(want)?' ✓':' ✗')); }catch(e){ verify.push(t2+': 확인불가'); }
+  }
+  try{ if(typeof stkLog==='function') stkLog('♻️전체복구','파일에서 복구·총 '+(obj.meta.total||'?')+'행'); }catch(e){}
+  var numeric=(idSample!==null && typeof idSample==='number');
+  var seqNote=numeric?('\n\n⚠️ ID가 숫자식이에요. 새 글 번호 충돌 막으려면 Supabase SQL editor에서 각 테이블 시퀀스를 한 번 맞춰주세요(안내 따로 드림).'):'\n\n(ID가 UUID식 — 추가 작업 없음)';
+  alert('복구 완료 ✓\n'+verify.join('\n')+seqNote);
+  setTimeout(function(){location.reload();},1500);
+}
+
+async function dbWipeAll(){
+  if(!dbIsAdmin()){alert('대표 전용입니다');return;}
+  if(!window._dbBackupAt || (Date.now()-window._dbBackupAt)>15*60*1000){
+    if(!confirm('이 화면에서 방금 백업을 안 받았습니다.\n복구용 백업 파일이 따로 있습니까?\n(없으면 반드시 취소하세요)')) return;
+  }
+  var pw=prompt('관리자 비밀번호'); if(pw!==(typeof STK_UNLOCK_PW!=='undefined'?STK_UNLOCK_PW:'tg1234')){ alert('비밀번호가 달라요'); return; }
+  var ph=prompt('정말 전체 삭제하려면  삭제확인  이라고 입력하세요'); if(ph!=='삭제확인'){ alert('취소됐어요'); return; }
+  if(!confirm('⚠️ 모든 방의 모든 데이터를 삭제합니다.\n복구하려면 백업 파일이 꼭 필요합니다.\n\n정말 진행할까요?')) return;
+  var order=DB_TABLES.slice().reverse();
+  for(var i=0;i<order.length;i++){
+    try{ var r=await sb.from(order[i]).delete().not('id','is',null);
+      if(r.error){ alert(order[i]+' 삭제 실패: '+r.error.message); return; } }
+    catch(e){ alert(order[i]+' 삭제 오류: '+e.message); return; }
+  }
+  try{ if(typeof stkLog==='function') stkLog('🗑️전체삭제','모든 테이블 비움'); }catch(e){}
+  alert('전체 삭제 완료. 이제 복구 파일을 업로드하세요.');
+  setTimeout(function(){location.reload();},1200);
+}
+setInterval(function(){ try{ var b=document.getElementById('db-bk-btn'); if(b&&dbIsAdmin()) b.style.display='block'; }catch(e){} },2500);
+
+
 
 // ── 재고 쓰기 결과 검사: 실패하면 throw (조용한 실패 방지) ──
 // Supabase는 update/insert/delete 실패 시 에러를 "던지지" 않고 {error}로 줌.
@@ -9367,5 +9469,20 @@ async function rsvDelete(id){
   <div class="stkacts"><button class="stk-ok" onclick="stkCloseDlg()">닫기</button></div>
 </div></div>
 <div class="stktoast" id="stk-toast"></div>
+<div id="db-bk-btn" onclick="dbBackupOpen()" style="display:none;position:fixed;left:10px;bottom:10px;z-index:60;background:#1f2937;color:#fff;border-radius:10px;padding:8px 12px;font-size:12px;font-weight:800;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.25)">💾 백업/복구</div>
+<div id="db-bk-modal" style="display:none;position:fixed;inset:0;z-index:61;background:rgba(0,0,0,.5)">
+  <div style="background:#fff;max-width:440px;margin:8vh auto;border-radius:14px;padding:18px;font-size:13px;box-shadow:0 10px 40px rgba(0,0,0,.3)">
+    <div style="font-weight:900;font-size:15px;margin-bottom:2px">💾 전체 데이터 백업 / 복구</div>
+    <div style="color:#64748b;margin-bottom:14px;font-size:12px">모든 방·모든 기록을 한 파일로. 대표 전용.</div>
+    <button onclick="dbExportAll()" style="width:100%;padding:11px;border:0;border-radius:9px;background:#1d4ed8;color:#fff;font-weight:800;font-size:13px;cursor:pointer;margin-bottom:12px">① 전체 백업 다운로드</button>
+    <div style="font-weight:800;margin-bottom:5px">② 복구 (백업 파일 업로드)</div>
+    <input type="file" id="db-bk-file" accept="application/json,.json" onchange="dbRestoreFile(this.files[0]);this.value='';" style="width:100%;font-size:12px;margin-bottom:14px;padding:8px;border:1px solid #cbd5e1;border-radius:8px;box-sizing:border-box">
+    <div style="border-top:1px dashed #e2e8f0;padding-top:12px">
+      <button onclick="dbWipeAll()" style="width:100%;padding:10px;border:1px solid #fca5a5;border-radius:9px;background:#fef2f2;color:#dc2626;font-weight:800;font-size:12px;cursor:pointer;margin-bottom:10px">③ 전부 삭제 (위험 · 비번+확인 필요)</button>
+    </div>
+    <button onclick="dbBackupClose()" style="width:100%;padding:9px;border:1px solid #cbd5e1;border-radius:9px;background:#fff;color:#334155;font-weight:700;font-size:12px;cursor:pointer">닫기</button>
+  </div>
+</div>
+
 </body>
 </html>
