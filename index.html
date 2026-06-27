@@ -1045,6 +1045,7 @@ body.rb-on #app{padding-top:58px}
         <button class="admin-btn" onclick="stkOpenRcPerm()">💰 실원가권한</button>
         <button class="admin-btn" onclick="stkOpenPw()">🔑 비밀번호</button>
         <button class="admin-btn" onclick="openAdmin()">⚙️ 관리자 수정</button>
+        <button class="admin-btn" onclick="dbBackupOpen()">💾 백업/복구</button>
       </div>
       <button class="logout-btn" onclick="doLogout()">나가기</button>
     </div>
@@ -5505,6 +5506,46 @@ async function dbExportAll(){
   alert('백업 완료 (총 '+total+'행)\n'+DB_TABLES.map(function(t){return t+': '+out.meta.tables[t];}).join('\n'));
 }
 
+async function dbExportXlsx(){
+  if(!dbIsAdmin()){alert('대표 전용입니다');return;}
+  try{ await stkLoadXLSX(); }catch(e){ alert('엑셀 라이브러리 로드 실패'); return; }
+  var XLSX=window.XLSX; if(!XLSX){ alert('엑셀 모듈을 불러오지 못했어요'); return; }
+  var LABEL={rooms:'방목록',users:'직원',settings:'설정',stock_settings:'재고설정',stock_products:'재고상품',stock_lots:'재고로트',stock_logs:'재고로그',reservations:'예약',items:'입고표',deliveries:'배송',delivery_logs:'배송로그',jonghap_orders:'종합주문',messages:'메시지'};
+  var wb=XLSX.utils.book_new(), total=0;
+  try{
+    for(var ti=0;ti<DB_TABLES.length;ti++){
+      var t=DB_TABLES[ti], rows=[], from=0, STEP=1000;
+      while(true){
+        var r=await sb.from(t).select('*').range(from,from+STEP-1);
+        if(r.error) throw new Error(t+': '+r.error.message);
+        rows=rows.concat(r.data||[]);
+        if(!r.data||r.data.length<STEP) break;
+        from+=STEP;
+      }
+      total+=rows.length;
+      var cols=[]; rows.forEach(function(row){ Object.keys(row||{}).forEach(function(k){ if(cols.indexOf(k)<0)cols.push(k); }); });
+      if(!cols.length)cols=['(빈 테이블)'];
+      var aoa=[cols];
+      rows.forEach(function(row){
+        aoa.push(cols.map(function(k){
+          var v=row?row[k]:'';
+          if(v===null||v===undefined)return '';
+          if(typeof v==='object')v=JSON.stringify(v);
+          v=String(v);
+          if(v.length>32000)v=v.slice(0,32000)+'…(생략)';
+          return v;
+        }));
+      });
+      var ws=XLSX.utils.aoa_to_sheet(aoa);
+      XLSX.utils.book_append_sheet(wb, ws, (LABEL[t]||t).slice(0,31));
+    }
+  }catch(e){ alert('엑셀 만드는 중 오류: '+e.message); return; }
+  XLSX.writeFile(wb, '티지_보기용_'+new Date().toISOString().slice(0,10)+'_'+total+'행.xlsx');
+  try{ if(typeof stkLog==='function') stkLog('📊보기용엑셀','전체 테이블 엑셀 내보내기·총 '+total+'행'); }catch(e){}
+  alert('보기용 엑셀 받기 완료 (총 '+total+'행)\n※ 이건 눈으로 보는 용도예요. 복구는 ① JSON 백업으로 하세요.');
+}
+
+
 async function dbUpsertTolerant(t,chunk){
   var data=chunk;
   for(var attempt=0;attempt<12;attempt++){
@@ -5570,10 +5611,6 @@ async function dbWipeAll(){
   alert('전체 삭제 완료. 이제 복구 파일을 업로드하세요.');
   setTimeout(function(){location.reload();},1200);
 }
-setInterval(function(){ try{ var b=document.getElementById('db-bk-btn'); if(b&&dbIsAdmin()) b.style.display='block'; }catch(e){} },2500);
-
-
-
 // ── 재고 쓰기 결과 검사: 실패하면 throw (조용한 실패 방지) ──
 // Supabase는 update/insert/delete 실패 시 에러를 "던지지" 않고 {error}로 줌.
 // 이 함수로 감싸면 실패가 각 함수의 try/catch로 흘러가 경고가 뜸.
@@ -9469,12 +9506,12 @@ async function rsvDelete(id){
   <div class="stkacts"><button class="stk-ok" onclick="stkCloseDlg()">닫기</button></div>
 </div></div>
 <div class="stktoast" id="stk-toast"></div>
-<div id="db-bk-btn" onclick="dbBackupOpen()" style="display:none;position:fixed;left:10px;bottom:10px;z-index:60;background:#1f2937;color:#fff;border-radius:10px;padding:8px 12px;font-size:12px;font-weight:800;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.25)">💾 백업/복구</div>
 <div id="db-bk-modal" style="display:none;position:fixed;inset:0;z-index:61;background:rgba(0,0,0,.5)">
   <div style="background:#fff;max-width:440px;margin:8vh auto;border-radius:14px;padding:18px;font-size:13px;box-shadow:0 10px 40px rgba(0,0,0,.3)">
     <div style="font-weight:900;font-size:15px;margin-bottom:2px">💾 전체 데이터 백업 / 복구</div>
     <div style="color:#64748b;margin-bottom:14px;font-size:12px">모든 방·모든 기록을 한 파일로. 대표 전용.</div>
     <button onclick="dbExportAll()" style="width:100%;padding:11px;border:0;border-radius:9px;background:#1d4ed8;color:#fff;font-weight:800;font-size:13px;cursor:pointer;margin-bottom:12px">① 전체 백업 다운로드</button>
+    <button onclick="dbExportXlsx()" style="width:100%;padding:10px;border:1px solid #16a34a;border-radius:9px;background:#f0fdf4;color:#15803d;font-weight:800;font-size:12px;cursor:pointer;margin-bottom:12px">📊 보기용 엑셀 받기 (읽기 전용 · 방마다 시트)</button>
     <div style="font-weight:800;margin-bottom:5px">② 복구 (백업 파일 업로드)</div>
     <input type="file" id="db-bk-file" accept="application/json,.json" onchange="dbRestoreFile(this.files[0]);this.value='';" style="width:100%;font-size:12px;margin-bottom:14px;padding:8px;border:1px solid #cbd5e1;border-radius:8px;box-sizing:border-box">
     <div style="border-top:1px dashed #e2e8f0;padding-top:12px">
