@@ -5445,7 +5445,7 @@ async function stkUndoCellMove(logId){
   var g=(stkLogRows||[]).find(function(x){return String(x.id)===String(logId);});
   if(!g||!g.from_loc||!g.to_loc){ stkToast('되돌릴 이동 정보를 찾지 못했어요'); return; }
   var moved=[];
-  try{ moved=JSON.parse(g.ref||'[]'); }catch(e){ moved=[]; }
+  try{ var _o=JSON.parse(g.ref||'[]'); moved=Array.isArray(_o)?_o:((_o&&_o.m)||[]); }catch(e){ moved=[]; }
   if(!Array.isArray(moved)||!moved.length){ stkToast('⚠️ 이 이동은 상세 기록이 없어 자동 되돌리기가 안 돼요 (지도에서 직접 옮겨주세요)'); return; }
   var _nm=function(v){return (v===null||v===undefined?'':String(v)).trim();};
   var plan=[], short=0;
@@ -5474,6 +5474,47 @@ function stkCellDesc(loc){
     return items.map(function(x){return (x.p.br||'')+' '+(x.p.name||'')+(x.p.code?' ['+x.p.code+']':'')+' '+(x.p.size||'')+(x.l.dot&&x.l.dot!=='DOT누락'?' '+x.l.dot:'')+' '+x.l.q+'개';}).join(', ');
   }catch(e){return '';}
 }
+function stkLogItemDesc(pid,dot,qty){
+  var p=null; (typeof stkP!=='undefined'?stkP:[]).forEach(function(x){ if(String(x.id)===String(pid))p=x; });
+  if(!p) return (qty?qty+'개':'(삭제된 상품)');
+  return (p.br?p.br+' ':'')+(p.name||'')+(p.code?' ['+p.code+']':'')+(p.size?' '+p.size:'')+(dot&&dot!=='DOT누락'?' ('+dot+')':'')+(qty?' '+qty+'개':'');
+}
+function stkLogMoveParts(g){
+  var moved=null,existed=null;
+  if(g.product_id){ moved=stkLogItemDesc(g.product_id,g.dot,g.qty); }
+  else if(g.ref){ try{ var o=JSON.parse(g.ref);
+    var aM=Array.isArray(o)?o:(o&&o.m); var aE=(o&&!Array.isArray(o))?o.e:null;
+    if(aM&&aM.length) moved=aM.map(function(m){return stkLogItemDesc(m.i,m.d,m.q);}).join(', ');
+    if(aE&&aE.length) existed=aE.map(function(m){return stkLogItemDesc(m.i,m.d,m.q);}).join(', ');
+  }catch(e){} }
+  return {moved:moved,existed:existed};
+}
+function stkHistTime(ts){ try{var d=toKST(ts); function z(n){return (n<10?'0':'')+n;} return d.getFullYear()+'-'+z(d.getMonth()+1)+'-'+z(d.getDate())+' '+z(d.getHours())+':'+z(d.getMinutes());}catch(e){return ts||'';} }
+async function stkOpenCellHist(loc){
+  if(!loc) return;
+  document.getElementById('stk-chTitle').textContent='📜 '+loc+' 칸 이력';
+  var body=document.getElementById('stk-chBody');
+  body.innerHTML='<div style="text-align:center;color:#888;padding:24px">불러오는 중…</div>';
+  document.getElementById('stk-dlgCellHist').classList.add('on');
+  var rows=[];
+  try{ var r=await sb.from('stock_logs').select('*').or('from_loc.eq.'+loc+',to_loc.eq.'+loc).order('ts',{ascending:false}).limit(500); rows=(r&&r.data)||[]; }catch(e){ rows=[]; }
+  if(!rows.length){ body.innerHTML='<div style="text-align:center;color:#888;padding:24px">이 칸을 거쳐간 이동 기록이 없습니다.</div>'; return; }
+  body.innerHTML='<div style="font-size:11px;color:#94a3b8;margin-bottom:8px">이 칸을 거쳐간 실제 기록만 (추측 없음) · 최신순 '+rows.length+'건</div>'+rows.map(function(g){
+    var IN=(g.to_loc===loc);
+    var dir=IN?'<span style="color:#16a34a;font-weight:800">\u2B05 들어옴</span>':'<span style="color:#dc2626;font-weight:800">\u27A1 나감</span>';
+    var other=IN?(g.from_loc==='U'?'미배치':g.from_loc):(g.to_loc==='U'?'미배치':g.to_loc);
+    var otherTxt=IN?(other+' 에서'):(other+' 으로');
+    var kind=((g.action||'').match(/[\uAC00-\uD7A3]+/)||['이동'])[0];
+    var pp=stkLogMoveParts(g); var ih='';
+    if(pp.moved){ ih='<div style="font-size:12.5px;color:#1f2937;margin-top:3px;line-height:1.5">\uD83D\uDCE6 <b>'+stkEsc(pp.moved)+'</b></div>'; if(pp.existed) ih+='<div style="font-size:11px;color:#64748b;margin-top:2px">🗄️ 원래 있던 것: '+stkEsc(pp.existed)+'</div>'; }
+    else ih='<div style="font-size:11.5px;color:#94a3b8;margin-top:3px">(옛 기록 — 옮긴 품목이 기록되지 않음)</div>';
+    return '<div style="border:1px solid #eef2f7;border-radius:10px;padding:10px 12px;margin-bottom:8px;background:#fff">'+
+      '<div style="font-size:13px">'+dir+' <b>'+stkEsc(otherTxt)+'</b> <span style="color:#64748b">('+kind+')</span></div>'+ih+
+      '<div style="font-size:11px;color:#94a3b8;margin-top:5px"><b>'+stkEsc(g.user_name||'?')+'</b> · '+stkHistTime(g.ts)+'</div></div>';
+  }).join('');
+}
+
+
 
 /* ===== 전체 데이터 백업 / 삭제 / 복구 (대표 전용) ===== */
 var DB_TABLES=['rooms','users','settings','stock_settings','stock_products','stock_lots','stock_logs','reservations','items','deliveries','delivery_logs','jonghap_orders','messages']; // 복구=부모먼저, 삭제=역순
@@ -6122,17 +6163,22 @@ function stkRenderLogTab(){
       if(undone)undoBtn='<span style="font-size:11px;color:#c0392b;font-weight:800;margin-right:5px">✗ 취소됨</span><button onclick="stkUndoOut(\''+g.id+'\')" style="font-size:11px;padding:4px 9px;border:1px solid #b9e0c9;background:#eaf7ef;color:#15803d;border-radius:7px;font-weight:800;cursor:pointer">↩️ 되돌리기</button>';
       else undoBtn='<button onclick="stkUndoOut(\''+g.id+'\')" style="font-size:11px;padding:4px 9px;border:1px solid #f3c2c2;background:#fdf2f2;color:#c0392b;border-radius:7px;font-weight:800;cursor:pointer">✗ 출고 취소</button>';
     }
-    if(!undoBtn && ((g.action||'').indexOf('이동')>=0||(g.action||'').indexOf('합치기')>=0) && (g.action||'').indexOf('취소')<0 && g.from_loc && g.to_loc){
+    if(!undoBtn && (g.action||'').indexOf('취소')<0 && (g.action||'').indexOf('되돌리기')<0 && g.from_loc && g.to_loc){
       var _e2=function(v){return String(v==null?'':v).replace(/'/g,"\\'");};
       if(g.product_id) undoBtn='<button onclick="stkUndoMove(\''+_e2(g.to_loc)+'\',\''+_e2(g.from_loc)+'\',\''+_e2(g.product_id)+'\',\''+_e2(g.dot)+'\','+(Number(g.qty)||0)+')" style="font-size:11px;padding:4px 9px;border:1px solid #f3c2c2;background:#fdf2f2;color:#c0392b;border-radius:7px;font-weight:800;cursor:pointer">↩️ 위치 되돌리기</button>';
       else undoBtn='<button onclick="stkUndoCellMove(\''+_e2(g.id)+'\')" style="font-size:11px;padding:4px 9px;border:1px solid #f3c2c2;background:#fdf2f2;color:#c0392b;border-radius:7px;font-weight:800;cursor:pointer">↩️ 위치 되돌리기</button>';
     }
-    var moveHint='';
-    if(((g.action||'').indexOf('이동')>=0||(g.action||'').indexOf('합치기')>=0) && g.to_loc && /\d+종\)/.test(g.note||'')){
-      moveHint='<div style="font-size:11.5px;color:#5b6478;margin-top:3px">📦 지금 '+stkEsc(g.to_loc)+' 칸: '+stkEsc(stkCellDesc(g.to_loc))+'</div>';
+    var isMove=(g.from_loc&&g.to_loc); var noteHtml=stkEsc(g.note||''); var moveLine='';
+    if(isMove){
+      var _rt=(g.from_loc==='U'?'미배치':g.from_loc)+' → '+(g.to_loc==='U'?'미배치':g.to_loc);
+      noteHtml='<b>'+stkEsc(_rt)+'</b>';
+      var _kind=((g.action||'').match(/[\uAC00-\uD7A3]+/)||['이동'])[0];
+      var _pp=stkLogMoveParts(g);
+      if(_pp.moved){ moveLine='<div style="font-size:12.5px;color:#1f2937;margin-top:4px;line-height:1.55">\uD83D\uDCE6 <b>'+stkEsc(_pp.moved)+'</b> ('+_kind+')</div>'; if(_pp.existed) moveLine+='<div style="font-size:11.5px;color:#64748b;margin-top:2px;line-height:1.5">🗄️ 원래 있던 것: '+stkEsc(_pp.existed)+'</div>'; }
+      else if(/\d+\uC885\)/.test(g.note||'')){ moveLine='<div style="font-size:11.5px;color:#5b6478;margin-top:4px">\uD83D\uDCE6 \uC9C0\uAE08 '+stkEsc(g.to_loc==='U'?'\uBBF8\uBC30\uCE58':g.to_loc)+' \uCE78: '+stkEsc(stkCellDesc(g.to_loc))+'</div>'; }
     }
     return '<div class="logcard '+cls+'"><div class="l1"><span class="act '+cls+'">'+stkEsc(g.action||'')+'</span>'+
-      '<span class="note">'+stkEsc(g.note||'')+'</span></div>'+moveHint+
+      '<span class="note">'+noteHtml+'</span></div>'+moveLine+
       '<div class="meta"><span class="who">'+stkEsc(g.user_name||'?')+'</span> · '+ts+extra+'</div>'+
       (undoBtn?'<div style="margin-top:6px;text-align:right">'+undoBtn+'</div>':'')+'</div>';
   }).join('');
@@ -7382,11 +7428,11 @@ async function stkPickDrop(destCode){
   else if(pk.type==='cell'&&pk.code!==destCode){
     var m=stkCellMap(),items=m[pk.code]||[];
     var merge=(m[destCode]||[]).length>0,from=pk.code;
-    var _mv=JSON.stringify(items.map(function(x){return {i:x.p.id,d:(x.l.dot||''),q:x.l.q};}));
+    var _ex=(m[destCode]||[]).map(function(x){return {i:x.p.id,d:(x.l.dot||''),q:x.l.q};}); var _mv=JSON.stringify({m:items.map(function(x){return {i:x.p.id,d:(x.l.dot||''),q:x.l.q};}),e:_ex});
     var _mvtxt=items.map(function(x){return (x.p.br||'')+' '+(x.p.name||'')+(x.p.code?' ['+x.p.code+']':'')+' '+(x.p.size||'')+(x.l.dot&&x.l.dot!=='DOT누락'?' '+x.l.dot:'')+' '+x.l.q+'개';}).join(', ');
     try{for(var i=0;i<items.length;i++)stkChk(await sb.from('stock_lots').update({loc:destCode,updated_at:new Date().toISOString()}).eq('id',items[i].l.id),'이동');}
     catch(e){stkToast('실패: '+e.message);return true}
-    stkLog('📍'+(merge?'합치기':'이동'),_mvtxt+' · '+from+'→'+destCode,{from_loc:from,to_loc:destCode,ref:_mv});
+    stkLog('📍'+(from==='U'?'배치':(destCode==='U'?'내림':(merge?'합치기':'이동'))),_mvtxt+' · '+(from==='U'?'미배치':from)+'→'+(destCode==='U'?'미배치':destCode),{from_loc:from,to_loc:destCode,ref:_mv});
     stkToast(from+' → '+destCode+(merge?' 합치기':' 이동'));await stkLoad();
   }
   return true;
@@ -7585,10 +7631,12 @@ async function stkMoveLot(lotId,toLoc,n){
   if(!found)return;
   n=Math.min(n||found.q,found.q);
   var from=found.loc;
+  var origQ=found.q; var wasPartial=(n<found.q);
   // 도착지에 같은 상품+같은 DOT lot이 있으면 합칠 대상
   var mergeTo=null;
   var _nm=function(v){return (v===null||v===undefined?'':String(v)).trim();};
   fp.lots.forEach(function(l){if(l.id!==lotId&&l.loc===toLoc&&_nm(l.dot)===_nm(found.dot)&&_nm(l.src_in)===_nm(found.src_in))mergeTo=l;});
+  var wasMerge=!!mergeTo;
   try{
     if(n>=found.q){
       // 전량 이동
@@ -7620,7 +7668,11 @@ async function stkMoveLot(lotId,toLoc,n){
   if(from!==toLoc)await stkConsolidateCell(from);
   stkRefreshCell(from);stkRefreshCell(toLoc);stkRefreshStatAndUnassigned();stkRenderSearch();
   stkToast('이동 완료');
-  stkLog('📍이동',fp.name+(fp.size?' '+fp.size:'')+(found.dot&&found.dot!=='DOT누락'?' ('+found.dot+')':'')+' '+n+'개 '+(from==='U'?'미배치':from)+'→'+(toLoc==='U'?'미배치':toLoc),{product_id:fp.id,dot:found.dot,qty:n,from_loc:from,to_loc:toLoc});
+  var _det=(fp.br?fp.br+' ':'')+(fp.name||'')+(fp.code?' ['+fp.code+']':'')+(fp.size?' '+fp.size:'')+(found.dot&&found.dot!=='DOT누락'?' ('+found.dot+')':'')+' '+n+'개';
+  var _route=(from==='U'?'미배치':from)+' → '+(toLoc==='U'?'미배치':toLoc);
+  var _act=wasPartial?'✂️분리':(from==='U'?'📍배치':(toLoc==='U'?'📤내림':'📍이동'));
+  var _ex=(wasPartial?' · '+n+'개 분리(원래 '+origQ+'개)':'')+(wasMerge?' · 같은칸 합침':'');
+  stkLog(_act,_det+' · '+_route+_ex,{product_id:fp.id,dot:found.dot,qty:n,from_loc:from,to_loc:toLoc});
 }
 function stkDragEnd(){
   stkDragging=false;
@@ -7635,7 +7687,7 @@ async function stkDrop(destCode){
   else if(stkDrag.type==='cell'&&stkDrag.code!==destCode){
     var m=stkCellMap(),items=m[stkDrag.code]||[];
     var merge=(m[destCode]||[]).length>0,from=stkDrag.code;
-    var _mv=JSON.stringify(items.map(function(x){return {i:x.p.id,d:(x.l.dot||''),q:x.l.q};}));
+    var _ex=(m[destCode]||[]).map(function(x){return {i:x.p.id,d:(x.l.dot||''),q:x.l.q};}); var _mv=JSON.stringify({m:items.map(function(x){return {i:x.p.id,d:(x.l.dot||''),q:x.l.q};}),e:_ex});
     var _mvtxt=items.map(function(x){return (x.p.br||'')+' '+(x.p.name||'')+(x.p.code?' ['+x.p.code+']':'')+' '+(x.p.size||'')+(x.l.dot&&x.l.dot!=='DOT누락'?' '+x.l.dot:'')+' '+x.l.q+'개';}).join(', ');
     try{for(var i=0;i<items.length;i++)
       stkChk(await sb.from('stock_lots').update({loc:destCode,updated_at:new Date().toISOString()}).eq('id',items[i].l.id),'이동');
@@ -7644,7 +7696,7 @@ async function stkDrop(destCode){
     await stkConsolidateCell(destCode); // 도착칸 같은 상품 합치기
     stkRefreshCell(from);stkRefreshCell(destCode);stkRefreshStatAndUnassigned();stkRenderSearch();
     stkToast(from+' → '+destCode+(merge?' 합치기':' 이동'));
-    stkLog('📍'+(merge?'합치기':'이동'),_mvtxt+' · '+from+'→'+destCode,{from_loc:from,to_loc:destCode,ref:_mv});
+    stkLog('📍'+(from==='U'?'배치':(destCode==='U'?'내림':(merge?'합치기':'이동'))),_mvtxt+' · '+(from==='U'?'미배치':from)+'→'+(destCode==='U'?'미배치':destCode),{from_loc:from,to_loc:destCode,ref:_mv});
   }
   stkDrag=null;
 }
@@ -7658,7 +7710,9 @@ async function stkDropU(){
   items.forEach(function(it){it.l.loc='U';});
   stkRefreshCell(from);stkRefreshStatAndUnassigned();stkRenderSearch();
   stkToast(from+' → 미배치');stkDrag=null;
-  stkLog('📍이동',from+'→미배치 ('+items.length+'종)',{from_loc:from,to_loc:'U'});
+  var _mvU=items.map(function(x){return {i:x.p.id,d:(x.l.dot||''),q:x.l.q};});
+  var _txtU=items.map(function(x){return (x.p.br?x.p.br+' ':'')+x.p.name+(x.p.code?' ['+x.p.code+']':'')+(x.p.size?' '+x.p.size:'')+(x.l.dot&&x.l.dot!=='DOT누락'?' ('+x.l.dot+')':'')+' '+x.l.q+'개';}).join(', ');
+  stkLog('📤내림',_txtU+' · '+from+'→미배치',{from_loc:from,to_loc:'U',ref:JSON.stringify({m:_mvU,e:[]})});
 }
 // ── 칸 상세 ──
 var stkCurCell=null;
@@ -9465,6 +9519,11 @@ async function rsvDelete(id){
   <h3 id="stk-cdName"></h3><div class="sub2" id="stk-cdSub"></div>
   <div id="stk-cdSplit"></div>
   <table class="cdlg-tbl" id="stk-cdTbl"></table>
+  <div class="stkacts"><button class="stk-no" onclick="stkOpenCellHist(stkCurCell)">📜 이 칸 이력</button><button class="stk-no" onclick="stkCloseDlg()">닫기</button></div>
+</div></div>
+<div class="stkdlgbg" id="stk-dlgCellHist" onclick="if(event.target===this)stkCloseDlg()"><div class="stkdlg" style="max-width:540px">
+  <h3 id="stk-chTitle" style="margin:0 0 10px"></h3>
+  <div id="stk-chBody" style="max-height:62vh;overflow:auto"></div>
   <div class="stkacts"><button class="stk-no" onclick="stkCloseDlg()">닫기</button></div>
 </div></div>
 <div class="stkdlgbg" id="stk-dlgRtOut" onclick="if(event.target===this)stkCloseDlg()"><div class="stkdlg" style="max-width:320px">
