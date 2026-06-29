@@ -9193,6 +9193,10 @@ function rsvPickChoose(pid,dot){
 async function rsvPickConfirm(pid,dot,spec,qty){
   var r=reservations.find(function(x){return x.id===rsvPickRsvId;});
   try{
+    if(r && r.stock_done && r.src_product_id){   // 이미 연결됨 → 교체: 기존 재고 먼저 복구(CAS 1회)
+      var _c=await sb.from('reservations').update({stock_done:false}).eq('id',rsvPickRsvId).eq('stock_done',true).select();
+      if(_c && _c.data && _c.data.length){ await rsvStockRestore(r, r.memo); }
+    }
     await rsvStockOut({kind:'rt',product_id:pid,dot:dot,spec:spec}, qty, r?r.memo:'');
     var{error}=await sb.from('reservations').update({tire_spec:spec,qty:qty,src_kind:'rt',src_product_id:pid,src_dot:dot,src_qty:qty,stock_done:true}).eq('id',rsvPickRsvId);
     if(error)throw error;
@@ -9423,6 +9427,9 @@ function rsvShowDetail(id){
       '<button onclick="rsvOutFromStock(\''+r.id+'\')" style="flex:1;border:1.5px solid #16a36a;background:#fff;color:#16a36a;padding:10px;border-radius:9px;font-size:13px;font-weight:800;cursor:pointer">📦 재고에서 출고</button>'+
       '<button onclick="rsvOutFromInbound(\''+r.id+'\')" style="flex:1;border:1.5px solid #e08a2b;background:#fff;color:#e08a2b;padding:10px;border-radius:9px;font-size:13px;font-weight:800;cursor:pointer">🆕 입고분에서 출고</button>'+
       '</div>';
+  }
+  if(!isTmp && r.stock_done && r.status!=='취소'){   // 이미 재고 연결됨 → 사용 타이어 교체
+    acts+='<div style="margin-top:9px"><button onclick="rsvOutFromStock(\''+r.id+'\')" style="width:100%;border:1.5px solid #2563eb;background:#fff;color:#2563eb;padding:10px;border-radius:9px;font-size:13px;font-weight:800;cursor:pointer">🔄 사용 재고 교체 (다른 타이어로)</button></div>';
   }
   if(r.date_str && r.status!=='완료' && r.status!=='취소'){ acts+='<div style="margin-top:8px"><button onclick="rsvToUnscheduled(\''+r.id+'\')" style="width:100%;border:1.5px solid #d6b53a;background:#fffbe8;color:#8a6d00;border-radius:9px;padding:10px;font-weight:800;cursor:pointer">📌 미지정으로 보내기 (날짜 미정 보관함)</button></div>'; }
   acts+='<div style="margin-top:8px"><button onclick="rsvOpenEdit(\''+r.id+'\')" style="width:100%;border:1.5px solid #2563eb;background:#fff;color:#2563eb;padding:10px;border-radius:9px;font-size:14px;font-weight:800;cursor:pointer">✏️ 내용 수정</button></div>';
