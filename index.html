@@ -3794,7 +3794,7 @@ function switchItemTab(tab){
   if(tab==='memo')renderItemMemo();
   if(tab==='ledger')renderItemLedger();
 }
-function rsvRoomLabel(n){return n==='예약장착방'?'예약장착방 (test)':n;}
+function rsvRoomLabel(n){return n==='예약장착방'?'예약등록방':n;}
 async function renderItemLedger(){
   if(!curRoom)return;
   var el=document.getElementById('item-body');
@@ -9102,7 +9102,7 @@ function rsvColClick(ev,ds){
   mins=Math.max(RSV_H0*60,Math.min(RSV_H1*60-30,mins));
   rsvOpenAdd(null,{dt12:ds.replace(/-/g,'')+rsvTlTime(mins).replace(':','')});
 }
-function rsvDayClick(ds){rsvShowDayList(ds);}
+function rsvDayClick(ds){ reserveCursor=new Date(ds+'T00:00:00'); rsvSetView('day'); }
 function rsvShowDayList(ds){
   var list=rsvByDate(ds).filter(function(r){return r.status!=='취소';});
   var dd=new Date(ds+'T00:00:00');
