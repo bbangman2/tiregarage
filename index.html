@@ -9391,6 +9391,12 @@ async function rsvStockRestore(r,memo){
     if(lots.length){await sb.from('stock_lots').update({qty:lots[0].qty+n,updated_at:ts}).eq('id',lots[0].id);}
     else{await sb.from('stock_lots').insert({product_id:r.src_product_id,dot:(r.src_dot||''),qty:n,loc:'U'});}
   }
+  // 장착(R) 채널 집계에서도 빼기 — 원래 '📦장착출고' 로그 1건에 [취소됨] 마킹(종합방 출고취소와 동일 방식). lot만 되돌리면 R이 안 깎여 수량(P)이 부푼다.
+  try{
+    var _lg=await sb.from('stock_logs').select('*').eq('product_id',r.src_product_id).eq('channel','장착').order('ts',{ascending:false}).limit(120);
+    var _cand=((_lg&&_lg.data)||[]).filter(function(g){var a=g.action||'';return a.indexOf('출고')>=0 && a.indexOf('취소')<0 && !(g.ref&&(''+g.ref).indexOf('[취소됨]')>=0) && Number(g.qty)===Number(n) && (g.dot||'')===(r.src_dot||'');});
+    if(_cand.length){ await sb.from('stock_logs').update({ref:((_cand[0].ref||'')+' [취소됨]').trim()}).eq('id',_cand[0].id); }
+  }catch(_e){}
   stkLog('↩️재고복구', (r.tire_spec||'')+' +'+n+'개 · 예약취소'+(memo?' ['+memo+']':''), {product_id:r.src_product_id,dot:r.src_dot||'',qty:n,channel:'장착',ref:'예약취소복구'});
   if(typeof stkLoad==='function')await stkLoad();
 }
@@ -9428,8 +9434,11 @@ function rsvShowDetail(id){
       '<button onclick="rsvOutFromInbound(\''+r.id+'\')" style="flex:1;border:1.5px solid #e08a2b;background:#fff;color:#e08a2b;padding:10px;border-radius:9px;font-size:13px;font-weight:800;cursor:pointer">🆕 입고분에서 출고</button>'+
       '</div>';
   }
-  if(!isTmp && r.stock_done && r.status!=='취소'){   // 이미 재고 연결됨 → 사용 타이어 교체
-    acts+='<div style="margin-top:9px"><button onclick="rsvOutFromStock(\''+r.id+'\')" style="width:100%;border:1.5px solid #2563eb;background:#fff;color:#2563eb;padding:10px;border-radius:9px;font-size:13px;font-weight:800;cursor:pointer">🔄 사용 재고 교체 (다른 타이어로)</button></div>';
+  if(!isTmp && r.stock_done && r.status!=='취소'){   // 이미 재고 연결됨 → 교체 / 연결해제
+    acts+='<div style="margin-top:9px;display:flex;gap:6px">'+
+      '<button onclick="rsvOutFromStock(\''+r.id+'\')" style="flex:1;border:1.5px solid #2563eb;background:#fff;color:#2563eb;padding:10px;border-radius:9px;font-size:13px;font-weight:800;cursor:pointer">🔄 재고 교체</button>'+
+      '<button onclick="rsvUnlinkStock(\''+r.id+'\')" style="flex:1;border:1.5px solid #94a3b8;background:#fff;color:#64748b;padding:10px;border-radius:9px;font-size:13px;font-weight:800;cursor:pointer">🔓 연결 해제(재고복구)</button>'+
+    '</div>';
   }
   if(r.date_str && r.status!=='완료' && r.status!=='취소'){ acts+='<div style="margin-top:8px"><button onclick="rsvToUnscheduled(\''+r.id+'\')" style="width:100%;border:1.5px solid #d6b53a;background:#fffbe8;color:#8a6d00;border-radius:9px;padding:10px;font-weight:800;cursor:pointer">📌 미지정으로 보내기 (날짜 미정 보관함)</button></div>'; }
   acts+='<div style="margin-top:8px"><button onclick="rsvOpenEdit(\''+r.id+'\')" style="width:100%;border:1.5px solid #2563eb;background:#fff;color:#2563eb;padding:10px;border-radius:9px;font-size:14px;font-weight:800;cursor:pointer">✏️ 내용 수정</button></div>';
@@ -9453,19 +9462,65 @@ function rsvShowDetail(id){
   document.getElementById('rsv-detail-modal').classList.add('on');
 }
 function rsvCloseDetail(){document.getElementById('rsv-detail-modal').classList.remove('on');}
+// 재고 점유 단일 원칙: want=true면 점유(차감), false면 미점유(복구). DB stock_done과 비교해 부족분만 정확히 1회.
+// 어떤 상태 조합(예약↔완료↔취소)을 몇 번 오가도 절대 이중/유령 차감·복구가 안 생김.
+async function rsvSyncStock(id, want){
+  var r=reservations.find(function(x){return x.id===id;});
+  if(!r || !r.src_kind || !r.src_product_id) return; // 재고 연결된 예약만
+  if(want){ // 미점유→점유 : stock_done false→true 전환 성공 시에만 차감
+    var c=await sb.from('reservations').update({stock_done:true}).eq('id',id).eq('stock_done',false).select();
+    if(c && c.data && c.data.length){ await rsvStockOut({kind:r.src_kind,product_id:r.src_product_id,dot:r.src_dot,lot_id:r.src_lot_id,spec:r.tire_spec}, r.src_qty||r.qty||1, r.memo); }
+  }else{ // 점유→미점유 : stock_done true→false 전환 성공 시에만 복구
+    var c2=await sb.from('reservations').update({stock_done:false}).eq('id',id).eq('stock_done',true).select();
+    if(c2 && c2.data && c2.data.length){ await rsvStockRestore(r, r.memo); }
+  }
+}
+// 재고 연결 해제: 차감했던 재고만 복구하고 예약은 임시 상태로 유지(어떤 타이어로 바꿀지 안 정함)
+async function rsvUnlinkStock(id){
+  var r=reservations.find(function(x){return x.id===id;});
+  if(!r) return;
+  if(!confirm('재고 연결을 해제할까요?\n· 차감했던 재고는 복구됩니다\n· 예약은 그대로 유지(임시 상태)됩니다'))return;
+  try{
+    if(r.src_kind && r.src_product_id){
+      var c=await sb.from('reservations').update({stock_done:false}).eq('id',id).eq('stock_done',true).select();
+      if(c && c.data && c.data.length){ await rsvStockRestore(r, r.memo); }
+    }
+    var{error}=await sb.from('reservations').update({src_kind:null,src_product_id:null,src_dot:null,src_qty:null,src_lot_id:null,stock_done:false}).eq('id',id);
+    if(error)throw error;
+  }catch(e){alert('해제 실패: '+e.message);return;}
+  rsvCloseDetail();await loadReservations();
+}
+
+// 🔬 진단(읽기 전용): 상품의 lot별 수량 + 연결 예약 상태를 그대로 보여줌 (테스트 파일에만 버튼 노출)
+async function rsvDiag(){
+  var kw=prompt('🔬 진단할 상품 키워드 (브랜드/패턴/사이즈 일부)');
+  if(!kw)return; kw=kw.toLowerCase();
+  var p=(window.stkP||[]).find(function(x){return ((x.br||'')+' '+(x.name||'')+' '+(x.code||'')+' '+(x.size||'')).toLowerCase().indexOf(kw)>=0;});
+  if(!p){alert('상품 못 찾음: '+kw);return;}
+  try{
+    var lr=await sb.from('stock_lots').select('*').eq('product_id',p.id);
+    var lots=(lr&&lr.data)||[];
+    var tot=lots.reduce(function(s,l){return s+(l.qty||0);},0);
+    var rr=await sb.from('reservations').select('*').eq('src_product_id',p.id);
+    var rs=(rr&&rr.data)||[];
+    var t='🔬 '+p.br+' '+p.name+' '+p.size+'\n\n■ lot '+lots.length+'개 · 합계 '+tot+'\n';
+    lots.forEach(function(l){t+='  dot='+(l.dot===''?'(빈)':(l.dot||'null'))+' qty='+l.qty+' loc='+(l.loc||'U')+'\n';});
+    t+='\n■ 이 상품 연결 예약 '+rs.length+'개\n';
+    rs.forEach(function(r){t+='  '+(r.status||'?')+' | done='+r.stock_done+' | src_qty='+r.src_qty+' | dot='+(r.src_dot===''?'(빈)':(r.src_dot||'null'))+' | '+String(r.id).slice(0,8)+'\n';});
+    alert(t);
+  }catch(e){alert('진단 실패: '+e.message);}
+}
+try{ if(typeof BETA_WRITE!=='undefined' && BETA_WRITE){
+  var _mkDiag=function(){ if(document.getElementById('rsv-diag-btn'))return; var b=document.createElement('button'); b.id='rsv-diag-btn'; b.textContent='🔬 진단'; b.onclick=rsvDiag; b.style.cssText='position:fixed;left:10px;bottom:10px;z-index:50;background:#1e293b;color:#fff;border:none;border-radius:9px;padding:10px 14px;font-weight:800;font-size:13px;box-shadow:0 2px 8px rgba(0,0,0,.3);cursor:pointer'; document.body.appendChild(b); };
+  if(document.body)_mkDiag(); else document.addEventListener('DOMContentLoaded',_mkDiag);
+} }catch(e){}
 async function rsvSetStatus(id,status){
   if(status==='완료'&&!confirm('작업을 완료 처리할까요?'))return;
   if(status==='취소'&&!confirm('이 예약을 취소할까요?\n(출고했던 재고는 자동으로 복구됩니다)'))return;
   var r=reservations.find(function(x){return x.id===id;});
   try{
-    if(r && r.src_kind && r.src_product_id){            // 출고로 생긴 예약만 재고 동기화 (DB stock_done 원자적 전환 = 이중/유령 복구 차단)
-      if(status==='취소'){              // 취소 → stock_done true→false 전환 성공 시에만 복구
-        var _cas=await sb.from('reservations').update({stock_done:false}).eq('id',id).eq('stock_done',true).select();
-        if(_cas && _cas.data && _cas.data.length){ await rsvStockRestore(r, r.memo); }
-      }else if(status==='예약'){ // 되살리기 → stock_done false→true 전환 성공 시에만 재차감
-        var _cas2=await sb.from('reservations').update({stock_done:true}).eq('id',id).eq('stock_done',false).select();
-        if(_cas2 && _cas2.data && _cas2.data.length){ await rsvStockOut({kind:r.src_kind,product_id:r.src_product_id,dot:r.src_dot,lot_id:r.src_lot_id,spec:r.tire_spec}, r.src_qty||r.qty||1, r.memo); }
-      }
+    if(r && r.src_kind && r.src_product_id){            // 단일 원칙: 취소=미점유(복구) / 그 외(예약·완료)=점유(차감). 부족분만 1회.
+      await rsvSyncStock(id, status!=='취소');
     }
     var{error}=await sb.from('reservations').update({status:status}).eq('id',id);if(error)throw error;
   }catch(e){alert('변경 실패: '+e.message);return;}
