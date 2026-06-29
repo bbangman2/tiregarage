@@ -6012,7 +6012,7 @@ function stkMatch(p,q){
   var sizeNums=p.size.split(/[^0-9]+/).filter(Boolean);
   var dotTokens=p.lots.map(function(l){return l.dot||'';}).filter(Boolean);
   var plyTok=(p.ply||'').toLowerCase().trim();
-  var hay=((p.cat||'일반')+' '+p.br+' '+p.name+' '+(p.code||'')+' '+p.size+' '+(p.ply||'')+' '+(p.spec||'')+' '+locs+' '+(p.memo||'')+(dm?' dot누락 DOT누락':'')).toLowerCase();
+  var hay=((p.cat||'일반')+' '+(p.source||'')+' '+p.br+' '+p.name+' '+(p.code||'')+' '+p.size+' '+(p.ply||'')+' '+(p.spec||'')+' '+locs+' '+(p.memo||'')+(dm?' dot누락 DOT누락':'')).toLowerCase();
   return q.toLowerCase().split(/\s+/).filter(Boolean).every(function(t){
     var td=t.replace(/[^0-9]/g,'');
     // 1) 순수 숫자 토막: 사이즈 숫자그룹과 정확히 일치(순서무관) 또는 연식 일치
@@ -6557,12 +6557,6 @@ function stkRtAttachCellHandlers(){
     else if(e.key==='Tab'){e.preventDefault();stkRtMoveCell(td,e.shiftKey?'left':'right');}
     else if(e.key==='Escape'){e.preventDefault();td.textContent=td.getAttribute('data-old')||'';td.blur();}
   });
-  tbl.addEventListener('paste',function(e){
-    var td=e.target;if(!isEd(td))return;
-    e.preventDefault();
-    var t=(e.clipboardData||window.clipboardData).getData('text').replace(/[\r\n\t]/g,' ').trim();
-    document.execCommand('insertText',false,t);
-  });
 }
 // 엑셀처럼 셀 이동 (방향에 따라 다음 편집 가능 셀로 focus)
 function stkRtMoveCell(td,dir){
@@ -6609,6 +6603,28 @@ function stkRtInline(td,pid,dot,field){
     else if(e.key==='Escape'){saved=true;td.textContent=old;}
   };
 }
+// 재고표/원장 셀 복사 중복 방지: contenteditable 직렬화로 텍스트가 두 번 들어가는 문제 해결.
+// 표 안에서 복사하면 클립보드를 '화면 선택 텍스트 그대로(1회)'로 강제한다.
+document.addEventListener('copy',function(e){
+  try{
+    var sel=window.getSelection();
+    if(!sel||!sel.rangeCount||sel.isCollapsed)return;
+    var n=sel.anchorNode; var el=n?(n.nodeType===1?n:n.parentElement):null;
+    if(!el||!el.closest||!el.closest('.stk-rt'))return;
+    var sTd=el.closest('td');
+    var fn=sel.focusNode; var fEl=fn?(fn.nodeType===1?fn:fn.parentElement):null;
+    var fTd=(fEl&&fEl.closest)?fEl.closest('td'):null;
+    // 단일 셀 복사: 선택 직렬화(중복) 대신 셀의 실제 텍스트를 그대로 사용
+    var txt=(sTd&&sTd===fTd)?sTd.textContent:sel.toString();
+    var cd=e.clipboardData||window.clipboardData;
+    if(cd){
+      cd.setData('text/plain',txt);
+      try{cd.setData('text/html',txt);}catch(_2){}
+      e.preventDefault();
+    }
+  }catch(_){}
+},true);
+
 function stkRtInlineCat(td,pid){
   if(!stkCanInline())return;
   if(td.querySelector('input'))return;
