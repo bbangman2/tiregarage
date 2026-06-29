@@ -7937,7 +7937,7 @@ function stkSelType(b){stkCurType=b.textContent;
   var isOnline=(b.getAttribute('data-grp')==='on'); // 11번/스팜/롯데
   document.getElementById('stk-refLbl').textContent=isOnline?'주문번호':'메모 (차종·이름·폰뒷자리)';
   document.getElementById('stk-outRef').placeholder=isOnline?'예) 2026061200123':'예) 렉서스 김손님 3417';
-  if(BETA_WRITE && b.textContent==='장착'){stkDoOut();} // (베타 OFF: 장착도 기존처럼 메모 입력 후 [출고 확정])
+  if(b.textContent==='장착'){stkDoOut();} // (베타 OFF: 장착도 기존처럼 메모 입력 후 [출고 확정])
 }
 var stkOutBusy=false;
 async function stkDoOut(){
@@ -9148,7 +9148,6 @@ function rsvBuildChips(){
 }
 var rsvPickRsvId=null;
 function rsvOutFromStock(id){
-  if(!BETA_WRITE){alert('업데이트 후 사용 가능합니다.\n(베타: 재고 차감은 아직 비활성화)');return;}
   rsvPickRsvId=id;
   var r=reservations.find(function(x){return x.id===id;});
   rsvCloseDetail();
@@ -9340,7 +9339,7 @@ async function rsvSubmit(){
   }else if(oi&&oi.qty){rec.qty=oi.qty;}
   if(!rsvEditId)rec.status='예약';
   try{
-    if(BETA_WRITE && !rsvEditId && oi && oi.product_id){            // 신규+출고대기 → 재고 차감(출고 확정)
+    if(!rsvEditId && oi && oi.product_id){            // 신규+출고대기 → 재고 차감(출고 확정)
       await rsvStockOut(oi, outQty, rec.memo);
       rec.stock_done=true;
     }
@@ -9355,7 +9354,6 @@ async function rsvSubmit(){
 }
 // 예약 저장 시 재고 출고(차감) + 로그 한 줄
 async function rsvStockOut(o,n,memo){
-  if(!BETA_WRITE){ if(typeof stkToast==='function')stkToast('🚧 재고 차감은 업데이트 이후 가능합니다 (예약·상태는 정상 저장됨)'); return; }
   var ts=new Date().toISOString();
   if(o.kind==='lot'){
     var cur=await sb.from('stock_lots').select('qty').eq('id',o.lot_id).maybeSingle();
@@ -9376,7 +9374,6 @@ async function rsvStockOut(o,n,memo){
 }
 // 예약 취소/삭제 시 출고했던 재고 되돌리기 + 기록(누가 취소했는지 자동)
 async function rsvStockRestore(r,memo){
-  if(!BETA_WRITE){ if(typeof stkToast==='function')stkToast('🚧 재고 차감은 업데이트 이후 가능합니다 (예약·상태는 정상 저장됨)'); return; }
   var ts=new Date().toISOString();
   var n=r.src_qty||r.qty||1;
   if(r.src_kind==='lot' && r.src_lot_id){
@@ -9453,7 +9450,7 @@ async function rsvSetStatus(id,status){
   if(status==='취소'&&!confirm('이 예약을 취소할까요?\n(출고했던 재고는 자동으로 복구됩니다)'))return;
   var r=reservations.find(function(x){return x.id===id;});
   try{
-    if(BETA_WRITE && r && r.src_kind && r.src_product_id){            // 출고로 생긴 예약만 재고 동기화
+    if(r && r.src_kind && r.src_product_id){            // 출고로 생긴 예약만 재고 동기화
       if(status==='취소' && r.stock_done){              // 취소 → 재고 복구
         await rsvStockRestore(r, r.memo);
         await sb.from('reservations').update({stock_done:false}).eq('id',id);
@@ -9524,7 +9521,7 @@ async function rsvDelete(id){
   if(!confirm('이 예약을 완전히 삭제할까요? (되돌릴 수 없음)'))return;
   var r=reservations.find(function(x){return x.id===id;});
   try{
-    if(BETA_WRITE && r && r.src_kind && r.src_product_id && r.stock_done){ await rsvStockRestore(r, r.memo); }
+    if(r && r.src_kind && r.src_product_id && r.stock_done){ await rsvStockRestore(r, r.memo); }
     var{error}=await sb.from('reservations').delete().eq('id',id);if(error)throw error;
   }catch(e){alert('삭제 실패: '+e.message);return;}
   rsvCloseDetail();await loadReservations();
