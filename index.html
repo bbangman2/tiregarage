@@ -6166,7 +6166,8 @@ function stkRenderLogTab(){
     if(!undoBtn && (g.action||'').indexOf('취소')<0 && (g.action||'').indexOf('되돌리기')<0 && g.from_loc && g.to_loc){
       var _e2=function(v){return String(v==null?'':v).replace(/'/g,"\\'");};
       if(g.product_id) undoBtn='<button onclick="stkUndoMove(\''+_e2(g.to_loc)+'\',\''+_e2(g.from_loc)+'\',\''+_e2(g.product_id)+'\',\''+_e2(g.dot)+'\','+(Number(g.qty)||0)+')" style="font-size:11px;padding:4px 9px;border:1px solid #f3c2c2;background:#fdf2f2;color:#c0392b;border-radius:7px;font-weight:800;cursor:pointer">↩️ 위치 되돌리기</button>';
-      else undoBtn='<button onclick="stkUndoCellMove(\''+_e2(g.id)+'\')" style="font-size:11px;padding:4px 9px;border:1px solid #f3c2c2;background:#fdf2f2;color:#c0392b;border-radius:7px;font-weight:800;cursor:pointer">↩️ 위치 되돌리기</button>';
+      else if(stkLogMoveParts(g).moved) undoBtn='<button onclick="stkUndoCellMove(\''+_e2(g.id)+'\')" style="font-size:11px;padding:4px 9px;border:1px solid #f3c2c2;background:#fdf2f2;color:#c0392b;border-radius:7px;font-weight:800;cursor:pointer">↩️ 위치 되돌리기</button>';
+      else undoBtn='<span style="font-size:11px;color:#94a3b8;font-style:italic">↩️ 되돌리기 불가 — 옛 기록(옮긴 품목 미기재)</span>';
     }
     var isMove=(g.from_loc&&g.to_loc); var noteHtml=stkEsc(g.note||''); var moveLine='';
     if(isMove){
@@ -8168,7 +8169,7 @@ async function stkDownload(){
   });
   // ── 시트2: 현황 리포트 (사람이 보기 좋게) ──
   // 현황리포트: 원가·적용배송비·적용장착비는 값, 택배가·장착가는 엑셀 수식(원가 바꾸면 자동 재계산)
-  var _h2=['브랜드','패턴(제품명)','패턴코드','사이즈','총수량','상태','위치들','연식들','원가','적용배송비','택배가(수식)','적용장착비','장착가(수식)','비고'];
+  var _h2=['분류','출처','브랜드','패턴(제품명)','패턴코드','사이즈','총수량','상태','위치들','연식들','원가','적용배송비','택배가(수식)','적용장착비','장착가(수식)','비고'];
   if(_dlRC)_h2=_h2.concat(['실원가','할인율','공장도가']);
   var aoa2=[_h2];
   stkP.forEach(function(p){
@@ -8181,7 +8182,7 @@ async function stkDownload(){
     var memo=p.memo||'';
     lots.forEach(function(l){if(l.q<0&&l.src_in)memo=(memo?memo+' / ':'')+'입고예정:'+l.src_in+(l.due_date?'('+l.due_date+')':'');});
     var _c=stkCostDisplay(p), _sh=stkShipFee(p.size), _in=stkInstallFee(p.size,stkIsOffroad(p));
-    var _row2=[p.br,p.name,p.code||'',p.size,tot,status,locs,dots,(_c===''?'':_c),(_sh==null?'':_sh),'',(_in==null?'':_in),'',memo];
+    var _row2=[p.cat||'일반',p.source||'',p.br,p.name,p.code||'',p.size,tot,status,locs,dots,(_c===''?'':_c),(_sh==null?'':_sh),'',(_in==null?'':_in),'',memo];
     if(_dlRC)_row2=_row2.concat([p.real_cost==null?'':p.real_cost, p.discount_rate==null?'':p.discount_rate, p.factory_price||'']);
     aoa2.push(_row2);
   });
@@ -8196,11 +8197,11 @@ async function stkDownload(){
   // ── 시트4: 가격수정 양식 (가격만 채워 그대로 업로드) ──
   // 형식 = 가격갱신 템플릿: 브랜드/패턴/패턴코드/사이즈/연식/판매가(택배)/장착가
   // 연식은 비워둠(상품 전체 적용). 현재 가격을 참고로 미리 채워줌(고칠 것만 고치게)
-  var aoa4=[['브랜드','패턴(제품명)','패턴코드','사이즈','연식(DOT)','판매가(택배)','장착가']];
+  var aoa4=[['브랜드','패턴(제품명)','패턴코드','사이즈','연식(DOT)','판매가(택배)','장착가','분류','출처']];
   stkP.forEach(function(p){
     var lots4=p.lots.filter(function(l){return l.q!==0});
     if(!lots4.length)return; // 재고 없는 건 제외
-    aoa4.push([p.br,p.name,p.code||'',p.size,'',p.price||'',p.inst||'']);
+    aoa4.push([p.br,p.name,p.code||'',p.size,'',p.price||'',p.inst||'',p.cat||'일반',p.source||'']);
   });
   var wb=XLSX.utils.book_new();
   var ws1=XLSX.utils.aoa_to_sheet(aoa1);
@@ -8208,32 +8209,32 @@ async function stkDownload(){
   // 택배가(K열)·장착가(M열) = 엑셀 수식: ROUNDUP((원가+배송비)/0.97/0.96, -2) → 100원 올림
   for(var _i=1;_i<aoa2.length;_i++){
     var _R=_i+1; // 엑셀 행번호(헤더=1)
-    var _cost=aoa2[_i][8], _ship=aoa2[_i][9], _inst=aoa2[_i][11];
+    var _cost=aoa2[_i][10], _ship=aoa2[_i][11], _inst=aoa2[_i][13];
     if(typeof _cost==='number'&&typeof _ship==='number'){
       var _tk=Math.ceil((_cost+_ship)/0.97/0.96/100)*100;  // 캐시값(없으면 저장 시 셀이 버려짐)
-      ws2['K'+_R]={t:'n',f:'ROUNDUP((I'+_R+'+J'+_R+')/0.97/0.96,-2)',v:_tk};
+      ws2['M'+_R]={t:'n',f:'ROUNDUP((K'+_R+'+L'+_R+')/0.97/0.96,-2)',v:_tk};
     }
     if(typeof _cost==='number'&&typeof _inst==='number'){
       var _jc=Math.ceil((_cost+_inst)/0.97/0.96/100)*100;
-      ws2['M'+_R]={t:'n',f:'ROUNDUP((I'+_R+'+L'+_R+')/0.97/0.96,-2)',v:_jc};
+      ws2['O'+_R]={t:'n',f:'ROUNDUP((K'+_R+'+N'+_R+')/0.97/0.96,-2)',v:_jc};
     }
   }
-  ws2['!cols']=[{wch:8},{wch:16},{wch:12},{wch:11},{wch:7},{wch:9},{wch:18},{wch:14},{wch:9},{wch:9},{wch:11},{wch:9},{wch:11},{wch:20}];
+  ws2['!cols']=[{wch:8},{wch:10},{wch:8},{wch:16},{wch:12},{wch:11},{wch:7},{wch:9},{wch:18},{wch:14},{wch:9},{wch:9},{wch:11},{wch:9},{wch:11},{wch:20}];
   var ws3=XLSX.utils.aoa_to_sheet(aoa3);
   var ws4=XLSX.utils.aoa_to_sheet(aoa4);
-  ws4['!cols']=[{wch:8},{wch:18},{wch:10},{wch:12},{wch:9},{wch:13},{wch:11}];
+  ws4['!cols']=[{wch:8},{wch:18},{wch:10},{wch:12},{wch:9},{wch:13},{wch:11},{wch:8},{wch:10}];
   // 양식과 동일 스타일: 헤더(필수=빨강/일반=파랑/가격=주황, Arial 10 흰굵게), 가격칸 노랑
   (function(){
     var hb={font:{name:'Arial',sz:10,bold:true,color:{rgb:'FFFFFF'}},alignment:{horizontal:'center',vertical:'center'}};
-    var hdrFill=['C00000','2F5496','2F5496','C00000','2F5496','E8A317','E8A317']; // A~G
-    for(var c=0;c<7;c++){
+    var hdrFill=['C00000','2F5496','2F5496','C00000','2F5496','E8A317','E8A317','7F7F7F','7F7F7F']; // A~I
+    for(var c=0;c<9;c++){
       var addr=XLSX.utils.encode_cell({r:0,c:c});
       if(ws4[addr])ws4[addr].s=Object.assign({},hb,{fill:{patternType:'solid',fgColor:{rgb:hdrFill[c]}}});
     }
     var dataFont={font:{name:'Arial',sz:10}};
     var priceFill={font:{name:'Arial',sz:10},fill:{patternType:'solid',fgColor:{rgb:'FFF8E1'}}};
     for(var r=1;r<aoa4.length;r++){
-      for(var cc=0;cc<7;cc++){
+      for(var cc=0;cc<9;cc++){
         var ad=XLSX.utils.encode_cell({r:r,c:cc});
         if(!ws4[ad])ws4[ad]={t:'s',v:''};
         ws4[ad].s=(cc===5||cc===6)?priceFill:dataFont;
@@ -8242,7 +8243,7 @@ async function stkDownload(){
     ws4['!rows']=[{hpt:22}];
   })();
   ws1['!cols']=[{wch:8},{wch:18},{wch:10},{wch:12},{wch:9},{wch:6},{wch:8},{wch:8},{wch:20}];
-  ws2['!cols']=[{wch:8},{wch:18},{wch:10},{wch:12},{wch:7},{wch:12},{wch:24},{wch:16},{wch:9},{wch:9},{wch:20}];
+  ws2['!cols']=[{wch:8},{wch:10},{wch:8},{wch:18},{wch:10},{wch:12},{wch:7},{wch:12},{wch:24},{wch:16},{wch:9},{wch:9},{wch:20}];
   ws3['!cols']=[{wch:20},{wch:8},{wch:9},{wch:30},{wch:14},{wch:8},{wch:5},{wch:8},{wch:8},{wch:8},{wch:14}];
   XLSX.utils.book_append_sheet(wb,ws1,'① 입고양식(위치포함)');
   XLSX.utils.book_append_sheet(wb,ws2,'② 현황리포트');
