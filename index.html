@@ -57,6 +57,9 @@ body.rb-on #app{padding-top:58px}
 .room-btn:hover{background:rgba(255,255,255,.07);color:#fff}
 .room-btn.active{background:rgba(255,255,255,.14);color:#fff}
 .room-icon{font-size:14px;flex-shrink:0}
+.room-pin{margin-left:auto;flex-shrink:0;font-size:12px;opacity:.2;cursor:pointer;padding:2px 5px;border-radius:6px;transition:opacity .15s,background .15s}
+.room-pin:hover{opacity:.6;background:rgba(255,255,255,.12)}
+.room-pin.on{opacity:1}
 .sb-foot{padding:10px;border-top:1px solid rgba(255,255,255,.07);display:flex;flex-direction:column;gap:6px}
 .logout-btn{width:100%;padding:8px;background:none;border:1px solid rgba(255,255,255,.14);
   color:rgba(255,255,255,.45);border-radius:7px;font-size:12px;cursor:pointer}
@@ -1679,7 +1682,7 @@ async function bootApp(){
   if(data&&!data.some(r=>r.name==='종합방'))data.splice(4,0,{id:'jonghap-virtual',name:'종합방'});
   rooms=data||[];
   populateAdminSelects();renderSidebar();
-  if(rooms.length)selectRoom(rooms[0]);
+  if(rooms.length){var _hr=(me?tgLsGet('tg_home_room_'+me.name):'');var _t=_hr?rooms.find(function(r){return r.name===_hr;}):null;selectRoom(_t||rooms[0]);}
   checkScheduledRefresh();
   setInterval(checkScheduledRefresh,60000); // 1분마다 체크
   rolloverDeliveriesGlobal();                   // 로드 직후 1회 — 직배송방 안 봐도 자동 이월
@@ -1687,11 +1690,21 @@ async function bootApp(){
 }
 function renderSidebar(){
   const el=document.getElementById('sb-rooms');
+  const _hr=(me?tgLsGet('tg_home_room_'+me.name):'');
   el.innerHTML=rooms.map((r,i)=>{
     const m=ROOM_META[r.name]||{icon:'💬'};
+    const isHome=(_hr===r.name);
     return'<button class="room-btn'+(curRoom&&curRoom.id===r.id?' active':'')+'" onclick="selectRoom(rooms['+i+'])">'
-      +'<span class="room-icon">'+m.icon+'</span><span class="room-label">'+rsvRoomLabel(r.name)+'</span></button>';
+      +'<span class="room-icon">'+m.icon+'</span><span class="room-label">'+rsvRoomLabel(r.name)+'</span>'
+      +'<span class="room-pin'+(isHome?' on':'')+'" title="'+(isHome?'시작화면 해제':'이 방을 시작화면으로')+'" onclick="event.stopPropagation();toggleHomeRoom('+i+')">📌</span></button>';
   }).join('');
+}
+function toggleHomeRoom(i){
+  if(!me||!rooms[i])return;
+  var key='tg_home_room_'+me.name, name=rooms[i].name, cur=tgLsGet(key);
+  if(cur===name){ tgLsSet(key,''); }   // 같은 방 다시 누르면 해제 → 첫 방으로 폴백
+  else{ tgLsSet(key,name); }
+  renderSidebar();
 }
 async function selectRoom(room){
   curRoom=room;
