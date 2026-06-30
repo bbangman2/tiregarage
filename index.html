@@ -4231,8 +4231,9 @@ async function ledgerUndoOne(it,skipReload){
     if(error)throw error;
     it.out_qty=0; it.out_done=false; it.out_at=null; it.out_to=null; it.out_user=null;
   }catch(e){alert('되돌리기 실패: '+e.message);return false;}
+  try{ await sb.from('stock_logs').update({reverted:true}).eq('item_id',it.id).eq('action','📤입고출고').neq('channel','예약장착').eq('reverted',false); }catch(e){}
   if(typeof stkLog==='function'){
-    stkLog('↩️입고출고취소',(it.src?'['+it.src+'] ':'')+(it.model||'')+' '+(it.spec||'')+' · 출고 '+prevOut+'개 되돌림(잔량 복구)',{qty:prevOut,channel:'되돌리기'},skipReload);
+    stkLog('↩️입고출고취소',(it.src?'['+it.src+'] ':'')+(it.model||'')+' '+(it.spec||'')+' · 출고 '+prevOut+'개 되돌림(잔량 복구)',{qty:prevOut,channel:'되돌리기',item_id:it.id},skipReload);
   }
   return true;
 }
@@ -4947,8 +4948,8 @@ async function ledgerFinish(it,kind,to,qty,memo,skipRender){
 
   if(typeof stkLog==='function'){
     var label=(it.src?'['+it.src+'] ':'')+(it.model||'')+' '+(it.spec||'')+' · 잔량 '+remain+'→'+afterRemain+'개 (−'+n+')';
-    if(kind==='반품') stkLog('↩️입고반품', label+(memo?' · '+memo:''), {qty:n, channel:'반품'}, skipRender);
-    else stkLog('📤입고출고', label+' → '+to+(memo?' · '+memo:''), {qty:n, channel:to}, skipRender);
+    if(kind==='반품') stkLog('↩️입고반품', label+(memo?' · '+memo:''), {qty:n, channel:'반품', item_id:it.id}, skipRender);
+    else stkLog('📤입고출고', label+' → '+to+(memo?' · '+memo:''), {qty:n, channel:to, item_id:it.id}, skipRender);
   }
   ledgerOutClose();
   if(!skipRender)ledgerFilter();
@@ -5128,9 +5129,19 @@ function listDatePass(it){
   if(listDateSel!=='all') return it.date_str===listDateSel;
   return true;
 }
-function listSetDate(v){ listDateSel=v; listFrom=''; listTo=''; var fr=document.getElementById('list-from'),t=document.getElementById('list-to'); if(fr)fr.value=''; if(t)t.value=''; listPaint(); }
+function listSetDate(v){ listDateSel=v; listFrom=''; listTo=''; var fr=document.getElementById('list-from'),t=document.getElementById('list-to'); if(fr)fr.value=''; if(t)t.value=''; _listSyncTopAndLoad(); }
 function listShiftDate(dir){ var sel=document.getElementById('list-datesel'); if(!sel)return; var i=sel.selectedIndex+dir; if(i>=0&&i<sel.options.length){ sel.selectedIndex=i; listSetDate(sel.value); } }
-function listSetRange(){ var fr=(document.getElementById('list-from')||{}).value||'', t=(document.getElementById('list-to')||{}).value||''; listFrom=fr; listTo=t; if(fr||t){ listDateSel='all'; var sel=document.getElementById('list-datesel'); if(sel)sel.value='all'; } listPaint(); }
+function listSetRange(){ var fr=(document.getElementById('list-from')||{}).value||'', t=(document.getElementById('list-to')||{}).value||''; listFrom=fr; listTo=t; if(fr||t){ listDateSel='all'; var sel=document.getElementById('list-datesel'); if(sel)sel.value='all'; } _listSyncTopAndLoad(); }
+function _listSyncTopAndLoad(){
+  var df=document.getElementById('date-from'), dt=document.getElementById('date-to'), rt=document.getElementById('range-toggle'), sep=document.getElementById('date-sep');
+  if(listFrom||listTo){ rangeMode=true; if(df)df.value=listFrom||listTo; if(dt)dt.value=listTo||listFrom; }
+  else if(listDateSel!=='all'){ rangeMode=false; if(df)df.value=listDateSel; if(dt)dt.value=listDateSel; }
+  else{ rangeMode=true; if(df)df.value='2020-01-01'; if(dt)dt.value=getTodayISO(); }
+  if(rt)rt.classList.toggle('on',rangeMode);
+  if(sep)sep.style.display=rangeMode?'':'none';
+  if(dt)dt.style.display=rangeMode?'':'none';
+  if(typeof onDateChange==='function')onDateChange();
+}
 function listChkAll(cb){ document.querySelectorAll('.list-chk').forEach(function(x){x.checked=cb.checked;}); }
 async function listBulkArrive(){
   var ids=Array.prototype.slice.call(document.querySelectorAll('.list-chk:checked')).map(function(x){return x.value;});
