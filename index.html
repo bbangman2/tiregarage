@@ -5099,7 +5099,16 @@ function itemListBySrc(items){
   return html;
 }
 var curListChip='all';
+var listDateSel='all', listFrom='', listTo='';
 function setListChip(c){ curListChip=c; var bd=document.getElementById('list-body'); if(bd&&typeof listPaint==='function')listPaint(); else renderItemList(); }
+function listDatePass(it){
+  if(listFrom||listTo){ var d=it.date_str||''; if(listFrom&&d<listFrom)return false; if(listTo&&d>listTo)return false; return true; }
+  if(listDateSel!=='all') return it.date_str===listDateSel;
+  return true;
+}
+function listSetDate(v){ listDateSel=v; listFrom=''; listTo=''; var fr=document.getElementById('list-from'),t=document.getElementById('list-to'); if(fr)fr.value=''; if(t)t.value=''; listPaint(); }
+function listShiftDate(dir){ var sel=document.getElementById('list-datesel'); if(!sel)return; var i=sel.selectedIndex+dir; if(i>=0&&i<sel.options.length){ sel.selectedIndex=i; listSetDate(sel.value); } }
+function listSetRange(){ var fr=(document.getElementById('list-from')||{}).value||'', t=(document.getElementById('list-to')||{}).value||''; listFrom=fr; listTo=t; if(fr||t){ listDateSel='all'; var sel=document.getElementById('list-datesel'); if(sel)sel.value='all'; } listPaint(); }
 function listChkAll(cb){ document.querySelectorAll('.list-chk').forEach(function(x){x.checked=cb.checked;}); }
 async function listBulkArrive(){
   var ids=Array.prototype.slice.call(document.querySelectorAll('.list-chk:checked')).map(function(x){return x.value;});
@@ -5126,12 +5135,25 @@ function renderItemList(){
 function listSearchInput(v){ itemSearchQuery=(v||'').trim().toLowerCase(); var c=document.getElementById('isearch-clear'); if(c)c.style.display=itemSearchQuery?'block':'none'; var top=document.getElementById('item-search-input'); if(top&&top.value!==v)top.value=v; listPaint(); }
 function listPaint(){
   var cb=document.getElementById('list-chipbar'), bd=document.getElementById('list-body'); if(!cb||!bd)return;
-  const list0=searchedItemsAll();
+  const list0all=searchedItemsAll();
+  const list0=list0all.filter(listDatePass);
   var waitN=list0.filter(function(it){return !it.arrived&&!isReturnItem(it)&&!it.cancelled;}).length;
   var doneN=list0.filter(function(it){return it.arrived&&!it.cancelled;}).length;
   var preN=list0.filter(function(it){return !it.arrived&&(parseInt(it.out_qty,10)||0)>0&&!isReturnItem(it)&&!it.cancelled;}).length;
   var chips=[['all','전체',list0.length],['wait','⏳ 입고대기',waitN],['done','✅ 입고완료',doneN],['preout','⚠️ 실물입고전 출고',preN]];
-  cb.innerHTML='<div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">'+chips.map(function(c){
+  var _dates=Array.from(new Set(list0all.map(function(it){return it.date_str;}).filter(Boolean))).sort().reverse();
+  var _dateUI='<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;flex-wrap:wrap;font-size:12px">'+
+    '<button onclick="listShiftDate(-1)" style="border:1px solid #cbd5e1;background:#fff;border-radius:5px;width:24px;height:26px;cursor:pointer;font-size:12px;padding:0">‹</button>'+
+    '<select id="list-datesel" onchange="listSetDate(this.value)" style="height:26px;border:1px solid #cbd5e1;border-radius:5px;padding:0 6px;font-size:12px;background:#fff"><option value="all"'+(listDateSel==='all'?' selected':'')+'>전체</option>'+
+      _dates.map(function(d){var t=(d===getTodayISO())?' (오늘)':''; return '<option value="'+d+'"'+(listDateSel===d?' selected':'')+'>'+d.slice(5)+t+'</option>';}).join('')+
+    '</select>'+
+    '<button onclick="listShiftDate(1)" style="border:1px solid #cbd5e1;background:#fff;border-radius:5px;width:24px;height:26px;cursor:pointer;font-size:12px;padding:0">›</button>'+
+    '<span style="color:#94a3b8;margin-left:8px;font-size:11px">기간</span>'+
+    '<input type="date" id="list-from" value="'+esc(listFrom)+'" onchange="listSetRange()" style="height:26px;border:1px solid #cbd5e1;border-radius:5px;padding:0 5px;font-size:11px">'+
+    '<span style="color:#94a3b8">~</span>'+
+    '<input type="date" id="list-to" value="'+esc(listTo)+'" onchange="listSetRange()" style="height:26px;border:1px solid #cbd5e1;border-radius:5px;padding:0 5px;font-size:11px">'+
+  '</div>';
+  cb.innerHTML=_dateUI+'<div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">'+chips.map(function(c){
     var on=curListChip===c[0];
     return '<span onclick="setListChip(\''+c[0]+'\')" style="padding:7px 14px;border-radius:16px;font-size:13px;font-weight:700;cursor:pointer;border:1.5px solid '+(on?'#1e6fd9':'#cbd5e1')+';background:'+(on?'#1e6fd9':'#fff')+';color:'+(on?'#fff':'#475569')+'">'+c[1]+' '+c[2]+'</span>';
   }).join('')+'</div>';
