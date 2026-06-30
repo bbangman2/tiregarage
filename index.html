@@ -3855,7 +3855,7 @@ async function renderItemLedger(){
   h+='<div class="sbox" style="margin-bottom:8px"><input id="ledger-q" placeholder="🔍 출처·품명·규격·용도·메모 검색" value="'+esc(prevQ)+'" oninput="ledgerFilter()"><button>🔍</button></div>';
   h+='<div id="ledger-prog" style="display:none;margin-bottom:8px;padding:7px 11px;background:#eef5ff;border-radius:8px;font-size:12px;color:#1e40af;font-weight:600"></div>';
   h+='<div style="margin-bottom:8px;display:flex;gap:6px"><button onclick="ledgerBulkOut()" style="padding:7px 14px;border:1px solid #16a36a;background:#16a36a;color:#fff;border-radius:8px;font-weight:700;cursor:pointer;font-size:12px">✅ 선택 출고완료</button><button onclick="ledgerBulkUndo()" style="padding:7px 14px;border:1px solid #d9822b;background:#fff;color:#b45309;border-radius:8px;font-weight:700;cursor:pointer;font-size:12px">↩️ 선택 되돌리기</button></div>';
-  h+='<div class="ledger-wrap"><table class="stk-rt" id="ledger-rt"><colgroup><col style="width:30px"><col style="width:46px"><col style="width:62px"><col><col style="width:92px"><col style="width:84px"><col><col style="width:40px"><col style="width:56px"><col style="width:128px"></colgroup><thead><tr>'+
+  h+='<div class="ledger-wrap"><table class="stk-rt" id="ledger-rt"><colgroup><col style="width:30px"><col style="width:46px"><col style="width:70px"><col><col style="width:96px"><col style="width:90px"><col><col style="width:40px"><col style="width:54px"><col style="width:172px"></colgroup><thead><tr>'+
      '<th style="width:30px"><input type="checkbox" id="ledger-chk-all" onclick="ledgerChkAll(this)"></th>'+
      '<th data-sort="date" onclick="ledgerSort(\'date\')" style="cursor:pointer;white-space:nowrap">입고일 <span class="sar">↕</span></th>'+
      '<th data-sort="src" onclick="ledgerSort(\'src\')" style="cursor:pointer">출처 <span class="sar">↕</span></th>'+
@@ -3996,14 +3996,14 @@ function ledgerFilter(){
     return '<tr data-id="'+it.id+'"'+(done?' style="opacity:.75"':'')+'>'+
       '<td style="text-align:center"><input type="checkbox" class="ledger-chk" value="'+it.id+'"></td>'+
       '<td style="'+sk+'">'+esc((it.date_str||'').slice(5))+'</td>'+
-      '<td style="'+sk+'">'+esc(it.src||'-')+'</td>'+
-      '<td style="text-align:left;white-space:normal;min-width:120px;'+sk+'">'+esc(it.model||'')+'</td>'+
+      '<td style="white-space:normal;word-break:break-word;'+sk+'">'+esc(it.src||'-')+'</td>'+
+      '<td style="text-align:left;white-space:normal;word-break:break-word;'+sk+'">'+esc(it.model||'')+'</td>'+
       '<td style="'+sk+'">'+esc(it.spec||'')+'</td>'+
-      '<td style="'+sk+'">'+esc(it.use_note||'')+'</td>'+
+      '<td style="white-space:normal;word-break:break-word;'+sk+'">'+esc(it.use_note||'')+'</td>'+
       '<td style="text-align:left;font-size:11px;color:#6a7682;white-space:normal;max-width:170px">'+esc(memoTxt)+'</td>'+
       '<td style="'+sk+'">'+inQ+'</td>'+
       '<td style="font-weight:800;color:'+(done?'#9aa6b2':(partial?'#b45309':'#15803d'))+'">'+rem+(partial?'<div style="font-size:10px;color:#6a7682;font-weight:600">출고 '+outQ+'</div>':'')+'</td>'+
-      '<td style="white-space:normal;text-align:center">'+(done?'<span style="font-size:11px;color:#15803d;font-weight:700">✅ 출고완료</span> <button class="ldg-btn" style="border-color:#d9822b;color:#b45309" onclick="ledgerUndo(\''+it.id+'\')">되돌리기</button>':'<button class="ldg-btn ldg-out" onclick="ledgerOut(\''+it.id+'\')">출고</button> <button class="ldg-btn ldg-imm" onclick="ledgerImm(\''+it.id+'\')">즉시출고완료</button>')+'</td>'+
+      '<td style="white-space:nowrap;text-align:center">'+(done?'<span style="font-size:11px;color:#15803d;font-weight:700">✅ 출고완료</span> <button class="ldg-btn" style="border-color:#d9822b;color:#b45309" onclick="ledgerUndo(\''+it.id+'\')">되돌리기</button>':'<button class="ldg-btn ldg-out" onclick="ledgerOut(\''+it.id+'\')">출고</button> <button class="ldg-btn ldg-imm" onclick="ledgerImm(\''+it.id+'\')">즉시완료</button> <button class="ldg-btn" style="border-color:#dc2626;color:#dc2626" onclick="markReturn(\''+it.id+'\')">반품</button>')+'</td>'+
       '</tr>';
   }).join('');
 }
@@ -5139,7 +5139,7 @@ function returnArea(){
   return h+'<div style="height:14px"></div>';
 }
 async function markReturn(id){
-  var it=(itemsCache||[]).concat(returnsCache||[]).find(function(x){return x.id===id;});
+  var it=(itemsCache||[]).concat(returnsCache||[]).concat(typeof ledgerCache!=='undefined'?ledgerCache:[]).find(function(x){return x.id===id;});
   if(!it){alert('항목을 찾을 수 없어요');return;}
   var total=parseInt(it.qty)||0;
   var ans=prompt('반품할 수량을 입력하세요 (전체 '+total+'개)\n전체 반품하려면 '+total+' 입력', String(total));
