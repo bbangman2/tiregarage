@@ -249,6 +249,8 @@ body.rb-on #app{padding-top:58px}
 .stk-rt th.th-ch4{background:#fcd9b6}.stk-rt td.ch-4{background:#fff0de}
 .stk-rt th.th-ch5{background:#cfddf7}.stk-rt td.ch-5{background:#eaf1fc}
 .stk-rt th.th-ch6{background:#cfddf7}.stk-rt td.ch-6{background:#eaf1fc}
+#ledger-rt{width:100%;min-width:0}
+#ledger-rt th,#ledger-rt td{white-space:normal;word-break:break-word}
 .stk-rt th.th-ch7{background:#cfddf7}.stk-rt td.ch-7{background:#eaf1fc}
 .stk-rt td.rt-ed{cursor:cell}
 .stk-rt td.rt-ed:hover{outline:1px solid #93b4ff;outline-offset:-1px}
@@ -3819,15 +3821,17 @@ async function renderItemLedger(){
     data=r.data||[];
   }catch(e){el.innerHTML='<div style="text-align:center;color:#c00;padding:24px 0">불러오기 실패</div>';return;}
   ledgerCache=data.filter(function(it){
-    if(isReturnItem(it)||it.out_done)return false;
+    if(isReturnItem(it))return false;
+    if(it.out_done){ return !!(it.out_at && toDateStr(it.out_at)===getTodayISO()); } // 전량출고: 오늘 출고된 것만 당일 취소선, 다음날 제외
     var rem=(parseInt(it.qty,10)||0)-(parseInt(it.out_qty,10)||0);
     return rem>0; // 잔량 있는 것만 (부분출고로 잔량 0 되면 빠짐)
   });
   var totalQ=ledgerCache.reduce(function(s,it){return s+((parseInt(it.qty,10)||0)-(parseInt(it.out_qty,10)||0));},0);
   var h='<div style="font-size:12px;color:#345;margin:4px 0 9px;padding:9px 11px;background:#eef5ff;border-radius:8px;line-height:1.5">📑 <b>입고표 (test)</b> — 출고 안 된 입고분이 계속 누적됩니다 · 총 <b>'+ledgerCache.length+'</b>건 · '+totalQ+'개</div>';
   h+='<div class="sbox" style="margin-bottom:8px"><input id="ledger-q" placeholder="🔍 출처·품명·규격 검색" value="'+esc(prevQ)+'" oninput="ledgerFilter()"><button>🔍</button></div>';
+  h+='<div style="margin-bottom:8px;display:flex;gap:6px"><button onclick="ledgerBulkOut()" style="padding:7px 14px;border:1px solid #16a36a;background:#16a36a;color:#fff;border-radius:8px;font-weight:700;cursor:pointer;font-size:12px">✅ 선택 출고완료</button><button onclick="ledgerBulkUndo()" style="padding:7px 14px;border:1px solid #d9822b;background:#fff;color:#b45309;border-radius:8px;font-weight:700;cursor:pointer;font-size:12px">↩️ 선택 되돌리기</button></div>';
   h+='<div class="stk-rtwrap"><table class="stk-rt" id="ledger-rt"><thead><tr>'+
-     '<th>입고일</th><th>출처</th><th style="text-align:left">품명</th><th>규격</th><th>입고</th><th>잔량</th><th>출고</th>'+
+     '<th style="width:30px"><input type="checkbox" id="ledger-chk-all" onclick="ledgerChkAll(this)"></th><th>입고일</th><th>출처</th><th style="text-align:left">품명</th><th>규격</th><th>용도</th><th style="text-align:left">메모</th><th>입고</th><th>잔량</th><th>출고</th>'+
      '</tr></thead><tbody id="ledger-tbody"></tbody></table></div>';
   el.innerHTML=h;
   ledgerFilter();
@@ -3839,18 +3843,24 @@ function ledgerFilter(){
     if(!q)return true;
     return [it.src,it.model,it.spec,it.date_str].filter(Boolean).join(' ').toLowerCase().indexOf(q)>-1;
   });
-  if(!list.length){tb.innerHTML='<tr><td colspan="7" style="padding:18px 6px;color:#aaa">표시할 입고분이 없습니다</td></tr>';return;}
+  if(!list.length){tb.innerHTML='<tr><td colspan="10" style="padding:18px 6px;color:#aaa">표시할 입고분이 없습니다</td></tr>';return;}
   tb.innerHTML=list.map(function(it){
     var inQ=parseInt(it.qty,10)||0, outQ=parseInt(it.out_qty,10)||0, rem=inQ-outQ;
-    var partial=outQ>0;
-    return '<tr data-id="'+it.id+'">'+
-      '<td>'+esc((it.date_str||'').slice(5))+'</td>'+
-      '<td>'+esc(it.src||'-')+'</td>'+
-      '<td style="text-align:left;white-space:normal;min-width:120px">'+esc(it.model||'')+'</td>'+
-      '<td>'+esc(it.spec||'')+'</td>'+
-      '<td>'+inQ+'</td>'+
-      '<td style="font-weight:800;color:'+(partial?'#b45309':'#15803d')+'">'+rem+(partial?'<div style="font-size:10px;color:#6a7682;font-weight:600">출고 '+outQ+'</div>':'')+'</td>'+
-      '<td style="white-space:nowrap"><button class="ldg-btn ldg-out" onclick="ledgerOut(\''+it.id+'\')">출고</button> <button class="ldg-btn ldg-imm" onclick="ledgerImm(\''+it.id+'\')">즉시출고완료</button></td>'+
+    var done=!!it.out_done;            // 오늘 전량출고 (필터로 보장) → 당일 취소선
+    var partial=outQ>0 && !done;
+    var memoTxt=(Array.isArray(it.logs)?it.logs:[]).filter(function(lg){return lg&&lg.text;}).map(function(lg){return lg.text;}).join(' · ');
+    var sk=done?'text-decoration:line-through;color:#9aa6b2;':'';
+    return '<tr data-id="'+it.id+'"'+(done?' style="opacity:.75"':'')+'>'+
+      '<td style="text-align:center"><input type="checkbox" class="ledger-chk" value="'+it.id+'"></td>'+
+      '<td style="'+sk+'">'+esc((it.date_str||'').slice(5))+'</td>'+
+      '<td style="'+sk+'">'+esc(it.src||'-')+'</td>'+
+      '<td style="text-align:left;white-space:normal;min-width:120px;'+sk+'">'+esc(it.model||'')+'</td>'+
+      '<td style="'+sk+'">'+esc(it.spec||'')+'</td>'+
+      '<td style="'+sk+'">'+esc(it.use_note||'')+'</td>'+
+      '<td style="text-align:left;font-size:11px;color:#6a7682;white-space:normal;max-width:170px">'+esc(memoTxt)+'</td>'+
+      '<td style="'+sk+'">'+inQ+'</td>'+
+      '<td style="font-weight:800;color:'+(done?'#9aa6b2':(partial?'#b45309':'#15803d'))+'">'+rem+(partial?'<div style="font-size:10px;color:#6a7682;font-weight:600">출고 '+outQ+'</div>':'')+'</td>'+
+      '<td style="white-space:nowrap">'+(done?'<span style="font-size:11px;color:#15803d;font-weight:700">✅ 출고완료</span> <button class="ldg-btn" style="border-color:#d9822b;color:#b45309" onclick="ledgerUndo(\''+it.id+'\')">되돌리기</button>':'<button class="ldg-btn ldg-out" onclick="ledgerOut(\''+it.id+'\')">출고</button> <button class="ldg-btn ldg-imm" onclick="ledgerImm(\''+it.id+'\')">즉시출고완료</button>')+'</td>'+
       '</tr>';
   }).join('');
 }
@@ -3894,6 +3904,53 @@ async function ledgerImm(id){
   var inQ=parseInt(it.qty,10)||0, outQ=parseInt(it.out_qty,10)||0, rem=inQ-outQ;
   if(!confirm((it.model||'')+' '+(it.spec||'')+' 잔량 '+rem+'개\n\n즉시 출고완료 처리할까요?\n(기존에 이미 나간 입고분 정리용 — 잔량 전부를 출고처리)'))return;
   await ledgerFinish(it,'출고','즉시완료',rem,'');
+}
+function ledgerChkAll(box){
+  document.querySelectorAll('.ledger-chk').forEach(function(c){c.checked=box.checked;});
+}
+async function ledgerBulkOut(){
+  var chks=document.querySelectorAll('.ledger-chk:checked');
+  if(!chks.length){alert('출고완료할 항목을 체크하세요');return;}
+  var ids=Array.prototype.map.call(chks,function(c){return c.value;});
+  if(!confirm(ids.length+'건을 즉시 출고완료 처리할까요?\n(각 항목 잔량 전부 출고)'))return;
+  for(var i=0;i<ids.length;i++){
+    var it=ledgerCache.find(function(x){return String(x.id)===String(ids[i]);});
+    if(!it)continue;
+    var rem=(parseInt(it.qty,10)||0)-(parseInt(it.out_qty,10)||0);
+    if(rem<1)continue;
+    await ledgerFinish(it,'출고','일괄완료',rem,'',true); // skipRender: 끝에 한 번만 그림
+  }
+  ledgerFilter();
+  var all=document.getElementById('ledger-chk-all'); if(all)all.checked=false;
+}
+async function ledgerUndoOne(it){
+  var prevOut=parseInt(it.out_qty,10)||0;
+  try{
+    var{error}=await sb.from('items').update({out_qty:0,out_done:false,out_at:null,out_to:null,out_user:null}).eq('id',it.id);
+    if(error)throw error;
+    it.out_qty=0; it.out_done=false; it.out_at=null; it.out_to=null; it.out_user=null;
+  }catch(e){alert('되돌리기 실패: '+e.message);return false;}
+  if(typeof stkLog==='function'){
+    stkLog('↩️입고출고취소',(it.src?'['+it.src+'] ':'')+(it.model||'')+' '+(it.spec||'')+' · 출고 '+prevOut+'개 되돌림(잔량 복구)',{qty:prevOut,channel:'되돌리기'});
+  }
+  return true;
+}
+async function ledgerUndo(id){
+  var it=ledgerCache.find(function(x){return String(x.id)===String(id);}); if(!it||!it.out_done)return;
+  if(!confirm((it.model||'')+' '+(it.spec||'')+'\n출고완료를 되돌릴까요?\n(입고표 잔량이 복구됩니다)'))return;
+  await ledgerUndoOne(it);
+  ledgerFilter();
+}
+async function ledgerBulkUndo(){
+  var chks=document.querySelectorAll('.ledger-chk:checked');
+  if(!chks.length){alert('되돌릴 항목을 체크하세요');return;}
+  var ids=Array.prototype.map.call(chks,function(c){return c.value;});
+  var targets=ids.map(function(id){return ledgerCache.find(function(x){return String(x.id)===String(id);});}).filter(function(it){return it&&it.out_done;});
+  if(!targets.length){alert('체크한 것 중 출고완료된 항목이 없습니다');return;}
+  if(!confirm(targets.length+'건의 출고완료를 되돌릴까요?\n(입고표 잔량 복구)'))return;
+  for(var i=0;i<targets.length;i++){ await ledgerUndoOne(targets[i]); }
+  ledgerFilter();
+  var all=document.getElementById('ledger-chk-all'); if(all)all.checked=false;
 }
 
 /* ===== 종합방 (큰탭 3개 구조) ===== */
@@ -4556,7 +4613,7 @@ function jhClassify(u){
  return'ledger';}
 
 
-async function ledgerFinish(it,kind,to,qty,memo){
+async function ledgerFinish(it,kind,to,qty,memo,skipRender){
   // ── 입고표 차감 (재고방 방식과 동일: 실제 잔량을 줄임) ──
   // 잔량 = 입고수량(qty) - 이미 나간 누적(out_qty). 잔량 0 되면 out_done=true.
   var inQty=parseInt(it.qty,10)||0;
@@ -4569,15 +4626,7 @@ async function ledgerFinish(it,kind,to,qty,memo){
   var willDone=(newOut>=inQty);   // 다 나가면 완전출고
   var afterRemain=inQty-newOut;
 
-  // 빗장: 실사용(BETA_WRITE=false)은 실제 차감 안 하고 과정만 안내, 테스트(true)는 실제 차감
-  if(!BETA_WRITE){
-    alert('🔒 빗장(실사용) — 실제 차감은 안 됩니다.\n\n[처리 예정 내용]\n'+(it.src?'['+it.src+'] ':'')+(it.model||'')+' '+(it.spec||'')+
-      '\n· 입고 '+inQty+'개 · 잔량 '+remain+'→'+afterRemain+'개 ('+kind+' '+n+'개 → '+to+')'+
-      (willDone?'\n· 잔량 0 → 입고표에서 사라짐 (완전'+kind+')':'\n· 잔량 '+afterRemain+'개 입고표에 남음')+
-      '\n· 처리자 '+(me?me.name:'?')+'\n\n(테스트 환경에서 실제 차감을 검증하세요)');
-    return;
-  }
-
+  // 입고표 차감은 빗장 없이 항상 실제 차감 (종합방만 BETA_WRITE 유지)
   try{
     var patch={out_qty:newOut};
     if(willDone){patch.out_done=true;patch.out_to=to;patch.out_user=me?me.name:'?';patch.out_at=new Date().toISOString();}
@@ -4592,7 +4641,7 @@ async function ledgerFinish(it,kind,to,qty,memo){
     else stkLog('📤입고출고', label+' → '+to+(memo?' · '+memo:''), {qty:n, channel:to});
   }
   ledgerOutClose();
-  renderItemLedger();
+  if(!skipRender)ledgerFilter();
 }
 // 표 행 탭하면 펼쳐서 전체보기 (이벤트 위임, 한 번만 등록)
 (function(){
