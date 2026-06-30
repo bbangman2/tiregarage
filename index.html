@@ -805,7 +805,7 @@ body.rb-on #app{padding-top:58px}
 .rsv-pill.done{background:#dcfce7;color:#15803d;text-decoration:line-through}
 .rsv-pill.cancel{background:#f0f0f0;color:#999;text-decoration:line-through}
   .rsv-pill.donebad{background:#fde2e2;color:#dc2626;font-weight:700;text-decoration:line-through}
-   .rsv-pill.need{background:#fde2e2;color:#dc2626;font-weight:700}
+   .rsv-pill.need{background:#fef9c3;color:#a16207;font-weight:700}
 .rsv-pill.more{background:none;color:#888;text-align:center}
 /* 주 뷰 */
 .rsv-tl{overflow-x:auto}
@@ -826,7 +826,7 @@ body.rb-on #app{padding-top:58px}
 .rsv-blk.done{background:#dcfce7;border-color:#86efac;color:#15803d;text-decoration:line-through}
   .rsv-blk.cancel{background:#f0f0f0;border-color:#d4d4d4;color:#999;text-decoration:line-through}
   .rsv-blk.donebad{background:#fde2e2;border-color:#f5a5a5;color:#b91c1c;text-decoration:line-through}
-   .rsv-blk.need{background:#fde2e2;border-color:#f5a5a5;color:#b91c1c}
+   .rsv-blk.need{background:#fef9c3;border-color:#fde047;color:#a16207}
    .rsv-unsched{margin:0 0 10px;background:#fffbe8;border:1.5px solid #f0d878;border-radius:11px;padding:9px 10px}
    .rsv-unsched-head{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:7px}
    .rsv-unsched-head .ruh-t{font-size:13px;font-weight:800;color:#8a6d00}
@@ -1099,7 +1099,7 @@ body.rb-on #app{padding-top:58px}
     <!-- ===== 입고방 전용 화면 ===== -->
     <div class="items-screen" id="items-screen" style="display:none">
       <div class="item-tabs">
-        <button class="item-tab active" data-tab="list" onclick="switchItemTab('list')">📋 공유목록</button>
+        <button class="item-tab active" data-tab="list" onclick="switchItemTab('list')">📋 입고예정</button>
         <button class="item-tab" data-tab="analysis" onclick="switchItemTab('analysis')">📊 종합 / 👤 작성자 / 🚚 용도</button>
         <button class="item-tab" data-tab="outlog" onclick="switchItemTab('outlog')">📦 출고기록</button>
         <button class="item-tab" data-tab="memo" onclick="switchItemTab('memo')">↩️ 반품/특이사항</button>
@@ -4008,7 +4008,7 @@ function ledgerFilter(){
       '<td style="text-align:center"><input type="checkbox" class="ledger-chk" value="'+it.id+'"></td>'+
       '<td style="'+sk+'">'+esc((it.date_str||'').slice(5))+'</td>'+
       '<td style="white-space:normal;word-break:break-word;'+sk+'">'+esc(it.src||'-')+'</td>'+
-      '<td style="text-align:left;white-space:normal;word-break:break-word;'+sk+'">'+esc(it.model||'')+'</td>'+
+      '<td style="text-align:left;white-space:normal;word-break:break-word;'+sk+'">'+esc(it.model||'')+((!it.arrived&&(parseInt(it.out_qty,10)||0)>0&&!isReturnItem(it))?'<br><span style="font-size:9px;color:#b45309;font-weight:800;background:#fef3c7;padding:1px 5px;border-radius:4px;display:inline-block;margin-top:2px">⚠️ 실물입고전 출고</span>':'')+'</td>'+
       '<td style="white-space:normal;word-break:break-word;'+sk+'">'+esc(it.spec||'')+'</td>'+
       '<td style="white-space:normal;word-break:break-word;'+sk+'">'+esc(it.use_note||'')+'</td>'+
       '<td style="text-align:left;font-size:11px;color:#6a7682;white-space:normal;word-break:break-word">'+esc(memoTxt)+'</td>'+
@@ -4984,8 +4984,9 @@ function itemCardHtml(it){
   const acts=it.cancelled?'':'<span class="icb-acts">'+arrBtn+'<button class="e" onclick="openEdit(\''+it.id+'\')">수정</button>'+(ret?'<button class="r" onclick="unmarkReturn(\''+it.id+'\')" style="background:#eef4ff;color:#2563eb;border:1px solid #b3c6e8">반품취소</button>':'<button class="r" onclick="markReturn(\''+it.id+'\')" style="background:#fef2f2;color:#dc2626;border:1px solid #f3c2c2">반품</button>')+'<button class="c" onclick="openCancel(\''+it.id+'\')">취소</button></span>';
   const retTag=ret?'<span class="ret-flag" style="background:'+(retDone?'#9ca3af':'#dc2626')+';color:#fff;font-size:10px;font-weight:800;padding:1px 7px;border-radius:8px;margin-right:5px">'+(retDone?'✓ 반품완료':'↩️ 반품 D+'+returnDaysElapsed(it))+'</span>':'';
   const arrTag=(it.cancelled||ret)?'':(arr?'<span style="background:#dcfce7;color:#15803d;font-size:10px;font-weight:800;padding:1px 7px;border-radius:8px;margin-right:5px">✅ 실물입고</span>':'<span style="background:'+(dN>=3?'#fef3c7':'#f1f5f9')+';color:'+(dN>=3?'#b45309':'#64748b')+';font-size:10px;font-weight:800;padding:1px 7px;border-radius:8px;margin-right:5px">⏳ 입고대기'+(dN>0?' · D+'+dN:'')+'</span>');
+  const preTag=(!arr&&!ret&&!it.cancelled&&(parseInt(it.out_qty,10)||0)>0)?'<span style="background:#fef3c7;color:#b45309;font-size:10px;font-weight:800;padding:1px 7px;border-radius:8px;margin-right:5px">⚠️ 실물입고전 출고</span>':'';
   return '<div class="icardB '+(it.cancelled?'cancelled':'')+(ret?' is-return':'')+'"'+(retDone?' style="opacity:.55;border-left:3px solid #9ca3af;background:#f7f7f7"':(ret?' style="border-left:3px solid #dc2626;background:#fff8f8"':(arr?' style="border-left:3px solid #16a34a"':'')))+'>'
-    +'<div class="irow1">'+((!arr&&!ret&&!it.cancelled)?'<input type="checkbox" class="list-chk" value="'+it.id+'" onclick="event.stopPropagation()" style="margin-right:6px;transform:scale(1.15);cursor:pointer;vertical-align:middle">':'')+retTag+arrTag+'<span class="icb-model">'+esc(it.model)+'</span><span class="icb-spec">'+esc(it.spec)+'</span><span class="icb-qty">'+qtyDisp+'</span></div>'
+    +'<div class="irow1">'+((!arr&&!ret&&!it.cancelled)?'<input type="checkbox" class="list-chk" value="'+it.id+'" onclick="event.stopPropagation()" style="margin-right:6px;transform:scale(1.15);cursor:pointer;vertical-align:middle">':'')+retTag+arrTag+preTag+'<span class="icb-model">'+esc(it.model)+'</span><span class="icb-spec">'+esc(it.spec)+'</span><span class="icb-qty">'+qtyDisp+'</span></div>'
     +'<div class="irow2"><span class="icb-date" style="color:#94a3b8;font-size:11px;margin-right:6px">📅 '+fmtDateLabel(it.date_str)+'</span><span class="icb-use">'+esc(it.use_note||'미기입')+'</span><span class="icb-who">'+esc(it.user_name)+'</span>'+acts+'</div>'
     +logHtml+'</div>';
 }
@@ -9351,7 +9352,8 @@ function renderReserveMonth(){
         h+='<div class="dnum'+(dow===6?' sat':'')+'">'+d.getDate()+'</div>';
         if(list.length)h+='<div class="dcount">'+list.length+'</div>';
         list.slice(0,3).forEach(function(r){
-          var cls=r.status==='취소'?' cancel':(r.status==='완료'?((r.src_product_id||r.stock_done)?' done':' donebad'):' need');
+          var _lk=(r.src_product_id||r.src_item_id||r.stock_done);
+          var cls=r.status==='취소'?' cancel':(r.status==='완료'?(_lk?' done':' donebad'):(_lk?'':' need'));
           h+='<div class="rsv-pill'+cls+'">'+(r.time_slot||'')+' '+esc(rsvEngLine(r)).slice(0,10)+'</div>';
         });
         if(list.length>3)h+='<div class="rsv-pill more">+'+(list.length-3)+'</div>';
@@ -9379,11 +9381,11 @@ function renderReserveDay(){
   if(!all.length){ html+='<div style="text-align:center;color:#94a3b8;padding:34px 0;font-size:14px">이 날 예약이 없습니다</div>'; }
   else{ all.forEach(function(r){
     var t=(r.time_slot||'').slice(0,5)||'--:--';
-    var lk=(r.src_product_id||r.stock_done);
+    var lk=(r.src_product_id||r.src_item_id||r.stock_done);
     var stat, strike=false, cardBg='#fff', cardBd='#e5e7eb', dim='';
     if(r.status==='취소'){ stat='<span style="background:#f0f0f0;color:#999;border-radius:6px;padding:1px 7px;font-size:11px;font-weight:800">취소</span>'; strike=true; cardBg='#fafafa'; dim='opacity:.7;'; }
     else if(r.status==='완료'){ strike=true; if(lk){ stat='<span style="background:#dcfce7;color:#15803d;border-radius:6px;padding:1px 7px;font-size:11px;font-weight:800">완료</span>'; cardBg='#f6fef9'; cardBd='#bbf7d0'; } else { stat='<span style="background:#fde2e2;color:#dc2626;border-radius:6px;padding:1px 7px;font-size:11px;font-weight:800">완료·미연결</span>'; cardBg='#fff5f5'; cardBd='#fab8b8'; } }
-    else { stat=lk?'<span style="background:#dbeafe;color:#1d4ed8;border-radius:6px;padding:1px 7px;font-size:11px;font-weight:800">예약</span>':'<span style="background:#fde2e2;color:#dc2626;border-radius:6px;padding:1px 7px;font-size:11px;font-weight:800">재고 미연결</span>'; }
+    else { if(lk){ stat='<span style="background:#dbeafe;color:#1d4ed8;border-radius:6px;padding:1px 7px;font-size:11px;font-weight:800">예약</span>'; cardBg='#f5f9ff'; cardBd='#bfdbfe'; } else { stat='<span style="background:#fef9c3;color:#a16207;border-radius:6px;padding:1px 7px;font-size:11px;font-weight:800">재고 미연결</span>'; cardBg='#fffdf0'; cardBd='#fde68a'; } }
     var tire=noPP(r.tire_spec||rsvEngLine(r)||'');
     var sub=[r.car_name,r.car_no,r.phone].filter(Boolean).join(' · ');
     var tdec=strike?'text-decoration:line-through;':'';
@@ -9441,7 +9443,8 @@ function rsvTlPlaceBlock(ds,e){
   var _av=e.align_state==='take'?(e.align_amount||0):0; var _tot=_pv+_av;
   var sub=_tot>0?(' · '+rsvWon(_tot)):'';
   var b=document.createElement('div');
-  b.className='rsv-blk'+(e.status==='취소'?' cancel':(e.status==='완료'?((e.src_product_id||e.stock_done)?' done':' donebad'):' need'));
+  var _lk=(e.src_product_id||e.src_item_id||e.stock_done);
+  b.className='rsv-blk'+(e.status==='취소'?' cancel':(e.status==='완료'?(_lk?' done':' donebad'):(_lk?'':' need')));
   b.style.top=top+'px';b.style.height=ht+'px';
   b.style.left='calc('+(e._col*w)+'% + 1px)';b.style.width='calc('+w+'% - 2px)';
   b.innerHTML='<div class="bt">'+(e.time_slot||'')+sub+'</div>'+esc(rsvEngLine(e))+'<div class="rsz"></div>';
