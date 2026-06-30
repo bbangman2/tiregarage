@@ -1240,6 +1240,13 @@ body.rb-on #app{padding-top:58px}
     </div>
     <button class="rsv-add" onclick="rsvOpenAdd()">+ 예약</button>
   </div>
+  <div style="padding:5px 14px;background:#fff;border-bottom:1px solid #eee;display:flex;justify-content:center;gap:10px;flex-wrap:wrap;font-size:11px;color:#475569">
+    <span><b style="color:#1d4ed8">●</b> 연결</span>
+    <span><b style="color:#a16207">●</b> 재고미연결</span>
+    <span><b style="color:#15803d">●</b> 완료</span>
+    <span><b style="color:#b91c1c">●</b> 완료·미연결</span>
+    <span><b style="color:#999">●</b> 취소</span>
+  </div>
   <div id="rsv-summary" class="rsv-summary"></div>
   <div style="padding:6px 14px;background:#fff;border-bottom:1px solid #eee">
     <input id="rsv-search" placeholder="🔍 전화·차량번호·차량명·타이어·메모·작성자" oninput="renderReserve()" style="width:100%;height:38px;border:1.5px solid #ddd;border-radius:9px;padding:0 12px;font-size:13px"><div style="display:inline-flex;align-items:center;gap:5px;background:#f1f3f6;border:1.5px solid #e6e9ef;border-radius:9px;padding:5px 9px;margin-top:7px"><button class="range-toggle" id="rsv-srch-all" onclick="rsvSrchAll()" style="background:#1e2a4a;color:#fff;border-color:#1e2a4a">전체기간</button><input type="date" id="rsv-srch-from" onchange="renderReserve()" style="display:none"><span class="date-sep" id="rsv-srch-sep" style="display:none">~</span><input type="date" id="rsv-srch-to" onchange="renderReserve()" style="display:none"><button class="range-toggle" id="rsv-srch-rangebtn" onclick="rsvSrchRange()">범위</button></div>
@@ -3837,7 +3844,7 @@ async function renderItemLedger(){
   await ledgerRsvLoad();
   var totalAll=ledgerCache.length;
   var h='<div style="font-size:12px;color:#345;margin:4px 0 8px;padding:8px 11px;background:#eef5ff;border-radius:8px;line-height:1.5">📑 <b>입고표</b> — 보유 <b>'+totalAll+'</b>건 · <span id="ledger-shown">0</span>건 표시</div>';
-  var dates=Array.from(new Set(ledgerCache.map(function(it){return it.date_str;}).filter(Boolean))).sort().reverse();
+  var dates=Array.from(new Set([getTodayISO()].concat(ledgerCache.map(function(it){return it.date_str;})).filter(Boolean))).sort().reverse();
   h+='<div style="display:flex;align-items:center;gap:6px;margin-bottom:7px;font-size:12px;flex-wrap:wrap">'+
     '<button onclick="ledgerShiftDate(-1)" style="border:1px solid #cbd5e1;background:#fff;border-radius:5px;width:24px;height:26px;cursor:pointer;font-size:12px;padding:0">‹</button>'+
     '<select id="ledger-datesel" onchange="ledgerSetDate(this.value)" style="height:26px;border:1px solid #cbd5e1;border-radius:5px;padding:0 6px;font-size:12px;background:#fff">'+
@@ -3888,7 +3895,7 @@ async function renderItemLedger(){
 var ledgerChip='all';
 var ledgerDoneFilter='active';        // all / active(미완료+오늘완료) / done
 var ledgerUseFilter='all';            // all / install(장착) / delivery(택배) / etc2(그외)
-var ledgerDateSel='all';              // 'all' 또는 'YYYY-MM-DD'
+var ledgerDateSel=getTodayISO();              // 'all' 또는 'YYYY-MM-DD'
 var ledgerFrom='', ledgerTo='';       // 기간
 var ledgerSortCol='date', ledgerSortDir='desc';
 function ledgerUseCat(u){
@@ -5114,7 +5121,7 @@ function itemListBySrc(items){
   return html;
 }
 var curListChip='all';
-var listDateSel='all', listFrom='', listTo='';
+var listDateSel=getTodayISO(), listFrom='', listTo='';
 function setListChip(c){ curListChip=c; var bd=document.getElementById('list-body'); if(bd&&typeof listPaint==='function')listPaint(); else renderItemList(); }
 function listDatePass(it){
   if(listFrom||listTo){ var d=it.date_str||''; if(listFrom&&d<listFrom)return false; if(listTo&&d>listTo)return false; return true; }
@@ -5156,7 +5163,7 @@ function listPaint(){
   var doneN=list0.filter(function(it){return it.arrived&&!it.cancelled;}).length;
   var preN=list0.filter(function(it){return !it.arrived&&(parseInt(it.out_qty,10)||0)>0&&!isReturnItem(it)&&!it.cancelled;}).length;
   var chips=[['all','전체',list0.length],['wait','⏳ 입고대기',waitN],['done','✅ 입고완료',doneN],['preout','⚠️ 실물입고전 출고',preN]];
-  var _dates=Array.from(new Set(list0all.map(function(it){return it.date_str;}).filter(Boolean))).sort().reverse();
+  var _dates=Array.from(new Set([getTodayISO()].concat(list0all.map(function(it){return it.date_str;})).filter(Boolean))).sort().reverse();
   var _dateUI='<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;flex-wrap:wrap;font-size:12px">'+
     '<button onclick="listShiftDate(-1)" style="border:1px solid #cbd5e1;background:#fff;border-radius:5px;width:24px;height:26px;cursor:pointer;font-size:12px;padding:0">‹</button>'+
     '<select id="list-datesel" onchange="listSetDate(this.value)" style="height:26px;border:1px solid #cbd5e1;border-radius:5px;padding:0 6px;font-size:12px;background:#fff"><option value="all"'+(listDateSel==='all'?' selected':'')+'>전체</option>'+
@@ -5257,12 +5264,28 @@ function outlogPaint(){
     return '<span onclick="outlogSetChip(\''+c[0]+'\')" style="padding:6px 13px;border-radius:16px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid '+(on?'#1e6fd9':'#cbd5e1')+';background:'+(on?'#1e6fd9':'#fff')+';color:'+(on?'#fff':'#475569')+'">'+c[1]+' '+cnt+'</span>';
   }).join('')+'</div>';
   if(!list.length){ el.innerHTML=bar+'<div class="iempty" style="padding:24px;text-align:center;color:#999">기록 없음</div>'; return; }
+  function revStatus(g){ // '' 가능 / null 대상아님 / 문자열 불가사유
+    if(kindOf(g)!=='out') return null;
+    if(g.reverted) return '이미 되돌림';
+    if(g.channel==='예약장착') return '예약 연결';
+    if(!g.item_id) return '추적 불가';
+    return '';
+  }
+  var revOkN=list.filter(function(g){return revStatus(g)==='';}).length;
+  var revBar = revOkN>0 ? ('<div style="margin-bottom:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">'+
+    '<label style="font-size:12px;cursor:pointer;display:flex;align-items:center;gap:5px;color:#475569;font-weight:600"><input type="checkbox" id="outlog-chk-all" onclick="outlogChkAll(this)" style="transform:scale(1.15);cursor:pointer"> 전체 선택('+revOkN+'건)</label>'+
+    '<button onclick="outlogBulkRevert()" style="padding:7px 14px;border:1px solid #d9822b;background:#fff;color:#b45309;border-radius:8px;font-weight:700;cursor:pointer;font-size:12px">↺ 선택 출고 되돌리기</button>'+
+    '<span style="font-size:11px;color:#94a3b8">출고만 되돌릴 수 있어요 (예약장착·반품 제외)</span></div>') : '';
   var rows=list.map(function(g){
     var d=new Date(g.ts);
     var ts=(d.getMonth()+1)+'/'+d.getDate()+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
     var k=kindOf(g);
     var kl=k==='undo'?'<span style="color:#d9822b;font-weight:700">되돌림/복구</span>':(k==='return'?'<span style="color:#dc2626;font-weight:700">반품</span>':'<span style="color:#15803d;font-weight:700">출고</span>');
+    var rs=revStatus(g);
+    var revCell = rs===''? '<input type="checkbox" class="outlog-chk" value="'+g.id+'" style="transform:scale(1.15);cursor:pointer">'
+      : (rs===null? '<span style="color:#cbd5e1;font-size:11px">—</span>' : '<span style="color:#b45309;font-size:10px;font-weight:700;background:#fef3c7;padding:1px 5px;border-radius:5px;white-space:nowrap">'+rs+'</span>');
     return '<tr style="border-bottom:1px solid #eef0f3">'+
+      '<td style="padding:7px 6px;text-align:center">'+revCell+'</td>'+
       '<td style="padding:7px 9px;font-size:12px;color:#64748b;white-space:nowrap">'+ts+'</td>'+
       '<td style="padding:7px 9px;font-size:12px;white-space:nowrap">'+esc(g.user_name||'')+'</td>'+
       '<td style="padding:7px 9px;font-size:12px">'+esc(g.note||'')+'</td>'+
@@ -5271,9 +5294,36 @@ function outlogPaint(){
       '<td style="padding:7px 9px;font-size:12px;text-align:center;white-space:nowrap">'+kl+'</td>'+
     '</tr>';
   }).join('');
-  el.innerHTML=bar+'<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse"><thead><tr style="background:#f3f5f8">'+
-    '<th style="padding:8px 9px;font-size:11px;text-align:left;white-space:nowrap">시각</th><th style="padding:8px 9px;font-size:11px;text-align:left">담당</th><th style="padding:8px 9px;font-size:11px;text-align:left">품목</th><th style="padding:8px 9px;font-size:11px">사용처/채널</th><th style="padding:8px 9px;font-size:11px">수량</th><th style="padding:8px 9px;font-size:11px">구분</th>'+
+  el.innerHTML=bar+revBar+'<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse"><thead><tr style="background:#f3f5f8">'+
+    '<th style="padding:8px 6px;font-size:11px;white-space:nowrap">되돌리기</th><th style="padding:8px 9px;font-size:11px;text-align:left;white-space:nowrap">시각</th><th style="padding:8px 9px;font-size:11px;text-align:left">담당</th><th style="padding:8px 9px;font-size:11px;text-align:left">품목</th><th style="padding:8px 9px;font-size:11px">사용처/채널</th><th style="padding:8px 9px;font-size:11px">수량</th><th style="padding:8px 9px;font-size:11px">구분</th>'+
     '</tr></thead><tbody>'+rows+'</tbody></table></div>';
+}
+function outlogChkAll(cb){ document.querySelectorAll('.outlog-chk').forEach(function(x){x.checked=cb.checked;}); }
+async function outlogBulkRevert(){
+  var chks=document.querySelectorAll('.outlog-chk:checked');
+  if(!chks.length){alert('되돌릴 출고 기록을 체크하세요');return;}
+  var ids=Array.prototype.map.call(chks,function(c){return c.value;});
+  if(!confirm(ids.length+'건의 출고를 되돌릴까요?\n(해당 입고분 잔량이 복구됩니다)'))return;
+  var who=(typeof me!=='undefined'&&me)?me.name:'?', okN=0, failN=0;
+  for(var i=0;i<ids.length;i++){
+    var g=outlogCache.find(function(x){return String(x.id)===String(ids[i]);});
+    if(!g||!g.item_id||g.reverted)continue;
+    var n=parseInt(g.qty,10)||0; if(n<1)continue;
+    try{
+      var cur=await sb.from('items').select('qty,out_qty,out_at,out_to,out_user').eq('id',g.item_id).maybeSingle();
+      if(!cur||!cur.data){ failN++; continue; }
+      var d=cur.data;
+      var newOut=Math.max(0,(parseInt(d.out_qty,10)||0)-n);
+      var stillDone=newOut>0&&newOut>=(parseInt(d.qty,10)||0);
+      await sb.from('items').update({out_qty:newOut,out_done:stillDone,out_at:(newOut>0?(d.out_at||null):null),out_to:(newOut>0?(d.out_to||null):null),out_user:(newOut>0?(d.out_user||null):null)}).eq('id',g.item_id);
+      await sb.from('stock_logs').update({reverted:true}).eq('id',g.id);
+      if(typeof stkLog==='function') await stkLog('↩️입고출고취소',(g.note||'')+' · 출고기록 되돌림 ×'+n+' ('+who+')',{qty:n,channel:'되돌리기',item_id:g.item_id},true);
+      okN++;
+    }catch(e){ failN++; }
+  }
+  if(typeof loadItems==='function')await loadItems();
+  renderItemOutlog();
+  if(failN)alert('완료 '+okN+'건, 실패 '+failN+'건 (이미 변경됐거나 항목이 없는 경우)');
 }
 var curAnalysisChip='sum';
 function setAnalysisChip(c){ curAnalysisChip=c; if(document.getElementById('analysis-body')){ anChips(); anPaint(); } else renderItemAnalysis(); }
@@ -10060,7 +10110,7 @@ async function rsvSubmit(){
   if(oi&&(oi.product_id||oi.item_id)){
     outQty=parseInt((document.getElementById('rsv-outqty').value||'').replace(/[^0-9]/g,''),10)||oi.qty||1;
     rec.qty=outQty;
-    rec.src_kind=oi.kind; rec.src_product_id=oi.product_id||null; rec.src_item_id=oi.item_id||null; rec.src_dot=oi.dot||''; rec.src_qty=outQty; rec.src_lot_id=oi.lot_id||null; rec.stock_done=false;
+    rec.src_kind=oi.kind; rec.src_product_id=oi.product_id||null; rec.src_item_id=oi.item_id||null; rec.src_dot=oi.dot||''; rec.src_qty=outQty; rec.src_lot_id=oi.lot_id||null; rec.stock_done=false; rec.src_user=(me?me.name:'?');
   }else if(oi&&oi.qty){rec.qty=oi.qty;}
   if(!rsvEditId)rec.status='예약';
   try{
@@ -10168,6 +10218,8 @@ function rsvShowDetail(id){
   if(_pv>0)row('현장결제',rsvWon(_pv));
   if(_pv+_av>0)row('현장 합계',rsvWon(_pv+_av));
   row('특이사항',r.memo);row('작성자',r.user_name);
+  if(r.created_at){ var _ct=new Date(r.created_at); if(!isNaN(_ct))row('올린시각',(_ct.getMonth()+1)+'/'+_ct.getDate()+' '+String(_ct.getHours()).padStart(2,'0')+':'+String(_ct.getMinutes()).padStart(2,'0')); }
+  if(r.src_user)row('재고/입고분 연결',r.src_user);
   var isTmp=!(r.src_kind&&r.src_product_id); // 출고 안 한 임시예약
   var acts='<div class="rsv-detail-acts">';
   if(r.status==='완료'){
