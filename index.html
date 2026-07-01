@@ -5095,7 +5095,7 @@ function itemCardHtml(it){
   const arrTag=(it.cancelled||ret)?'':(arr?'<span style="background:#dcfce7;color:#15803d;font-size:10px;font-weight:800;padding:1px 7px;border-radius:8px;margin-right:5px">✅ 실물입고</span>':'<span style="background:'+(dN>=3?'#fef3c7':'#f1f5f9')+';color:'+(dN>=3?'#b45309':'#64748b')+';font-size:10px;font-weight:800;padding:1px 7px;border-radius:8px;margin-right:5px">⏳ 입고대기'+(dN>0?' · D+'+dN:'')+'</span>');
   const preTag=(!arr&&!ret&&!it.cancelled&&(parseInt(it.out_qty,10)||0)>0)?'<span style="background:#fef3c7;color:#b45309;font-size:10px;font-weight:800;padding:1px 7px;border-radius:8px;margin-right:5px">⚠️ 실물입고전 출고</span>':'';
   return '<div class="icardB '+(it.cancelled?'cancelled':'')+(ret?' is-return':'')+'"'+(retDone?' style="opacity:.55;border-left:3px solid #9ca3af;background:#f7f7f7"':(ret?' style="border-left:3px solid #dc2626;background:#fff8f8"':(arr?' style="border-left:3px solid #16a34a"':'')))+'>'
-    +'<div class="irow1">'+((!arr&&!ret&&!it.cancelled)?'<input type="checkbox" class="list-chk" value="'+it.id+'" onclick="event.stopPropagation()" style="margin-right:6px;transform:scale(1.15);cursor:pointer;vertical-align:middle">':'')+retTag+arrTag+preTag+'<span class="icb-model">'+esc(it.model)+'</span><span class="icb-spec">'+esc(it.spec)+'</span><span class="icb-qty">'+qtyDisp+'</span></div>'
+    +'<div class="irow1">'+((!ret&&!it.cancelled)?'<input type="checkbox" class="list-chk" value="'+it.id+'" onclick="event.stopPropagation()" style="margin-right:6px;transform:scale(1.15);cursor:pointer;vertical-align:middle">':'')+retTag+arrTag+preTag+'<span class="icb-model">'+esc(it.model)+'</span><span class="icb-spec">'+esc(it.spec)+'</span><span class="icb-qty">'+qtyDisp+'</span></div>'
     +'<div class="irow2"><span class="icb-date" style="color:#94a3b8;font-size:11px;margin-right:6px">📅 '+fmtDateLabel(it.date_str)+'</span><span class="icb-use">'+esc(it.use_note||'미기입')+'</span><span class="icb-who">'+esc(it.user_name)+'</span>'+acts+'</div>'
     +logHtml+'</div>';
 }
@@ -5159,6 +5159,21 @@ async function listBulkArrive(){
   }
   await loadItems();
 }
+async function listBulkUnarrive(){
+  var ids=Array.prototype.slice.call(document.querySelectorAll('.list-chk:checked')).map(function(x){return x.value;});
+  if(!ids.length){alert('선택된 항목이 없어요 (입고완료 카드의 체크박스를 선택하세요)');return;}
+  var targets=ids.map(function(id){return (itemsCache||[]).find(function(x){return x.id===id;});}).filter(function(it){return it&&it.arrived;});
+  if(!targets.length){alert('선택된 항목 중 입고완료 상태가 없어요');return;}
+  if(!confirm(targets.length+'건의 실물입고를 취소할까요? (입고대기로 되돌립니다)'))return;
+  var who=(me?me.name:'?');
+  for(var i=0;i<targets.length;i++){
+    var it=targets[i];
+    var logs=Array.isArray(it.logs)?it.logs.slice():[];
+    logs.push({type:'edit',text:'↩️ 실물입고 확인취소(일괄) — '+who+' ('+fmtDateLabel(getTodayISO())+')'});
+    try{ await sb.from('items').update({arrived:false,arrived_at:null,arrived_by:null,logs:logs}).eq('id',it.id); }catch(e){}
+  }
+  await loadItems();
+}
 function renderItemList(){
   const el=document.getElementById('item-body');
   el.innerHTML='<div class="iguide"><b>입력</b>: 스페이스=다음칸 / 규격칸만 스페이스 2번 / 빈칸 백스페이스=앞칸 / Enter=추가<br><b>실물입고</b>: 주문 입력 후 실물 도착하면 카드의 📦 실물입고 버튼을 누르세요(이중 입력 방지)</div>'
@@ -5196,11 +5211,13 @@ function listPaint(){
   else if(curListChip==='done')list=list0.filter(function(it){return it.arrived&&!it.cancelled;});
   else if(curListChip==='preout')list=list0.filter(function(it){return !it.arrived&&(parseInt(it.out_qty,10)||0)>0&&!isReturnItem(it)&&!it.cancelled;});
   var waitVisible=list.filter(function(it){return !it.arrived&&!isReturnItem(it)&&!it.cancelled;}).length;
+  var doneVisible=list.filter(function(it){return it.arrived&&!isReturnItem(it)&&!it.cancelled;}).length;
   var h='';
-  if(waitVisible>0){
+  if(waitVisible>0||doneVisible>0){
     h+='<div style="margin-bottom:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">'+
-      '<label style="font-size:12px;cursor:pointer;display:flex;align-items:center;gap:5px;color:#475569;font-weight:600"><input type="checkbox" id="list-chk-all" onclick="listChkAll(this)" style="transform:scale(1.15);cursor:pointer"> 전체 선택('+waitVisible+'건)</label>'+
-      '<button onclick="listBulkArrive()" style="padding:7px 14px;border:1px solid #16a36a;background:#16a36a;color:#fff;border-radius:8px;font-weight:700;cursor:pointer;font-size:12px">📦 선택 실물입고</button>'+
+      '<label style="font-size:12px;cursor:pointer;display:flex;align-items:center;gap:5px;color:#475569;font-weight:600"><input type="checkbox" id="list-chk-all" onclick="listChkAll(this)" style="transform:scale(1.15);cursor:pointer"> 전체 선택('+(waitVisible+doneVisible)+'건)</label>'+
+      (waitVisible>0?'<button onclick="listBulkArrive()" style="padding:7px 14px;border:1px solid #16a36a;background:#16a36a;color:#fff;border-radius:8px;font-weight:700;cursor:pointer;font-size:12px">📦 선택 실물입고</button>':'')+
+      (doneVisible>0?'<button onclick="listBulkUnarrive()" style="padding:7px 14px;border:1px solid #d9822b;background:#fff;color:#b45309;border-radius:8px;font-weight:700;cursor:pointer;font-size:12px">↩️ 선택 입고취소</button>':'')+
     '</div>';
   }
   if(!list.length){bd.innerHTML=h+'<div class="iempty">'+(itemSearchQuery?'검색 결과 없음':(curListChip==='all'?'아직 추가된 타이어가 없어요.':'해당 상태의 항목이 없어요.'))+'</div>';return;}
