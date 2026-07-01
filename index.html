@@ -1238,7 +1238,7 @@ body.rb-on #app{padding-top:58px}
       <button id="rsv-vw" onclick="rsvSetView('week')">주</button>
       <button id="rsv-vd" onclick="rsvSetView('day')">일</button>
     </div>
-    <button class="rsv-add" onclick="rsvOpenAdd()">+ 예약</button>
+    <button class="rsv-add" onclick="rsvOpenAdd()">+ 예약</button><button class="rsv-add" onclick="schOpenAdd()" style="background:#8b5cf6;margin-left:6px">🌴 휴무/연차</button>
   </div>
   <div style="padding:5px 14px;background:#fff;border-bottom:1px solid #eee;display:flex;justify-content:center;gap:10px;flex-wrap:wrap;font-size:11px;color:#475569">
     <span><b style="color:#1d4ed8">●</b> 연결</span>
@@ -3863,6 +3863,7 @@ async function renderItemLedger(){
       dates.map(function(d){var t=(d===getTodayISO())?' (오늘)':''; return '<option value="'+d+'"'+(ledgerDateSel===d?' selected':'')+'>'+d.slice(5)+t+'</option>';}).join('')+
     '</select>'+
     '<button onclick="ledgerShiftDate(-1)" style="border:1px solid #cbd5e1;background:#fff;border-radius:5px;width:24px;height:26px;cursor:pointer;font-size:12px;padding:0">›</button>'+
+    '<button onclick="ledgerSetDate(getTodayISO())" style="border:1px solid #1e6fd9;background:#1e6fd9;color:#fff;border-radius:5px;height:26px;padding:0 10px;cursor:pointer;font-size:12px;font-weight:700">오늘</button>'+
     '<span style="color:#94a3b8;margin-left:8px;font-size:11px">기간</span>'+
     '<input type="date" id="ledger-from" value="'+esc(ledgerFrom)+'" onchange="ledgerSetRange()" style="height:26px;border:1px solid #cbd5e1;border-radius:5px;padding:0 5px;font-size:11px">'+
     '<span style="color:#94a3b8">~</span>'+
@@ -5197,6 +5198,7 @@ function listPaint(){
       _dates.map(function(d){var t=(d===getTodayISO())?' (오늘)':''; return '<option value="'+d+'"'+(listDateSel===d?' selected':'')+'>'+d.slice(5)+t+'</option>';}).join('')+
     '</select>'+
     '<button onclick="listShiftDate(-1)" style="border:1px solid #cbd5e1;background:#fff;border-radius:5px;width:24px;height:26px;cursor:pointer;font-size:12px;padding:0">›</button>'+
+    '<button onclick="listSetDate(getTodayISO())" style="border:1px solid #1e6fd9;background:#1e6fd9;color:#fff;border-radius:5px;height:26px;padding:0 10px;cursor:pointer;font-size:12px;font-weight:700">오늘</button>'+
     '<span style="color:#94a3b8;margin-left:8px;font-size:11px">기간</span>'+
     '<input type="date" id="list-from" value="'+esc(listFrom)+'" onchange="listSetRange()" style="height:26px;border:1px solid #cbd5e1;border-radius:5px;padding:0 5px;font-size:11px">'+
     '<span style="color:#94a3b8">~</span>'+
@@ -5875,6 +5877,7 @@ function updateFilled(){['i-src','i-model','i-spec','i-qty','i-use','i-chg'].for
 // ═══════════ 재고방 (stock) ═══════════
 var stockSub=null, stkP=[], stkLocked=false;
 var reserveSub=null, reservations=[], reserveView='month', reserveCursor=new Date();
+var staffSchedules=[];
 var rsvAlg='inform', rsvOutInfo=null;
 var BETA_WRITE=false; // 베타: 재고 차감 경로 잠금. false면 빗장 ON.
 var STK_LANES={A:6,B:6,Y:3}, STK_LEN=10, stkFloor='A', stkZi=0, stkHoriz=false, stkZoomLane=-1;
@@ -9397,12 +9400,100 @@ function rsvFillTimeOptions(){
   for(var hr=8;hr<=20;hr++){for(var m=0;m<60;m+=30){var t=String(hr).padStart(2,'0')+':'+String(m).padStart(2,'0');h+='<option value="'+t+'">'+t+'</option>';}}
   sel.innerHTML=h;
 }
+function schByDate(ds){ return (staffSchedules||[]).filter(function(x){return x.date_str===ds;}); }
+function schChipHtml(ds){
+  var list=schByDate(ds); if(!list.length)return '';
+  return list.map(function(x){
+    var icon=x.kind==='연차'?'🌴':'🏠';
+    var mine=(me&&x.staff_name===me.name);
+    var bg=x.kind==='연차'?'#fef9c3':'#e0e7ff', col=x.kind==='연차'?'#a16207':'#3730a3';
+    return '<div onclick="event.stopPropagation();schOpen(\''+x.id+'\')" title="'+esc(x.staff_name+' '+x.kind+(x.memo?' · '+x.memo:''))+'" style="font-size:10px;background:'+bg+';color:'+col+';border-radius:5px;padding:1px 5px;margin:1px 2px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:inline-block;max-width:100%'+(mine?';font-weight:800;box-shadow:0 0 0 1px '+col:'')+'">'+icon+' '+esc(x.staff_name)+' '+esc(x.kind)+'</div>';
+  }).join('');
+}
+function _schOv(){ var ov=document.getElementById('sch-ov'); if(!ov){ ov=document.createElement('div'); ov.id='sch-ov'; ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.42);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px'; ov.onclick=function(e){if(e.target===ov)schClose();}; document.body.appendChild(ov);} return ov; }
+function schClose(){ var ov=document.getElementById('sch-ov'); if(ov)ov.style.display='none'; }
+function schOpenAdd(presetDate){
+  var ov=_schOv();
+  var today=(typeof rsvDateStr==='function')?rsvDateStr(new Date()):getTodayISO();
+  var d=presetDate||today;
+  ov.innerHTML='<div style="background:#fff;border-radius:14px;padding:20px;max-width:340px;width:100%;box-shadow:0 12px 40px rgba(0,0,0,.25)">'+
+    '<div style="font-weight:800;font-size:15px;margin-bottom:12px">🌴 휴무/연차 등록</div>'+
+    '<div style="font-size:12px;color:#64748b;margin-bottom:4px">본인('+esc(me?me.name:'?')+') 스케줄로 등록됩니다</div>'+
+    '<label style="font-size:12px;font-weight:700;display:block;margin:8px 0 3px">날짜</label>'+
+    '<input type="date" id="sch-date" value="'+esc(d)+'" style="width:100%;height:36px;border:1.5px solid #ddd;border-radius:8px;padding:0 10px;font-size:14px">'+
+    '<label style="font-size:12px;font-weight:700;display:block;margin:10px 0 3px">종류</label>'+
+    '<div style="display:flex;gap:8px"><button id="sch-k-off" onclick="schPickKind(\'휴무\')" style="flex:1;padding:10px;border:1.5px solid #6366f1;background:#e0e7ff;color:#3730a3;border-radius:8px;font-weight:800;cursor:pointer">🏠 휴무</button><button id="sch-k-ann" onclick="schPickKind(\'연차\')" style="flex:1;padding:10px;border:1.5px solid #cbd5e1;background:#fff;color:#64748b;border-radius:8px;font-weight:800;cursor:pointer">🌴 연차</button></div>'+
+    '<label style="font-size:12px;font-weight:700;display:block;margin:10px 0 3px">메모(선택)</label>'+
+    '<input id="sch-memo" placeholder="예: 오전 반차, 개인 사유 등" style="width:100%;height:36px;border:1.5px solid #ddd;border-radius:8px;padding:0 10px;font-size:14px">'+
+    '<div style="display:flex;gap:8px;margin-top:16px"><button onclick="schClose()" style="flex:1;padding:11px;border:none;background:#eef1f4;border-radius:9px;cursor:pointer;font-weight:700">취소</button><button onclick="schSave()" style="flex:1;padding:11px;border:none;background:#8b5cf6;color:#fff;border-radius:9px;cursor:pointer;font-weight:800">등록</button></div>'+
+  '</div>';
+  ov.style.display='flex'; ov._kind='휴무'; ov._editId=null;
+}
+function schPickKind(k){
+  var ov=document.getElementById('sch-ov'); if(ov)ov._kind=k;
+  var off=document.getElementById('sch-k-off'), ann=document.getElementById('sch-k-ann');
+  if(off){off.style.background=k==='휴무'?'#e0e7ff':'#fff';off.style.borderColor=k==='휴무'?'#6366f1':'#cbd5e1';off.style.color=k==='휴무'?'#3730a3':'#64748b';}
+  if(ann){ann.style.background=k==='연차'?'#fef9c3':'#fff';ann.style.borderColor=k==='연차'?'#eab308':'#cbd5e1';ann.style.color=k==='연차'?'#a16207':'#64748b';}
+}
+async function schSave(){
+  var ov=document.getElementById('sch-ov'); if(!ov)return;
+  var ds=(document.getElementById('sch-date')||{}).value||'';
+  var kind=ov._kind||'휴무';
+  var memo=((document.getElementById('sch-memo')||{}).value||'').trim();
+  if(!ds){alert('날짜를 선택하세요');return;}
+  var who=(me?me.name:'?');
+  var editId=ov._editId;
+  try{
+    if(editId){
+      var old=(staffSchedules||[]).find(function(x){return x.id===editId;});
+      if(!old||old.staff_name!==who){alert('본인 스케줄만 수정할 수 있어요');return;}
+      var lg=Array.isArray(old.logs)?old.logs.slice():[];
+      lg.push({type:'edit',text:'✏️ 수정: '+old.date_str+' '+old.kind+' → '+ds+' '+kind+(memo?' ('+memo+')':'')+' — '+who+' ('+new Date().toLocaleString('ko-KR')+')'});
+      await sb.from('staff_schedules').update({date_str:ds,kind:kind,memo:memo,logs:lg}).eq('id',editId);
+    }else{
+      await sb.from('staff_schedules').insert({date_str:ds,staff_name:who,kind:kind,memo:memo,created_by:who,logs:[{type:'',text:'➕ 등록: '+ds+' '+kind+(memo?' ('+memo+')':'')+' — '+who+' ('+new Date().toLocaleString('ko-KR')+')'}]});
+    }
+  }catch(e){alert('저장 실패: '+e.message);return;}
+  schClose(); loadReservations();
+}
+function schOpen(id){
+  var x=(staffSchedules||[]).find(function(y){return y.id===id;}); if(!x)return;
+  var mine=(me&&x.staff_name===me.name);
+  var ov=_schOv();
+  var logs=Array.isArray(x.logs)?x.logs:[];
+  var logHtml=logs.length?('<div style="margin-top:10px;border-top:1px solid #eee;padding-top:8px;max-height:120px;overflow:auto">'+logs.map(function(l){return '<div style="font-size:11px;color:#64748b;margin:2px 0">'+esc(l.text)+'</div>';}).join('')+'</div>'):'';
+  ov.innerHTML='<div style="background:#fff;border-radius:14px;padding:20px;max-width:340px;width:100%;box-shadow:0 12px 40px rgba(0,0,0,.25)">'+
+    '<div style="font-weight:800;font-size:15px;margin-bottom:8px">'+(x.kind==='연차'?'🌴':'🏠')+' '+esc(x.staff_name)+' · '+esc(x.kind)+'</div>'+
+    '<div style="font-size:13px;color:#334155">📅 '+esc(x.date_str)+'</div>'+
+    (x.memo?'<div style="font-size:13px;color:#334155;margin-top:4px">📝 '+esc(x.memo)+'</div>':'')+
+    logHtml+
+    '<div style="display:flex;gap:8px;margin-top:16px">'+
+      '<button onclick="schClose()" style="flex:1;padding:10px;border:none;background:#eef1f4;border-radius:9px;cursor:pointer;font-weight:700">닫기</button>'+
+      (mine?'<button onclick="schEdit(\''+x.id+'\')" style="flex:1;padding:10px;border:1px solid #8b5cf6;background:#fff;color:#7c3aed;border-radius:9px;cursor:pointer;font-weight:800">수정</button><button onclick="schDelete(\''+x.id+'\')" style="flex:1;padding:10px;border:1px solid #dc2626;background:#fff;color:#dc2626;border-radius:9px;cursor:pointer;font-weight:800">삭제</button>':'<div style="flex:2;text-align:center;font-size:11px;color:#94a3b8;align-self:center">본인 스케줄만 수정할 수 있어요</div>')+
+    '</div>';
+  ov.style.display='flex';
+}
+function schEdit(id){
+  var x=(staffSchedules||[]).find(function(y){return y.id===id;}); if(!x)return;
+  if(!(me&&x.staff_name===me.name)){alert('본인 스케줄만 수정할 수 있어요');return;}
+  schOpenAdd(x.date_str);
+  var ov=document.getElementById('sch-ov'); if(ov){ ov._editId=id; }
+  setTimeout(function(){ var m=document.getElementById('sch-memo'); if(m)m.value=x.memo||''; schPickKind(x.kind); var t=document.querySelector('#sch-ov [style*="font-weight:800"]'); },0);
+}
+async function schDelete(id){
+  var x=(staffSchedules||[]).find(function(y){return y.id===id;}); if(!x)return;
+  if(!(me&&x.staff_name===me.name)){alert('본인 스케줄만 삭제할 수 있어요');return;}
+  if(!confirm(x.date_str+' '+x.kind+'을(를) 삭제할까요?'))return;
+  try{ await sb.from('staff_schedules').delete().eq('id',id); }catch(e){alert('삭제 실패: '+e.message);return;}
+  schClose(); loadReservations();
+}
 async function loadReservations(){
   try{
     var r=await sb.from('reservations').select('*').order('date_str',{ascending:true}).order('time_slot',{ascending:true});
     reservations=r.data||[];
     try{ var _lr=await sb.from('reservation_links').select('*'); rsvLinks=(_lr&&_lr.data)||[]; }catch(_e){ rsvLinks=[]; }
-  }catch(e){reservations=[];rsvLinks=[];}
+    try{ var _ss=await sb.from('staff_schedules').select('*'); staffSchedules=(_ss&&_ss.data)||[]; }catch(_e){ staffSchedules=[]; }
+  }catch(e){reservations=[];rsvLinks=[];staffSchedules=[];}
   renderReserve();
 }
 function rsvMove(dir){
@@ -9555,6 +9646,7 @@ function renderReserveMonth(){
       }else{
         h+='<div class="rsv-day'+(inMonth?'':' other')+(ds===todayDs?' today':'')+'" onclick="rsvDayClick(\''+ds+'\')" ondragover="rsvDayDragOver(event,this)" ondragleave="rsvDayDragLeave(this)" ondrop="rsvDayDrop(event,\''+ds+'\')">';
         h+='<div class="dnum'+(dow===6?' sat':'')+'">'+d.getDate()+'</div>';
+        var _sc=schChipHtml(ds); if(_sc)h+='<div style="margin:1px 0 2px">'+_sc+'</div>';
         if(list.length)h+='<div class="dcount">'+list.length+'</div>';
         list.slice(0,3).forEach(function(r){
           var _lk=(r.src_product_id||r.src_item_id||r.stock_done);
@@ -9614,7 +9706,8 @@ function renderReserveWeek(){
   var html='<div class="rsv-tl"><div class="rsv-tlgrid">';
   html+='<div class="rsv-tlcorner"></div>';
   days.forEach(function(d,i){var ds=rsvDateStr(d);var cls=(d.getDay()===6?'sat':'');if(ds===todayDs)cls+=' today';
-    html+='<div class="rsv-dhead '+cls+'">'+dows[d.getDay()]+'<br>'+d.getDate()+'</div>';});
+    var _sc=schChipHtml(ds);
+    html+='<div class="rsv-dhead '+cls+'">'+dows[d.getDay()]+'<br>'+d.getDate()+(_sc?'<div style="margin-top:2px;line-height:1.2">'+_sc+'</div>':'')+'</div>';});
   html+='<div class="rsv-tlbody"><div class="rsv-timecol">';
   for(var hh=RSV_H0;hh<RSV_H1;hh++)html+='<div class="rsv-tlabel">'+hh+'시</div>';
   html+='</div>';
