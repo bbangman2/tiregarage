@@ -3857,12 +3857,12 @@ async function renderItemLedger(){
   var h='<div style="font-size:12px;color:#345;margin:4px 0 8px;padding:8px 11px;background:#eef5ff;border-radius:8px;line-height:1.5">📑 <b>입고표</b> — 보유 <b>'+totalAll+'</b>건 · <span id="ledger-shown">0</span>건 표시</div>';
   var dates=Array.from(new Set([getTodayISO()].concat(ledgerCache.map(function(it){return it.date_str;})).filter(Boolean))).sort().reverse();
   h+='<div style="display:flex;align-items:center;gap:6px;margin-bottom:7px;font-size:12px;flex-wrap:wrap">'+
-    '<button onclick="ledgerShiftDate(-1)" style="border:1px solid #cbd5e1;background:#fff;border-radius:5px;width:24px;height:26px;cursor:pointer;font-size:12px;padding:0">‹</button>'+
+    '<button onclick="ledgerShiftDate(1)" style="border:1px solid #cbd5e1;background:#fff;border-radius:5px;width:24px;height:26px;cursor:pointer;font-size:12px;padding:0">‹</button>'+
     '<select id="ledger-datesel" onchange="ledgerSetDate(this.value)" style="height:26px;border:1px solid #cbd5e1;border-radius:5px;padding:0 6px;font-size:12px;background:#fff">'+
       '<option value="all"'+(ledgerDateSel==='all'?' selected':'')+'>전체</option>'+
       dates.map(function(d){var t=(d===getTodayISO())?' (오늘)':''; return '<option value="'+d+'"'+(ledgerDateSel===d?' selected':'')+'>'+d.slice(5)+t+'</option>';}).join('')+
     '</select>'+
-    '<button onclick="ledgerShiftDate(1)" style="border:1px solid #cbd5e1;background:#fff;border-radius:5px;width:24px;height:26px;cursor:pointer;font-size:12px;padding:0">›</button>'+
+    '<button onclick="ledgerShiftDate(-1)" style="border:1px solid #cbd5e1;background:#fff;border-radius:5px;width:24px;height:26px;cursor:pointer;font-size:12px;padding:0">›</button>'+
     '<span style="color:#94a3b8;margin-left:8px;font-size:11px">기간</span>'+
     '<input type="date" id="ledger-from" value="'+esc(ledgerFrom)+'" onchange="ledgerSetRange()" style="height:26px;border:1px solid #cbd5e1;border-radius:5px;padding:0 5px;font-size:11px">'+
     '<span style="color:#94a3b8">~</span>'+
@@ -5192,11 +5192,11 @@ function listPaint(){
   var chips=[['all','전체',list0.length],['wait','⏳ 입고대기',waitN],['done','✅ 입고완료',doneN],['preout','⚠️ 실물입고전 출고',preN]];
   var _dates=Array.from(new Set([getTodayISO()].concat(list0all.map(function(it){return it.date_str;})).filter(Boolean))).sort().reverse();
   var _dateUI='<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;flex-wrap:wrap;font-size:12px">'+
-    '<button onclick="listShiftDate(-1)" style="border:1px solid #cbd5e1;background:#fff;border-radius:5px;width:24px;height:26px;cursor:pointer;font-size:12px;padding:0">‹</button>'+
+    '<button onclick="listShiftDate(1)" style="border:1px solid #cbd5e1;background:#fff;border-radius:5px;width:24px;height:26px;cursor:pointer;font-size:12px;padding:0">‹</button>'+
     '<select id="list-datesel" onchange="listSetDate(this.value)" style="height:26px;border:1px solid #cbd5e1;border-radius:5px;padding:0 6px;font-size:12px;background:#fff"><option value="all"'+(listDateSel==='all'?' selected':'')+'>전체</option>'+
       _dates.map(function(d){var t=(d===getTodayISO())?' (오늘)':''; return '<option value="'+d+'"'+(listDateSel===d?' selected':'')+'>'+d.slice(5)+t+'</option>';}).join('')+
     '</select>'+
-    '<button onclick="listShiftDate(1)" style="border:1px solid #cbd5e1;background:#fff;border-radius:5px;width:24px;height:26px;cursor:pointer;font-size:12px;padding:0">›</button>'+
+    '<button onclick="listShiftDate(-1)" style="border:1px solid #cbd5e1;background:#fff;border-radius:5px;width:24px;height:26px;cursor:pointer;font-size:12px;padding:0">›</button>'+
     '<span style="color:#94a3b8;margin-left:8px;font-size:11px">기간</span>'+
     '<input type="date" id="list-from" value="'+esc(listFrom)+'" onchange="listSetRange()" style="height:26px;border:1px solid #cbd5e1;border-radius:5px;padding:0 5px;font-size:11px">'+
     '<span style="color:#94a3b8">~</span>'+
