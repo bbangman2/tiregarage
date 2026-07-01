@@ -3823,6 +3823,17 @@ function switchItemTab(tab){
   var _ib=document.getElementById('item-body'); if(_ib)_ib.classList.toggle('ledger-wide',tab==='ledger'||tab==='outlog');
   document.getElementById('item-input-zone').style.display=(tab==='memo'||tab==='ledger'||tab==='outlog')?'none':'block';
   document.getElementById('item-memo-zone').style.display=(tab==='memo')?'block':'none';
+  if(tab==='list'||tab==='analysis'){
+    var _df=document.getElementById('date-from'),_dt=document.getElementById('date-to'),_rt=document.getElementById('range-toggle'),_sep=document.getElementById('date-sep');
+    if(!(rangeMode&&_df&&_df.value==='2020-01-01')){
+      rangeMode=true;
+      if(_df)_df.value='2020-01-01';
+      if(_dt){_dt.value=getTodayISO();_dt.style.display='';}
+      if(_rt)_rt.classList.add('on');
+      if(_sep)_sep.style.display='';
+      if(typeof loadItems==='function'){ loadItems(); return; }
+    }
+  }
   if(tab==='list')renderItemList();
   if(tab==='analysis')renderItemAnalysis();
   if(tab==='outlog')renderItemOutlog();
@@ -5129,19 +5140,9 @@ function listDatePass(it){
   if(listDateSel!=='all') return it.date_str===listDateSel;
   return true;
 }
-function listSetDate(v){ listDateSel=v; listFrom=''; listTo=''; var fr=document.getElementById('list-from'),t=document.getElementById('list-to'); if(fr)fr.value=''; if(t)t.value=''; _listSyncTopAndLoad(); }
+function listSetDate(v){ listDateSel=v; listFrom=''; listTo=''; var fr=document.getElementById('list-from'),t=document.getElementById('list-to'); if(fr)fr.value=''; if(t)t.value=''; listPaint(); }
 function listShiftDate(dir){ var sel=document.getElementById('list-datesel'); if(!sel)return; var i=sel.selectedIndex+dir; if(i>=0&&i<sel.options.length){ sel.selectedIndex=i; listSetDate(sel.value); } }
-function listSetRange(){ var fr=(document.getElementById('list-from')||{}).value||'', t=(document.getElementById('list-to')||{}).value||''; listFrom=fr; listTo=t; if(fr||t){ listDateSel='all'; var sel=document.getElementById('list-datesel'); if(sel)sel.value='all'; } _listSyncTopAndLoad(); }
-function _listSyncTopAndLoad(){
-  var df=document.getElementById('date-from'), dt=document.getElementById('date-to'), rt=document.getElementById('range-toggle'), sep=document.getElementById('date-sep');
-  if(listFrom||listTo){ rangeMode=true; if(df)df.value=listFrom||listTo; if(dt)dt.value=listTo||listFrom; }
-  else if(listDateSel!=='all'){ rangeMode=false; if(df)df.value=listDateSel; if(dt)dt.value=listDateSel; }
-  else{ rangeMode=true; if(df)df.value='2020-01-01'; if(dt)dt.value=getTodayISO(); }
-  if(rt)rt.classList.toggle('on',rangeMode);
-  if(sep)sep.style.display=rangeMode?'':'none';
-  if(dt)dt.style.display=rangeMode?'':'none';
-  if(typeof onDateChange==='function')onDateChange();
-}
+function listSetRange(){ var fr=(document.getElementById('list-from')||{}).value||'', t=(document.getElementById('list-to')||{}).value||''; listFrom=fr; listTo=t; if(fr||t){ listDateSel='all'; var sel=document.getElementById('list-datesel'); if(sel)sel.value='all'; } listPaint(); }
 function listChkAll(cb){ document.querySelectorAll('.list-chk').forEach(function(x){x.checked=cb.checked;}); }
 async function listBulkArrive(){
   var ids=Array.prototype.slice.call(document.querySelectorAll('.list-chk:checked')).map(function(x){return x.value;});
