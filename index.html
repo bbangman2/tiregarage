@@ -1311,10 +1311,8 @@ body.rb-on #app{padding-top:58px}
       <div id="rsv-paycalc" style="font-size:12px;color:#185fa5;text-align:right;min-height:15px"></div>
       <label>현장결제수단</label>
       <div style="display:flex;gap:5px;margin-bottom:8px;flex-wrap:wrap">
-        <button type="button" class="rsv-pm" data-v="카드" onclick="rsvSetPayMethod('카드')">카드</button>
-        <button type="button" class="rsv-pm" data-v="현금" onclick="rsvSetPayMethod('현금')">현금</button>
-        <button type="button" class="rsv-pm" data-v="계좌이체" onclick="rsvSetPayMethod('계좌이체')">계좌이체</button>
-        <button type="button" class="rsv-pm" data-v="지역화폐" onclick="rsvSetPayMethod('지역화폐')">지역화폐</button>
+        <button type="button" class="rsv-pm" data-v="현/카 동일" onclick="rsvSetPayMethod('현/카 동일')">현/카 동일</button>
+        <button type="button" class="rsv-pm" data-v="현금만" onclick="rsvSetPayMethod('현금만')">현금만</button>
       </div>
       <label>예약금 (선입금 · 미리 받은 금액)</label>
       <div style="display:flex;align-items:center;gap:7px;margin-bottom:4px">
@@ -5150,7 +5148,7 @@ function itemListBySrc(items){
   return html;
 }
 var curListChip='all';
-var listDateSel=getTodayISO(), listFrom='', listTo='';
+var listDateSel='all', listFrom='', listTo='';
 function setListChip(c){ curListChip=c; var bd=document.getElementById('list-body'); if(bd&&typeof listPaint==='function')listPaint(); else renderItemList(); }
 function listDatePass(it){
   if(listFrom||listTo){ var d=it.date_str||''; if(listFrom&&d<listFrom)return false; if(listTo&&d>listTo)return false; return true; }
@@ -10287,6 +10285,8 @@ function rsvOpenEdit(id){
   document.getElementById('rsv-modal').classList.add('on');
 }
 async function rsvSubmit(){
+  var _sb=document.getElementById('rsv-submit-btn');
+  if(_sb&&_sb.disabled)return; // 저장 중 연타 방지
   var p=rsvParse12(document.getElementById('rsv-dt12').value);
   if(!p){alert('일시 12자리(년월일시분)를 정확히 입력해주세요');return;}
   var pc=rsvPayVal(), a=rsvAlgVal();
@@ -10311,6 +10311,7 @@ async function rsvSubmit(){
     rec.src_kind=oi.kind; rec.src_product_id=oi.product_id||null; rec.src_item_id=oi.item_id||null; rec.src_dot=oi.dot||''; rec.src_qty=outQty; rec.src_lot_id=oi.lot_id||null; rec.stock_done=false; rec.src_user=(me?me.name:'?');
   }else if(oi&&oi.qty){rec.qty=oi.qty;}
   if(!rsvEditId)rec.status='예약';
+  if(_sb){_sb.disabled=true;_sb.style.opacity='0.6';}
   try{
     if(!rsvEditId && oi && (oi.product_id||oi.item_id)){            // 신규+출고대기 → 재고/입고분 차감(출고 확정)
       var _did=await rsvStockOut(oi, outQty, rec.memo);
@@ -10331,8 +10332,9 @@ async function rsvSubmit(){
         }
       }
     }
-  }catch(e){alert((rsvEditId?'수정':'등록')+' 실패: '+e.message);return;}
+  }catch(e){alert((rsvEditId?'수정':'등록')+' 실패: '+e.message);if(_sb){_sb.disabled=false;_sb.style.opacity='';}return;}
   var _wasNew=!rsvEditId, _wasTmp=!(oi&&(oi.product_id||oi.item_id));
+  if(_sb){_sb.disabled=false;_sb.style.opacity='';}
   rsvEditId=null; rsvOutInfo=null;
   rsvCloseModal();
   await loadReservations();
@@ -10456,7 +10458,7 @@ function rsvShowDetail(id){
   payBox+='<div style="display:flex;justify-content:space-between;font-size:14px;padding:6px 0 2px;border-top:1px solid #eee;margin-top:4px"><span style="font-weight:800">총액</span><b style="color:#15803d;font-size:15px">'+rsvWon(_grand)+'</b></div>';
   payBox+='<div style="font-size:11.5px;font-weight:700;color:#5b6478;margin:9px 0 5px">현장결제수단</div>';
   payBox+='<div style="display:flex;gap:5px;flex-wrap:wrap">';
-  ['카드','현금','계좌이체','지역화폐'].forEach(function(m){
+  ['현/카 동일','현금만'].forEach(function(m){
     var on=(r.pay_method===m);
     payBox+='<button onclick="rsvDetailSetPay(\''+r.id+'\',\''+m+'\')" style="flex:1;min-width:60px;height:32px;font-size:12.5px;border-radius:7px;cursor:pointer;border:1.4px solid '+(on?'#378add':'#e6e9ef')+';background:'+(on?'#e6f1fb':'#fafbfc')+';color:'+(on?'#0c447c':'#9aa3af')+';font-weight:'+(on?'800':'600')+'">'+m+'</button>';
   });
