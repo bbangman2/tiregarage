@@ -1147,8 +1147,8 @@ body.rb-on #app{padding-top:58px}
   </div>
   <div class="stk-pane on" id="stk-pane0">
     <div class="adminbar" id="stk-editbar" style="display:none">📦 재고 관리:
-      <button onclick="stkUpOpen('in')">📥 입고 업로드</button>
-      <button onclick="stkUpOpen('new')">➕ 신규 상품</button>
+      <button class="stk-mng-only" onclick="stkUpOpen('in')">📥 입고 업로드</button>
+      <button class="stk-mng-only" onclick="stkUpOpen('new')">➕ 신규 상품</button>
       <button onclick="stkOpenAdd()">✏️ 하나 추가</button>
       <button id="stk-rcUpBtn" onclick="stkUpOpen('rc')" style="display:none;background:#ecfeff;border-color:#a5f3fc;color:#0891b2">💰 실원가·할인율 업로드</button>
     </div>
@@ -6036,7 +6036,10 @@ async function stkLoadLock(){
   var dlbar=document.getElementById('stk-dlbar');
   if(dlbar)dlbar.style.display=stkLocked?'none':'block'; // 잠금 아니면 누구나 다운로드
   var eb=document.getElementById('stk-editbar');
-  if(eb)eb.style.display=stkLocked?'none':'flex'; // 잠금 풀리면 누구나 재고관리
+  var _canMng=(typeof stkCanInline==='function'&&stkCanInline());
+  var _canRc=(typeof stkCanSeeRealcost==='function'&&stkCanSeeRealcost());
+  if(eb)eb.style.display=(!stkLocked&&(_canMng||_canRc))?'flex':'none'; // 권한자만(잠금 해제 시)
+  document.querySelectorAll('.stk-mng-only').forEach(function(_b){_b.style.display=_canMng?'':'none';}); // 입고·신규는 재고관리 권한자만
   var rcBtn=document.getElementById('stk-rcUpBtn'); // 실원가·할인율 업로드는 권한자만
   if(rcBtn)rcBtn.style.display=(!stkLocked&&typeof stkCanSeeRealcost==='function'&&stkCanSeeRealcost())?'inline-block':'none';
   var ab=document.getElementById('stk-adminbar');
@@ -9014,6 +9017,8 @@ async function stkUpFile(file){
 }
 function stkUpOpen(mode){
   if(!stkEditGuard())return;
+  if(mode==='rc'){ if(typeof stkCanSeeRealcost==='function'&&!stkCanSeeRealcost()){stkToast('실원가·할인율 권한이 없습니다 (관리자에게 요청)');return;} }
+  else{ if(typeof stkCanInline==='function'&&!stkCanInline()){stkToast('재고관리 권한이 없습니다 (관리자에게 요청)');return;} }
   stkUpMode=mode;stkUpRows=null;
   var t={'in':'📥 입고 업로드','price':'📋 가격 갱신','new':'➕ 신규 상품','cat':'🏷️ 분류 변경','rc':'💰 실원가·할인율 업로드'}[mode];
   var h={'in':'[v4] 입고 양식: 카테고리/출처/브랜드/패턴/패턴코드/사이즈/P수/재원/DOT/원가/공장도가/수량/위치/비고. 출처 다르면 따로 등록, 완전일치 아니면 따로 등록',
