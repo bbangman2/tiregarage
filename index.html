@@ -2812,8 +2812,11 @@ async function loadItems(){
   if(!curRoom)return;
   const sel=getSelectedRange();
   try{
+    var fullMode=(curItemTab==='list'||curItemTab==='analysis');
     let q=sb.from('items').select('*').eq('room_id',curRoom.id);
-    if(rangeMode&&sel.to&&sel.to!==sel.from){
+    if(fullMode){
+      // 입고예정/분석: 우측 상단 날짜와 무관하게 전체 조회 (표시는 자체 날짜 필터로)
+    }else if(rangeMode&&sel.to&&sel.to!==sel.from){
       q=q.gte('date_str',sel.from).lte('date_str',sel.to);
     }else{
       q=q.eq('date_str',sel.from);
@@ -2824,7 +2827,7 @@ async function loadItems(){
     // 반품과 일반 분리
     const todayDs=getTodayISO();
     let carryReturns=[];
-    if(!isRangeActive()&&sel.from===todayDs){
+    if(!fullMode && !isRangeActive()&&sel.from===todayDs){
       try{
         const cr=await sb.from('items').select('*').eq('room_id',curRoom.id).lt('date_str',todayDs).or('return_done.is.null,return_done.eq.false,return_done_date.eq.'+todayDs);
         carryReturns=(cr.data||[]).filter(function(it){return isReturnItem(it)&&(!it.return_done||it.return_done_date===todayDs);});
@@ -2832,7 +2835,7 @@ async function loadItems(){
     }
     const seenIds={};
     returnsCache=all.filter(function(it){return isReturnItem(it);}).filter(function(it){
-      if(isRangeActive())return true;
+      if(fullMode||isRangeActive())return true;
       if(!it.return_done)return true;
       return it.return_done_date===todayDs;
     });
@@ -3839,15 +3842,8 @@ function switchItemTab(tab){
   document.getElementById('item-input-zone').style.display=(tab==='memo'||tab==='ledger'||tab==='outlog')?'none':'block';
   document.getElementById('item-memo-zone').style.display=(tab==='memo')?'block':'none';
   if(tab==='list'||tab==='analysis'){
-    var _df=document.getElementById('date-from'),_dt=document.getElementById('date-to'),_rt=document.getElementById('range-toggle'),_sep=document.getElementById('date-sep');
-    if(!(rangeMode&&_df&&_df.value==='2020-01-01')){
-      rangeMode=true;
-      if(_df)_df.value='2020-01-01';
-      if(_dt){_dt.value=getTodayISO();_dt.style.display='';}
-      if(_rt)_rt.classList.add('on');
-      if(_sep)_sep.style.display='';
-      if(typeof loadItems==='function'){ loadItems(); return; }
-    }
+    // 우측 상단 날짜는 건드리지 않고, 내부적으로만 전체 조회
+    if(typeof loadItems==='function'){ loadItems(); return; }
   }
   if(tab==='list')renderItemList();
   if(tab==='analysis')renderItemAnalysis();
@@ -5238,10 +5234,10 @@ function listPaint(){
     '</div>';
   }
   if(!list.length){bd.innerHTML=h+'<div class="iempty">'+(itemSearchQuery?'검색 결과 없음':(curListChip==='all'?'아직 추가된 타이어가 없어요.':'해당 상태의 항목이 없어요.'))+'</div>';return;}
-  if(isRangeActive()){
+  if(listDateSel==='all'||listFrom||listTo){
     const byDate={};
     list.forEach(function(it){(byDate[it.date_str]=byDate[it.date_str]||[]).push(it);});
-    Object.keys(byDate).sort().forEach(function(ds){
+    Object.keys(byDate).sort().reverse().forEach(function(ds){
       h+='<div class="date-divider">'+fmtDateLabel(ds)+' ('+byDate[ds].length+'건)</div>';
       h+=itemListBySrc(byDate[ds]);
     });
@@ -5401,7 +5397,7 @@ function renderItemSum(){
   if(isRangeActive()){
     const byDate={};
     active.forEach(function(it){(byDate[it.date_str]=byDate[it.date_str]||[]).push(it);});
-    Object.keys(byDate).sort().forEach(function(ds){
+    Object.keys(byDate).sort().reverse().forEach(function(ds){
       html+='<div class="date-divider">'+fmtDateLabel(ds)+'</div>';
       html+=itemSumBody(byDate[ds]);
     });
@@ -5443,7 +5439,7 @@ function renderItemUser(){
   if(isRangeActive()){
     const byDate={};
     list.forEach(function(it){(byDate[it.date_str]=byDate[it.date_str]||[]).push(it);});
-    Object.keys(byDate).sort().forEach(function(ds){
+    Object.keys(byDate).sort().reverse().forEach(function(ds){
       html+='<div class="date-divider">'+fmtDateLabel(ds)+'</div>';
       html+=itemUserBody(byDate[ds]);
     });
@@ -5462,7 +5458,7 @@ function renderItemPurpose(){
   if(isRangeActive()){
     const byDate={};
     active0.forEach(function(it){(byDate[it.date_str]=byDate[it.date_str]||[]).push(it);});
-    Object.keys(byDate).sort().forEach(function(ds){
+    Object.keys(byDate).sort().reverse().forEach(function(ds){
       html+='<div class="date-divider">'+fmtDateLabel(ds)+'</div>';
       html+=itemPurposeBody(byDate[ds]);
     });
@@ -5536,7 +5532,7 @@ function returnArea(){
   if(isRangeActive()){
     const byDate={};
     returnsCache.forEach(function(it){(byDate[it.date_str]=byDate[it.date_str]||[]).push(it);});
-    Object.keys(byDate).sort().forEach(function(ds){
+    Object.keys(byDate).sort().reverse().forEach(function(ds){
       h+='<div class="ret-date">'+fmtDateLabel(ds)+'</div>';
       byDate[ds].forEach(function(it){h+=rcard(it);});
     });
@@ -5611,7 +5607,7 @@ function renderItemMemo(){
   if(isRangeActive()){
     const byDate={};
     itemMemos.forEach(function(m){const ds=toKST(m.created_at).toISOString().slice(0,10);(byDate[ds]=byDate[ds]||[]).push(m);});
-    Object.keys(byDate).sort().forEach(function(ds){
+    Object.keys(byDate).sort().reverse().forEach(function(ds){
       html+='<div class="date-divider">'+fmtDateLabel(ds)+' ('+byDate[ds].length+')</div>';
       byDate[ds].forEach(function(m){html+=memoHtml(m);});
     });
