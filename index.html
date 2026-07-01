@@ -2817,7 +2817,7 @@ async function loadItems(){
   if(!curRoom)return;
   const sel=getSelectedRange();
   try{
-    var fullMode=(curItemTab==='list'||curItemTab==='analysis');
+    var fullMode=(curItemTab==='list');
     let q=sb.from('items').select('*').eq('room_id',curRoom.id);
     if(fullMode){
       // 입고예정/분석: 우측 상단 날짜와 무관하게 전체 조회 (표시는 자체 날짜 필터로)
@@ -5893,6 +5893,7 @@ function updateFilled(){['i-src','i-model','i-spec','i-qty','i-use','i-chg'].for
 // ═══════════ 재고방 (stock) ═══════════
 var stockSub=null, stkP=[], stkLocked=false;
 var reserveSub=null, reservations=[], reserveView='month', reserveCursor=new Date();
+var _rsvViewRestored=false;
 var staffSchedules=[];
 var rsvAlg='inform', rsvOutInfo=null, rsvPayMethod='';
 var BETA_WRITE=false; // 베타: 재고 차감 경로 잠금. false면 빗장 ON.
@@ -9509,6 +9510,12 @@ async function schDelete(id){
   schClose(); loadReservations();
 }
 async function loadReservations(){
+  if(!_rsvViewRestored){ _rsvViewRestored=true;
+    try{ var _sv=me?tgLsGet('tg_rsv_view_'+me.name):''; if(_sv==='month'||_sv==='week'||_sv==='day'){ reserveView=_sv;
+      var _vm=document.getElementById('rsv-vm'),_vw=document.getElementById('rsv-vw'),_vd=document.getElementById('rsv-vd');
+      if(_vm)_vm.classList.toggle('on',_sv==='month'); if(_vw)_vw.classList.toggle('on',_sv==='week'); if(_vd)_vd.classList.toggle('on',_sv==='day');
+    } }catch(e){}
+  }
   try{
     var r=await sb.from('reservations').select('*').order('date_str',{ascending:true}).order('time_slot',{ascending:true});
     reservations=r.data||[];
@@ -9529,6 +9536,7 @@ function rsvSetView(v){
   document.getElementById('rsv-vm').classList.toggle('on',v==='month');
   document.getElementById('rsv-vw').classList.toggle('on',v==='week');
   var _vd=document.getElementById('rsv-vd');if(_vd)_vd.classList.toggle('on',v==='day');
+  try{ if(me)tgLsSet('tg_rsv_view_'+me.name,v); }catch(e){}
   renderReserve();
 }
 function _rsvPill(el,on){
