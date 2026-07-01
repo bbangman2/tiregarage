@@ -1274,8 +1274,13 @@ body.rb-on #app{padding-top:58px}
   <div class="paste-modal" style="max-width:520px">
     <div class="paste-head"><span class="pt" id="rsv-modal-title">예약 등록</span><button class="pmx" onclick="rsvCloseModal()">×</button></div>
     <div class="rsv-form">
-      <label>일시 (12자리: 년월일시분)<input id="rsv-dt12" inputmode="numeric" maxlength="12" placeholder="예) 202606211500" oninput="rsvSyncDt()" onfocus="this.dataset.prev=this.value;this.value='';rsvSyncDt();" onblur="if(!this.value&&this.dataset.prev)this.value=this.dataset.prev;rsvSyncDt();"></label>
-      <div id="rsv-dt12out" style="font-size:12px;color:#185fa5;margin:-4px 0 6px"></div>
+      <label>일시</label>
+      <div style="display:flex;gap:7px;margin-bottom:5px">
+        <input type="date" id="rsv-date" onchange="rsvDateTimeSync()" onclick="try{this.showPicker()}catch(e){}" style="flex:1.4;height:40px;border:1.5px solid #ddd;border-radius:9px;padding:0 10px;font-size:15px">
+        <select id="rsv-time" onchange="rsvDateTimeSync()" style="flex:1;height:40px;border:1.5px solid #ddd;border-radius:9px;padding:0 8px;font-size:15px;background:#fff"><option value="">시간</option></select>
+      </div>
+      <input type="hidden" id="rsv-dt12">
+      <div id="rsv-dt12out" style="font-size:12px;color:#185fa5;margin:-1px 0 6px"></div>
       <div id="rsv-chipday" class="rsv-chiprow"></div>
       <div id="rsv-chiptime" class="rsv-chiprow" style="margin-bottom:9px"></div>
       <label>전화번호<input id="rsv-phone" inputmode="tel" placeholder="010-1234-5678"></label><label>차량번호<input id="rsv-carno" placeholder="12가 3456"></label><label>차량명<input id="rsv-carname" placeholder="그랜저 IG"></label><label>특이사항<input id="rsv-memo" placeholder="예: 앞쪽 편마모 / 휠보관 1짝"></label>
@@ -9878,7 +9883,27 @@ function rsvParse12(s){
   if(s.length<12)return null;
   return {date_str:s.slice(0,4)+'-'+s.slice(4,6)+'-'+s.slice(6,8), time_slot:s.slice(8,10)+':'+s.slice(10,12)};
 }
+function rsvFillTime(sel){
+  var te=document.getElementById('rsv-time'); if(!te)return;
+  var opts=['<option value="">시간</option>']; var has=false;
+  for(var h=8;h<20;h++){ for(var m=0;m<60;m+=30){ var v=rsvPad(h)+':'+rsvPad(m); opts.push('<option'+(v===sel?' selected':'')+'>'+v+'</option>'); if(v===sel)has=true; } }
+  if(sel&&!has)opts.push('<option selected>'+sel+'</option>');
+  te.innerHTML=opts.join('');
+}
+function rsvDateTimeSync(){
+  var d=(document.getElementById('rsv-date')||{}).value||'';
+  var t=(document.getElementById('rsv-time')||{}).value||'';
+  document.getElementById('rsv-dt12').value=(d?d.replace(/-/g,''):'')+(t?t.replace(':',''):'');
+  rsvSyncDt();
+}
 function rsvSyncDt(){
+  var dt12v=document.getElementById('rsv-dt12').value;
+  var de=document.getElementById('rsv-date'), te=document.getElementById('rsv-time');
+  if(dt12v&&dt12v.length>=12){
+    if(de&&de.value!==dt12v.slice(0,4)+'-'+dt12v.slice(4,6)+'-'+dt12v.slice(6,8))de.value=dt12v.slice(0,4)+'-'+dt12v.slice(4,6)+'-'+dt12v.slice(6,8);
+    var _tv=dt12v.slice(8,10)+':'+dt12v.slice(10,12);
+    if(te&&te.value!==_tv){ if(!Array.prototype.some.call(te.options,function(o){return o.value===_tv;}))rsvFillTime(_tv); te.value=_tv; }
+  }
   var p=rsvParse12(document.getElementById('rsv-dt12').value);
   var el=document.getElementById('rsv-dt12out'); if(!el)return;
   if(!p){el.textContent='12자리(년월일시분)를 채워주세요';rsvBuildChips();return;}
@@ -10212,6 +10237,7 @@ function rsvOpenAdd(ds,out){
     dt12=ds2.replace(/-/g,'')+String(hh).padStart(2,'0')+String(mm).padStart(2,'0');
   }
   document.getElementById('rsv-dt12').value=dt12;
+  rsvFillTime(dt12&&dt12.length>=12?dt12.slice(8,10)+':'+dt12.slice(10,12):''); rsvSyncDt();
   document.getElementById('rsv-memo').value='';
   document.getElementById('rsv-phone').value='';document.getElementById('rsv-carno').value='';document.getElementById('rsv-carname').value='';
   document.getElementById('rsv-payunit').value=''; document.getElementById('rsv-payqty').value='';
@@ -10236,6 +10262,7 @@ function rsvOpenEdit(id){
   var _sb=document.getElementById('rsv-submit-btn');if(_sb)_sb.textContent='수정 저장';
   rsvOutInfo=(r.tire_spec)?{spec:r.tire_spec,qty:r.qty}:null;
   document.getElementById('rsv-dt12').value=(r.date_str||'').replace(/-/g,'')+(r.time_slot||'').replace(/[^0-9]/g,'');
+  rsvFillTime((r.time_slot||'').slice(0,5)); rsvSyncDt();
   document.getElementById('rsv-memo').value=r.memo||'';
   document.getElementById('rsv-phone').value=r.phone||'';document.getElementById('rsv-carno').value=r.car_no||'';document.getElementById('rsv-carname').value=r.car_name||'';
   document.getElementById('rsv-payunit').value=(r.pay_amount||'').replace(/[^0-9]/g,'');
