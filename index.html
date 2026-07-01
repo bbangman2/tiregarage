@@ -847,6 +847,8 @@ body.rb-on #app{padding-top:58px}
 .rsv-blk .rsz::after{content:'';width:26px;height:3px;border-radius:2px;background:rgba(0,0,0,0.32);margin-bottom:2px}
 .rsv-alg{flex:1;height:34px;font-size:13px;background:#fff;border:0.5px solid #ccc;border-radius:7px;cursor:pointer}
 .rsv-alg.on{background:#e6f1fb;border-color:#378add;color:#0c447c;font-weight:600}
+.rsv-pm{flex:1;min-width:56px;height:34px;font-size:13px;background:#fafbfc;border:0.5px solid #ccc;border-radius:7px;cursor:pointer}
+.rsv-pm.on{background:#e6f1fb;border-color:#378add;color:#0c447c;font-weight:700}
 .rsv-week{display:flex;flex-direction:column;gap:3px}
 .rsv-wslot{display:flex;gap:6px;align-items:flex-start}
 .rsv-wtime{flex:0 0 48px;font-size:11px;color:#888;font-weight:700;padding-top:6px;text-align:right}
@@ -1302,6 +1304,18 @@ body.rb-on #app{padding-top:58px}
         <input id="rsv-payqty" inputmode="numeric" placeholder="개수" oninput="rsvCalc()" style="width:58px;text-align:center">
       </div>
       <div id="rsv-paycalc" style="font-size:12px;color:#185fa5;text-align:right;min-height:15px"></div>
+      <label>현장결제수단</label>
+      <div style="display:flex;gap:5px;margin-bottom:8px;flex-wrap:wrap">
+        <button type="button" class="rsv-pm" data-v="카드" onclick="rsvSetPayMethod('카드')">카드</button>
+        <button type="button" class="rsv-pm" data-v="현금" onclick="rsvSetPayMethod('현금')">현금</button>
+        <button type="button" class="rsv-pm" data-v="계좌이체" onclick="rsvSetPayMethod('계좌이체')">계좌이체</button>
+        <button type="button" class="rsv-pm" data-v="지역화폐" onclick="rsvSetPayMethod('지역화폐')">지역화폐</button>
+      </div>
+      <label>예약금 (선입금 · 미리 받은 금액)</label>
+      <div style="display:flex;align-items:center;gap:7px;margin-bottom:4px">
+        <input id="rsv-deposit" inputmode="text" placeholder="예) 30000 또는 3만" oninput="rsvCalc()" style="flex:1">
+        <span id="rsv-depositk" style="font-size:12px;color:#185fa5;min-width:60px;text-align:right"></span>
+      </div>
       <div id="rsv-totline" style="font-size:13px;font-weight:600;text-align:right;margin:6px 0;border-top:0.5px solid #eee;padding-top:8px"></div>
       <button class="rsv-submit" id="rsv-submit-btn" onclick="rsvSubmit()">예약 등록</button>
     </div>
@@ -5618,7 +5632,7 @@ async function addItemRow(){
   if(!model||!spec||!qty){alert('모델·규격·수량은 필수예요');return;}
   const logs=chg?[{type:'edit',text:'📝 '+chg,at:Date.now()}]:[];
   try{
-    const{error}=await sb.from('items').insert({room_id:curRoom.id,date_str:curDateStr(),src:src,model:model,spec:spec,qty:qty,use_note:use,cancel_qty:0,cancelled:false,logs:logs,user_name:me.name});
+    const{error}=await sb.from('items').insert({room_id:curRoom.id,date_str:getTodayISO(),src:src,model:model,spec:spec,qty:qty,use_note:use,cancel_qty:0,cancelled:false,logs:logs,user_name:me.name});
     if(error)throw error;
   }catch(e){alert('추가 실패: '+e.message);return;}
   lastSrc=src;
@@ -5798,7 +5812,7 @@ function renderPastePreview(){
 async function confirmPaste(){
   const rows=parsePasteLines();
   if(!rows.length){alert('\uCD94\uAC00\uD560 \uB0B4\uC6A9\uC774 \uC5C6\uC5B4\uC694');return;}
-  const ds=curDateStr();
+  const ds=getTodayISO();
   const payload=rows.map(function(r){return{room_id:curRoom.id,date_str:ds,src:r.src,model:r.model,spec:r.spec,qty:r.qty||0,use_note:r.use,cancel_qty:0,cancelled:false,logs:r.fail?[{type:'cancel',text:'\u26A0\uFE0F \uD615\uC2DD \uD655\uC778 \uD544\uC694',at:Date.now()}]:[],user_name:me.name};});
   try{
     const{error}=await sb.from('items').insert(payload);
@@ -5879,7 +5893,7 @@ function updateFilled(){['i-src','i-model','i-spec','i-qty','i-use','i-chg'].for
 var stockSub=null, stkP=[], stkLocked=false;
 var reserveSub=null, reservations=[], reserveView='month', reserveCursor=new Date();
 var staffSchedules=[];
-var rsvAlg='inform', rsvOutInfo=null;
+var rsvAlg='inform', rsvOutInfo=null, rsvPayMethod='';
 var BETA_WRITE=false; // 베타: 재고 차감 경로 잠금. false면 빗장 ON.
 var STK_LANES={A:6,B:6,Y:3}, STK_LEN=10, stkFloor='A', stkZi=0, stkHoriz=false, stkZoomLane=-1;
 var STK_FL={A:'1층',B:'2층',Y:'야외'};
@@ -9850,6 +9864,8 @@ function rsvShowDayList(ds){
   document.getElementById('rsv-detail-modal').classList.add('on');
 }
 function rsvSetMode(m){} // A안: 빠른/상세 모드 제거 (호환용 빈 함수)
+function rsvApplyPayMethod(v){ rsvPayMethod=v||''; document.querySelectorAll('.rsv-pm').forEach(function(b){b.classList.toggle('on',b.getAttribute('data-v')===rsvPayMethod);}); }
+function rsvSetPayMethod(v){ rsvApplyPayMethod(rsvPayMethod===v?'':v); }
 function rsvSetAlg(v){
   rsvAlg=v;
   document.querySelectorAll('.rsv-alg').forEach(function(b){b.classList.toggle('on',b.getAttribute('data-v')===v);});
@@ -10168,16 +10184,21 @@ function rsvCalc(){
   var ak=document.getElementById('rsv-algamtk'); if(ak)ak.textContent=rsvWon(a);
   var pcl=document.getElementById('rsv-paycalc'); if(pcl)pcl.textContent=(pc.expr?pc.expr+' = ':'')+rsvWon(pc.val);
   var algTot=(rsvAlg==='take')?a:0;             // 합계엔 받기로함만
-  var tot=algTot+pc.val, tl=document.getElementById('rsv-totline');
+  var dep=rsvParseWon((document.getElementById('rsv-deposit')||{}).value||'');
+  var dk=document.getElementById('rsv-depositk'); if(dk)dk.textContent=dep>0?rsvWon(dep):'';
+  var tot=algTot+pc.val, grand=tot+dep, tl=document.getElementById('rsv-totline');
   if(tl){
     var bd=[];if(algTot>0)bd.push('얼라이 '+rsvWon(algTot));if(pc.val>0)bd.push('현장 '+rsvWon(pc.val));
     var base=tot>0?('현장 합계 '+rsvWon(tot)+(bd.length>1?' ('+bd.join(' + ')+')':'')):'';
     if(rsvAlg==='inform'&&a>0)base=(base?base+' · ':'')+'얼라이 안내 '+rsvWon(a);
-    tl.textContent=base;
+    if(dep>0)base=(base?base+'<br>':'')+'<span style="color:#7c3aed">예약금 '+rsvWon(dep)+'</span> → <b>총 결제 '+rsvWon(grand)+'</b>';
+    tl.innerHTML=base;
   }
 }
 function rsvOpenAdd(ds,out){
   rsvEditId=null; rsvOutInfo=out||null;
+  var _dpa=document.getElementById('rsv-deposit'); if(_dpa)_dpa.value='';
+  rsvApplyPayMethod('');
   document.getElementById('rsv-modal-title').textContent='예약 등록';
   var _sb=document.getElementById('rsv-submit-btn');if(_sb)_sb.textContent='예약 등록';
   var dt12='';
@@ -10218,6 +10239,8 @@ function rsvOpenEdit(id){
   document.getElementById('rsv-phone').value=r.phone||'';document.getElementById('rsv-carno').value=r.car_no||'';document.getElementById('rsv-carname').value=r.car_name||'';
   document.getElementById('rsv-payunit').value=(r.pay_amount||'').replace(/[^0-9]/g,'');
   document.getElementById('rsv-payqty').value='';
+  var _dpe=document.getElementById('rsv-deposit'); if(_dpe)_dpe.value=(r.deposit>0?String(r.deposit):'');
+  rsvApplyPayMethod(r.pay_method||'');
   document.getElementById('rsv-algamt').value=(r.align_amount||'');
   rsvSetAlg(r.align_state||(r.alignment?'take':'none'));
   var tl=document.getElementById('rsv-tireline');
@@ -10240,6 +10263,8 @@ async function rsvSubmit(){
     align_state:rsvAlg,
     align_amount:((rsvAlg==='take'||rsvAlg==='inform')?a:null),
     pay_amount:(pc.val>0?String(pc.val):''),
+    deposit:rsvParseWon((document.getElementById('rsv-deposit')||{}).value||''),
+    pay_method:(rsvPayMethod||null),
     alignment:(rsvAlg==='take')
   };
   var oi=rsvOutInfo, outQty=0;
@@ -10352,8 +10377,6 @@ function rsvShowDetail(id){
   else if(r.alignment&&!r.align_state)row('얼라이먼트','✅ 포함');
   var _pv=r.pay_amount?(parseInt(String(r.pay_amount).replace(/[^0-9]/g,''),10)||0):0;
   var _av=r.align_state==='take'?(r.align_amount||0):0;
-  if(_pv>0)row('현장결제',rsvWon(_pv));
-  if(_pv+_av>0)row('현장 합계',rsvWon(_pv+_av));
   row('특이사항',r.memo);row('작성자',r.user_name);
   if(r.created_at){ var _ct=new Date(r.created_at); if(!isNaN(_ct))row('올린시각',(_ct.getMonth()+1)+'/'+_ct.getDate()+' '+String(_ct.getHours()).padStart(2,'0')+':'+String(_ct.getMinutes()).padStart(2,'0')); }
   if(r.src_user)row('재고/입고분 연결',r.src_user);
@@ -10389,8 +10412,27 @@ function rsvShowDetail(id){
   if(_reqAlign&&_alg==='skip')chk+='<div style="background:#fdeaea;border:1px solid #f5b9b9;border-radius:9px;padding:8px 10px;font-size:11.5px;color:#9b1c1c;font-weight:600;margin-top:8px">⚠ 얼라인 요청했으나 미진행 — 편마모 위험. 기록·검색에 남습니다.</div>';
   chk+='<div style="padding:9px 0 2px"><div style="font-size:11.5px;font-weight:700;color:#5b6478;margin-bottom:5px">작업 후 특이사항</div><input value="'+esc(r.work_note||'')+'" onblur="rsvSaveWorkNote(\''+r.id+'\',this.value)" placeholder="작업하며 발견한 점 (예: 안쪽 편마모 심함)" style="width:100%;height:34px;border:1.5px solid #e6e9ef;border-radius:8px;padding:0 10px;font-size:13px;box-sizing:border-box"></div>';
   chk+='</div>';
-  document.getElementById('rsv-detail-body').innerHTML=rows.join('')+chk+acts;
+  var _field=(_pv+_av), _dep=parseInt(r.deposit||0,10)||0, _grand=_field+_dep;
+  var payBox='<div style="margin:8px 0;border:1px solid #e6e9ef;border-radius:11px;padding:10px 12px">';
+  payBox+='<div style="font-size:12px;font-weight:800;color:#5b6478;margin-bottom:6px">💰 결제</div>';
+  payBox+='<div style="display:flex;justify-content:space-between;font-size:13px;padding:3px 0"><span style="color:#64748b">현장결제금액</span><b>'+rsvWon(_field)+'</b></div>';
+  payBox+='<div style="display:flex;justify-content:space-between;font-size:13px;padding:3px 0"><span style="color:#64748b">선결제금액(예약금)</span><b style="color:#7c3aed">'+rsvWon(_dep)+'</b></div>';
+  payBox+='<div style="display:flex;justify-content:space-between;font-size:14px;padding:6px 0 2px;border-top:1px solid #eee;margin-top:4px"><span style="font-weight:800">총액</span><b style="color:#15803d;font-size:15px">'+rsvWon(_grand)+'</b></div>';
+  payBox+='<div style="font-size:11.5px;font-weight:700;color:#5b6478;margin:9px 0 5px">현장결제수단</div>';
+  payBox+='<div style="display:flex;gap:5px;flex-wrap:wrap">';
+  ['카드','현금','계좌이체','지역화폐'].forEach(function(m){
+    var on=(r.pay_method===m);
+    payBox+='<button onclick="rsvDetailSetPay(\''+r.id+'\',\''+m+'\')" style="flex:1;min-width:60px;height:32px;font-size:12.5px;border-radius:7px;cursor:pointer;border:1.4px solid '+(on?'#378add':'#e6e9ef')+';background:'+(on?'#e6f1fb':'#fafbfc')+';color:'+(on?'#0c447c':'#9aa3af')+';font-weight:'+(on?'800':'600')+'">'+m+'</button>';
+  });
+  payBox+='</div></div>';
+  document.getElementById('rsv-detail-body').innerHTML=rows.join('')+payBox+chk+acts;
   document.getElementById('rsv-detail-modal').classList.add('on');
+}
+async function rsvDetailSetPay(id,m){
+  var r=reservations.find(function(x){return x.id===id;}); if(!r)return;
+  var nv=(r.pay_method===m)?null:m;
+  try{ await sb.from('reservations').update({pay_method:nv}).eq('id',id); r.pay_method=nv; }catch(e){alert('저장 실패: '+e.message);return;}
+  rsvShowDetail(id);
 }
 function rsvCloseDetail(){document.getElementById('rsv-detail-modal').classList.remove('on');}
 // 재고 점유 단일 원칙: want=true면 점유(차감), false면 미점유(복구). DB stock_done과 비교해 부족분만 정확히 1회.
