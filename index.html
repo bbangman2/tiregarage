@@ -1266,6 +1266,22 @@ body.rb-on #app{padding-top:58px}
   <div id="rsv-cal" class="rsv-cal"></div>
 </div>
 <!-- ===== 종합방 (1단계: 붙여넣기·분류·표시) ===== -->
+<div id="trade-screen" style="display:none;flex-direction:column;flex:1;min-height:0;overflow:hidden">
+  <div class="dlv-tabs">
+    <button class="dlv-tab active" data-ttab="import" onclick="tradeSetTab('import')">가져오기 <span class="cnt" id="tcnt-import">0</span></button>
+    <button class="dlv-tab" data-ttab="settle" onclick="tradeSetTab('settle')">정산 <span class="cnt" id="tcnt-settle">0</span></button>
+    <button class="dlv-tab" data-ttab="log" onclick="tradeSetTab('log')">수정기록</button>
+  </div>
+  <div style="padding:6px 10px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border);flex-wrap:wrap">
+    <button id="trade-lock-btn" onclick="tradeToggleLock()" style="padding:6px 12px;border:1px solid #ccc;border-radius:8px;background:#fff;font-weight:700;font-size:12px;cursor:pointer">🔓 편집중</button>
+    <span id="trade-lock-hint" style="font-size:11px;color:#888">셀을 눌러 수정할 수 있어요</span>
+  </div>
+  <div class="item-search" id="trade-search" style="display:none">
+    <input id="trade-search-input" placeholder="🔍 거래처·출고·패턴·사이즈·비고·입금자 검색" oninput="tradeRender()">
+    <button class="isearch-clear" id="trade-search-clear" onclick="document.getElementById('trade-search-input').value='';tradeRender();" style="display:none">✕</button>
+  </div>
+  <div id="trade-body" style="flex:1;overflow:auto;padding:8px 10px"></div>
+</div>
 <div id="jonghap-screen" style="display:none;flex-direction:column;flex:1;min-height:0;overflow-y:auto">
   <!-- 큰 탭 3개 -->
   <div class="jh-bigtabs">
@@ -1699,6 +1715,158 @@ if(tgValidUrl(SUPA_URL)&&tgValidKey(SUPA_KEY)){
   });
 }
 const ADMIN_NAME='이호준';
+var tradeViewers=['이호준','김다영','이정우'];  // 거래처 종합방 권한(대표+명단)
+var tradeLocked=true;  // 기본 잠금
+function tradeCanView(){ return !!(me&&(me.name===ADMIN_NAME||tradeViewers.indexOf(me.name)>=0)); }
+async function tradeLoadViewers(){ try{ var r=await sb.from('settings').select('value').eq('key','trade_room_viewers').maybeSingle(); if(r&&r.data&&Array.isArray(r.data.value))tradeViewers=r.data.value; }catch(e){} }
+var TRADE_TAB='import';
+function tradeInit(){ TRADE_TAB='import'; tradeSetTab('import'); }
+function tradeSetTab(t){
+  TRADE_TAB=t;
+  document.querySelectorAll('#trade-screen .dlv-tab').forEach(function(b){b.classList.toggle('active',b.dataset.ttab===t);});
+  var srch=document.getElementById('trade-search'); if(srch)srch.style.display=(t==='settle'||t==='import')?'':'none';
+  tradeRender();
+}
+function tradeToggleLock(){
+  tradeLocked=!tradeLocked;
+  var b=document.getElementById('trade-lock-btn'), h=document.getElementById('trade-lock-hint');
+  if(b)b.textContent=tradeLocked?'🔒 잠금':'🔓 편집중';
+  if(h)h.textContent=tradeLocked?'잠금 상태 — 수정하려면 잠금 해제':'셀을 눌러 수정할 수 있어요';
+  tradeRender();
+}
+async function tradeLoad(){
+  try{ var r=await sb.from('trade_settle').select('*').order('sort_order',{ascending:true}); tradeSettleCache=(r&&r.data)||[]; }catch(e){ tradeSettleCache=[]; }
+  var b=document.getElementById('trade-lock-btn'), h=document.getElementById('trade-lock-hint');
+  if(b)b.textContent=tradeLocked?'🔒 잠금':'🔓 편집중';
+  if(h)h.textContent=tradeLocked?'잠금 상태 — 수정하려면 잠금 해제':'셀을 눌러 수정할 수 있어요';
+  tradeRender();
+}
+var tradeSettleCache=[];
+var tradeSortKey='', tradeSortDir=1; // 1=오름, -1=내림
+function tradeSort(k){
+  if(tradeSortKey===k){ tradeSortDir=-tradeSortDir; } else { tradeSortKey=k; tradeSortDir=1; }
+  tradeRenderSettle();
+}
+function tradeSortedRows(rows){
+  if(!tradeSortKey)return rows;
+  var col=TRADE_COLS.find(function(c){return c.k===tradeSortKey;});
+  var num=col&&(col.num||col.calc);
+  return rows.slice().sort(function(a,b){
+    var va=a[tradeSortKey], vb=b[tradeSortKey];
+    if(num){ va=parseFloat(va)||0; vb=parseFloat(vb)||0; return (va-vb)*tradeSortDir; }
+    va=String(va==null?'':va); vb=String(vb==null?'':vb);
+    return va.localeCompare(vb,'ko')*tradeSortDir;
+  });
+}
+var TRADE_COLS=[
+  {k:'out_src',t:'출고',w:70,edit:true},
+  {k:'client',t:'거래처',w:90,edit:true},
+  {k:'in_date',t:'입력일',w:88,edit:false},
+  {k:'pattern',t:'브랜드/내용',w:120,edit:true},
+  {k:'spec',t:'사이즈',w:90,edit:true},
+  {k:'deliv_date',t:'배송완료',w:88,edit:false},
+  {k:'bill_date',t:'계산서발행',w:88,edit:true},
+  {k:'pay_date',t:'입금확인',w:88,edit:true},
+  {k:'cost',t:'원가',w:80,edit:true,num:true},
+  {k:'out_qty',t:'출고수량',w:64,edit:true,num:true},
+  {k:'out_price',t:'출고가격',w:80,edit:true,num:true},
+  {k:'sale_price',t:'판매가격',w:90,calc:true},
+  {k:'total_cost',t:'총판매원가',w:90,calc:true},
+  {k:'net_profit',t:'순이익',w:80,calc:true},
+  {k:'net_margin',t:'순마진',w:80,calc:true},
+  {k:'tax',t:'세금',w:70,calc:true},
+  {k:'memo',t:'비고',w:110,edit:true},
+  {k:'payer',t:'입금자',w:70,edit:true},
+  {k:'stmt_amount',t:'명세표입금액',w:100,edit:true,num:true}
+];
+function tradeCalc(r){
+  var qty=parseFloat(r.out_qty)||0, price=parseFloat(r.out_price)||0, cost=parseFloat(r.cost)||0;
+  r.sale_price=price*qty;
+  r.total_cost=cost*qty;
+  r.net_profit=r.sale_price-r.total_cost;
+  r.net_margin=Math.round(r.net_profit/1.1);
+  r.tax=r.net_profit-r.net_margin;
+}
+function tradeFmtNum(v){ if(v===''||v===null||v===undefined)return''; var n=Number(v); if(isNaN(n))return tradeEsc(v); return n.toLocaleString('ko-KR'); }
+function tradeEsc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function tradeMatch(r){
+  var q=(document.getElementById('trade-search-input')&&document.getElementById('trade-search-input').value||'').trim().toLowerCase();
+  if(!q)return true;
+  return ['out_src','client','pattern','spec','memo','payer'].some(function(k){return String(r[k]||'').toLowerCase().indexOf(q)>=0;});
+}
+function tradeRender(){
+  var el=document.getElementById('trade-body'); if(!el)return;
+  var sc=document.getElementById('trade-search-clear'); if(sc){var qv=(document.getElementById('trade-search-input')||{}).value||''; sc.style.display=qv?'block':'none';}
+  if(TRADE_TAB==='import'){ if(typeof tradeRenderImport==='function')tradeRenderImport(); else el.innerHTML='<div style="color:#888;padding:20px 6px">가져오기 (다음 단계)</div>'; return; }
+  if(TRADE_TAB==='log'){ if(typeof tradeRenderLog==='function')tradeRenderLog(); else el.innerHTML='<div style="color:#888;padding:20px 6px">수정기록 (다음 단계)</div>'; return; }
+  tradeRenderSettle();
+}
+function tradeRenderSettle(){
+  var el=document.getElementById('trade-body'); if(!el)return;
+  var rows=tradeSortedRows(tradeSettleCache.filter(tradeMatch));
+  var locked=tradeLocked;
+  var h='<div style="display:flex;gap:8px;margin-bottom:8px;align-items:center;flex-wrap:wrap">';
+  h+='<button onclick="tradeAddRow()" style="padding:7px 13px;border:none;background:#0d9488;color:#fff;border-radius:8px;font-weight:800;font-size:13px;cursor:pointer">＋ 행 추가</button>';
+  h+='<span style="font-size:12px;color:#888">'+rows.length+'행'+(locked?' · 🔒 잠금(수정하려면 잠금 해제)':' · 🔓 셀 클릭해 수정')+'</span></div>';
+  h+='<div style="overflow:auto;border:1px solid var(--border);border-radius:8px"><table style="border-collapse:collapse;font-size:12px;white-space:nowrap;min-width:100%">';
+  h+='<thead><tr style="background:#f1f5f9">';
+  TRADE_COLS.forEach(function(c){ var ar=(tradeSortKey===c.k)?(tradeSortDir>0?' ▲':' ▼'):''; h+='<th onclick="tradeSort(\''+c.k+'\')" style="padding:6px 7px;border:1px solid #e2e8f0;font-weight:800;color:#334155;position:sticky;top:0;background:#f1f5f9;cursor:pointer;user-select:none" title="클릭: 정렬">'+c.t+ar+'</th>'; });
+  h+='<th style="padding:6px 7px;border:1px solid #e2e8f0"></th></tr></thead><tbody>';
+  rows.forEach(function(r){
+    tradeCalc(r);
+    h+='<tr>';
+    TRADE_COLS.forEach(function(c){
+      var val=r[c.k];
+      if(c.calc){
+        h+='<td data-cell="'+r.id+'-'+c.k+'" style="padding:5px 7px;border:1px solid #e2e8f0;text-align:right;background:#f8fafc;color:'+((c.k==='net_profit'||c.k==='net_margin')?'#0d9488':'#475569')+';font-weight:700">'+tradeFmtNum(val)+'</td>';
+      }else if(c.edit){
+        var disp=c.num?(val==null?'':val):tradeEsc(val);
+        h+='<td style="padding:0;border:1px solid #e2e8f0"><input value="'+tradeEsc(disp)+'" '+(locked?'disabled':'')+' onblur="tradeCellSave(\''+r.id+'\',\''+c.k+'\',this.value)" style="width:'+c.w+'px;border:none;background:'+(locked?'#f8fafc':'#fff')+';padding:6px 7px;font-size:12px;font-family:inherit;'+(c.num?'text-align:right':'')+';outline:none"></td>';
+      }else{
+        h+='<td style="padding:5px 7px;border:1px solid #e2e8f0;color:#94a3b8;text-align:center">'+tradeEsc(val)+'</td>';
+      }
+    });
+    h+='<td style="padding:5px 7px;border:1px solid #e2e8f0;text-align:center">'+(locked?'':'<button onclick="tradeDelRow(\''+r.id+'\')" style="border:none;background:#fee2e2;color:#b91c1c;border-radius:6px;padding:3px 8px;font-size:11px;cursor:pointer;font-weight:700">삭제</button>')+'</td>';
+    h+='</tr>';
+  });
+  h+='</tbody></table></div>';
+  el.innerHTML=h;
+}
+async function tradeAddRow(){
+  if(tradeLocked){alert('🔒 잠금 상태입니다. 잠금을 해제한 뒤 추가하세요');return;}
+  var so=Math.max(0,...tradeSettleCache.map(function(r){return parseFloat(r.sort_order)||0;}))+1;
+  try{
+    var ins=await sb.from('trade_settle').insert({in_date:getTodayISO(),sort_order:so}).select();
+    if(ins&&ins.data&&ins.data[0])tradeSettleCache.push(ins.data[0]);
+  }catch(e){alert('행 추가 실패: '+e.message);return;}
+  tradeRenderSettle();
+}
+async function tradeDelRow(id){
+  if(tradeLocked){alert('🔒 잠금 상태입니다');return;}
+  if(!confirm('이 행을 삭제할까요?'))return;
+  try{ await sb.from('trade_settle').delete().eq('id',id); }catch(e){alert('삭제 실패: '+e.message);return;}
+  var r=tradeSettleCache.find(function(x){return x.id===id;});
+  try{ await sb.from('trade_logs').insert({row_id:id,field:'(행삭제)',before_val:(r?(r.client||'')+' '+(r.pattern||''):''),after_val:'',who:me?me.name:'?'}); }catch(e){}
+  tradeSettleCache=tradeSettleCache.filter(function(x){return x.id!==id;});
+  tradeRenderSettle();
+}
+function tradeCellSave(id,field,raw){
+  var r=tradeSettleCache.find(function(x){return x.id===id;}); if(!r)return;
+  var col=TRADE_COLS.find(function(c){return c.k===field;});
+  var before=r[field];
+  var val=raw;
+  if(col&&col.num){ val=(raw===''?null:parseFloat(raw)); if(val!==null&&isNaN(val))val=null; }
+  if(String(before==null?'':before)===String(val==null?'':val))return; // 변화 없음
+  r[field]=val;
+  tradeCalc(r);
+  // 계산 셀 화면 즉시 갱신
+  ['sale_price','total_cost','net_profit','net_margin','tax'].forEach(function(k){ var c=document.querySelector('[data-cell="'+id+'-'+k+'"]'); if(c)c.textContent=tradeFmtNum(r[k]); });
+  // 백그라운드 저장 (변경 필드 + 계산 결과)
+  var patch={}; patch[field]=val; patch.sale_price=r.sale_price; patch.total_cost=r.total_cost; patch.net_profit=r.net_profit; patch.net_margin=r.net_margin; patch.tax=r.tax;
+  sb.from('trade_settle').update(patch).eq('id',id).then(function(res){ if(res&&res.error)console.warn('저장 실패',res.error); });
+  // 수정기록
+  sb.from('trade_logs').insert({row_id:id,field:field,before_val:String(before==null?'':before),after_val:String(val==null?'':val),who:me?me.name:'?'}).then(function(){},function(){});
+}
 const PW={'이호준':'bbangman2','남성현':'tg1234','김다영':'tg1234','임예지':'tg1234',
   '이민재':'tg1234','권순현':'tg1234','이영재':'tg1234','이정우':'wowlee1216',
   '이세진':'tg1234','손정현':'tg1234'};
@@ -1706,6 +1874,7 @@ const ROOM_META={
   '입고방':{icon:'📦',ai:true,mode:'items',desc:'받아오기 · 거래처 발주 · 물류차 입고'},
   '직배송방':{icon:'🚚',ai:false,mode:'delivery',desc:'직배송 · 미출고 · 택배전환'},
   '재고방':{icon:'🗺',ai:false,mode:'stock',desc:'재고 검색 · 창고지도'},
+  '거래처종합방':{icon:'💰',ai:false,mode:'trade',desc:'거래처 정산 · 가져오기 · 수정기록'},
   '예약장착방':{icon:'📅',ai:false,mode:'reserve',desc:'장착 예약 · 캘린더'},
   '종합방':{icon:'📋',ai:false,mode:'jonghap',desc:'핑·스팜·11번가·전화 통합 출고'},
   '공지방':{icon:'📢',ai:false,desc:'공지 및 전달사항'},
@@ -1771,6 +1940,8 @@ async function bootApp(){
   if(data&&!data.some(r=>r.name==='재고방'))data.splice(2,0,{id:'stock-virtual',name:'재고방'});
   if(data&&!data.some(r=>r.name==='예약장착방'))data.splice(3,0,{id:'reserve-virtual',name:'예약장착방'});
   if(data&&!data.some(r=>r.name==='종합방'))data.splice(4,0,{id:'jonghap-virtual',name:'종합방'});
+  await tradeLoadViewers();
+  if(data&&!data.some(r=>r.name==='거래처종합방')&&tradeCanView())data.splice(5,0,{id:'trade-virtual',name:'거래처종합방'});
   rooms=data||[];
   populateAdminSelects();renderSidebar();
   if(rooms.length){var _hr=(me?tgLsGet('tg_home_room_'+me.name):'');var _t=_hr?rooms.find(function(r){return r.name===_hr;}):null;selectRoom(_t||rooms[0]);}
@@ -1808,7 +1979,8 @@ async function selectRoom(room){
   const isStock=(m.mode==='stock');
   const isReserve=(m.mode==='reserve');
   const isJonghap=(m.mode==='jonghap');
-  const isSpecial=isItems||isDelivery||isStock||isReserve||isJonghap;
+  const isTrade=(m.mode==='trade');
+  const isSpecial=isItems||isDelivery||isStock||isReserve||isJonghap||isTrade;
   // 입고방/직배송방/재고방/예약장착방: 전용 화면. 그 외: 기존 채팅
   document.getElementById('items-screen').style.display=isItems?'flex':'none';
   document.getElementById('delivery-screen').style.display=isDelivery?'flex':'none';
@@ -1816,6 +1988,8 @@ async function selectRoom(room){
   var rsv=document.getElementById('reserve-screen');if(rsv)rsv.style.display=isReserve?'flex':'none';
   var jh=document.getElementById('jonghap-screen');if(jh)jh.style.display=isJonghap?'flex':'none';
   if(isJonghap&&typeof jhInit==='function')jhInit();
+  var trd=document.getElementById('trade-screen');if(trd)trd.style.display=isTrade?'flex':'none';
+  if(isTrade&&typeof tradeInit==='function')tradeInit();
   document.getElementById('msgs-wrap')&&(document.getElementById('msgs-wrap').style.display=isSpecial?'none':'');
   document.querySelector('.msgs-wrap').style.display=isSpecial?'none':'flex';
   document.querySelector('.input-wrap').style.display=isSpecial?'none':'';
@@ -1840,6 +2014,10 @@ async function selectRoom(room){
   if(dlvSub){sb.removeChannel(dlvSub);dlvSub=null;}
   if(stockSub){sb.removeChannel(stockSub);stockSub=null;}
   if(typeof reserveSub!=='undefined'&&reserveSub){sb.removeChannel(reserveSub);reserveSub=null;}
+  if(isTrade){
+    if(typeof tradeLoad==='function')await tradeLoad();
+    return;
+  }
   if(isReserve){
     if(typeof loadReservations==='function')await loadReservations();
     reserveSub=sb.channel('reserve-live')
@@ -5242,7 +5420,7 @@ const ISRC_TYPE={'매일오후':'recv','양주sfp':'recv','양주':'recv','sfp':
 function isrcClass(src){return ISRC_TYPE[(src||'').toLowerCase().replace(/\s+/g,'')]||'recv';}
 
 // 받아오기 키워드 (관리자가 settings에서 관리, 기본값 fallback)
-var recvKeywords=['오후','퇴계원','황제','미치다','SFP'];
+var recvKeywords=['오후','퇴계원','황제','미치다'];
 var MODEL_DICT_DEFAULT=[{"code": "슈프림", "aliases": ["NF SUPREME", "NP S", "NPS", "SUPREME", "슈프림"]}, {"code": "라우펜", "aliases": ["라우펜", "라우핀"]}, {"code": "마일캡2", "aliases": ["MILECAP2", "마일캡2", "마일켑"]}, {"code": "IQ", "aliases": ["IQ", "IQ SERIES1", "IQ시리즈"]}, {"code": "TA91+", "aliases": ["91", "91+", "TA91+", "TA91엣지", "엣지"]}, {"code": "TA51+", "aliases": ["51+", "TA51+", "어드밴스", "어드밴스 (TA51+)"]}, {"code": "TA21", "aliases": ["TA21"]}, {"code": "H318", "aliases": ["H318"]}, {"code": "AH8", "aliases": ["AH8"]}, {"code": "RA18", "aliases": ["RA18"]}, {"code": "HP71", "aliases": ["HP71"]}, {"code": "TA91", "aliases": ["TA91"]}, {"code": "RA08", "aliases": ["RA08"]}, {"code": "DU05", "aliases": ["DU05"]}, {"code": "KC53", "aliases": ["KC53"]}, {"code": "RA45", "aliases": ["RA45"]}, {"code": "HP51", "aliases": ["HP51"]}, {"code": "RA55", "aliases": ["RA55"]}, {"code": "GTX", "aliases": ["GTX"]}, {"code": "K137", "aliases": ["K137"]}, {"code": "이벤트라", "aliases": ["이벤트라"]}, {"code": "H462", "aliases": ["H462"]}, {"code": "H472", "aliases": ["H472"]}, {"code": "H129", "aliases": ["H129"]}, {"code": "RF12", "aliases": ["RF12"]}, {"code": "IH01A", "aliases": ["IH01A"]}, {"code": "AH5", "aliases": ["AH5"]}, {"code": "K127", "aliases": ["K127"]}, {"code": "ATX", "aliases": ["ATX"]}, {"code": "H426", "aliases": ["H426"]}, {"code": "RA43", "aliases": ["RA43"]}, {"code": "AH11S", "aliases": ["AH11S"]}, {"code": "TA91FOAM", "aliases": ["TA91FOAM"]}, {"code": "KL33", "aliases": ["KL33"]}, {"code": "SUR4G", "aliases": ["SUR4G"]}, {"code": "TA51", "aliases": ["TA51"]}, {"code": "AU7", "aliases": ["AU7"]}, {"code": "TA51EV", "aliases": ["TA51EV"]}, {"code": "AS T1", "aliases": ["AS T1"]}, {"code": "H308", "aliases": ["H308"]}, {"code": "CT8R", "aliases": ["CT8R", "RO CT8R"]}, {"code": "TA92", "aliases": ["TA92"]}, {"code": "IH71", "aliases": ["IH71"]}, {"code": "IH01", "aliases": ["IH01"]}, {"code": "마샬", "aliases": ["마샬"]}, {"code": "MC55", "aliases": ["MC55", "MARSHAL MC55", "MC55"]}, {"code": "CT8", "aliases": ["CT8"]}, {"code": "K137A", "aliases": ["K137A"]}, {"code": "VT01E", "aliases": ["VT01E"]}, {"code": "AU5", "aliases": ["AU5"]}, {"code": "TA31+", "aliases": ["TA31+"]}, {"code": "벡터", "aliases": ["벡터"]}, {"code": "RT05", "aliases": ["RT05"]}, {"code": "H436", "aliases": ["H436"]}, {"code": "RF10", "aliases": ["RF10"]}, {"code": "EH01", "aliases": ["EH01"]}, {"code": "벡터4시즌", "aliases": ["벡터4시즌"]}, {"code": "ATX LT", "aliases": ["ATX LT"]}, {"code": "VD01E", "aliases": ["VD01E"]}, {"code": "CTX", "aliases": ["CTX"]}, {"code": "RT", "aliases": ["RT"]}, {"code": "K120", "aliases": ["K120"]}, {"code": "AT52", "aliases": ["AT52"]}, {"code": "TA31", "aliases": ["TA31"]}, {"code": "H429", "aliases": ["H429"]}, {"code": "H129A", "aliases": ["H129A"]}, {"code": "HP72", "aliases": ["HP72"]}, {"code": "K127B", "aliases": ["K127B"]}, {"code": "RU5", "aliases": ["RU5"]}, {"code": "RA33", "aliases": ["RA33"]}, {"code": "한국택시", "aliases": ["한국택시"]}, {"code": "ㅊ245", "aliases": ["ㅊ245"]}, {"code": "AH11A", "aliases": ["AH11A"]}, {"code": "TX31", "aliases": ["TX31"]}, {"code": "설포지", "aliases": ["설포지"]}, {"code": "K127A", "aliases": ["K127A"]}, {"code": "TA91EV", "aliases": ["TA91EV", "TA91 EV"]}, {"code": "VA91", "aliases": ["VA91"]}, {"code": "피렐리 스콜피온 MS", "aliases": ["피렐리 스콜피온 MS"]}, {"code": "HP91", "aliases": ["HP91"]}, {"code": "K406", "aliases": ["K406"]}, {"code": "LH41", "aliases": ["LH41"]}, {"code": "윈가드스포츠2", "aliases": ["윈가드스포츠2"]}, {"code": "안치", "aliases": ["안치"]}, {"code": "마일리지플러스", "aliases": ["마일리지플러스"]}, {"code": "S2000", "aliases": ["S2000"]}, {"code": "엔프리즈S", "aliases": ["엔프리즈S", "N'PRIZ S", "NPRIZS", "엔프리즈s"]}, {"code": "PS71", "aliases": ["PS71"]}, {"code": "XJE4X ENERGY", "aliases": ["XJE4X ENERGY"]}, {"code": "WP72", "aliases": ["WP72"]}, {"code": "IK01", "aliases": ["IK01"]}, {"code": "HP71FOAM", "aliases": ["HP71FOAM"]}, {"code": "CP521", "aliases": ["CP521"]}, {"code": "던롭 SP SPORT", "aliases": ["던롭 SP SPORT"]}, {"code": "K435", "aliases": ["K435"]}, {"code": "AT", "aliases": ["AT"]}, {"code": "ZSR SUV", "aliases": ["ZSR SUV"]}, {"code": "RH7", "aliases": ["RH7"]}];
 var modelDict=MODEL_DICT_DEFAULT.slice();
 function jhNormModel(name){
@@ -5301,9 +5479,18 @@ function returnDaysElapsed(it){
   return Math.max(0,Math.round((today-s)/86400000));
 }
 // 출처의 그룹 판정 (반품이 최우선으로 분리, 그다음 받아오기>거래처발주>물류차>기타)
+var SFP_RECV_CITIES=['동대문','강남','구로','양주'];               // SFP + 이 도시 → 받아오기
+var SFP_ORDER_CITIES=['천안','대전','청주','전주','광주','동대구','대구','부산','울산','창원','강릉','원주']; // SFP + 이 도시 → 거래처발주
+var SFP_PENDING_CITIES=['인천','수원','평택','안산','용인'];          // SFP + 이 도시 → 미정(일단 받아오기)
+function sfpGroup(src){
+  var t=(src||''); if(t.toUpperCase().indexOf('SFP')<0)return null;
+  if(SFP_ORDER_CITIES.some(function(c){return t.indexOf(c)>=0;}))return 'order';   // 거래처발주(택배) 우선
+  if(SFP_RECV_CITIES.some(function(c){return t.indexOf(c)>=0;}))return 'recv';
+  return 'recv'; // 미정 도시·도시불명 → 일단 받아오기(놓치지 않게)
+}
 function srcGroup(src){
   if(src==='↩️ 반품'||isReturnSrc(src))return 'return';
-  // ★ 받아오기 키워드(오후·퇴계원·황제·미치다 등)가 포함되면 최우선으로 받아오기
+  // ★ 받아오기 키워드가 포함되면 최우선으로 받아오기 (SFP·지역명도 출처관리 키워드로 직접 관리)
   //   (매일타이어(오후)처럼 합쳐진 출처도 '오후' 포함이면 받아오기)
   if(isRecvSrc(src))return 'recv';
   // 출처 목록에서 정확히 일치하는 항목의 분류
