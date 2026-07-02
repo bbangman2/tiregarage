@@ -1736,6 +1736,7 @@ function tradeToggleLock(){
 }
 async function tradeLoad(){
   try{ var r=await sb.from('trade_settle').select('*').order('sort_order',{ascending:true}); tradeSettleCache=(r&&r.data)||[]; }catch(e){ tradeSettleCache=[]; }
+  if(typeof tradeLoadImpHidden==='function')await tradeLoadImpHidden();
   var b=document.getElementById('trade-lock-btn'), h=document.getElementById('trade-lock-hint');
   if(b)b.textContent=tradeLocked?'🔒 잠금':'🔓 편집중';
   if(h)h.textContent=tradeLocked?'잠금 상태 — 수정하려면 잠금 해제':'셀을 눌러 수정할 수 있어요';
@@ -1803,18 +1804,26 @@ function tradeRender(){
 }
 function tradeRenderSettle(){
   var el=document.getElementById('trade-body'); if(!el)return;
-  var rows=tradeSortedRows(tradeSettleCache.filter(tradeMatch));
+  var rows=tradeSortedRows(tradeSettleCache.filter(function(r){return !r.deleted&&tradeMatch(r);}));
   var locked=tradeLocked;
   var h='<div style="display:flex;gap:8px;margin-bottom:8px;align-items:center;flex-wrap:wrap">';
   h+='<button onclick="tradeAddRow()" style="padding:7px 13px;border:none;background:#0d9488;color:#fff;border-radius:8px;font-weight:800;font-size:13px;cursor:pointer">＋ 행 추가</button>';
+  h+='<button onclick="tradePasteOpen()" style="padding:7px 11px;border:1px solid #0d9488;background:#fff;color:#0d9488;border-radius:8px;font-weight:700;font-size:12px;cursor:pointer">📋 붙여넣기</button>';
+  h+='<button onclick="document.getElementById(\'trade-file\').click()" style="padding:7px 11px;border:1px solid #0d9488;background:#fff;color:#0d9488;border-radius:8px;font-weight:700;font-size:12px;cursor:pointer">📤 파일</button>';
+  h+='<button onclick="tradeDownload()" style="padding:7px 11px;border:1px solid #0d9488;background:#fff;color:#0d9488;border-radius:8px;font-weight:700;font-size:12px;cursor:pointer">💾 다운로드</button>';
+  h+='<button onclick="tradeDelSel()" style="padding:7px 11px;border:1px solid #dc2626;background:#fff;color:#dc2626;border-radius:8px;font-weight:700;font-size:12px;cursor:pointer">🗑 선택삭제</button>';
+  h+='<input type="file" id="trade-file" accept=".csv,.tsv,.txt" style="display:none" onchange="tradeFileUpload(event)">';
   h+='<span style="font-size:12px;color:#888">'+rows.length+'행'+(locked?' · 🔒 잠금(수정하려면 잠금 해제)':' · 🔓 셀 클릭해 수정')+'</span></div>';
+  h+='<div id="trade-paste-box" style="display:none;margin-bottom:8px"><div style="font-size:11px;color:#888;margin-bottom:4px">엑셀/스프레드에서 복사해 붙여넣으세요. 열 순서: 출고·거래처·입력일·패턴·사이즈·배송완료·계산서·입금확인·원가·출고수량·출고가격 … (탭 구분). 붙여넣으면 <b>부족한 행이 자동 추가</b>됩니다.</div><textarea id="trade-paste-ta" style="width:100%;height:90px;border:1px solid var(--border);border-radius:8px;padding:8px;font-size:12px;font-family:monospace;box-sizing:border-box"></textarea><div style="display:flex;gap:6px;margin-top:6px"><button onclick="tradePasteApply()" style="padding:7px 13px;border:none;background:#0d9488;color:#fff;border-radius:8px;font-weight:800;font-size:13px;cursor:pointer">＋ 붙여넣기 반영</button><button onclick="document.getElementById(\'trade-paste-box\').style.display=\'none\'" style="padding:7px 13px;border:1px solid #ccc;background:#fff;border-radius:8px;font-size:13px;cursor:pointer">닫기</button></div></div>';
   h+='<div style="overflow:auto;border:1px solid var(--border);border-radius:8px"><table style="border-collapse:collapse;font-size:12px;white-space:nowrap;min-width:100%">';
   h+='<thead><tr style="background:#f1f5f9">';
+  h+='<th style="padding:6px;border:1px solid #e2e8f0;position:sticky;top:0;background:#f1f5f9"></th>';
   TRADE_COLS.forEach(function(c){ var ar=(tradeSortKey===c.k)?(tradeSortDir>0?' ▲':' ▼'):''; h+='<th onclick="tradeSort(\''+c.k+'\')" style="padding:6px 7px;border:1px solid #e2e8f0;font-weight:800;color:#334155;position:sticky;top:0;background:#f1f5f9;cursor:pointer;user-select:none" title="클릭: 정렬">'+c.t+ar+'</th>'; });
   h+='<th style="padding:6px 7px;border:1px solid #e2e8f0"></th></tr></thead><tbody>';
   rows.forEach(function(r){
     tradeCalc(r);
     h+='<tr>';
+    h+='<td style="padding:4px 6px;border:1px solid #e2e8f0;text-align:center">'+(locked?'':'<input type="checkbox" class="tset-chk" value="'+r.id+'">')+'</td>';
     TRADE_COLS.forEach(function(c){
       var val=r[c.k];
       if(c.calc){
@@ -1830,7 +1839,46 @@ function tradeRenderSettle(){
     h+='</tr>';
   });
   h+='</tbody></table></div>';
+  // 삭제 목록(접기)
+  var del=tradeSettleCache.filter(function(r){return r.deleted;});
+  if(del.length){
+    h+='<div style="margin-top:10px"><button onclick="tradeToggleDel()" id="tset-delbtn" style="padding:6px 12px;border:1px solid #cbd5e1;background:#f8fafc;color:#64748b;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">'+(tradeShowDel?'▲ 삭제목록 '+del.length+'건 접기':'▼ 삭제목록 '+del.length+'건 보기')+'</button>';
+    if(tradeShowDel){
+      h+='<div style="overflow:auto;margin-top:6px;border:1px solid #fecaca;border-radius:8px"><table style="border-collapse:collapse;font-size:12px;white-space:nowrap;width:100%"><tbody>';
+      del.forEach(function(r){
+        h+='<tr style="background:#fff5f5"><td style="padding:5px 8px;border:1px solid #fecaca">'+tradeEsc(r.in_date||'')+'</td><td style="padding:5px 8px;border:1px solid #fecaca">'+tradeEsc(r.out_src||'')+'</td><td style="padding:5px 8px;border:1px solid #fecaca">'+tradeEsc(r.client||'')+'</td><td style="padding:5px 8px;border:1px solid #fecaca">'+tradeEsc(r.pattern||'')+'</td><td style="padding:5px 8px;border:1px solid #fecaca">'+tradeEsc(r.spec||'')+'</td><td style="padding:5px 8px;border:1px solid #fecaca;text-align:center">'+(locked?'':'<button onclick="tradeRestore(\''+r.id+'\')" style="border:none;background:#dcfce7;color:#15803d;border-radius:6px;padding:3px 9px;font-size:11px;cursor:pointer;font-weight:700">되돌리기</button>')+'</td></tr>';
+      });
+      h+='</tbody></table></div>';
+    }
+    h+='</div>';
+  }
   el.innerHTML=h;
+}
+var tradeShowDel=false;
+function tradeToggleDel(){ tradeShowDel=!tradeShowDel; tradeRenderSettle(); }
+async function tradeSoftDelete(ids){
+  if(!ids.length)return;
+  try{ 
+    if(typeof _chunk!=='function'){window._chunk=function(a,n){var r=[];for(var i=0;i<a.length;i+=n)r.push(a.slice(i,i+n));return r;};}
+    var cks=_chunk(ids,100);
+    for(var i=0;i<cks.length;i++){ await sb.from('trade_settle').update({deleted:true}).in('id',cks[i]); }
+    await sb.from('trade_logs').insert(ids.map(function(id){var r=tradeSettleCache.find(function(x){return x.id===id;});return {row_id:id,field:'(삭제)',before_val:(r?(r.client||'')+' '+(r.pattern||''):''),after_val:'',who:me?me.name:'?'};}));
+  }catch(e){alert('삭제 실패: '+e.message);return;}
+  tradeSettleCache.forEach(function(r){ if(ids.indexOf(r.id)>=0)r.deleted=true; });
+  tradeRenderSettle();
+}
+async function tradeDelSel(){
+  if(tradeLocked){alert('🔒 잠금 상태입니다');return;}
+  var ids=Array.prototype.map.call(document.querySelectorAll('.tset-chk:checked'),function(c){return c.value;});
+  if(!ids.length){alert('삭제할 행을 선택하세요');return;}
+  if(!confirm(ids.length+'건을 삭제할까요?\n(삭제목록으로 이동 — 되돌릴 수 있어요. 직배송방에는 영향 없어요.)'))return;
+  tradeSoftDelete(ids);
+}
+async function tradeRestore(id){
+  try{ await sb.from('trade_settle').update({deleted:false}).eq('id',id); }catch(e){alert('되돌리기 실패: '+e.message);return;}
+  var r=tradeSettleCache.find(function(x){return x.id===id;}); if(r)r.deleted=false;
+  try{ await sb.from('trade_logs').insert({row_id:id,field:'(삭제복원)',before_val:'',after_val:(r?(r.client||''):''),who:me?me.name:'?'}); }catch(e){}
+  tradeRenderSettle();
 }
 async function tradeAddRow(){
   if(tradeLocked){alert('🔒 잠금 상태입니다. 잠금을 해제한 뒤 추가하세요');return;}
@@ -1841,14 +1889,179 @@ async function tradeAddRow(){
   }catch(e){alert('행 추가 실패: '+e.message);return;}
   tradeRenderSettle();
 }
+function tradePasteOpen(){
+  if(tradeLocked){alert('🔒 잠금 상태입니다. 잠금을 해제하세요');return;}
+  var b=document.getElementById('trade-paste-box'); if(b){b.style.display=(b.style.display==='none'?'block':'none'); var ta=document.getElementById('trade-paste-ta'); if(ta&&b.style.display!=='none')ta.focus();}
+}
+// 붙여넣기(탭/여러줄) → 행 자동 추가하며 입력. 열 순서는 정산 표와 동일(계산 열 제외).
+var TRADE_PASTE_COLS=['out_src','client','in_date','pattern','spec','deliv_date','bill_date','pay_date','cost','out_qty','out_price'];
+async function tradeApplyRows(text){
+  if(tradeLocked){alert('🔒 잠금 상태입니다. 잠금을 해제하세요');return;}
+  var lines=String(text||'').split(/\r?\n/).filter(function(l){return l.trim();});
+  if(!lines.length)return;
+  var so=Math.max(0,...(tradeSettleCache||[]).map(function(r){return parseFloat(r.sort_order)||0;}));
+  var rows=lines.map(function(line){
+    var cols=line.split('\t'); if(cols.length<=1)cols=line.split(/\s{2,}|,/); // 탭 없으면 2칸공백/콤마
+    var r={}; so++; r.sort_order=so; if(!r.in_date)r.in_date='';
+    TRADE_PASTE_COLS.forEach(function(k,i){ var v=(cols[i]!=null?String(cols[i]).trim():''); if(v==='')return; if(k==='cost'||k==='out_qty'||k==='out_price'){var n=parseFloat(v.replace(/,/g,''));r[k]=isNaN(n)?null:n;}else r[k]=v; });
+    if(!r.in_date)r.in_date=getTodayISO();
+    return r;
+  });
+  try{
+    var ins=await sb.from('trade_settle').insert(rows).select();
+    if(ins&&ins.data){ ins.data.forEach(function(r){tradeCalc(r);}); tradeSettleCache=tradeSettleCache.concat(ins.data);
+      // 계산결과 저장
+      for(var i=0;i<ins.data.length;i++){ var r=ins.data[i]; sb.from('trade_settle').update({sale_price:r.sale_price,total_cost:r.total_cost,net_profit:r.net_profit,net_margin:r.net_margin,tax:r.tax}).eq('id',r.id); }
+      try{ await sb.from('trade_logs').insert(ins.data.map(function(r){return {row_id:r.id,field:'(붙여넣기)',before_val:'',after_val:(r.client||'')+' '+(r.pattern||''),who:me?me.name:'?'};})); }catch(e){}
+    }
+  }catch(e){ alert('반영 실패: '+e.message); return; }
+  alert('＋ '+rows.length+'행 추가됐어요');
+  var b=document.getElementById('trade-paste-box'); if(b)b.style.display='none';
+  tradeRenderSettle();
+}
+function tradePasteApply(){ var ta=document.getElementById('trade-paste-ta'); tradeApplyRows(ta?ta.value:''); if(ta)ta.value=''; }
+function tradeFileUpload(ev){
+  var file=ev.target.files&&ev.target.files[0]; if(!file)return;
+  var rd=new FileReader();
+  rd.onload=function(e){ tradeApplyRows(String(e.target.result||'')); ev.target.value=''; };
+  rd.readAsText(file,'utf-8');
+}
+function tradeDownload(){
+  var cols=TRADE_COLS;
+  var head=cols.map(function(c){return c.t;}).join('\t');
+  var lines=tradeSettleCache.map(function(r){ tradeCalc(r); return cols.map(function(c){ var v=r[c.k]; return (v==null?'':String(v)); }).join('\t'); });
+  var tsv=head+'\n'+lines.join('\n');
+  var blob=new Blob(['\ufeff'+tsv],{type:'text/csv;charset=utf-8'});
+  var url=URL.createObjectURL(blob); var a=document.createElement('a');
+  a.href=url; a.download='거래처정산_'+getTodayISO()+'.csv'; document.body.appendChild(a); a.click();
+  setTimeout(function(){document.body.removeChild(a);URL.revokeObjectURL(url);},100);
+}
 async function tradeDelRow(id){
   if(tradeLocked){alert('🔒 잠금 상태입니다');return;}
-  if(!confirm('이 행을 삭제할까요?'))return;
-  try{ await sb.from('trade_settle').delete().eq('id',id); }catch(e){alert('삭제 실패: '+e.message);return;}
-  var r=tradeSettleCache.find(function(x){return x.id===id;});
-  try{ await sb.from('trade_logs').insert({row_id:id,field:'(행삭제)',before_val:(r?(r.client||'')+' '+(r.pattern||''):''),after_val:'',who:me?me.name:'?'}); }catch(e){}
-  tradeSettleCache=tradeSettleCache.filter(function(x){return x.id!==id;});
-  tradeRenderSettle();
+  if(!confirm('이 행을 삭제할까요?\n(삭제목록으로 이동 — 되돌릴 수 있어요)'))return;
+  tradeSoftDelete([id]);
+}
+var tradeImportCache=[];
+var tradeImpChip='all';
+var tradeImpHidden={};  // 거래처종합방에서 숨긴 직배송 항목 id (직배송 원본 안 건드림)
+function tradeImpSetChip(v){ tradeImpChip=(tradeImpChip===v&&v!=='all')?'all':v; tradeRenderImport(); }
+async function tradeLoadImpHidden(){
+  try{ var r=await sb.from('settings').select('value').eq('key','trade_import_hidden').maybeSingle(); if(r&&r.data&&r.data.value&&typeof r.data.value==='object')tradeImpHidden=r.data.value; }catch(e){ tradeImpHidden={}; }
+}
+async function tradeSaveImpHidden(){ try{ await sb.from('settings').upsert({key:'trade_import_hidden',value:tradeImpHidden,updated_at:new Date().toISOString()},{onConflict:'key'}); }catch(e){} }
+async function tradeImportDelSel(){
+  if(tradeLocked){alert('🔒 잠금 상태입니다. 잠금을 해제하세요');return;}
+  var ids=Array.prototype.map.call(document.querySelectorAll('.timp-chk:checked'),function(c){return c.value;});
+  if(!ids.length){alert('삭제할 항목을 선택하세요');return;}
+  if(!confirm(ids.length+'건을 가져오기 목록에서 숨길까요?\n(거래처종합방에서만 안 보이게 됩니다. 직배송방 원본은 그대로예요.)'))return;
+  ids.forEach(function(id){ tradeImpHidden[id]=true; });
+  await tradeSaveImpHidden();
+  try{ await sb.from('trade_logs').insert(ids.map(function(id){return {row_id:null,field:'(가져오기숨김)',before_val:id,after_val:'',who:me?me.name:'?'};})); }catch(e){}
+  tradeRenderImport();
+}
+function tradeSplitPly(spec){
+  var m=(spec||'').match(/(\d{1,2})\s*[pP]\b/);
+  var ply=m?(m[1]+'P'):'';
+  var pure=(spec||'').replace(/(\d{1,2})\s*[pP]\b/,'').replace(/\s+/g,' ').trim();
+  return {pure:pure,ply:ply};
+}
+function tradeMapFromDeliv(d){
+  var sp=tradeSplitPly(d.spec||'');
+  var pattern=((d.tire||'')+(sp.ply?' '+sp.ply:'')).replace(/\s+/g,' ').trim();
+  var deliv=d.done_at?String(d.done_at).slice(0,10):'';
+  return {out_src:d.src||'',client:d.trade_client||'',in_date:d.date_str||'',pattern:pattern,spec:sp.pure,deliv_date:deliv,
+    out_qty:(d.qty!==''&&d.qty!=null?parseFloat(d.qty):null),out_price:(d.unit_price!==''&&d.unit_price!=null?parseFloat(d.unit_price):null),
+    memo:d.trade_memo||'',src_deliv_id:(d.origin_id||d.id)};
+}
+async function tradeRenderImport(){
+  var el=document.getElementById('trade-body'); if(!el)return;
+  el.innerHTML='<div style="color:#888;padding:16px 6px">불러오는 중…</div>';
+  var dr=(rooms||[]).find(function(r){return r.name==='직배송방';});
+  if(!dr){ el.innerHTML='<div style="color:#888;padding:16px 6px">직배송방을 찾을 수 없어요.</div>'; return; }
+  try{ var res=await sb.from('deliveries').select('*').eq('room_id',dr.id).eq('channel','trade'); tradeImportCache=(res&&res.data)||[]; }
+  catch(e){ tradeImportCache=[]; }
+  // 거래처종합방에서 숨긴(삭제한) 항목 — 직배송 원본은 안 건드림
+  var hidden=tradeImpHidden||{};
+  // 뿌리(origin) 기준 그룹 — 같은 근간에서 복사(이월)된 것끼리 묶음
+  var groups={};
+  tradeImportCache.forEach(function(d){ var org=d.origin_id||d.id; (groups[org]=groups[org]||[]).push(d); });
+  // 각 그룹 내부: 등록 빠른 순(처음 등록=기준이 맨 위)
+  Object.keys(groups).forEach(function(org){ groups[org].sort(function(a,b){ return (a.date_str||'').localeCompare(b.date_str||'')||((a.created_at||'').localeCompare(b.created_at||'')); }); });
+  // 그룹 정렬: 그룹의 첫(기준) 입력일 최신 순
+  var orgKeys=Object.keys(groups).sort(function(A,B){ var a=groups[A][0], b=groups[B][0]; return (b.date_str||'').localeCompare(a.date_str||''); });
+  // 이미 보낸 것(뿌리 기준)
+  var sentIds={}; (tradeSettleCache||[]).forEach(function(r){ if(r.src_deliv_id)sentIds[r.src_deliv_id]=true; });
+  var q=(document.getElementById('trade-search-input')&&document.getElementById('trade-search-input').value||'').trim().toLowerCase();
+  var onlyDup=(tradeImpChip==='dup');
+  // 렌더용 행 목록 만들기 (그룹 순서대로, 각 그룹 내부 순서대로)
+  var flat=[];
+  orgKeys.forEach(function(org){
+    var g=groups[org].filter(function(d){return !hidden[d.id];});
+    if(!g.length)return;
+    var isDup=(g.length>1);
+    if(onlyDup&&!isDup)return;
+    g.forEach(function(d,idx){
+      if(q){ var hit=['src','trade_client','tire','spec','trade_memo'].some(function(k){return String(d[k]||'').toLowerCase().indexOf(q)>=0;}); if(!hit)return; }
+      flat.push({d:d,dup:isDup,base:(idx===0),org:org,gsize:g.length});
+    });
+  });
+  var dupCount=orgKeys.filter(function(org){return groups[org].filter(function(d){return !hidden[d.id];}).length>1;}).length;
+  var h='<div style="display:flex;gap:8px;margin-bottom:8px;align-items:center;flex-wrap:wrap">';
+  h+='<button onclick="tradeImportSel()" style="padding:7px 13px;border:none;background:#0d9488;color:#fff;border-radius:8px;font-weight:800;font-size:13px;cursor:pointer">📥 선택 → 정산으로 보내기</button>';
+  h+='<button onclick="tradeImportDelSel()" style="padding:7px 11px;border:1px solid #dc2626;background:#fff;color:#dc2626;border-radius:8px;font-weight:700;font-size:12px;cursor:pointer">🗑 선택삭제(종합방만)</button>';
+  h+='<button onclick="tradeImportAll(this)" style="padding:7px 11px;border:1px solid #0d9488;background:#fff;color:#0d9488;border-radius:8px;font-weight:700;font-size:12px;cursor:pointer">전체선택</button>';
+  h+='</div>';
+  // 칩: 전체 / 중복만
+  h+='<div class="jh-flt" style="margin-bottom:8px;gap:6px">';
+  h+='<span class="jh-chip'+(tradeImpChip==='all'?' on':'')+'" onclick="tradeImpSetChip(\'all\')">전체 '+tradeImportCache.length+'</span>';
+  h+='<span class="jh-chip'+(tradeImpChip==='dup'?' on':'')+'" onclick="tradeImpSetChip(\'dup\')" style="'+(dupCount?'':'opacity:.5')+'">⚠ 중복만 '+dupCount+'그룹</span>';
+  h+='</div>';
+  h+='<div style="overflow:auto"><table style="border-collapse:collapse;font-size:12px;white-space:nowrap;width:100%"><thead><tr style="background:#f1f5f9">';
+  h+='<th style="padding:6px"></th><th style="padding:6px;border:1px solid #e2e8f0">상태</th><th style="padding:6px;border:1px solid #e2e8f0">입력일</th><th style="padding:6px;border:1px solid #e2e8f0">출고</th><th style="padding:6px;border:1px solid #e2e8f0">거래처</th><th style="padding:6px;border:1px solid #e2e8f0">패턴</th><th style="padding:6px;border:1px solid #e2e8f0">사이즈</th><th style="padding:6px;border:1px solid #e2e8f0">수량</th><th style="padding:6px;border:1px solid #e2e8f0">출고가</th><th style="padding:6px;border:1px solid #e2e8f0">배송완료</th></tr></thead><tbody>';
+  var lastOrg=null;
+  flat.forEach(function(row){
+    var d=row.d, sent=!!sentIds[row.org];
+    var newGroup=(row.org!==lastOrg); lastOrg=row.org;
+    var bg=sent?'#f0fdf4':(row.dup?'#fffbeb':'#fff');
+    var topBorder=(newGroup&&row.dup)?'border-top:2px solid #f59e0b;':'';
+    h+='<tr style="background:'+bg+';'+topBorder+'">';
+    h+='<td style="padding:4px 6px;text-align:center;border:1px solid #e2e8f0">'+(sent?'':'<input type="checkbox" class="timp-chk" value="'+d.id+'">')+'</td>';
+    var stat=sent?'<span style="color:#16a34a;font-weight:800;font-size:11px">보냄</span>':(row.dup?('<span style="color:#b45309;font-weight:800;font-size:11px">⚠중복'+(row.base?'(기준)':'')+'</span>'):'');
+    h+='<td style="padding:4px 7px;border:1px solid #e2e8f0;text-align:center">'+stat+'</td>';
+    h+='<td style="padding:4px 7px;border:1px solid #e2e8f0">'+tradeEsc((d.date_str||'').slice(5))+'</td>';
+    h+='<td style="padding:4px 7px;border:1px solid #e2e8f0">'+tradeEsc(d.src||'')+'</td>';
+    h+='<td style="padding:4px 7px;border:1px solid #e2e8f0">'+tradeEsc(d.trade_client||'')+'</td>';
+    h+='<td style="padding:4px 7px;border:1px solid #e2e8f0">'+tradeEsc(d.tire||'')+'</td>';
+    h+='<td style="padding:4px 7px;border:1px solid #e2e8f0">'+tradeEsc(d.spec||'')+'</td>';
+    h+='<td style="padding:4px 7px;border:1px solid #e2e8f0;text-align:right">'+tradeEsc(d.qty||'')+'</td>';
+    h+='<td style="padding:4px 7px;border:1px solid #e2e8f0;text-align:right">'+tradeFmtNum(d.unit_price)+'</td>';
+    h+='<td style="padding:4px 7px;border:1px solid #e2e8f0">'+tradeEsc(d.done_at?String(d.done_at).slice(5,10):'-')+'</td>';
+    h+='</tr>';
+  });
+  h+='</tbody></table></div>';
+  h+='<div style="font-size:11px;color:#888;margin-top:6px">⚠중복 = 같은 뿌리(복사 근간)에서 이월된 것끼리 묶음. 노란 굵은 선이 그룹 시작. "(기준)"이 처음 등록분. 확인 후 필요없는 건 선택삭제(직배송방엔 영향 없음).</div>';
+  el.innerHTML=h;
+}
+function tradeImportAll(btn){
+  var on=btn.dataset.on==='1'; btn.dataset.on=on?'0':'1'; btn.textContent=on?'전체선택':'전체해제';
+  document.querySelectorAll('.timp-chk').forEach(function(c){c.checked=!on;});
+}
+async function tradeImportSel(){
+  if(tradeLocked){alert('🔒 잠금 상태입니다. 잠금을 해제하세요');return;}
+  var ids=Array.prototype.map.call(document.querySelectorAll('.timp-chk:checked'),function(c){return c.value;});
+  if(!ids.length){alert('보낼 항목을 선택하세요');return;}
+  var so=Math.max(0,...(tradeSettleCache||[]).map(function(r){return parseFloat(r.sort_order)||0;}));
+  var rows=[];
+  ids.forEach(function(id){ var d=tradeImportCache.find(function(x){return x.id===id;}); if(d){ so++; var m=tradeMapFromDeliv(d); m.sort_order=so; rows.push(m); } });
+  if(!rows.length)return;
+  try{
+    var ins=await sb.from('trade_settle').insert(rows).select();
+    if(ins&&ins.data){ ins.data.forEach(function(r){ tradeCalc(r); }); tradeSettleCache=tradeSettleCache.concat(ins.data); }
+    // 로그
+    try{ await sb.from('trade_logs').insert(rows.map(function(r){return {row_id:null,field:'(가져오기)',before_val:'',after_val:(r.client||'')+' '+(r.pattern||''),who:me?me.name:'?'};})); }catch(e){}
+  }catch(e){ alert('보내기 실패: '+e.message); return; }
+  alert('📥 정산으로 '+rows.length+'건 보냈어요');
+  tradeRenderImport();
 }
 function tradeCellSave(id,field,raw){
   var r=tradeSettleCache.find(function(x){return x.id===id;}); if(!r)return;
