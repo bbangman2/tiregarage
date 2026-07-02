@@ -1276,9 +1276,16 @@ body.rb-on #app{padding-top:58px}
     <button id="trade-lock-btn" onclick="tradeToggleLock()" style="padding:6px 12px;border:1px solid #ccc;border-radius:8px;background:#fff;font-weight:700;font-size:12px;cursor:pointer">🔓 편집중</button>
     <span id="trade-lock-hint" style="font-size:11px;color:#888">셀을 눌러 수정할 수 있어요</span>
   </div>
-  <div class="item-search" id="trade-search" style="display:none">
-    <input id="trade-search-input" placeholder="🔍 거래처·출고·패턴·사이즈·비고·입금자 검색" oninput="tradeRender()">
+  <div class="item-search" id="trade-search" style="display:none;flex-wrap:wrap;gap:6px">
+    <input id="trade-search-input" placeholder="🔍 거래처·출고·패턴·사이즈·비고·입금자 검색" oninput="tradeRender()" style="flex:1;min-width:180px">
     <button class="isearch-clear" id="trade-search-clear" onclick="document.getElementById('trade-search-input').value='';tradeRender();" style="display:none">✕</button>
+    <div style="display:inline-flex;align-items:center;gap:5px;background:#f1f3f6;border:1.5px solid #e6e9ef;border-radius:9px;padding:4px 8px">
+      <button class="range-toggle on" id="trade-srch-all" onclick="tradeSrchAll()" style="background:#0d9488;color:#fff;border-color:#0d9488">전체기간</button>
+      <input type="date" id="trade-srch-from" onchange="tradeSrchDate()" style="display:none">
+      <span id="trade-srch-sep" style="display:none">~</span>
+      <input type="date" id="trade-srch-to" onchange="tradeSrchDate()" style="display:none">
+      <button class="range-toggle" id="trade-srch-range" onclick="tradeSrchRange()">범위</button>
+    </div>
   </div>
   <div id="trade-body" style="flex:1;overflow:auto;padding:8px 10px"></div>
 </div>
@@ -1617,6 +1624,15 @@ body.rb-on #app{padding-top:58px}
         </div>
       </div>
     </div>
+    <div class="danger-section" style="border-color:rgba(180,83,9,.3);background:rgba(180,83,9,.06)">
+      <div class="danger-title" style="color:#b45309">💰 거래처 종합방 권한</div>
+      <div class="del-hint" style="margin-bottom:10px">이 명단에 있는 사람에게만 <b>거래처 종합방</b>이 보입니다(대표는 항상). 방 접근 권한자는 잠금·편집·삭제가 모두 자유롭습니다.</div>
+      <div id="trv-list" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px"></div>
+      <div class="del-row" style="gap:6px">
+        <input id="trv-input" placeholder="이름 입력 (예: 김다영)" style="flex:1;min-width:120px;padding:8px 11px;border:1px solid var(--border);border-radius:8px;font-size:14px;outline:none;font-family:inherit">
+        <button class="btn-danger" style="background:#b45309" onclick="trvAdd()">추가</button>
+      </div>
+    </div>
     <div class="danger-section" style="border-color:rgba(91,53,176,.3);background:rgba(91,53,176,.06)">
       <div class="danger-title" style="color:#5b35b0">🏷️ 분류(카테고리) 관리</div>
       <div class="del-hint" style="margin-bottom:10px">재고표의 분류 칸에 쓸 수 있는 단어들. 추가/삭제·순서변경(드래그) 가능. 새 분류를 셀에 입력하면 자동으로 여기에 등록됩니다.</div>
@@ -1719,12 +1735,26 @@ var tradeViewers=['이호준','김다영','이정우'];  // 거래처 종합방 
 var tradeLocked=true;  // 기본 잠금
 function tradeCanView(){ return !!(me&&(me.name===ADMIN_NAME||tradeViewers.indexOf(me.name)>=0)); }
 async function tradeLoadViewers(){ try{ var r=await sb.from('settings').select('value').eq('key','trade_room_viewers').maybeSingle(); if(r&&r.data&&Array.isArray(r.data.value))tradeViewers=r.data.value; }catch(e){} }
+async function trvSave(){ try{ await sb.from('settings').upsert({key:'trade_room_viewers',value:tradeViewers,updated_at:new Date().toISOString()},{onConflict:'key'}); }catch(e){alert('저장 실패: '+e.message);} trvRender(); }
+function trvRender(){
+  var el=document.getElementById('trv-list'); if(!el)return;
+  if(!tradeViewers.length){ el.innerHTML='<span style="color:#94a3b8;font-size:13px">명단 없음 (대표만 보임)</span>'; return; }
+  el.innerHTML=tradeViewers.map(function(nm){
+    return '<span style="display:inline-flex;align-items:center;gap:5px;background:#fff;border:1.5px solid #fcd9a8;border-radius:8px;padding:5px 9px;font-size:13px;font-weight:700;color:#b45309">'+esc(nm)+(nm===ADMIN_NAME?' (대표)':'<button onclick="trvDel(\''+nm+'\')" style="border:none;background:none;color:#dc2626;cursor:pointer;font-weight:800;font-size:14px;padding:0 2px">×</button>')+'</span>';
+  }).join('');
+}
+function trvAdd(){
+  var v=(document.getElementById('trv-input').value||'').trim(); if(!v)return;
+  if(tradeViewers.indexOf(v)>=0){alert('이미 있는 이름이에요');return;}
+  tradeViewers.push(v); document.getElementById('trv-input').value=''; trvSave();
+}
+function trvDel(nm){ tradeViewers=tradeViewers.filter(function(x){return x!==nm;}); trvSave(); }
 var TRADE_TAB='import';
 function tradeInit(){ TRADE_TAB='import'; tradeSetTab('import'); }
 function tradeSetTab(t){
   TRADE_TAB=t;
   document.querySelectorAll('#trade-screen .dlv-tab').forEach(function(b){b.classList.toggle('active',b.dataset.ttab===t);});
-  var srch=document.getElementById('trade-search'); if(srch)srch.style.display=(t==='settle'||t==='import')?'':'none';
+  var srch=document.getElementById('trade-search'); if(srch)srch.style.display='flex';
   tradeRender();
 }
 function tradeToggleLock(){
@@ -1743,6 +1773,28 @@ async function tradeLoad(){
   tradeRender();
 }
 var tradeSettleCache=[];
+var tradeSrchAllOn=true, tradeSrchRangeOn=false;
+function tradeSrchAll(){ tradeSrchAllOn=true; tradeSrchRangeOn=false;
+  document.getElementById('trade-srch-all').classList.add('on'); document.getElementById('trade-srch-all').style.background='#0d9488'; document.getElementById('trade-srch-all').style.color='#fff';
+  document.getElementById('trade-srch-range').classList.remove('on');
+  document.getElementById('trade-srch-from').style.display='none'; document.getElementById('trade-srch-to').style.display='none'; document.getElementById('trade-srch-sep').style.display='none';
+  tradeRender();
+}
+function tradeSrchRange(){ tradeSrchRangeOn=!tradeSrchRangeOn;
+  document.getElementById('trade-srch-range').classList.toggle('on',tradeSrchRangeOn);
+  document.getElementById('trade-srch-to').style.display=tradeSrchRangeOn?'':'none';
+  document.getElementById('trade-srch-sep').style.display=tradeSrchRangeOn?'':'none';
+  if(tradeSrchRangeOn){ tradeSrchAllOn=false; document.getElementById('trade-srch-all').classList.remove('on'); document.getElementById('trade-srch-all').style.background='#fff'; document.getElementById('trade-srch-all').style.color='#0d9488'; document.getElementById('trade-srch-from').style.display=''; if(!document.getElementById('trade-srch-from').value)document.getElementById('trade-srch-from').value=getTodayISO(); if(!document.getElementById('trade-srch-to').value)document.getElementById('trade-srch-to').value=getTodayISO(); }
+  tradeRender();
+}
+function tradeSrchDate(){ tradeSrchAllOn=false; document.getElementById('trade-srch-all').classList.remove('on'); document.getElementById('trade-srch-all').style.background='#fff'; document.getElementById('trade-srch-all').style.color='#0d9488'; document.getElementById('trade-srch-from').style.display=''; tradeRender(); }
+function tradeDatePass(ds){
+  if(tradeSrchAllOn)return true;
+  var d=(ds||'').slice(0,10); if(!d)return false;
+  var fr=document.getElementById('trade-srch-from').value||'';
+  if(tradeSrchRangeOn){ var to=document.getElementById('trade-srch-to').value||''; return (!fr||d>=fr)&&(!to||d<=to); }
+  return !fr||d===fr;
+}
 var tradeSortKey='', tradeSortDir=1; // 1=오름, -1=내림
 function tradeSort(k){
   if(tradeSortKey===k){ tradeSortDir=-tradeSortDir; } else { tradeSortKey=k; tradeSortDir=1; }
@@ -1804,7 +1856,7 @@ function tradeRender(){
 }
 function tradeRenderSettle(){
   var el=document.getElementById('trade-body'); if(!el)return;
-  var rows=tradeSortedRows(tradeSettleCache.filter(function(r){return !r.deleted&&tradeMatch(r);}));
+  var rows=tradeSortedRows(tradeSettleCache.filter(function(r){return !r.deleted&&tradeMatch(r)&&tradeDatePass(r.in_date);}));
   var locked=tradeLocked;
   var h='<div style="display:flex;gap:8px;margin-bottom:8px;align-items:center;flex-wrap:wrap">';
   h+='<button onclick="tradeAddRow()" style="padding:7px 13px;border:none;background:#0d9488;color:#fff;border-radius:8px;font-weight:800;font-size:13px;cursor:pointer">＋ 행 추가</button>';
@@ -1942,6 +1994,30 @@ async function tradeDelRow(id){
   tradeSoftDelete([id]);
 }
 var tradeImportCache=[];
+var tradeLogCache=[];
+async function tradeRenderLog(){
+  var el=document.getElementById('trade-body'); if(!el)return;
+  el.innerHTML='<div style="color:#888;padding:16px 6px">불러오는 중…</div>';
+  try{ var r=await sb.from('trade_logs').select('*').order('at',{ascending:false}).limit(500); tradeLogCache=(r&&r.data)||[]; }catch(e){ tradeLogCache=[]; }
+  var lq=(document.getElementById('trade-search-input')&&document.getElementById('trade-search-input').value||'').trim().toLowerCase();
+  var rows=tradeLogCache.filter(function(g){
+    if(!tradeDatePass(g.at))return false;
+    if(lq){ return ['who','field','before_val','after_val'].some(function(k){return String(g[k]||'').toLowerCase().indexOf(lq)>=0;}); }
+    return true;
+  });
+  var h='<div style="font-size:12px;color:#888;margin-bottom:8px">수정기록 (최대 500건) · 누가·언제·무엇을·전→후 · 검색·날짜 적용됨</div>';
+  h+='<div style="overflow:auto"><table style="border-collapse:collapse;font-size:12px;white-space:nowrap;width:100%"><thead><tr style="background:#f1f5f9">';
+  h+='<th style="padding:6px 8px;border:1px solid #e2e8f0">시각</th><th style="padding:6px 8px;border:1px solid #e2e8f0">사람</th><th style="padding:6px 8px;border:1px solid #e2e8f0">항목</th><th style="padding:6px 8px;border:1px solid #e2e8f0">전</th><th style="padding:6px 8px;border:1px solid #e2e8f0">후</th></tr></thead><tbody>';
+  if(!rows.length)h+='<tr><td colspan="5" style="padding:16px;text-align:center;color:#aaa;border:1px solid #e2e8f0">기록 없음</td></tr>';
+  var FIELD_KO={out_src:'출고',client:'거래처',in_date:'입력일',pattern:'브랜드/내용',spec:'사이즈',deliv_date:'배송완료',bill_date:'계산서발행',pay_date:'입금확인',cost:'원가',out_qty:'출고수량',out_price:'출고가격',memo:'비고',payer:'입금자',stmt_amount:'명세표입금액'};
+  rows.forEach(function(g){
+    var t=g.at?String(g.at).replace('T',' ').slice(0,16):'';
+    var fld=FIELD_KO[g.field]||g.field||'';
+    h+='<tr><td style="padding:5px 8px;border:1px solid #e2e8f0;color:#64748b">'+tradeEsc(t)+'</td><td style="padding:5px 8px;border:1px solid #e2e8f0;font-weight:700">'+tradeEsc(g.who||'')+'</td><td style="padding:5px 8px;border:1px solid #e2e8f0">'+tradeEsc(fld)+'</td><td style="padding:5px 8px;border:1px solid #e2e8f0;color:#94a3b8">'+tradeEsc(g.before_val||'')+'</td><td style="padding:5px 8px;border:1px solid #e2e8f0;color:#0d9488;font-weight:600">'+tradeEsc(g.after_val||'')+'</td></tr>';
+  });
+  h+='</tbody></table></div>';
+  el.innerHTML=h;
+}
 var tradeImpChip='all';
 var tradeImpHidden={};  // 거래처종합방에서 숨긴 직배송 항목 id (직배송 원본 안 건드림)
 function tradeImpSetChip(v){ tradeImpChip=(tradeImpChip===v&&v!=='all')?'all':v; tradeRenderImport(); }
@@ -2002,6 +2078,7 @@ async function tradeRenderImport(){
     if(onlyDup&&!isDup)return;
     g.forEach(function(d,idx){
       if(q){ var hit=['src','trade_client','tire','spec','trade_memo'].some(function(k){return String(d[k]||'').toLowerCase().indexOf(q)>=0;}); if(!hit)return; }
+      if(!tradeDatePass(d.date_str))return;
       flat.push({d:d,dup:isDup,base:(idx===0),org:org,gsize:g.length});
     });
   });
@@ -2025,7 +2102,7 @@ async function tradeRenderImport(){
     var bg=sent?'#f0fdf4':(row.dup?'#fffbeb':'#fff');
     var topBorder=(newGroup&&row.dup)?'border-top:2px solid #f59e0b;':'';
     h+='<tr style="background:'+bg+';'+topBorder+'">';
-    h+='<td style="padding:4px 6px;text-align:center;border:1px solid #e2e8f0">'+(sent?'':'<input type="checkbox" class="timp-chk" value="'+d.id+'">')+'</td>';
+    h+='<td style="padding:4px 6px;text-align:center;border:1px solid #e2e8f0"><input type="checkbox" class="timp-chk" value="'+d.id+'"></td>';
     var stat=sent?'<span style="color:#16a34a;font-weight:800;font-size:11px">보냄</span>':(row.dup?('<span style="color:#b45309;font-weight:800;font-size:11px">⚠중복'+(row.base?'(기준)':'')+'</span>'):'');
     h+='<td style="padding:4px 7px;border:1px solid #e2e8f0;text-align:center">'+stat+'</td>';
     h+='<td style="padding:4px 7px;border:1px solid #e2e8f0">'+tradeEsc((d.date_str||'').slice(5))+'</td>';
@@ -2040,7 +2117,28 @@ async function tradeRenderImport(){
   });
   h+='</tbody></table></div>';
   h+='<div style="font-size:11px;color:#888;margin-top:6px">⚠중복 = 같은 뿌리(복사 근간)에서 이월된 것끼리 묶음. 노란 굵은 선이 그룹 시작. "(기준)"이 처음 등록분. 확인 후 필요없는 건 선택삭제(직배송방엔 영향 없음).</div>';
+  // 숨긴(삭제) 목록 — 접기 + 되돌리기
+  var hiddenRows=tradeImportCache.filter(function(d){return hidden[d.id];});
+  if(hiddenRows.length){
+    h+='<div style="margin-top:10px"><button onclick="tradeImpToggleHidden()" style="padding:6px 12px;border:1px solid #cbd5e1;background:#f8fafc;color:#64748b;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">'+(tradeImpShowHidden?'▲ 삭제(숨김)목록 '+hiddenRows.length+'건 접기':'▼ 삭제(숨김)목록 '+hiddenRows.length+'건 보기')+'</button>';
+    if(tradeImpShowHidden){
+      h+='<div style="overflow:auto;margin-top:6px;border:1px solid #fecaca;border-radius:8px"><table style="border-collapse:collapse;font-size:12px;white-space:nowrap;width:100%"><tbody>';
+      hiddenRows.forEach(function(d){
+        h+='<tr style="background:#fff5f5"><td style="padding:5px 8px;border:1px solid #fecaca">'+tradeEsc((d.date_str||'').slice(5))+'</td><td style="padding:5px 8px;border:1px solid #fecaca">'+tradeEsc(d.src||'')+'</td><td style="padding:5px 8px;border:1px solid #fecaca">'+tradeEsc(d.trade_client||'')+'</td><td style="padding:5px 8px;border:1px solid #fecaca">'+tradeEsc(d.tire||'')+'</td><td style="padding:5px 8px;border:1px solid #fecaca">'+tradeEsc(d.spec||'')+'</td><td style="padding:5px 8px;border:1px solid #fecaca;text-align:center">'+(tradeLocked?'':'<button onclick="tradeImpRestore(\''+d.id+'\')" style="border:none;background:#dcfce7;color:#15803d;border-radius:6px;padding:3px 9px;font-size:11px;cursor:pointer;font-weight:700">되돌리기</button>')+'</td></tr>';
+      });
+      h+='</tbody></table></div>';
+    }
+    h+='</div>';
+  }
   el.innerHTML=h;
+}
+var tradeImpShowHidden=false;
+function tradeImpToggleHidden(){ tradeImpShowHidden=!tradeImpShowHidden; tradeRenderImport(); }
+async function tradeImpRestore(id){
+  delete tradeImpHidden[id];
+  await tradeSaveImpHidden();
+  try{ await sb.from('trade_logs').insert({row_id:null,field:'(가져오기숨김복원)',before_val:'',after_val:id,who:me?me.name:'?'}); }catch(e){}
+  tradeRenderImport();
 }
 function tradeImportAll(btn){
   var on=btn.dataset.on==='1'; btn.dataset.on=on?'0':'1'; btn.textContent=on?'전체선택':'전체해제';
@@ -2050,9 +2148,11 @@ async function tradeImportSel(){
   if(tradeLocked){alert('🔒 잠금 상태입니다. 잠금을 해제하세요');return;}
   var ids=Array.prototype.map.call(document.querySelectorAll('.timp-chk:checked'),function(c){return c.value;});
   if(!ids.length){alert('보낼 항목을 선택하세요');return;}
+  var sent2={}; (tradeSettleCache||[]).forEach(function(r){ if(r.src_deliv_id)sent2[r.src_deliv_id]=true; });
   var so=Math.max(0,...(tradeSettleCache||[]).map(function(r){return parseFloat(r.sort_order)||0;}));
-  var rows=[];
-  ids.forEach(function(id){ var d=tradeImportCache.find(function(x){return x.id===id;}); if(d){ so++; var m=tradeMapFromDeliv(d); m.sort_order=so; rows.push(m); } });
+  var rows=[], skip=0;
+  ids.forEach(function(id){ var d=tradeImportCache.find(function(x){return x.id===id;}); if(!d)return; if(sent2[d.origin_id||d.id]){skip++;return;} so++; var m=tradeMapFromDeliv(d); m.sort_order=so; rows.push(m); });
+  if(!rows.length){alert('보낼 새 항목이 없어요'+(skip?' (이미 보낸 '+skip+'건 제외)':''));return;}
   if(!rows.length)return;
   try{
     var ins=await sb.from('trade_settle').insert(rows).select();
@@ -3107,7 +3207,7 @@ async function restoreCSV(){
   reader.readAsText(file);
 }
 
-function openAdmin(){if(!me||me.name!==ADMIN_NAME){alert('관리자만 접근 가능합니다');return;}document.getElementById('admin-overlay').classList.add('on');renderSrcList();renderCatList();renderReturnKwList();}
+function openAdmin(){if(!me||me.name!==ADMIN_NAME){alert('관리자만 접근 가능합니다');return;}document.getElementById('admin-overlay').classList.add('on');renderSrcList();renderCatList();renderReturnKwList();if(typeof renderRecvKwList==='function')renderRecvKwList();if(typeof trvRender==='function')trvRender();if(typeof mdictRender==='function')mdictRender();}
 function closeAdmin(){document.getElementById('admin-overlay').classList.remove('on');}
 // 키워드 칩 렌더 공통
 function kwChips(arr,color,delFn){
@@ -3117,7 +3217,7 @@ function kwChips(arr,color,delFn){
   }).join('');
 }
 // 받아오기
-function renderRecvKwList(){const el=document.getElementById('recv-kw-list');if(el)el.innerHTML=kwChips(recvKeywords,'#15803d','delRecvKw');if(typeof mdictRender==='function')mdictRender();}
+function renderRecvKwList(){const el=document.getElementById('recv-kw-list');if(el)el.innerHTML=kwChips(recvKeywords,'#15803d','delRecvKw');if(typeof mdictRender==='function')mdictRender();if(typeof trvRender==='function')trvRender();}
 var SRC_GROUP_LABEL={recv:'🟢 받아오기',order:'🟣 거래처발주',arr:'🔵 물류차입고'};
 var SRC_GROUP_COLOR={recv:'#15803d',order:'#7c3aed',arr:'#2563eb'};
 function renderSrcList(){
@@ -3413,7 +3513,13 @@ function dlvRangeCard(c){
   h+='<span class="dlv-rexp">'+(op?'▲':'▼')+'</span></div>';
   if(op){
     h+='<div class="dlv-rdetail">';
-    if(c.channel==='trade'){h+='<div class="dsd-line dc-trade">'+esc(c.tire||'').replace(/\n/g,'<br>')+'</div>';}
+    if(c.channel==='trade'){
+      h+='<div class="dsd-line">🏭 출고: <b>'+esc(c.src||'-')+'</b> · 거래처: <b>'+esc(c.trade_client||'-')+'</b></div>';
+      h+='<div class="dsd-line">🛞 '+esc(c.tire||'')+(c.spec?' · '+esc(c.spec):'')+' · '+esc(c.qty||'?')+'개'+(c.unit_price?' · 개당 '+esc(c.unit_price)+'원':'')+'</div>';
+      if(c.trade_memo)h+='<div class="dsd-line">📝 '+esc(c.trade_memo)+'</div>';
+      if(c.done_at)h+='<div class="dsd-line">✅ 배송완료 '+esc(String(c.done_at).slice(0,10))+'</div>';
+      if(c.tire&&/\n/.test(c.tire||''))h+='<div class="dsd-line dc-trade">'+esc(c.tire||'').replace(/\n/g,'<br>')+'</div>';
+    }
     else{
       h+='<div class="dsd-line">🚗 '+(c.code?'['+esc(c.code)+'] ':'')+esc(c.tire||'')+' · '+esc(c.brand||'')+' · '+esc(c.qty||'')+'개 (입고: '+esc(c.src||'-')+')</div>';
       if(c.addr)h+='<div class="dsd-line">📍 '+esc(c.addr)+'</div>';
