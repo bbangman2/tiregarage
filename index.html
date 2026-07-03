@@ -1526,6 +1526,11 @@ body.rb-on #app{padding-top:58px}
     <button class="admin-panel-close" onclick="closeAdmin()">×</button>
     <div class="admin-panel-title">🗑️ 관리자 — 메시지 삭제</div>
     <div class="admin-panel-sub">이호준 전용 기능입니다. 삭제된 메시지는 복구 불가합니다.</div>
+    <div class="danger-section" style="border-color:rgba(37,99,235,.3);background:rgba(37,99,235,.06)">
+      <div class="danger-title" style="color:#2563eb">🧾 전체 감사로그 (누가·언제·무엇을)</div>
+      <div class="del-hint" style="margin-bottom:10px">모든 방의 모든 액션(입력·수정·취소·삭제·완료·이동 등)이 시각·사람과 함께 기록됩니다. CSV로 내려받아 확인하세요.</div>
+      <button class="btn-danger" style="background:#2563eb" onclick="auditDownload()">🧾 감사로그 CSV 다운로드</button>
+    </div>
     <div class="danger-section">
       <div class="danger-title">📅 날짜별 삭제</div>
       <div class="del-row">
@@ -1697,7 +1702,77 @@ function tgValidKey(k){k=(k||'').trim();return k.length>20&&(k.indexOf('sb_')===
 var SUPA_URL='https://dohspibpjzdrnigphalt.supabase.co', SUPA_KEY='sb_publishable_JCYJcVDoQkHXd6SuhtjIAw_Wz44s0Y3';
 var sb=null;
 const{createClient}=supabase;
-function tgInitClient(){sb=createClient(SUPA_URL,SUPA_KEY);}
+var _origFrom=null;
+function tgInitClient(){ sb=createClient(SUPA_URL,SUPA_KEY); _origFrom=sb.from.bind(sb); wrapSbAudit(); }
+// 모든 쓰기(insert/update/delete/upsert)를 자동으로 감사로그에 남김 — 217개 지점 일괄 커버
+function wrapSbAudit(){
+  try{
+    sb.from=function(table){
+      var qb=_origFrom(table);
+      // 로그 테이블 자신·채팅은 제외(무한루프/과다 방지)
+      if(table==='audit_logs'||table==='messages')return qb;
+      ['insert','update','delete','upsert'].forEach(function(op){
+        if(typeof qb[op]!=='function')return;
+        var orig=qb[op].bind(qb);
+        qb[op]=function(){ var payload=arguments[0]; try{ logAuditAuto(table,op,payload); }catch(e){} return orig.apply(null,arguments); };
+      });
+      return qb;
+    };
+  }catch(e){}
+}
+async function logAuditAuto(table,op,payload){
+  try{
+    if(table==='audit_logs')return;
+    var sum='';
+    if(payload){ if(Array.isArray(payload)){ sum=payload.length+'건'+(payload[0]?': '+JSON.stringify(payload[0]).slice(0,280):''); } else { sum=JSON.stringify(payload).slice(0,450); } }
+    await _origFrom('audit_logs').insert({
+      who:(typeof me!=='undefined'&&me)?me.name:'?',
+      room:(typeof curRoom!=='undefined'&&curRoom&&curRoom.name)||'',
+      action:table+' · '+op,
+      target:table,
+      before_val:'',
+      after_val:sum,
+      at:new Date().toISOString()
+    });
+  }catch(e){}
+}
+// ===== 통합 감사로그: 모든 액션(버튼·입력·수정·취소·삭제·완료 등)을 누가·언제·무엇을 기록 =====
+async function logAudit(action, target, beforeVal, afterVal){
+  try{
+    var roomName=(typeof curRoom!=='undefined'&&curRoom&&curRoom.name)?curRoom.name:'';
+    await sb.from('audit_logs').insert({
+      who:(typeof me!=='undefined'&&me)?me.name:'?',
+      room:roomName,
+      action:String(action||''),
+      target:(target==null?'':String(target)).slice(0,300),
+      before_val:(beforeVal==null?'':String(beforeVal)).slice(0,500),
+      after_val:(afterVal==null?'':String(afterVal)).slice(0,500),
+      at:new Date().toISOString()
+    });
+  }catch(e){ /* 로그 실패가 기능을 막지 않도록 무시 */ }
+}
+async function auditDownload(){
+  try{
+    var all=[], from=0, step=1000;
+    while(true){
+      var r=await sb.from('audit_logs').select('*').order('at',{ascending:false}).range(from,from+step-1);
+      if(r&&r.data&&r.data.length){ all=all.concat(r.data); if(r.data.length<step)break; from+=step; if(from>50000)break; }
+      else break;
+    }
+    if(!all.length){alert('감사로그가 없습니다');return;}
+    var head=['시각(KST)','누가','방','액션','대상','이전값','이후값'];
+    var lines=all.map(function(g){
+      var t=g.at?new Date(g.at):null;
+      var kst=t?new Date(t.getTime()+9*3600*1000).toISOString().replace('T',' ').slice(0,19):'';
+      return [kst,g.who||'',g.room||'',g.action||'',g.target||'',g.before_val||'',g.after_val||''].map(function(x){return '"'+String(x).replace(/"/g,'""')+'"';}).join(',');
+    });
+    var csv='\ufeff'+head.join(',')+'\n'+lines.join('\n');
+    var blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
+    var url=URL.createObjectURL(blob); var a=document.createElement('a');
+    a.href=url; a.download='감사로그_'+getTodayISO()+'.csv'; document.body.appendChild(a); a.click();
+    setTimeout(function(){document.body.removeChild(a);URL.revokeObjectURL(url);},100);
+  }catch(e){ alert('다운로드 실패: '+e.message); }
+}
 function tgSaveCfg(){
   var u=(document.getElementById('tgcfg-url').value||'').trim().replace(/\/+$/,'');
   var k=(document.getElementById('tgcfg-key').value||'').trim();
@@ -3541,7 +3616,7 @@ function dlvRangeCard(c){
       h+='<div class="dsd-line">🏭 출고: <b>'+esc(c.src||'-')+'</b> · 거래처: <b>'+esc(c.trade_client||'-')+'</b></div>';
       h+='<div class="dsd-line">🛞 '+esc(c.tire||'')+(c.spec?' · '+esc(c.spec):'')+' · '+esc(c.qty||'?')+'개'+(c.unit_price?' · 개당 '+esc(c.unit_price)+'원':'')+'</div>';
       if(c.trade_memo)h+='<div class="dsd-line">📝 '+esc(c.trade_memo)+'</div>';
-      if(c.done_at)h+='<div class="dsd-line">✅ 배송완료 '+esc(String(c.done_at).slice(0,10))+'</div>';
+      if(c.done_at)h+='<div class="dsd-line">✅ 배송완료 '+esc(String(c.done_at).slice(0,10))+(c.done_by?' · '+esc(c.done_by)+'님':'')+'</div>';
       if(c.tire&&/\n/.test(c.tire||''))h+='<div class="dsd-line dc-trade">'+esc(c.tire||'').replace(/\n/g,'<br>')+'</div>';
     }
     else{
@@ -3817,7 +3892,7 @@ function dlvSummaryCard(c,idx,list){
     h+='<div class="dsd-line">🏭 출고: <b>'+esc(c.src||'-')+'</b> · 거래처: <b>'+esc(c.trade_client||'-')+'</b></div>';
     h+='<div class="dsd-line">🛞 '+esc(c.tire||'')+(c.spec?' · '+esc(c.spec):'')+' · '+esc(c.qty||'?')+'개'+(c.unit_price?' · 개당 '+esc(c.unit_price)+'원':'')+'</div>';
     if(c.trade_memo)h+='<div class="dsd-line">📝 '+esc(c.trade_memo)+'</div>';
-    if(c.done_at)h+='<div class="dsd-line">✅ 배송완료 '+esc(String(c.done_at).slice(0,10))+'</div>';
+    if(c.done_at)h+='<div class="dsd-line">✅ 배송완료 '+esc(String(c.done_at).slice(0,10))+(c.done_by?' · '+esc(c.done_by)+'님':'')+'</div>';
   }else{
     h+='<div class="dsd-line">🚗 '+(c.code?'['+esc(c.code)+'] ':'')+esc(c.tire||'')+' · '+esc(c.brand||'')+' · '+esc(c.qty||'')+'개 (입고: '+esc(c.src||'-')+')</div>';
     if(c.addr)h+='<div class="dsd-line">📍 <a href="'+dlvMapLink(c.addr)+'" target="_blank" rel="noopener">'+esc(c.addr)+'</a></div>';
@@ -4056,6 +4131,7 @@ async function dlvSetCar(id,carNo){
   try{
     await sb.from('deliveries').update({car:carNo,sort_order:maxO+1}).eq('id',id);
     await sb.from('delivery_logs').insert({room_id:curRoom.id,date_str:dlvDateStr(),text:(me?me.name:'?')+'님이 '+carNo+'호차로 이동 ('+(c.recv||c.tire||'')+')',user_name:me?me.name:''});
+    logAudit(carNo+'호차 이동', (c.trade_client||c.recv||c.tire||''));
   }catch(e){alert('차량 변경 실패: '+e.message);}
   dlvSelectedId=null;await loadDeliveries();
 }
@@ -4122,7 +4198,14 @@ async function dlvToggleDone(id){
   const c=deliveriesCache.find(function(x){return x.id===id;});if(!c)return;
   const willDone=!c.done;
   const root=c.origin_id||c.id;  // 뿌리 — 사슬 전체(원본+모든 복사본+쌍둥이) 한꺼번에
-  try{await sb.from('deliveries').update({done:willDone,need_done:false,done_at:willDone?new Date().toISOString():null}).or('id.eq.'+root+',origin_id.eq.'+root);}catch(e){alert('실패: '+e.message);}
+  const whoN=(me?me.name:'?');
+  try{
+    await sb.from('deliveries').update({done:willDone,need_done:false,done_at:willDone?new Date().toISOString():null,done_by:willDone?whoN:null}).or('id.eq.'+root+',origin_id.eq.'+root);
+    // 감사기록: 누가·언제·무엇을 (완료/취소)
+    var _lbl=(c.trade_client||c.recv||c.tire||'').toString().slice(0,40);
+    await sb.from('delivery_logs').insert({room_id:curRoom.id,date_str:dlvDateStr(),text:whoN+'님이 배송완료'+(willDone?'':' 취소')+' — '+_lbl,user_name:whoN});
+    logAudit(willDone?'배송완료':'배송완료 취소', _lbl);
+  }catch(e){alert('실패: '+e.message);}
   await loadDeliveries();
 }
 async function dlvToggleConfirm(id){
@@ -4163,6 +4246,7 @@ async function dlvCancel(id){
     var root=c.origin_id||c.id;  // 뿌리 — 사슬 전체 한꺼번에 취소
     await sb.from('deliveries').update({cancelled:true,cancelled_at:new Date().toISOString()}).or('id.eq.'+root+',origin_id.eq.'+root);
     await sb.from('delivery_logs').insert({room_id:curRoom.id,date_str:dlvDateStr(),text:(me?me.name:'?')+'님이 취소함 ('+(c.recv||c.tire||'')+')',user_name:me?me.name:''});
+    logAudit('직배송 취소', (c.trade_client||c.recv||c.tire||''));
   }catch(e){alert('취소 실패: '+e.message);}
   await loadDeliveries();
 }
@@ -4172,6 +4256,7 @@ async function dlvUncancel(id){
   try{
     await sb.from('deliveries').update({cancelled:false}).eq('id',id);
     await sb.from('delivery_logs').insert({room_id:curRoom.id,date_str:dlvDateStr(),text:(me?me.name:'?')+'님이 취소 되돌림 ('+(c.recv||c.tire||'')+')',user_name:me?me.name:''});
+    logAudit('직배송 취소 되돌림', (c.trade_client||c.recv||c.tire||''));
   }catch(e){alert('실패: '+e.message);}
   await loadDeliveries();
 }
@@ -5276,6 +5361,7 @@ async function _jhSendInbound(rows){
   var uchunks=_chunk(jhUp,200);
   for(var ui=0;ui<uchunks.length;ui++){ try{ await sb.from('jonghap_orders').upsert(uchunks[ui]); }catch(e){ fail+=uchunks[ui].length; ok-=uchunks[ui].length; } }
   await jhLoad(); jhRenderBig();
+  logAudit('종합방→입고방 넘기기', ok+'건 (실패 '+fail+', 창고제외 '+wh+')');
   return {ok:ok,fail:fail,wh:wh};
 }
 async function jhToInboundSel(){
@@ -10771,33 +10857,27 @@ function rsvTlPlaceBlock(ds,e){
   b.className='rsv-blk'+(e.status==='취소'?' cancel':(e.status==='완료'?(_lk?' done':' donebad'):(_lk?'':' need')));
   b.style.top=top+'px';b.style.height=ht+'px';
   b.style.left='calc('+(e._col*w)+'% + 1px)';b.style.width='calc('+w+'% - 2px)';
-  b.innerHTML='<div class="bt">'+(e.time_slot||'')+sub+'</div>'+esc(rsvEngLine(e))+'<div class="rsz"></div>';
+  b.innerHTML='<div class="bt">'+(e.time_slot||'')+sub+'</div>'+esc(rsvEngLine(e));
   b.dataset.id=e.id;
   col.appendChild(b);
-  rsvTlDrag(b,e);rsvTlResize(b,e);
+  rsvTlDrag(b,e);
 }
 function rsvTlDrag(b,e){
   var sY,sX,dragging=false,moved=false,overDate=e.date_str;
   function down(ev){
-    if(ev.target.classList.contains('rsz'))return;
     var isTouch=!!ev.touches; var pt=isTouch?ev.touches[0]:ev;
     sY=pt.clientY;sX=pt.clientX;moved=false;overDate=e.date_str;dragging=false;
-    if(isTouch){
-      // 모바일: 꾹 눌러야(long-press) 드래그. 그 전 이동은 스크롤 허용
-      var lp=setTimeout(function(){ dragging=true; b.classList.add('dragging'); try{if(navigator.vibrate)navigator.vibrate(25);}catch(_){} },320);
-      function tmv(ev2){
-        var p2=ev2.touches[0]; if(!p2)return; var dx=p2.clientX-sX,dy=p2.clientY-sY;
-        if(!dragging){ if(Math.abs(dx)>8||Math.abs(dy)>8){ clearTimeout(lp); tclean(); } return; }
-        ev2.preventDefault(); mv(ev2);
-      }
-      function tend(){ clearTimeout(lp); var wasDrag=dragging; tclean(); if(wasDrag){ up(); } else if(!moved){ rsvShowDetail(e.id); } }
-      function tclean(){ document.removeEventListener('touchmove',tmv); document.removeEventListener('touchend',tend); }
-      document.addEventListener('touchmove',tmv,{passive:false});
-      document.addEventListener('touchend',tend);
-    }else{
-      ev.preventDefault(); dragging=true; b.classList.add('dragging');
-      document.addEventListener('mousemove',mv);document.addEventListener('mouseup',up);
+    var HOLD=isTouch?320:400; // 꾹 눌러야 드래그 활성화 (모바일 320ms / PC 400ms) — 오조작 방지
+    var lp=setTimeout(function(){ dragging=true; b.classList.add('dragging'); try{if(navigator.vibrate)navigator.vibrate(25);}catch(_){} }, HOLD);
+    function pmove(ev2){
+      var p2=ev2.touches?ev2.touches[0]:ev2; if(!p2)return; var dx=p2.clientX-sX,dy=p2.clientY-sY;
+      if(!dragging){ if(Math.abs(dx)>8||Math.abs(dy)>8){ clearTimeout(lp); clean(); } return; } // 홀드 전 움직이면 취소(클릭/스크롤)
+      ev2.preventDefault(); mv(ev2);
     }
+    function pend(){ clearTimeout(lp); var wasDrag=dragging; clean(); if(wasDrag){ up(); } else if(!moved){ rsvShowDetail(e.id); } }
+    function clean(){ document.removeEventListener('mousemove',pmove);document.removeEventListener('mouseup',pend);document.removeEventListener('touchmove',pmove);document.removeEventListener('touchend',pend); }
+    if(isTouch){ document.addEventListener('touchmove',pmove,{passive:false}); document.addEventListener('touchend',pend); }
+    else{ document.addEventListener('mousemove',pmove); document.addEventListener('mouseup',pend); }
   }
   function mv(ev){
     if(!dragging)return;ev.preventDefault();var pt=ev.touches?ev.touches[0]:ev;
@@ -10814,8 +10894,6 @@ function rsvTlDrag(b,e){
   async function up(){
     if(!dragging)return; dragging=false;b.classList.remove('dragging');
     document.querySelectorAll('.rsv-daycol').forEach(function(c){c.classList.remove('over');});
-    document.removeEventListener('mousemove',mv);document.removeEventListener('mouseup',up);
-    document.removeEventListener('touchmove',mv);document.removeEventListener('touchend',up);
     if(!moved){rsvShowDetail(e.id);return;}
     var topPx=parseFloat(b.style.top);
     var mins=RSV_H0*60+Math.round((topPx/RSV_ROW*60)/30)*30;
@@ -11001,6 +11079,7 @@ async function rsvInbConfirm(it,qty){
     var{error}=await sb.from('reservations').update({tire_spec:spec,qty:qty,src_kind:'inbound',src_item_id:it.id,src_product_id:null,src_dot:'',src_qty:qty,src_lot_id:null,src_label:(it.src||''),stock_done:true}).eq('id',rsvPickRsvId);
     if(error)throw error;
   }catch(e){alert('입고분 연결 실패: '+e.message);return;}
+  logAudit('예약 입고분 연결', spec+' ×'+qty+(it.src?' [출처 '+it.src+']':''));
   rsvPickClose(); rsvPickMode='first';
   if(typeof loadReservations==='function')await loadReservations();
   if(typeof rsvShowDetail==='function')rsvShowDetail(rsvPickRsvId);
