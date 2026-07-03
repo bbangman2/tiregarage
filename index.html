@@ -4078,7 +4078,7 @@ function renderDelivery(){
   if(curDlvTab==='deliv'){
     html+='<div class="dlog-area"><div class="dlog-title"><span>📝 순서 변경 기록</span><button class="dlog-clear" onclick="clearDlvLogs()">전체 지우기</button></div>';
     if(dlvLogsCache.length){
-      html+=dlvLogsCache.map(function(l){return '<div class="dlog-item"><span class="who">'+esc(l.text)+'</span><span style="display:flex;gap:8px"><span>'+fmtTime(toKST(l.created_at))+'</span><span class="del" onclick="delDlvLog(\''+l.id+'\')">✕</span></span></div>';}).join('');
+      html+=dlvLogsCache.map(function(l){return '<div class="dlog-item"><span class="who">'+esc(l.text)+'</span><span style="display:flex;gap:8px"><span>'+fmtTime(new Date(l.created_at))+'</span><span class="del" onclick="delDlvLog(\''+l.id+'\')">✕</span></span></div>';}).join('');
     }else html+='<div style="font-size:11px;color:var(--text3)">기록 없음</div>';
     html+='</div>';
   }
