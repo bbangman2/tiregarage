@@ -10580,7 +10580,7 @@ function rsvByDate(ds){return reservations.filter(function(r){return r.date_str=
 function noPP(s){return String(s||'').replace(/(\d)[Pp]{2,}\b/g,'$1P');}
 function rsvTiresLabel(r){
   var arr=[];
-  if(r.tire_spec)arr.push(noPP(r.tire_spec)+((r.src_qty||r.qty)?' ×'+(r.src_qty||r.qty):''));
+  if(r.tire_spec)arr.push(noPP(r.tire_spec)+((r.src_qty||r.qty)?' ×'+(r.src_qty||r.qty):'')+(r.src_label?' ['+r.src_label+']':''));
   (typeof rsvLinks!=='undefined'?rsvLinks:[]).filter(function(x){return x.reservation_id===r.id;}).forEach(function(lk){ if(lk.tire_spec)arr.push(noPP(lk.tire_spec)+(lk.qty?' ×'+lk.qty:'')); });
   return arr.join(' + ');
 }
@@ -10998,7 +10998,7 @@ async function rsvInbConfirm(it,qty){
   var spec=(it.model||'')+' '+(it.spec||'');
   try{
     await rsvStockOut({kind:'inbound',item_id:it.id,spec:spec}, qty, '');
-    var{error}=await sb.from('reservations').update({tire_spec:spec,qty:qty,src_kind:'inbound',src_item_id:it.id,src_product_id:null,src_dot:'',src_qty:qty,src_lot_id:null,stock_done:true}).eq('id',rsvPickRsvId);
+    var{error}=await sb.from('reservations').update({tire_spec:spec,qty:qty,src_kind:'inbound',src_item_id:it.id,src_product_id:null,src_dot:'',src_qty:qty,src_lot_id:null,src_label:(it.src||''),stock_done:true}).eq('id',rsvPickRsvId);
     if(error)throw error;
   }catch(e){alert('입고분 연결 실패: '+e.message);return;}
   rsvPickClose(); rsvPickMode='first';
@@ -11117,7 +11117,7 @@ function rsvBuildLinksHtml(r){
   var lks=rsvLinks.filter(function(x){return x.reservation_id===r.id;});
   var h='<div style="margin-top:11px;border-top:1px solid #eef0f3;padding-top:10px">';
   h+='<div style="font-size:12px;font-weight:800;color:#64748b;margin-bottom:7px">🛞 연결 재고/입고분</div>';
-  if(firstLinked){ h+=_rsvLinkRow(noPP(r.tire_spec||'')+' × '+(r.src_qty||r.qty||1)+'개'+(firstInb?' (입고분)':''), r.stock_done, (firstInb?'rsvOutFromInbound':'rsvOutFromStock')+'(\''+r.id+'\')', (firstInb?'rsvUnlinkInbound':'rsvUnlinkStock')+'(\''+r.id+'\')', '교체','해제'); }
+  if(firstLinked){ h+=_rsvLinkRow(noPP(r.tire_spec||'')+' × '+(r.src_qty||r.qty||1)+'개'+(firstInb?' (입고분)':'')+(r.src_label?' · 출처 '+r.src_label:''), r.stock_done, (firstInb?'rsvOutFromInbound':'rsvOutFromStock')+'(\''+r.id+'\')', (firstInb?'rsvUnlinkInbound':'rsvUnlinkStock')+'(\''+r.id+'\')', '교체','해제'); }
   else{ h+='<button onclick="rsvOutFromStock(\''+r.id+'\')" style="width:100%;border:1.5px solid #16a36a;background:#fff;color:#16a36a;padding:9px;border-radius:9px;font-size:13px;font-weight:800;cursor:pointer;margin-bottom:6px">📦 재고·입고분에서 출고 (첫 연결)</button>'; }
   lks.forEach(function(lk){ var _inb=(lk.kind==='inbound'); h+=_rsvLinkRow(noPP(lk.tire_spec||'')+' × '+(lk.qty||1)+'개'+(_inb?' (입고분)':''), lk.stock_done, _inb?'':('rsvSwapLink(\''+lk.id+'\')'), 'rsvRemoveLink(\''+lk.id+'\')', '교체','제외'); });
   h+='<button onclick="rsvAddLinkFromStock(\''+r.id+'\')" style="width:100%;border:1.5px dashed #94a3b8;background:#f8fafc;color:#475569;padding:9px;border-radius:9px;font-size:13px;font-weight:800;cursor:pointer;margin-top:2px">+ 재고 추가 연결</button>';
