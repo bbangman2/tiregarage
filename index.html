@@ -4205,7 +4205,10 @@ function dlvEdit(id){
   // 미리보기는 원본 카드를 그대로 써서 칸수 오판 방지
   document.getElementById('dlv-paste').value=dlvCardToText(c);
   if(c.channel==='trade'){
-    dlvParsed=[{channel:'trade',code:'',src:'',tire:c.tire||'',spec:'',year:'',brand:'',qty:'',addr:'',recv:'',tel:'',multiline:true}];
+    // 거래처: 칸 폼에 각 값 복원 + 미리보기(새 필드)
+    var _fill=function(){ var set=function(id,v){var e=document.getElementById(id);if(e)e.value=(v==null?'':String(v));}; set('t-out',c.src);set('t-client',c.trade_client);set('t-pat',c.tire);set('t-size',c.spec);set('t-qty',c.qty);set('t-price',c.unit_price);set('t-memo',c.trade_memo); };
+    _fill(); setTimeout(_fill,60);
+    dlvParsed=[{channel:'trade',code:'',src:c.src||'',trade_client:c.trade_client||'',tire:c.tire||'',spec:c.spec||'',year:'',brand:'',qty:c.qty||'',unit_price:c.unit_price||'',trade_memo:c.trade_memo||'',addr:'',recv:'',tel:'',multiline:false}];
   }else{
     dlvParsed=[{channel:c.channel,code:c.code||'',src:c.src||'',tire:c.tire||'',spec:'',year:'',brand:c.brand||'',qty:c.qty||'',addr:c.addr||'',recv:c.recv||'',tel:c.tel||''}];
   }
