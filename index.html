@@ -487,6 +487,26 @@ body.rb-on #app{padding-top:58px}
 .dcard.selected{border-color:var(--navy);border-width:2px;box-shadow:0 0 0 3px rgba(26,32,53,.12)}
 .dcard.done{opacity:.6}
 .dcard.done .dc-tire,.dcard.done .dc-addr,.dcard.done .dc-recv{text-decoration:line-through}
+.dact.wait1-btn{border-color:#7c3aed !important;color:#7c3aed !important;background:#faf9ff !important}
+.dact.wait2-btn{border-color:#0d9488 !important;color:#0d9488 !important;background:#f0fdfa !important}
+.dlv-wtoggle{display:flex;align-items:center;gap:9px;margin:8px 0;flex-wrap:wrap}
+.wtoggle-btn{padding:6px 14px;border-radius:16px;border:1.5px solid #d9a441;background:#fff;color:#b45309;font-size:12.5px;font-weight:700;cursor:pointer}
+.wtoggle-btn.on{background:#b45309;color:#fff;border-color:#b45309}
+.wtoggle-cnt{font-size:11.5px;color:#94a3b8}
+.wait-sec{border-radius:12px;padding:9px;margin-top:14px}
+.wait-sec.c1{background:#faf9ff;border:1px dashed #c9b8f0}
+.wait-sec.c2{background:#f0fdfa;border:1px dashed #9fe4da;margin-bottom:10px}
+.wait-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;font-size:13px;font-weight:800}
+.wait-head.c1{color:#7c3aed}.wait-head.c2{color:#0d9488}
+.promote-btn{padding:6px 11px;border:none;border-radius:8px;font-size:12px;font-weight:800;cursor:pointer;color:#fff}
+.promote-btn.c1{background:#7c3aed}.promote-btn.c2{background:#0d9488}
+.dlv-empty2{font-size:12px;color:#a3a3a3;text-align:center;padding:10px 0}
+.wave-divider{text-align:center;font-size:11.5px;font-weight:800;color:#b45309;background:#fff7ed;border:1px dashed #fcd9b6;border-radius:8px;padding:5px;margin:12px 0 8px}
+/* 대기만 보기 = 한 줄 압축 */
+.dlv-waitonly .wait-sec .dc-top,.dlv-waitonly .wait-sec .dc-recv,.dlv-waitonly .wait-sec .dc-acts,.dlv-waitonly .wait-sec .dc-note{display:none}
+.dlv-waitonly .wait-sec .dcard{padding:6px 9px}
+.dlv-waitonly .wait-sec .dc-tire{display:block !important;font-size:11px;color:#64748b}
+.dlv-waitonly .wait-sec .dc-addr{font-size:12.5px}
 .dc-num{background:var(--navy);color:#fff;font-size:17px;font-weight:800;width:36px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .dcard.ping .dc-num{background:var(--red)}.dcard.done .dc-num{background:var(--text3)}
 .dcard.ch-spam .dc-num{background:var(--purple)}.dcard.ch-online .dc-num{background:var(--blue)}.dcard.ch-st11 .dc-num{background:var(--orange)}.dcard.ch-tel .dc-num{background:#0891b2}.dcard.ch-trade .dc-num{background:#0d9488}
@@ -1720,15 +1740,33 @@ function wrapSbAudit(){
     };
   }catch(e){}
 }
+function curTabLabel(){
+  try{
+    if(typeof curRoom==='undefined'||!curRoom||typeof ROOM_META==='undefined')return '';
+    var m=ROOM_META[curRoom.name]; if(!m)return '';
+    if(m.mode==='delivery')return ({deliv:'직배송탭',hold:'미출고탭',parcel:'택배전환탭',summary:'1호차탭',car2:'2호차탭'})[typeof curDlvTab!=='undefined'?curDlvTab:'']||'';
+    if(m.mode==='items')return ({list:'입고예정탭',analysis:'분석탭',memo:'메모탭'})[typeof curItemTab!=='undefined'?curItemTab:'']||'';
+    if(m.mode==='trade')return ({import:'가져오기탭',settle:'정산탭',log:'수정기록탭'})[typeof TRADE_TAB!=='undefined'?TRADE_TAB:'']||'';
+    if(m.mode==='jonghap')return ({input:'입력탭',all:'전체기록탭',wait:'대기탭'})[typeof JH_BIG!=='undefined'?JH_BIG:'']||'';
+    if(m.mode==='reserve')return ({month:'월뷰',week:'주뷰',day:'일뷰'})[typeof reserveView!=='undefined'?reserveView:'']||'';
+    if(m.mode==='stock')return '재고';
+  }catch(e){}
+  return '';
+}
 async function logAuditAuto(table,op,payload){
   try{
     if(table==='audit_logs')return;
+    var OP_KO={insert:'추가/등록',update:'수정',delete:'삭제',upsert:'저장'};
+    var TBL_KO={deliveries:'직배송건',delivery_logs:'직배송기록',items:'입고건',jonghap_orders:'종합방건',reservations:'예약',reservation_links:'예약 추가연결',trade_settle:'거래처정산행',trade_logs:'거래처기록',stock:'재고',stock_logs:'재고이동',stock_items:'재고',settings:'설정',members:'멤버',rooms:'방'};
+    var tab=curTabLabel();
+    var what=TBL_KO[table]||table;
+    var act=(tab?tab+' · ':'')+what+' '+(OP_KO[op]||op);
     var sum='';
-    if(payload){ if(Array.isArray(payload)){ sum=payload.length+'건'+(payload[0]?': '+JSON.stringify(payload[0]).slice(0,280):''); } else { sum=JSON.stringify(payload).slice(0,450); } }
+    if(payload){ if(Array.isArray(payload)){ sum=payload.length+'건'+(payload[0]?': '+JSON.stringify(payload[0]).slice(0,260):''); } else { sum=JSON.stringify(payload).slice(0,430); } }
     await _origFrom('audit_logs').insert({
       who:(typeof me!=='undefined'&&me)?me.name:'?',
       room:(typeof curRoom!=='undefined'&&curRoom&&curRoom.name)||'',
-      action:table+' · '+op,
+      action:act,
       target:table,
       before_val:'',
       after_val:sum,
@@ -3688,6 +3726,12 @@ function dlvGuardEdit(){
     alert('과거 날짜는 보기 전용입니다.\n오늘 날짜에서만 조작할 수 있어요.\n(복사 버튼으로 클립보드에 담아 오늘 새로 등록하세요.)');
     return false;
   }
+  // 자정 이월 잠금: 23:59~00:01 (약 1분) 동안은 조작 금지 (이월과 충돌 방지)
+  var _n=new Date(), _h=_n.getHours(), _m=_n.getMinutes();
+  if((_h===23&&_m>=59)||(_h===0&&_m<=1)){
+    alert('🌙 자정 이월 중이에요 (23:59~00:01).\n약 1분 후 다시 시도해주세요.');
+    return false;
+  }
   return true;
 }
 // 내용 핑거프린트 (origin_id가 null이어도 중복 이월 방지)
@@ -3763,8 +3807,9 @@ async function rolloverDeliveries(today, roomId){
       if(d.tab==='deliv')destCar=(d.car||1);   // 1호차·2호차·대기 그대로 유지
       let so;
       if(isParcel){maxOp++;so=maxOp;}else{maxOd++;so=maxOd;}
-      return {room_id:roomId,date_str:today,tab:destTab,channel:d.channel,code:d.code||'',car:destCar,
+      return {room_id:roomId,date_str:today,tab:destTab,channel:d.channel,code:d.code||'',car:destCar,wave_no:(d.wave_no||0),
         src:d.src||'',tire:d.tire||'',brand:d.brand||'',qty:d.qty||'',addr:d.addr||'',recv:d.recv||'',tel:d.tel||'',
+        trade_client:d.trade_client||'',spec:d.spec||'',unit_price:d.unit_price||'',trade_memo:d.trade_memo||'',
         note:d.note||'',due_date:d.due_date||null,need_done:!isParcel,done:false,cancelled:false,confirmed:false,
         origin_id:(d.origin_id||d.id), first_date:(d.first_date||d.date_str),
         sort_order:so,user_name:d.user_name||''};
@@ -3953,16 +3998,22 @@ function dlvCardHtml(c,idx,list){
     h+='<button class="dact undo-btn" onclick="event.stopPropagation();dlvToggleDone(\''+c.id+'\')">↩ 완료취소</button>';
     h+='<button class="dact copy-btn" onclick="event.stopPropagation();dlvCopy(\''+c.id+'\')">📋 복사</button>';
   }else{
-    if(c.tab==='deliv'){
-      h+='<button class="dact done-btn" onclick="event.stopPropagation();dlvToggleDone(\''+c.id+'\')">✓ 완료</button>';
-      h+='<button class="dact due-btn" onclick="event.stopPropagation();dlvSetDue(\''+c.id+'\')">📅 꼭배송</button>';
-    }else if(c.tab==='parcel'){
-      h+=c.confirmed?'<button class="dact confirmed" onclick="event.stopPropagation();dlvToggleConfirm(\''+c.id+'\')">✓ 확인됨</button>':'<button class="dact confirm-btn" onclick="event.stopPropagation();dlvToggleConfirm(\''+c.id+'\')">확인</button>';
+    var _isWait=(c.tab==='deliv'&&((c.car||1)===11||(c.car||1)===12));
+    if(_isWait){
+      // 대기 카드: 이동 버튼 4개만 (1호차·2호차·반대편 대기·대기해제)
+      h+=dlvDestButtons(c);
+    }else{
+      if(c.tab==='deliv'){
+        h+='<button class="dact done-btn" onclick="event.stopPropagation();dlvToggleDone(\''+c.id+'\')">✓ 완료</button>';
+        h+='<button class="dact due-btn" onclick="event.stopPropagation();dlvSetDue(\''+c.id+'\')">📅 꼭배송</button>';
+      }else if(c.tab==='parcel'){
+        h+=c.confirmed?'<button class="dact confirmed" onclick="event.stopPropagation();dlvToggleConfirm(\''+c.id+'\')">✓ 확인됨</button>':'<button class="dact confirm-btn" onclick="event.stopPropagation();dlvToggleConfirm(\''+c.id+'\')">확인</button>';
+      }
+      h+='<button class="dact copy-btn" onclick="event.stopPropagation();dlvCopy(\''+c.id+'\')">📋 복사</button>';
+      h+=dlvDestButtons(c);
+      h+='<button class="dact edit-btn" onclick="event.stopPropagation();dlvEdit(\''+c.id+'\')">✏️ 수정</button>';
+      h+='<button class="dact del-btn" onclick="event.stopPropagation();dlvCancel(\''+c.id+'\')">취소</button>';
     }
-    h+='<button class="dact copy-btn" onclick="event.stopPropagation();dlvCopy(\''+c.id+'\')">📋 복사</button>';
-    h+=dlvDestButtons(c);
-    h+='<button class="dact edit-btn" onclick="event.stopPropagation();dlvEdit(\''+c.id+'\')">✏️ 수정</button>';
-    h+='<button class="dact del-btn" onclick="event.stopPropagation();dlvCancel(\''+c.id+'\')">취소</button>';
   }
   h+='</div></div>';
   if(movable){
@@ -4013,7 +4064,7 @@ function renderDelivery(){
   const car2List=deliveriesCache.filter(function(c){return c.tab==='deliv'&&(c.car||1)===2&&!c.done&&!c.cancelled;});
   const has2=car2List.length>0;
   const elDeliv=document.getElementById('dcnt-deliv');
-  if(elDeliv)elDeliv.textContent=liveCnt(function(c){return c.tab==='deliv'&&(c.car||1)===1;});
+  if(elDeliv)elDeliv.textContent=liveCnt(function(c){var cc=(c.car||1);return c.tab==='deliv'&&(cc===1||cc===11||cc===12);});
   const elHold=document.getElementById('dcnt-hold');if(elHold)elHold.textContent=liveCnt(function(c){return c.tab==='hold';});
   const elParcel=document.getElementById('dcnt-parcel');if(elParcel)elParcel.textContent=liveCnt(function(c){return c.tab==='parcel';});
   // 2호차 탭: car=2 카드가 하나라도 있으면(완료·취소 포함) 표시 — 완료 후에도 목록 접근 가능
@@ -4041,6 +4092,7 @@ function renderDelivery(){
   // 과거 단일 날짜 = 보기 전용: FAB(추가 버튼) 숨김
   const _editable=dlvEditable();
   body.classList.toggle('card-split',dlvCardMode==='split');
+  body.classList.toggle('dlv-waitonly',dlvWaitOnly&&curDlvTab==='deliv');
   const _fab=document.getElementById('dlv-fab');
   if(_fab)_fab.style.display=_editable?'':'none';
   let list=dlvListOf(curDlvTab);
@@ -4061,20 +4113,34 @@ function renderDelivery(){
     const carName=(carNo===2)?'2호차':'1호차';
     html+='<div class="dlv-guide">🚐 <b>'+carName+'</b> · 남은 '+cLive+'건. 탭하면 선택→▲▼ 순서. 완료·취소·이동·차량변경 가능.</div>';
     html+='<div class="dlock-bar"><span class="lbl">순서 변경: <b>'+(dlvLocked?'잠김':'풀림')+'</b></span><button class="dlock-toggle '+(dlvLocked?'locked':'unlocked')+'" onclick="dlvToggleLock()">'+(dlvLocked?'🔒 풀기':'🔓 잠그기')+'</button><button class="dsmode-btn" onclick="dlvToggleCardMode()">'+(dlvCardMode==='addr'?'📋 정보 같이 보기':'📃 주소만 보기')+'</button></div>';
-    html+=(clist.length?dlvRenderList(clist,curDlvTab,dlvSummaryCard):'<div class="dlv-empty">'+carName+' 배송 건이 없어요.</div>');
+    if(clist.length){
+      // 배송 묶음(회차)별로 나눠서 — 미완료 남은 채 새로 온 건 다음 묶음으로 띄워 표시
+      var waves={}; clist.forEach(function(c){ var w=c.wave_no||0; (waves[w]=waves[w]||[]).push(c); });
+      var wkeys=Object.keys(waves).map(Number).sort(function(a,b){return a-b;});
+      wkeys.forEach(function(w,wi){
+        if(wi>0)html+='<div class="wave-divider">— 다음 배송 묶음 —</div>';
+        html+=dlvRenderList(waves[w],curDlvTab+'_w'+w,dlvSummaryCard);
+      });
+    }else{ html+='<div class="dlv-empty">'+carName+' 배송 건이 없어요.</div>'; }
     body.innerHTML=html;
     dlvInitSortable();
     return;
   }
   if(curDlvTab==='deliv'){
-    html+='<div class="dlv-guide"><b>꾹 눌러 드래그</b>하거나 펼쳐서 ▲▼로 순서 변경. <b>완료</b>는 맨아래. 어제 못 끝낸 건 <b style="color:#c2410c">완료필요</b>로 떠요.</div>';
+    html+='<div class="dlv-guide"><b>꾹 눌러 드래그</b>하거나 펼쳐서 순서 변경. <b>완료</b>는 맨아래. 새 건은 “⏳ 대기”로 코스 짜서 <b>순서 그대로 호차로</b> 보내세요.</div>';
     html+='<div class="dlock-bar"><span class="lbl">순서 변경: <b>'+(dlvLocked?'잠김':'풀림')+'</b></span><button class="dlock-toggle '+(dlvLocked?'locked':'unlocked')+'" onclick="dlvToggleLock()">'+(dlvLocked?'🔒 풀기':'🔓 잠그기')+'</button></div>';
+    html+=dlvWaitToggleHtml();
   }else if(curDlvTab==='hold'){
     html+='<div class="dlv-guide">미출고 = 오늘 안 나감. 다음날 직배송 탭으로 합류해요.</div>';
   }else{
     html+='<div class="dlv-guide">직배송 불가 → 택배로. <b>복사</b>로 접수정보 전체 복사, <b>확인</b>으로 처리 표시.</div>';
   }
-  html+=dlvRenderList(list,'deliv',dlvCardHtml);
+  if(curDlvTab==='deliv'){
+    if(!dlvWaitOnly)html+=dlvRenderList(list,'deliv',dlvCardHtml);
+    html+=dlvWaitSections();
+  }else{
+    html+=dlvRenderList(list,'deliv',dlvCardHtml);
+  }
   if(curDlvTab==='deliv'){
     html+='<div class="dlog-area"><div class="dlog-title"><span>📝 순서 변경 기록</span><button class="dlog-clear" onclick="clearDlvLogs()">전체 지우기</button></div>';
     if(dlvLogsCache.length){
@@ -4084,6 +4150,45 @@ function renderDelivery(){
   }
   body.innerHTML=html;
   dlvInitSortable();
+}
+var dlvWaitOnly=false;
+function dlvToggleWaitOnly(){ dlvWaitOnly=!dlvWaitOnly; renderDelivery(); }
+function dlvWaitToggleHtml(){
+  var w1=deliveriesCache.filter(function(c){return c.tab==='deliv'&&(c.car||1)===11&&!c.done&&!c.cancelled;}).length;
+  var w2=deliveriesCache.filter(function(c){return c.tab==='deliv'&&(c.car||1)===12&&!c.done&&!c.cancelled;}).length;
+  return '<div class="dlv-wtoggle"><button class="wtoggle-btn'+(dlvWaitOnly?' on':'')+'" onclick="dlvToggleWaitOnly()">⏳ 대기만 보기</button><span class="wtoggle-cnt">🟣 1호차 대기 '+w1+' · 🟢 2호차 대기 '+w2+'</span></div>';
+}
+function dlvWaitSections(){
+  var w1=deliveriesCache.filter(function(c){return c.tab==='deliv'&&(c.car||1)===11;});
+  var w2=deliveriesCache.filter(function(c){return c.tab==='deliv'&&(c.car||1)===12;});
+  var w1l=w1.filter(function(c){return !c.done&&!c.cancelled;}).length;
+  var w2l=w2.filter(function(c){return !c.done&&!c.cancelled;}).length;
+  var h='';
+  h+='<div class="wait-sec c1"><div class="wait-head c1"><span>🟣 1호차 대기 ('+w1l+')</span>'+(w1l&&dlvEditable()?'<button class="promote-btn c1" onclick="dlvPromoteWait(11)">🚐 순서 그대로 1호차로</button>':'')+'</div>';
+  h+=(w1.length?dlvRenderList(w1,'wait1',dlvCardHtml):'<div class="dlv-empty2">비어 있음 — 카드의 “⏳ 대기” 버튼으로 여기 모아요</div>');
+  h+='</div>';
+  h+='<div class="wait-sec c2"><div class="wait-head c2"><span>🟢 2호차 대기 ('+w2l+')</span>'+(w2l&&dlvEditable()?'<button class="promote-btn c2" onclick="dlvPromoteWait(12)">🚐 순서 그대로 2호차로</button>':'')+'</div>';
+  h+=(w2.length?dlvRenderList(w2,'wait2',dlvCardHtml):'<div class="dlv-empty2">비어 있음</div>');
+  h+='</div>';
+  return h;
+}
+async function dlvPromoteWait(fromCar){
+  if(!dlvGuardEdit())return;
+  var toCar=(fromCar===11)?3:2;
+  var carName=(fromCar===11)?'1호차':'2호차';
+  var list=deliveriesCache.filter(function(c){return c.tab==='deliv'&&(c.car||1)===fromCar&&!c.done&&!c.cancelled;}).sort(function(a,b){return (a.sort_order||0)-(b.sort_order||0);});
+  if(!list.length){alert('대기 중인 게 없어요');return;}
+  if(!confirm(list.length+'건을 이 순서 그대로 '+carName+'로 보낼까요?'))return;
+  var base=Math.max(0,...deliveriesCache.filter(function(c){return c.tab==='deliv'&&(c.car||1)===toCar;}).map(function(c){return c.sort_order||0;}));
+  // 배송 묶음(회차): 대상 호차에 미완료가 남아 있으면 새 묶음(wave+1), 비었으면 이어붙임
+  var maxWave=Math.max(0,...deliveriesCache.filter(function(c){return c.tab==='deliv'&&(c.car||1)===toCar;}).map(function(c){return c.wave_no||0;}));
+  var newWave=maxWave+1;  // 대기에서 온 코스 묶음은 항상 새 묶음(개별로 먼저 보낸 것들 아래로)
+  try{
+    for(var i=0;i<list.length;i++){ await sb.from('deliveries').update({car:toCar,wave_no:newWave,sort_order:base+1+i}).eq('id',list[i].id); }
+    await sb.from('delivery_logs').insert({room_id:curRoom.id,date_str:dlvDateStr(),text:(me?me.name:'?')+'님이 '+carName+' 대기 '+list.length+'건 통 이동',user_name:me?me.name:''});
+    logAudit(carName+' 대기 통 이동', list.length+'건');
+  }catch(e){alert('통 이동 실패: '+e.message);}
+  await loadDeliveries();
 }
 function dlvToggleOpen(id){dlvOpenId=(dlvOpenId===id)?null:id;renderDelivery();}
 
@@ -4098,15 +4203,26 @@ async function dlvSelThenMove(id,dir){
 function dlvDestButtons(c){
   const id=c.id, curCar=c.car||1;
   let h='';
-  // →직배송 (직배송 대기 car=1이 아니면)
+  // ── 1호차 대기(11) 카드: 1호차 · 2호차 · 2호차대기 · 대기해제 ──
+  if(c.tab==='deliv'&&curCar===11){
+    // 대기는 통 이동만 — 개별 호차 이동 없음. 반대 대기 이동 · 해제만
+    h+='<button class="dact wait2-btn" onclick="event.stopPropagation();dlvMoveTab(\''+id+'\',\'deliv\',12)">2호차 대기로</button>';
+    h+='<button class="dact" onclick="event.stopPropagation();dlvMoveTab(\''+id+'\',\'deliv\',1)">대기해제</button>';
+    return h;
+  }
+  // ── 2호차 대기(12) 카드: 1호차 · 2호차 · 1호차대기 · 대기해제 ──
+  if(c.tab==='deliv'&&curCar===12){
+    h+='<button class="dact wait1-btn" onclick="event.stopPropagation();dlvMoveTab(\''+id+'\',\'deliv\',11)">1호차 대기로</button>';
+    h+='<button class="dact" onclick="event.stopPropagation();dlvMoveTab(\''+id+'\',\'deliv\',1)">대기해제</button>';
+    return h;
+  }
+  // ── 일반 직배송·1호차·2호차 카드 ──
   if(!(c.tab==='deliv'&&curCar===1))h+='<button class="dact" onclick="event.stopPropagation();dlvMoveTab(\''+id+'\',\'deliv\',1)">→직배송</button>';
-  // →1호차 (1호차 car=3이 아니면)
+  // 대기 버튼 하나로 통일 → 1호차 대기(11)로
+  h+='<button class="dact wait1-btn" onclick="event.stopPropagation();dlvMoveTab(\''+id+'\',\'deliv\',11)">⏳ 대기</button>';
   if(!(c.tab==='deliv'&&curCar===3))h+='<button class="dact car-btn" onclick="event.stopPropagation();dlvMoveTab(\''+id+'\',\'deliv\',3)">→1호차</button>';
-  // →2호차 (2호차 car=2가 아니면)
   if(!(c.tab==='deliv'&&curCar===2))h+='<button class="dact car-btn" onclick="event.stopPropagation();dlvMoveTab(\''+id+'\',\'deliv\',2)">→2호차</button>';
-  // →미출고
   if(c.tab!=='hold')h+='<button class="dact" onclick="event.stopPropagation();dlvMoveTab(\''+id+'\',\'hold\')">→미출고</button>';
-  // →택배
   if(c.tab!=='parcel')h+='<button class="dact" onclick="event.stopPropagation();dlvMoveTab(\''+id+'\',\'parcel\')">→택배</button>';
   return h;
 }
@@ -4142,6 +4258,7 @@ function dlvInitSortable(){
     if(el._sortable)return;
     el._sortable=Sortable.create(el,{
       animation:150,
+      group:'dlvg-'+(el.getAttribute('data-tab')||'')+'-'+(el.getAttribute('data-wave')||''),  // 묶음별 고유 그룹 — 다른 묶음/호차로 드래그 침범 금지
       handle:'.dlv-drag',
       // 버튼·체크박스·순서화살표·펼침·링크는 드래그 시작에서 제외 (눌러도 안 끌림)
       filter:'.dact,.dscheck,.dsside-btn,.dsexp,.dc-side,button,a,input',
@@ -4199,8 +4316,17 @@ async function dlvToggleDone(id){
   const willDone=!c.done;
   const root=c.origin_id||c.id;  // 뿌리 — 사슬 전체(원본+모든 복사본+쌍둥이) 한꺼번에
   const whoN=(me?me.name:'?');
+  // 완료취소인데 원래 묶음(wave)이 다 사라졌으면 → 그 호차의 제일 상단(최소) 묶음에 합류
+  var _mergeWave=null;
+  if(!willDone && c.tab==='deliv'){
+    var _cCar=(c.car||1), _cWave=(c.wave_no||0);
+    var _same=deliveriesCache.filter(function(x){return x.tab==='deliv'&&(x.car||1)===_cCar&&(x.wave_no||0)===_cWave&&x.id!==c.id&&!x.cancelled&&!x.done;});
+    if(!_same.length){ var _ws=deliveriesCache.filter(function(x){return x.tab==='deliv'&&(x.car||1)===_cCar&&!x.cancelled;}).map(function(x){return x.wave_no||0;}); if(_ws.length)_mergeWave=Math.min.apply(null,_ws); }
+  }
   try{
-    await sb.from('deliveries').update({done:willDone,need_done:false,done_at:willDone?new Date().toISOString():null,done_by:willDone?whoN:null}).or('id.eq.'+root+',origin_id.eq.'+root);
+    var _upd={done:willDone,need_done:false,done_at:willDone?new Date().toISOString():null,done_by:willDone?whoN:null};
+    if(_mergeWave!=null)_upd.wave_no=_mergeWave;
+    await sb.from('deliveries').update(_upd).or('id.eq.'+root+',origin_id.eq.'+root);
     // 감사기록: 누가·언제·무엇을 (완료/취소)
     var _lbl=(c.trade_client||c.recv||c.tire||'').toString().slice(0,40);
     await sb.from('delivery_logs').insert({room_id:curRoom.id,date_str:dlvDateStr(),text:whoN+'님이 배송완료'+(willDone?'':' 취소')+' — '+_lbl,user_name:whoN});
@@ -4222,6 +4348,8 @@ async function dlvMoveTab(id,to,carNo){
   const targetCar=(to==='deliv')?(carNo||1):1;
   const upd={tab:to,done:false,need_done:false};
   if(to==='deliv')upd.car=targetCar;
+  // 대기 안 거치고 개별로 실제 호차(1·2)로 = 먼저 나가는 것 → 묶음없이(wave 0) 맨 위
+  if(to==='deliv'&&(targetCar===2||targetCar===3))upd.wave_no=0;
   // 현재 위치(탭+차량)와 목적지가 같은지 — 직배송 내 car 구분(1대기/3은1호차/2는2호차)도 다른 위치로 본다
   const curCar=c?(c.car||1):1;
   const samePlace=(c&&c.tab===to&&(to!=='deliv'||curCar===targetCar));
