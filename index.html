@@ -727,7 +727,11 @@ body.rb-on #app{padding-top:58px}
 #dlv-tseg-row .ts-size{flex:0 0 60%}
 #dlv-tseg-row .ts-qty{flex:0 0 40%}
 #dlv-tseg-row .ts-price{flex:0 0 50%}
-#dlv-tseg-row .ts-memo{flex:0 0 50%}
+#dlv-tseg-row .ts-tel{flex:0 0 50%}
+#dlv-tseg-row .ts-zip{flex:0 0 35%}
+#dlv-tseg-row .ts-addr{flex:0 0 65%}
+#dlv-tseg-row .ts-memo{flex:0 0 100%}
+#dlv-tseg-row .seg input.ghosted{color:#bbb;font-style:italic}
 /* 출처 드롭다운 */
 .src-dropdown{display:flex;flex-wrap:wrap;gap:5px;padding:8px;background:#f0efec;border-radius:10px;margin-bottom:6px;max-height:130px;overflow-y:auto}
 .sd-item{display:inline-flex;align-items:center;gap:5px;background:#fff;border:1.5px solid var(--border);border-radius:8px;padding:7px 11px;font-size:13px;font-weight:600;color:var(--navy);cursor:pointer;font-family:inherit}
@@ -1438,6 +1442,9 @@ body.rb-on #app{padding-top:58px}
             <div class="seg f-spec ts-size"><span class="seg-label">사이즈</span><input id="t-size" placeholder="235 60 18 8P"></div>
             <div class="seg ts-qty"><span class="seg-label">수량</span><input id="t-qty" placeholder="4" inputmode="numeric"></div>
             <div class="seg ts-price"><span class="seg-label">출고가</span><input id="t-price" placeholder="개당" inputmode="numeric"></div>
+            <div class="seg ts-tel"><span class="seg-label">전화</span><input id="t-tel" placeholder="01012345678" inputmode="numeric"></div>
+            <div class="seg ts-zip"><span class="seg-label">우편번호</span><input id="t-zip" placeholder="12345" inputmode="numeric"></div>
+            <div class="seg ts-addr"><span class="seg-label">주소</span><input id="t-addr" placeholder="주소"></div>
             <div class="seg ts-memo"><span class="seg-label">메모</span><input id="t-memo" placeholder="(선택)"></div>
           </div>
           <div class="item-add-row">
@@ -3539,6 +3546,7 @@ function dlvRangeCard(c){
     if(c.channel==='trade'){
       h+='<div class="dsd-line">🏭 출고: <b>'+esc(c.src||'-')+'</b> · 거래처: <b>'+esc(c.trade_client||'-')+'</b></div>';
       h+='<div class="dsd-line">🛞 '+esc(c.tire||'')+(c.spec?' · '+esc(c.spec):'')+' · '+esc(c.qty||'?')+'개'+(c.unit_price?' · 개당 '+esc(c.unit_price)+'원':'')+'</div>';
+      if(c.tel||c.addr)h+='<div class="dsd-line">'+(c.addr?'📍 <a href="'+dlvMapLink(c.addr)+'" target="_blank" rel="noopener">'+esc(c.addr)+'</a>':'')+(c.tel?' · 📞 <a href="tel:'+dlvTelLink(c.tel)+'">'+esc(c.tel)+'</a>':'')+'</div>';
       if(c.trade_memo)h+='<div class="dsd-line">📝 '+esc(c.trade_memo)+'</div>';
       if(c.done_at)h+='<div class="dsd-line">✅ 배송완료 '+esc(String(c.done_at).slice(0,10))+'</div>';
       if(c.tire&&/\n/.test(c.tire||''))h+='<div class="dsd-line dc-trade">'+esc(c.tire||'').replace(/\n/g,'<br>')+'</div>';
@@ -3793,8 +3801,10 @@ function dlvSummaryCard(c,idx,list){
   // 접힘: [번호·채널] 주소(크게) — 모드에 따라 보조정보(받는이·품명·수량) 줄 표시
   var _addrMain,_subHtml;
   if(c.channel==='trade'){
-    _addrMain='<b>'+esc(c.trade_client||'')+'</b> · '+esc(c.tire||'')+(c.spec?' '+esc(c.spec):'');
-    _subHtml=esc(((c.qty?c.qty+'개':'')+(c.unit_price?' · 개당 '+c.unit_price+'원':'')+(c.src?' · 출고 '+c.src:'')).replace(/^ · /,''));
+    // 주소(우편번호 대괄호 제외한 실주소)가 있으면 주소 먼저, 없으면 거래처명 먼저
+    var _realAddr=(c.addr||'').replace(/^\[[^\]]*\]\s*/,'').trim();
+    if(_realAddr){ _addrMain=esc(c.addr||''); _subHtml='<b>'+esc(c.trade_client||'')+'</b> · '+esc(c.tire||'')+(c.spec?' '+esc(c.spec):'')+' · '+esc(c.qty||'')+'개'+(c.tel?' · 📞 '+esc(c.tel):''); }
+    else{ _addrMain='<b>'+esc(c.trade_client||'')+'</b>'; _subHtml=esc(c.tire||'')+(c.spec?' '+esc(c.spec):'')+' · '+esc(c.qty||'')+'개'+(c.tel?' · 📞 '+esc(c.tel):''); }
   }else{
     _addrMain=c.addr||c.recv||'';
     _subHtml=(c.code?'<span class="dc-code">['+esc(c.code)+']</span> ':'')+'<span class="recv">'+esc(c.recv||'')+'</span> · '+esc(c.tire||'')+' <span class="qty">'+esc(c.qty||'')+'개</span>';
@@ -4206,7 +4216,7 @@ function dlvEdit(id){
   document.getElementById('dlv-paste').value=dlvCardToText(c);
   if(c.channel==='trade'){
     // 거래처: 칸 폼에 각 값 복원 + 미리보기(새 필드)
-    var _fill=function(){ var set=function(id,v){var e=document.getElementById(id);if(e)e.value=(v==null?'':String(v));}; set('t-out',c.src);set('t-client',c.trade_client);set('t-pat',c.tire);set('t-size',c.spec);set('t-qty',c.qty);set('t-price',c.unit_price);set('t-memo',c.trade_memo); };
+    var _fill=function(){ var set=function(id,v){var e=document.getElementById(id);if(e){e.value=(v==null?'':String(v));e.classList.remove('ghosted');}}; set('t-out',c.src);set('t-client',c.trade_client);set('t-pat',c.tire);set('t-size',c.spec);set('t-qty',c.qty);set('t-price',c.unit_price);set('t-tel',c.tel);set('t-addr',c.addr);set('t-memo',c.trade_memo); };
     _fill(); setTimeout(_fill,60);
     dlvParsed=[{channel:'trade',code:'',src:c.src||'',trade_client:c.trade_client||'',tire:c.tire||'',spec:c.spec||'',year:'',brand:'',qty:c.qty||'',unit_price:c.unit_price||'',trade_memo:c.trade_memo||'',addr:'',recv:'',tel:'',multiline:false}];
   }else{
@@ -4343,6 +4353,7 @@ function dlvRenderPreview(){
       h+='<div class="dlv-pv-card trade">';
       h+='<div class="dlv-pv-top"><span class="dtag trade">거래처</span><span class="dc-src">출고: '+esc(d.src||'-')+' · 거래처: '+esc(d.trade_client||'-')+'</span></div>';
       h+='<div class="dlv-pv-tire">'+esc(d.tire||'')+'<span class="sz">'+esc(d.spec||'')+'</span><span class="br">'+esc(d.qty||'?')+'개'+(d.unit_price?' · '+esc(d.unit_price)+'원':'')+'</span></div>';
+      if(d.tel||d.addr)h+='<div class="dlv-pv-line">'+(d.tel?'📞 '+esc(d.tel):'')+(d.addr?' 📍 '+esc(d.addr):'')+'</div>';
       if(d.trade_memo)h+='<div class="dlv-pv-line">📝 '+esc(d.trade_memo)+'</div>';
       h+='</div>';
       return;
@@ -6799,33 +6810,60 @@ function segPrev(ids,pos){if(pos>0){const p=document.getElementById(ids[pos-1]);
 function updateFilled(){['i-src','i-model','i-spec','i-qty','i-use','i-chg'].forEach(function(id){const el=document.getElementById(id);if(el)el.classList.toggle('filled',el.value.trim().length>0);});}
 // ===== 거래처 칸 입력 (띄어쓰기 칸이동: 사이즈만 2번, 메모는 이동없음) =====
 (function initTradeSegs(){
-  var TIDS=['t-out','t-client','t-pat','t-size','t-qty','t-price','t-memo'];
+  var TIDS=['t-out','t-client','t-pat','t-size','t-qty','t-price','t-tel','t-zip','t-addr','t-memo'];
   TIDS.forEach(function(id,pos){
     var input=document.getElementById(id); if(!input)return;
-    var isDbl=(id==='t-size'); var isMemo=(id==='t-memo');
+    var isDbl=(id==='t-size'); var isMemo=(id==='t-memo'); var isTel=(id==='t-tel');
     input.addEventListener('keydown',function(e){
+      // 불투명 값이 있는 칸에서 문자 입력 시작 → 원래값 기억해두고 공란
+      if(input.classList.contains('ghosted')&&e.key.length===1){ input.dataset.ghostVal=input.value; input.value=''; input.classList.remove('ghosted'); }
       if(e.key==='Backspace'&&input.value===''){e.preventDefault();segPrev(TIDS,pos);return;}
       if(e.key==='Enter'){e.preventDefault();dlvTradeAddPreview();return;}
     });
+    // 비었는데 포커스 잃을 때: 불투명 원래값이 있으면 복원(안 건드린 셈)
+    input.addEventListener('blur',function(){
+      if(input.value===''&&input.dataset.ghostVal){ input.value=input.dataset.ghostVal; input.classList.add('ghosted'); }
+    });
     input.addEventListener('input',function(){
+      if(input.value!=='')input.classList.remove('ghosted');
       if(isMemo)return; // 메모는 자유 입력(이동 없음)
       var v=input.value;
       if(isDbl){ if(/\s{2,}$/.test(v)){ input.value=v.replace(/\s+$/,''); segNext(TIDS,pos); return; } }
-      else{ if(/\s$/.test(v)){ var t=v.replace(/\s+$/,''); if(t===''){ input.value=''; return; } input.value=t; segNext(TIDS,pos); return; } }
+      else{
+        if(/\s$/.test(v)){ var t=v.replace(/\s+$/,'');
+          // 빈 칸에서 띄어쓰기 → 그냥 다음 칸으로 (불투명 원래값 있으면 복원)
+          if(t===''){ input.value=''; if(input.dataset.ghostVal){ input.value=input.dataset.ghostVal; input.classList.add('ghosted'); } segNext(TIDS,pos); return; }
+          input.value=t; if(isTel)input.value=fmtTel(t); segNext(TIDS,pos); return;
+        }
+      }
     });
   });
 })();
-function dlvTradeClearInputs(){['t-out','t-client','t-pat','t-size','t-qty','t-price','t-memo'].forEach(function(id){var e=document.getElementById(id);if(e)e.value='';});}
+function dlvTradeClearInputs(){['t-out','t-client','t-pat','t-size','t-qty','t-price','t-tel','t-zip','t-addr','t-memo'].forEach(function(id){var e=document.getElementById(id);if(e){e.value='';e.classList.remove('ghosted');e.dataset.ghostVal='';}});}
 function dlvTradeClear(){ dlvTradeClearInputs(); var e=document.getElementById('t-out'); if(e)e.focus(); }
+function fmtTel(raw){
+  var d=(raw||'').replace(/\D/g,''); if(!d)return '';
+  if(d.length===11)return d.slice(0,3)+'-'+d.slice(3,7)+'-'+d.slice(7);       // 010-1234-5678
+  if(d.length===10){ if(d.slice(0,2)==='02')return '02-'+d.slice(2,6)+'-'+d.slice(6); return d.slice(0,3)+'-'+d.slice(3,6)+'-'+d.slice(6); } // 02-XXXX-XXXX / 031-XXX-XXXX
+  if(d.length===9&&d.slice(0,2)==='02')return '02-'+d.slice(2,5)+'-'+d.slice(5);  // 02-XXX-XXXX
+  if(d.length===8)return d.slice(0,4)+'-'+d.slice(4);                            // 1588-1234
+  return d;
+}
 function dlvTradeAddPreview(){
   function gv(id){var e=document.getElementById(id);return e?(e.value||'').trim():'';}
-  var out=gv('t-out'),client=gv('t-client'),pat=gv('t-pat'),size=gv('t-size'),qty=gv('t-qty'),price=gv('t-price'),memo=gv('t-memo');
-  if(!out&&!client&&!pat&&!size&&!qty&&!price&&!memo)return; // 완전히 빈 건 무시(그 외 누락은 허용)
+  var out=gv('t-out'),client=gv('t-client'),pat=gv('t-pat'),size=gv('t-size'),qty=gv('t-qty'),price=gv('t-price'),tel=gv('t-tel'),zip=gv('t-zip'),addr=gv('t-addr'),memo=gv('t-memo');
+  if(!out&&!client&&!pat&&!size&&!qty&&!price&&!tel&&!zip&&!addr&&!memo)return; // 완전히 빈 건 무시
+  var telF=fmtTel(tel);
+  var addrFull=((zip?'['+zip+'] ':'')+addr).trim();
   if(!Array.isArray(dlvParsed))dlvParsed=[];
-  dlvParsed.push({channel:'trade',code:'',src:out,trade_client:client,tire:pat,spec:size,brand:'',qty:qty,unit_price:price,trade_memo:memo,addr:'',recv:'',tel:'',multiline:false});
-  dlvTradeClearInputs();
+  dlvParsed.push({channel:'trade',code:'',src:out,trade_client:client,tire:pat,spec:size,brand:'',qty:qty,unit_price:price,tel:telF,addr:addrFull,trade_memo:memo,recv:'',multiline:false});
+  // (가)방식: 출고·거래처·전화·우편·주소는 유지(불투명), 타이어칸만 비움
+  var GHOST=['t-out','t-client','t-tel','t-zip','t-addr'];
+  var CLEARF=['t-pat','t-size','t-qty','t-price','t-memo'];
+  CLEARF.forEach(function(id){var e=document.getElementById(id);if(e){e.value='';e.classList.remove('ghosted');e.dataset.ghostVal='';}});
+  GHOST.forEach(function(id){var e=document.getElementById(id);if(e){e.classList.add('ghosted'); e.dataset.ghostVal=e.value;}});
   dlvRenderPreview();
-  var e=document.getElementById('t-out'); if(e)e.focus();
+  var e=document.getElementById('t-pat'); if(e)e.focus();
 }
 
 
