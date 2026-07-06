@@ -5071,7 +5071,7 @@ async function ledgerBulkReturn(){
   for(var i=0;i<ids.length;i++){
     var it=ledgerCache.find(function(x){return String(x.id)===String(ids[i]);});
     if(!it)continue;
-    var qty=parseInt(it.qty)||0, out=parseInt(it.out_qty)||0, remain=qty-out;
+    var qty=parseInt(it.qty)||0, out=parseInt(it.out_qty)||0, remain=itemRemainQty(it);
     if(remain<=0)continue;
     var rq=remain;
     ledgerProg('반품 중… '+(i+1)+'/'+ids.length);
@@ -6519,11 +6519,11 @@ async function outlogBulkRevert(){
     if(!g||!g.item_id||g.reverted)continue;
     var n=parseInt(g.qty,10)||0; if(n<1)continue;
     try{
-      var cur=await sb.from('items').select('qty,out_qty,out_at,out_to,out_user').eq('id',g.item_id).maybeSingle();
+      var cur=await sb.from('items').select('qty,cancel_qty,out_qty,out_at,out_to,out_user').eq('id',g.item_id).maybeSingle();
       if(!cur||!cur.data){ failN++; continue; }
       var d=cur.data;
       var newOut=Math.max(0,(parseInt(d.out_qty,10)||0)-n);
-      var stillDone=newOut>0&&newOut>=(parseInt(d.qty,10)||0);
+      var stillDone=newOut>0&&newOut>=((parseInt(d.qty,10)||0)-(parseInt(d.cancel_qty,10)||0));
       await sb.from('items').update({out_qty:newOut,out_done:stillDone,out_at:(newOut>0?(d.out_at||null):null),out_to:(newOut>0?(d.out_to||null):null),out_user:(newOut>0?(d.out_user||null):null)}).eq('id',g.item_id);
       await sb.from('stock_logs').update({reverted:true}).eq('id',g.id);
       if(typeof stkLog==='function') await stkLog('↩️입고출고취소',(g.note||'')+' · 출고기록 되돌림 ×'+n+' ('+who+')',{qty:n,channel:'되돌리기',item_id:g.item_id},true);
@@ -6711,7 +6711,7 @@ function returnArea(){
 async function markReturn(id){
   var it=(itemsCache||[]).concat(returnsCache||[]).concat(typeof ledgerCache!=='undefined'?ledgerCache:[]).find(function(x){return x.id===id;});
   if(!it){alert('항목을 찾을 수 없어요');return;}
-  var qty=parseInt(it.qty)||0, out=parseInt(it.out_qty)||0, remain=qty-out;
+  var qty=parseInt(it.qty)||0, out=parseInt(it.out_qty)||0, remain=itemRemainQty(it);
   if(remain<=0){alert('잔량이 없어 반품할 수 없어요 (이미 전량 출고됨)');return;}
   var ans=prompt('반품할 수량을 입력하세요 (잔량 '+remain+'개)\n전체 반품하려면 '+remain+' 입력', String(remain));
   if(ans===null)return;
@@ -6824,7 +6824,7 @@ function openEdit(id){
 function openCancel(id){
   editTarget=itemsCache.find(function(x){return x.id===id;});if(!editTarget)return;
   document.getElementById('edit-title').textContent='\uD83D\uDEAB \uCDE8\uC18C';
-  const remain=editTarget.qty-(editTarget.cancel_qty||0);
+  const remain=(parseInt(editTarget.qty,10)||0)-(parseInt(editTarget.cancel_qty,10)||0)-(parseInt(editTarget.out_qty,10)||0);
   document.getElementById('edit-fields').innerHTML=
     '<div style="font-size:13px;margin-bottom:8px;padding:8px;background:var(--bg);border-radius:8px">'
     +esc(editTarget.model)+' '+esc(editTarget.spec)+' / \uB0A8\uC740 \uC218\uB7C9 '+remain+'\uAC1C'
@@ -6862,7 +6862,7 @@ async function confirmEdit(){
 }
 async function confirmCancel(){
   const reason=document.getElementById('edit-reason').value.trim();
-  const remain=editTarget.qty-(editTarget.cancel_qty||0);
+  const remain=(parseInt(editTarget.qty,10)||0)-(parseInt(editTarget.cancel_qty,10)||0)-(parseInt(editTarget.out_qty,10)||0);
   const cq=parseInt(document.getElementById('e-cancelqty').value.trim())||remain;
   if(cq<=0){alert('\uCDE8\uC18C \uC218\uB7C9\uC744 1\uAC1C \uC774\uC0C1 \uC785\uB825\uD574\uC8FC\uC138\uC694');return;}
   if(cq>remain){alert('\uB0A8\uC740 \uC218\uB7C9\uBCF4\uB2E4 \uB9CE\uC774 \uCDE8\uC18C\uD560 \uC218 \uC5C6\uC5B4\uC694');return;}
@@ -11563,9 +11563,9 @@ async function rsvSubmit(){
 async function rsvStockOut(o,n,memo){
   var ts=new Date().toISOString();
   if(o.kind==='inbound'){
-    var cur=await sb.from('items').select('qty,out_qty,out_at,out_to,out_user').eq('id',o.item_id).maybeSingle();
+    var cur=await sb.from('items').select('qty,cancel_qty,out_qty,out_at,out_to,out_user').eq('id',o.item_id).maybeSingle();
     var d=(cur&&cur.data)?cur.data:{};
-    var oq=(parseInt(d.out_qty,10)||0)+n, willDone=oq>=(parseInt(d.qty,10)||0);
+    var oq=(parseInt(d.out_qty,10)||0)+n, willDone=oq>=((parseInt(d.qty,10)||0)-(parseInt(d.cancel_qty,10)||0));
     var who=(typeof me!=='undefined'&&me)?me.name:'?';
     await sb.from('items').update({out_qty:oq,out_done:willDone,out_at:(willDone?ts:(d.out_at||null)),out_to:(willDone?'예약장착':(d.out_to||null)),out_user:(willDone?who:(d.out_user||null))}).eq('id',o.item_id);
     if(typeof stkLog==='function')stkLog('📤입고출고',(o.spec||'')+' → 예약장착 ×'+n+(memo?' ['+memo+']':''),{qty:n,channel:'예약장착',ref:'예약등록'});
@@ -11594,10 +11594,10 @@ async function rsvStockRestore(r,memo){
   var ts=new Date().toISOString();
   var n=r.src_qty||r.qty||1;
   if(r.src_kind==='inbound' && r.src_item_id){
-    var icur=await sb.from('items').select('qty,out_qty,out_at,out_to,out_user').eq('id',r.src_item_id).maybeSingle();
+    var icur=await sb.from('items').select('qty,cancel_qty,out_qty,out_at,out_to,out_user').eq('id',r.src_item_id).maybeSingle();
     var idata=(icur&&icur.data)?icur.data:{};
     var newOut=Math.max(0,(parseInt(idata.out_qty,10)||0)-n);
-    var stillDone=newOut>0&&newOut>=(parseInt(idata.qty,10)||0);
+    var stillDone=newOut>0&&newOut>=((parseInt(idata.qty,10)||0)-(parseInt(idata.cancel_qty,10)||0));
     await sb.from('items').update({out_qty:newOut, out_done:stillDone, out_at:(newOut>0?(idata.out_at||null):null), out_to:(newOut>0?(idata.out_to||null):null), out_user:(newOut>0?(idata.out_user||null):null)}).eq('id',r.src_item_id);
     if(typeof stkLog==='function')stkLog('↩️입고출고취소',(r.tire_spec||'')+' +'+n+'개 · 예약취소/해제 복구'+(memo?' ['+memo+']':''),{qty:n,channel:'예약장착',ref:'예약복구'});
     return true;
