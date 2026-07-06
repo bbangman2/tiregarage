@@ -2077,7 +2077,7 @@ async function tradeApplyRows(text){
     var ins=await sb.from('trade_settle').insert(rows).select();
     if(ins&&ins.data){ ins.data.forEach(function(r){tradeCalc(r);}); tradeSettleCache=tradeSettleCache.concat(ins.data);
       // 계산결과 저장
-      for(var i=0;i<ins.data.length;i++){ var r=ins.data[i]; sb.from('trade_settle').update({sale_price:r.sale_price,total_cost:r.total_cost,net_profit:r.net_profit,net_margin:r.net_margin,tax:r.tax}).eq('id',r.id); }
+      for(var i=0;i<ins.data.length;i++){ var r=ins.data[i]; await sb.from('trade_settle').update({sale_price:r.sale_price,total_cost:r.total_cost,net_profit:r.net_profit,net_margin:r.net_margin,tax:r.tax}).eq('id',r.id); }
       try{ await sb.from('trade_logs').insert(ins.data.map(function(r){return {row_id:r.id,field:'(붙여넣기)',before_val:'',after_val:(r.client||'')+' '+(r.pattern||''),who:me?me.name:'?'};})); }catch(e){}
     }
   }catch(e){ alert('반영 실패: '+e.message); return; }
@@ -2313,7 +2313,7 @@ function tradeCellSave(id,field,raw){
   ['sale_price','total_cost','net_profit','net_margin','tax'].forEach(function(k){ var c=document.querySelector('[data-cell="'+id+'-'+k+'"]'); if(c)c.textContent=tradeFmtNum(r[k]); });
   // 백그라운드 저장 (변경 필드 + 계산 결과)
   var patch={}; patch[field]=val; patch.sale_price=r.sale_price; patch.total_cost=r.total_cost; patch.net_profit=r.net_profit; patch.net_margin=r.net_margin; patch.tax=r.tax;
-  sb.from('trade_settle').update(patch).eq('id',id).then(function(res){ if(res&&res.error)console.warn('저장 실패',res.error); });
+  sb.from('trade_settle').update(patch).eq('id',id).then(function(res){ if(res&&res.error){ console.warn('저장 실패',res.error); alert('⚠️ 셀 저장 실패 — 다시 시도해주세요\n'+(res.error.message||'')); } });
   // 수정기록
   sb.from('trade_logs').insert({row_id:id,field:field,before_val:String(before==null?'':before),after_val:String(val==null?'':val),who:me?me.name:'?'}).then(function(){},function(){});
 }
@@ -4750,7 +4750,7 @@ async function renderItemLedger(){
       return '<span class="ledger-chip'+(ledgerChip===p[0]?' on':'')+'" data-cat="'+p[0]+'" onclick="ledgerSetChip(\''+p[0]+'\')">'+p[1]+' <b id="uc-'+p[0]+'">0</b></span>';
     }).join('')+'</div>';
   h+='<div style="margin-bottom:8px;font-size:12px"><span style="font-size:11px;color:#94a3b8;margin-right:5px">완료</span>'+
-    [['all','전체'],['active','미완료'],['done','완료']].map(function(p){
+    [['all','전체'],['active','미완료'],['preout','⚠️미확인출고'],['done','완료']].map(function(p){
       return '<span class="ledger-chip ledger-dchip'+(ledgerDoneFilter===p[0]?' on':'')+'" data-d="'+p[0]+'" onclick="ledgerSetDone(\''+p[0]+'\')">'+p[1]+' <b id="dc-'+p[0]+'">0</b></span>';
     }).join('')+
     '<span style="font-size:11px;color:#94a3b8;margin:0 5px 0 14px">용도</span>'+
@@ -4872,6 +4872,7 @@ function ledgerFilter(){
   function passDone(it){
     if(ledgerDoneFilter==='all') return true;
     if(ledgerDoneFilter==='done') return isDone(it);
+    if(ledgerDoneFilter==='preout') return isDone(it)&&!it.arrived&&!it.cancelled;  // ⚠️ 출고완료·실물미확인
     return isActive(it)||isTodayDone(it);   // active(기본): 미완료 + 오늘완료(취소선)
   }
   function passSearch(it){ if(!q)return true; return [it.src,it.model,it.spec,it.use_note,it.date_str,memoOf(it)].filter(Boolean).join(' ').toLowerCase().indexOf(q)>-1; }
@@ -4882,8 +4883,8 @@ function ledgerFilter(){
   ['all','ping','online','stock','none','etc'].forEach(function(k){var e=document.getElementById('uc-'+k);if(e)e.textContent=uc[k];});
   // 완료 칩 카운트 (날짜+사용처+용도 적용 후)
   var afterUse=base.filter(function(it){return passUse(it)&&passUse2(it);});
-  var dc={all:afterUse.length, active:afterUse.filter(function(it){return isActive(it)||isTodayDone(it);}).length, done:afterUse.filter(isDone).length};
-  ['all','active','done'].forEach(function(k){var e=document.getElementById('dc-'+k);if(e)e.textContent=dc[k];});
+  var dc={all:afterUse.length, active:afterUse.filter(function(it){return isActive(it)||isTodayDone(it);}).length, preout:afterUse.filter(function(it){return isDone(it)&&!it.arrived&&!it.cancelled;}).length, done:afterUse.filter(isDone).length};
+  ['all','active','preout','done'].forEach(function(k){var e=document.getElementById('dc-'+k);if(e)e.textContent=dc[k];});
   // 용도 칩 카운트 (날짜+사용처+완료 적용 후)
   var afterUD=base.filter(function(it){return passUse(it)&&passDone(it);});
   var u2={all:afterUD.length,install:0,delivery:0,etc2:0}; afterUD.forEach(function(it){u2[ledgerUseCat2(it.use_note)]++;});
@@ -4908,19 +4909,51 @@ function ledgerFilter(){
       '<td style="text-align:center"><input type="checkbox" class="ledger-chk" value="'+it.id+'"></td>'+
       '<td style="'+sk+'">'+esc((it.date_str||'').slice(5))+'</td>'+
       '<td style="white-space:normal;word-break:break-word;'+sk+'">'+esc(it.src||'-')+'</td>'+
-      '<td style="text-align:left;white-space:normal;word-break:break-word;'+sk+'">'+esc(it.model||'')+((!it.arrived&&(parseInt(it.out_qty,10)||0)>0&&!isReturnItem(it))?'<br><span style="font-size:9px;color:#b45309;font-weight:800;background:#fef3c7;padding:1px 5px;border-radius:4px;display:inline-block;margin-top:2px">⚠️ 실물입고전 출고</span>':'')+'</td>'+
+      '<td style="text-align:left;white-space:normal;word-break:break-word;'+sk+'">'+esc(it.model||'')+((!it.arrived&&(parseInt(it.out_qty,10)||0)>0&&!isReturnItem(it))?(it.out_done?'<br><span style="font-size:9px;color:#dc2626;font-weight:800;background:#fde2e2;padding:1px 5px;border-radius:4px;display:inline-block;margin-top:2px">⚠️ 출고완료 · 실물미확인</span>':'<br><span style="font-size:9px;color:#b45309;font-weight:800;background:#fef3c7;padding:1px 5px;border-radius:4px;display:inline-block;margin-top:2px">⚠️ 실물입고전 출고</span>'):'')+'</td>'+
       '<td style="white-space:normal;word-break:break-word;'+sk+'">'+esc(it.spec||'')+'</td>'+
       '<td style="white-space:normal;word-break:break-word;'+sk+'">'+esc(it.use_note||'')+'</td>'+
       '<td style="text-align:left;font-size:11px;color:#6a7682;white-space:normal;word-break:break-word">'+esc(memoTxt)+'</td>'+
       '<td style="'+sk+'">'+inQ+(cancelQ>0?'<br><span style="color:#dc2626;font-size:9px">('+cancelQ+' 취소)</span>':'')+'</td>'+
       '<td style="font-weight:800;color:'+(done?'#9aa6b2':(partial?'#b45309':'#15803d'))+'">'+rem+(partial?('<div'+(((typeof ledgerRsvMap!=='undefined')&&ledgerRsvMap[it.id]&&ledgerRsvMap[it.id].length)?' onclick="ledgerGotoRsv(\''+it.id+'\')" title="이 입고분이 쓰인 예약 보기" style="margin-top:4px;display:inline-block;font-size:12px;color:#2563eb;font-weight:800;cursor:pointer;padding:4px 9px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px"':' style="font-size:10px;color:#6a7682;font-weight:600;margin-top:2px"')+'>출고 '+outQ+(((typeof ledgerRsvMap!=='undefined')&&ledgerRsvMap[it.id]&&ledgerRsvMap[it.id].length)?' 🔗':'')+'</div>'):'')+'</td>'+
-      '<td style="white-space:nowrap;text-align:center">'+(done?'<span style="font-size:11px;color:#15803d;font-weight:700">✅ 출고완료</span>'+(((typeof ledgerRsvMap!=='undefined')&&ledgerRsvMap[it.id]&&ledgerRsvMap[it.id].length)?' <button class="ldg-btn" style="border-color:#2563eb;color:#2563eb" onclick="ledgerGotoRsv(\''+it.id+'\')">🔗 사용처</button>':'')+' <button class="ldg-btn" style="border-color:#d9822b;color:#b45309" onclick="ledgerUndo(\''+it.id+'\')">되돌리기</button>':'<button class="ldg-btn ldg-out" onclick="ledgerOut(\''+it.id+'\')">출고</button> <button class="ldg-btn ldg-imm" onclick="ledgerImm(\''+it.id+'\')">즉시완료</button> <button class="ldg-btn" style="border-color:#dc2626;color:#dc2626" onclick="markReturn(\''+it.id+'\')">반품</button>')+'</td>'+
+      '<td style="white-space:nowrap;text-align:center">'+(function(){
+        var st=ledgerItStatus(it);
+        var rsvBtn=(((typeof ledgerRsvMap!=='undefined')&&ledgerRsvMap[it.id]&&ledgerRsvMap[it.id].length)?' <button class="ldg-btn" style="border-color:#2563eb;color:#2563eb" onclick="ledgerGotoRsv(\''+it.id+'\')">🔗 사용처</button>':'');
+        var undoBtn=' <button class="ldg-btn" style="border-color:#d9822b;color:#b45309" onclick="ledgerUndo(\''+it.id+'\')">되돌리기</button>';
+        var arrBtn=' <button class="ldg-btn" style="border-color:#0d9488;color:#0d9488" onclick="ledgerArriveSet(\''+it.id+'\',true)">📦 실물확인</button>';
+        var unarrBtn=' <button class="ldg-btn" style="border-color:#94a3b8;color:#64748b" onclick="ledgerArriveSet(\''+it.id+'\',false)">확인취소</button>';
+        var outBtns='<button class="ldg-btn ldg-out" onclick="ledgerOut(\''+it.id+'\')">출고</button> <button class="ldg-btn ldg-imm" onclick="ledgerImm(\''+it.id+'\')">즉시완료</button> <button class="ldg-btn" style="border-color:#dc2626;color:#dc2626" onclick="markReturn(\''+it.id+'\')">반품</button>';
+        if(st==='cancel')return '<span style="font-size:11px;color:#9aa0a6;font-weight:700">🚫 취소</span>';
+        if(st==='full')return '<span style="font-size:11px;color:#15803d;font-weight:800">🏁 완료</span><div style="font-size:9px;color:#64748b;margin-top:1px">실물입고 ✓ · 출고 ✓'+(it.arrived_by?' · '+esc(it.arrived_by):'')+'</div>'+rsvBtn+undoBtn+unarrBtn;
+        if(st==='preout')return '<span style="font-size:11px;color:#dc2626;font-weight:800;background:#fde2e2;padding:1px 7px;border-radius:8px">⚠️ 출고완료 · 실물미확인</span> <span style="font-size:10px;color:#15803d;font-weight:700">✅출고완료</span><br>'+arrBtn+rsvBtn+undoBtn;
+        if(st==='arrived')return '<span style="font-size:10px;color:#0d9488;font-weight:800">✅ 실물입고'+(it.arrived_by?' · '+esc(it.arrived_by):'')+'</span><br>'+outBtns+unarrBtn;
+        return outBtns+arrBtn;
+      })()+'</td>'+
       '</tr>';
   }).join('');
 }
 var ledgerCache=[];
 // 입고분 실잔량 = 수량 - 취소수량 - 출고수량 (전체취소 항목은 0)
 function itemRemainQty(it){ if(!it||it.cancelled)return 0; var q=parseInt(it.qty,10)||0,c=parseInt(it.cancel_qty,10)||0,o=parseInt(it.out_qty,10)||0; return Math.max(0,q-c-o); }
+// 입고분 종합상태 (저장 안 함 — 볼 때마다 계산): cancel / full(🏁완료) / preout(⚠️출고완료·실물미확인) / arrived(✅실물입고) / wait(⏳입고대기)
+function ledgerItStatus(it){ if(!it)return 'wait'; if(it.cancelled)return 'cancel'; var d=!!it.out_done, a=!!it.arrived; if(d&&a)return 'full'; if(d)return 'preout'; if(a)return 'arrived'; return 'wait'; }
+// 입고표에서 실물입고 확인/취소 (플래그만 조작 — 수량 필드는 절대 안 건드림)
+async function ledgerArriveSet(id, to){
+  var it=(typeof ledgerCache!=='undefined'?ledgerCache:[]).find(function(x){return x.id===id;})
+       ||(itemsCache||[]).find(function(x){return x.id===id;});
+  if(!it){alert('항목을 찾지 못했습니다');return;}
+  if(!to && !confirm('실물입고 확인을 취소할까요? (입고대기로 되돌립니다)'))return;
+  var who=(typeof me!=='undefined'&&me)?me.name:'?';
+  var logs=Array.isArray(it.logs)?it.logs.slice():[];
+  logs.push(to?{type:'',text:'📦 실물입고 확인 — '+who+' ('+fmtDateLabel(getTodayISO())+') [입고표]'}
+              :{type:'edit',text:'↩️ 실물입고 확인취소 — '+who+' ('+fmtDateLabel(getTodayISO())+') [입고표]'});
+  try{
+    var{error}=await sb.from('items').update({arrived:to,arrived_at:(to?new Date().toISOString():null),arrived_by:(to?who:null),logs:logs}).eq('id',id);
+    if(error)throw error;
+  }catch(e){alert((to?'실물입고 확인':'확인취소')+' 실패: '+e.message);return;}
+  it.arrived=to; it.arrived_by=(to?who:null); it.logs=logs;   // 입고표 즉시 반영
+  if(typeof ledgerFilter==='function')ledgerFilter();
+  if(typeof loadItems==='function')await loadItems();          // 입고예정 탭 동기화
+}
 var ledgerRsvMap={};
 async function ledgerRsvLoad(){
   try{
@@ -6232,8 +6265,8 @@ function itemCardHtml(it){
   const arrBtn=(it.cancelled||ret)?'':(arr?'<button class="e" onclick="itemUnarrive(\''+it.id+'\')" style="background:#eef7f0;color:#15803d;border:1px solid #b6e0c4">입고취소</button>':'<button class="e" onclick="itemArrive(\''+it.id+'\')" style="background:#eef5ff;color:#1e40af;border:1px solid #bcd2f0;font-weight:800">📦 실물입고</button>');
   const acts=it.cancelled?'':'<span class="icb-acts">'+arrBtn+'<button class="e" onclick="openEdit(\''+it.id+'\')">수정</button>'+(ret?'<button class="r" onclick="unmarkReturn(\''+it.id+'\')" style="background:#eef4ff;color:#2563eb;border:1px solid #b3c6e8">반품취소</button>':'<button class="r" onclick="markReturn(\''+it.id+'\')" style="background:#fef2f2;color:#dc2626;border:1px solid #f3c2c2">반품</button>')+'<button class="c" onclick="openCancel(\''+it.id+'\')">취소</button></span>';
   const retTag=ret?'<span class="ret-flag" style="background:'+(retDone?'#9ca3af':'#dc2626')+';color:#fff;font-size:10px;font-weight:800;padding:1px 7px;border-radius:8px;margin-right:5px">'+(retDone?'✓ 반품완료':'↩️ 반품 D+'+returnDaysElapsed(it))+'</span>':'';
-  const arrTag=(it.cancelled||ret)?'':(arr?'<span style="background:#dcfce7;color:#15803d;font-size:10px;font-weight:800;padding:1px 7px;border-radius:8px;margin-right:5px">✅ 실물입고</span>':'<span style="background:'+(dN>=3?'#fef3c7':'#f1f5f9')+';color:'+(dN>=3?'#b45309':'#64748b')+';font-size:10px;font-weight:800;padding:1px 7px;border-radius:8px;margin-right:5px">⏳ 입고대기'+(dN>0?' · D+'+dN:'')+'</span>');
-  const preTag=(!arr&&!ret&&!it.cancelled&&(parseInt(it.out_qty,10)||0)>0)?'<span style="background:#fef3c7;color:#b45309;font-size:10px;font-weight:800;padding:1px 7px;border-radius:8px;margin-right:5px">⚠️ 실물입고전 출고</span>':'';
+  const arrTag=(it.cancelled||ret)?'':(arr?(it.out_done?'<span style="background:#166534;color:#fff;font-size:10px;font-weight:800;padding:1px 7px;border-radius:8px;margin-right:5px">🏁 완료</span>':'<span style="background:#dcfce7;color:#15803d;font-size:10px;font-weight:800;padding:1px 7px;border-radius:8px;margin-right:5px">✅ 실물입고</span>'):'<span style="background:'+(dN>=3?'#fef3c7':'#f1f5f9')+';color:'+(dN>=3?'#b45309':'#64748b')+';font-size:10px;font-weight:800;padding:1px 7px;border-radius:8px;margin-right:5px">⏳ 입고대기'+(dN>0?' · D+'+dN:'')+'</span>');
+  const preTag=(!arr&&!ret&&!it.cancelled&&(parseInt(it.out_qty,10)||0)>0)?(it.out_done?'<span style="background:#fde2e2;color:#dc2626;font-size:10px;font-weight:800;padding:1px 7px;border-radius:8px;margin-right:5px">⚠️ 출고완료 · 실물미확인</span>':'<span style="background:#fef3c7;color:#b45309;font-size:10px;font-weight:800;padding:1px 7px;border-radius:8px;margin-right:5px">⚠️ 실물입고전 출고</span>'):'';
   const _pirNoCode=(it.model&&/피렐리/.test(it.model)&&/코드없음/.test(it.model));
   const _unreg=(!it.cancelled&&!ret&&it.model&&( _pirNoCode || (!/피렐리/.test(it.model)&&typeof jhNormModel==='function'&&!jhNormModel(it.model)) ));
   const unregTag=_unreg?'<span style="background:#fde68a;color:#92400e;font-size:10px;font-weight:800;padding:1px 7px;border-radius:8px;margin-right:5px">'+(_pirNoCode?'⚠️ 피렐리 코드필요':'⚠️ 사전미등록')+'</span>':'';
@@ -6367,7 +6400,8 @@ function listPaint(){
   var waitN=list0.filter(function(it){return !it.arrived&&!isReturnItem(it)&&!it.cancelled;}).length;
   var doneN=list0.filter(function(it){return it.arrived&&!it.cancelled;}).length;
   var preN=list0.filter(function(it){return !it.arrived&&(parseInt(it.out_qty,10)||0)>0&&!isReturnItem(it)&&!it.cancelled;}).length;
-  var chips=[['all','전체',list0.length],['wait','⏳ 입고대기',waitN],['done','✅ 입고완료',doneN],['preout','⚠️ 실물입고전 출고',preN]];
+  var fullN=list0.filter(function(it){return it.arrived&&it.out_done&&!isReturnItem(it)&&!it.cancelled;}).length;
+  var chips=[['all','전체',list0.length],['wait','⏳ 입고대기',waitN],['done','✅ 입고완료',doneN],['preout','⚠️ 실물입고전 출고',preN],['full','🏁 완료',fullN]];
   var _dates=Array.from(new Set([getTodayISO()].concat(list0all.map(function(it){return it.date_str;})).filter(Boolean))).sort().reverse();
   var _dateUI='<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;flex-wrap:wrap;font-size:12px">'+
     '<button onclick="listShiftDate(1)" style="border:1px solid #cbd5e1;background:#fff;border-radius:5px;width:24px;height:26px;cursor:pointer;font-size:12px;padding:0">‹</button>'+
@@ -6389,6 +6423,7 @@ function listPaint(){
   if(curListChip==='wait')list=list0.filter(function(it){return !it.arrived&&!isReturnItem(it)&&!it.cancelled;});
   else if(curListChip==='done')list=list0.filter(function(it){return it.arrived&&!it.cancelled;});
   else if(curListChip==='preout')list=list0.filter(function(it){return !it.arrived&&(parseInt(it.out_qty,10)||0)>0&&!isReturnItem(it)&&!it.cancelled;});
+  else if(curListChip==='full')list=list0.filter(function(it){return it.arrived&&it.out_done&&!isReturnItem(it)&&!it.cancelled;});
   var waitVisible=list.filter(function(it){return !it.arrived&&!isReturnItem(it)&&!it.cancelled;}).length;
   var doneVisible=list.filter(function(it){return it.arrived&&!isReturnItem(it)&&!it.cancelled;}).length;
   var h='';
