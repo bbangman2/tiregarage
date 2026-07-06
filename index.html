@@ -4860,7 +4860,7 @@ function ledgerFilter(){
   var tb=document.getElementById('ledger-tbody'); if(!tb)return;
   function memoOf(it){return (Array.isArray(it.logs)?it.logs:[]).filter(function(lg){return lg&&lg.text;}).map(function(lg){return lg.text;}).join(' · ');}
   function isDone(it){ return !!it.out_done; }
-  function isActive(it){ return !it.out_done && ((parseInt(it.qty,10)||0)-(parseInt(it.out_qty,10)||0))>0; }
+  function isActive(it){ return !it.out_done && (itemRemainQty(it))>0; }
   function isTodayDone(it){ return isDone(it) && it.out_at && toDateStr(it.out_at)===getTodayISO(); }
   function passDate(it){
     if(ledgerFrom||ledgerTo){ var d=it.date_str||''; if(ledgerFrom&&d<ledgerFrom)return false; if(ledgerTo&&d>ledgerTo)return false; return true; }
@@ -4892,14 +4892,14 @@ function ledgerFilter(){
   var list=base.filter(function(it){return passUse(it)&&passDone(it)&&passUse2(it)&&passSearch(it);});
   // 정렬
   var dir=(ledgerSortDir==='asc')?1:-1;
-  function sval(it){ switch(ledgerSortCol){ case 'src':return it.src||''; case 'model':return it.model||''; case 'spec':return it.spec||''; case 'use':return it.use_note||''; case 'rem':return (parseInt(it.qty,10)||0)-(parseInt(it.out_qty,10)||0); default:return (it.date_str||'')+'|'+(it.created_at||''); } }
+  function sval(it){ switch(ledgerSortCol){ case 'src':return it.src||''; case 'model':return it.model||''; case 'spec':return it.spec||''; case 'use':return it.use_note||''; case 'rem':return itemRemainQty(it); default:return (it.date_str||'')+'|'+(it.created_at||''); } }
   list.sort(function(a,b){var va=sval(a),vb=sval(b); if(typeof va==='number')return (va-vb)*dir; return String(va).localeCompare(String(vb))*dir;});
   // 정렬 화살표 표시
   document.querySelectorAll('#ledger-rt th[data-sort]').forEach(function(th){var ar=th.querySelector('.sar'); if(ar)ar.textContent=(th.dataset.sort===ledgerSortCol)?(ledgerSortDir==='asc'?'▲':'▼'):'↕';});
   var sh=document.getElementById('ledger-shown'); if(sh)sh.textContent=list.length;
   if(!list.length){tb.innerHTML='<tr><td colspan="10" style="padding:18px 6px;color:#aaa">표시할 입고분이 없습니다</td></tr>';return;}
   tb.innerHTML=list.map(function(it){
-    var inQ=parseInt(it.qty,10)||0, outQ=parseInt(it.out_qty,10)||0, rem=inQ-outQ;
+    var inQ=parseInt(it.qty,10)||0, outQ=parseInt(it.out_qty,10)||0, cancelQ=parseInt(it.cancel_qty,10)||0, rem=itemRemainQty(it);
     var done=isDone(it);
     var partial=outQ>0 && !done;
     var memoTxt=memoOf(it);
@@ -4912,13 +4912,15 @@ function ledgerFilter(){
       '<td style="white-space:normal;word-break:break-word;'+sk+'">'+esc(it.spec||'')+'</td>'+
       '<td style="white-space:normal;word-break:break-word;'+sk+'">'+esc(it.use_note||'')+'</td>'+
       '<td style="text-align:left;font-size:11px;color:#6a7682;white-space:normal;word-break:break-word">'+esc(memoTxt)+'</td>'+
-      '<td style="'+sk+'">'+inQ+'</td>'+
+      '<td style="'+sk+'">'+inQ+(cancelQ>0?'<br><span style="color:#dc2626;font-size:9px">('+cancelQ+' 취소)</span>':'')+'</td>'+
       '<td style="font-weight:800;color:'+(done?'#9aa6b2':(partial?'#b45309':'#15803d'))+'">'+rem+(partial?('<div'+(((typeof ledgerRsvMap!=='undefined')&&ledgerRsvMap[it.id]&&ledgerRsvMap[it.id].length)?' onclick="ledgerGotoRsv(\''+it.id+'\')" title="이 입고분이 쓰인 예약 보기" style="margin-top:4px;display:inline-block;font-size:12px;color:#2563eb;font-weight:800;cursor:pointer;padding:4px 9px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px"':' style="font-size:10px;color:#6a7682;font-weight:600;margin-top:2px"')+'>출고 '+outQ+(((typeof ledgerRsvMap!=='undefined')&&ledgerRsvMap[it.id]&&ledgerRsvMap[it.id].length)?' 🔗':'')+'</div>'):'')+'</td>'+
       '<td style="white-space:nowrap;text-align:center">'+(done?'<span style="font-size:11px;color:#15803d;font-weight:700">✅ 출고완료</span>'+(((typeof ledgerRsvMap!=='undefined')&&ledgerRsvMap[it.id]&&ledgerRsvMap[it.id].length)?' <button class="ldg-btn" style="border-color:#2563eb;color:#2563eb" onclick="ledgerGotoRsv(\''+it.id+'\')">🔗 사용처</button>':'')+' <button class="ldg-btn" style="border-color:#d9822b;color:#b45309" onclick="ledgerUndo(\''+it.id+'\')">되돌리기</button>':'<button class="ldg-btn ldg-out" onclick="ledgerOut(\''+it.id+'\')">출고</button> <button class="ldg-btn ldg-imm" onclick="ledgerImm(\''+it.id+'\')">즉시완료</button> <button class="ldg-btn" style="border-color:#dc2626;color:#dc2626" onclick="markReturn(\''+it.id+'\')">반품</button>')+'</td>'+
       '</tr>';
   }).join('');
 }
 var ledgerCache=[];
+// 입고분 실잔량 = 수량 - 취소수량 - 출고수량 (전체취소 항목은 0)
+function itemRemainQty(it){ if(!it||it.cancelled)return 0; var q=parseInt(it.qty,10)||0,c=parseInt(it.cancel_qty,10)||0,o=parseInt(it.out_qty,10)||0; return Math.max(0,q-c-o); }
 var ledgerRsvMap={};
 async function ledgerRsvLoad(){
   try{
@@ -4950,7 +4952,7 @@ function ledgerOut(id){
   var it=ledgerCache.find(function(x){return x.id===id;});
   if(!it){alert('항목을 찾지 못했습니다');return;}
   ledgerOutId=id; ledgerOutChan='';
-  var inQ=parseInt(it.qty,10)||0, outQ=parseInt(it.out_qty,10)||0, rem=inQ-outQ;
+  var inQ=parseInt(it.qty,10)||0, outQ=parseInt(it.out_qty,10)||0, cancelQ=parseInt(it.cancel_qty,10)||0, rem=itemRemainQty(it);
   document.getElementById('ledger-out-info').textContent=(it.src?'['+it.src+'] ':'')+(it.model||'')+' '+(it.spec||'')+' · 입고 '+inQ+'개 · 잔량 '+rem+'개'+(outQ?' (이미 '+outQ+'개 출고)':'');
   document.getElementById('ledger-out-qty').value=rem||1;
   document.getElementById('ledger-out-qty').max=rem;
@@ -4965,7 +4967,7 @@ function ledgerPickChan(btn,c){
   document.querySelectorAll('#ledger-out-chans .ldg-chan').forEach(function(x){x.classList.toggle('on',x===btn);});
   if(c==='장착'){
     var it=ledgerCache.find(function(x){return x.id===ledgerOutId;}); if(!it)return;
-    var qty=parseInt(document.getElementById('ledger-out-qty').value,10)||((parseInt(it.qty,10)||0)-(parseInt(it.out_qty,10)||0))||1;
+    var qty=parseInt(document.getElementById('ledger-out-qty').value,10)||(itemRemainQty(it))||1;
     ledgerOutClose();
     try{
       if(typeof rsvOpenAdd==='function'){ rsvOpenAdd(null,{spec:(it.model||'')+' '+(it.spec||''), qty:qty, kind:'inbound', item_id:it.id, channel:'장착'}); }
@@ -5000,7 +5002,7 @@ async function ledgerReturn(){
 }
 async function ledgerImm(id){
   var it=ledgerCache.find(function(x){return x.id===id;}); if(!it)return;
-  var inQ=parseInt(it.qty,10)||0, outQ=parseInt(it.out_qty,10)||0, rem=inQ-outQ;
+  var inQ=parseInt(it.qty,10)||0, outQ=parseInt(it.out_qty,10)||0, cancelQ=parseInt(it.cancel_qty,10)||0, rem=itemRemainQty(it);
   if(!confirm((it.model||'')+' '+(it.spec||'')+' 잔량 '+rem+'개\n\n즉시 출고완료 처리할까요?\n(기존에 이미 나간 입고분 정리용 — 잔량 전부를 출고처리)'))return;
   await ledgerFinish(it,'출고','즉시완료',rem,'');
 }
@@ -5028,14 +5030,14 @@ function ledgerBulkClose(){ var ov=document.getElementById('ledger-bulk-ov'); if
 function ledgerBulkArrange(){
   var chks=document.querySelectorAll('.ledger-chk:checked');
   var ids=Array.prototype.map.call(chks,function(c){return c.value;});
-  var items=ids.map(function(id){return ledgerCache.find(function(x){return String(x.id)===String(id);});}).filter(function(it){return it&&((parseInt(it.qty,10)||0)-(parseInt(it.out_qty,10)||0))>0;});
+  var items=ids.map(function(id){return ledgerCache.find(function(x){return String(x.id)===String(id);});}).filter(function(it){return it&&(itemRemainQty(it))>0;});
   if(!items.length){alert('장착할 잔량이 있는 항목이 없어요');return;}
-  var lines=items.map(function(it){var rem=(parseInt(it.qty,10)||0)-(parseInt(it.out_qty,10)||0); return '· '+(it.model||'')+' '+(it.spec||'')+' ×'+rem+'개';}).join('\n');
+  var lines=items.map(function(it){var rem=itemRemainQty(it); return '· '+(it.model||'')+' '+(it.spec||'')+' ×'+rem+'개';}).join('\n');
   if(!confirm('아래 '+items.length+'건이 🔗 하나의 예약으로 묶여 장착 출고됩니다.\n각 항목의 잔량 전부가 그 예약에 연결됩니다.\n\n'+lines+'\n\n계속할까요?'))return;
   ledgerBulkClose();
   if(typeof ledgerOutClose==='function')ledgerOutClose();
-  var first=items[0], firstRem=(parseInt(first.qty,10)||0)-(parseInt(first.out_qty,10)||0);
-  var extra=items.slice(1).map(function(it){var rem=(parseInt(it.qty,10)||0)-(parseInt(it.out_qty,10)||0); return {item_id:it.id, spec:(it.model||'')+' '+(it.spec||''), qty:rem};});
+  var first=items[0], firstRem=itemRemainQty(first);
+  var extra=items.slice(1).map(function(it){var rem=itemRemainQty(it); return {item_id:it.id, spec:(it.model||'')+' '+(it.spec||''), qty:rem};});
   if(typeof rsvOpenAdd==='function'){
     try{ rsvOpenAdd(null,{spec:(first.model||'')+' '+(first.spec||''), qty:firstRem, kind:'inbound', item_id:first.id, channel:'장착', extraItems:extra}); }
     catch(e){ alert('예약창 열기 실패: '+(e&&e.message?e.message:e)); }
@@ -5050,7 +5052,7 @@ async function ledgerBulkOutDo(chan){
   for(var i=0;i<ids.length;i++){
     var it=ledgerCache.find(function(x){return String(x.id)===String(ids[i]);});
     if(!it)continue;
-    var rem=(parseInt(it.qty,10)||0)-(parseInt(it.out_qty,10)||0);
+    var rem=itemRemainQty(it);
     if(rem<1)continue;
     ledgerProg('출고 중… '+(i+1)+'/'+ids.length);
     await ledgerFinish(it,'출고',chan,rem,'',true);
@@ -5101,7 +5103,7 @@ async function ledgerBulkOut(){
   for(var i=0;i<ids.length;i++){
     var it=ledgerCache.find(function(x){return String(x.id)===String(ids[i]);});
     if(!it)continue;
-    var rem=(parseInt(it.qty,10)||0)-(parseInt(it.out_qty,10)||0);
+    var rem=itemRemainQty(it);
     if(rem<1)continue;
     ledgerProg('출고완료 처리 중… '+(i+1)+'/'+ids.length);
     await ledgerFinish(it,'출고','일괄완료',rem,'',true); // skipRender: 끝에 한 번만 그림+로그
@@ -5692,7 +5694,7 @@ function jhLedgerScore(o, it){
   var oSize=jhNsize(o.size), iSize=jhNsize(it.spec);
   if(oSize!==iSize) return 0;                 // 사이즈 다르면 후보 제외
   if(it.out_done) return 0;                    // 이미 완전출고된 입고분 제외
-  var rem=(parseInt(it.qty,10)||0)-(parseInt(it.out_qty,10)||0);
+  var rem=itemRemainQty(it);
   if(rem<=0) return 0;                          // 잔량 없으면 제외
   var score=10;
   // 코드 매칭
@@ -5795,7 +5797,7 @@ async function jhOpenLedgerPick(o){
     list='<div class="jh-picknone">매칭되는 입고분이 없습니다.<br>입고방에 해당 입고 기록이 있는지 확인하세요.<br>(패턴코드·사이즈·P수로 검색)</div>';
   }else{
     list=cands.map(function(x,i){
-      var it=x.it; var rem=(parseInt(it.qty,10)||0)-(parseInt(it.out_qty,10)||0);
+      var it=x.it; var rem=itemRemainQty(it);
       var tag=x.score>=60?'<span class="jh-pscore strong">강력</span>':x.score>=35?'<span class="jh-pscore mid">유력</span>':'<span class="jh-pscore weak">참고</span>';
       return '<div class="jh-pickrow" onclick="jhPickLedger(\''+o.id+'\',\''+it.id+'\')">'+
         '<div class="jh-pkmain"><b>['+jhEsc(it.src||'?')+'] '+jhEsc(it.model||'')+'</b> '+jhEsc(it.spec||'')+'<br><span class="jh-pkrem">잔량 '+rem+'개</span></div>'+
@@ -5811,7 +5813,7 @@ async function jhPickLedger(orderId, itemId){
   try{
     var r=await sb.from('items').select('*').eq('id',itemId).single();
     var it=r.data; if(!it){alert('입고분을 찾을 수 없습니다.');return;}
-    var rem=(parseInt(it.qty,10)||0)-(parseInt(it.out_qty,10)||0);
+    var rem=itemRemainQty(it);
     if(o.qty>rem){ alert('잔량('+rem+')보다 많이 출고할 수 없습니다.'); return; }
     if(!confirm('🟣 입고출고\n['+jhEsc(it.src)+'] '+jhEsc(it.model)+' '+jhEsc(it.spec)+'\n잔량 '+rem+'→'+(rem-o.qty)+'개 ('+o.qty+'개 차감)\n\n처리할까요?'))return;
     var me_name=(typeof me!=='undefined'&&me)?me.name:'?';
@@ -11178,7 +11180,7 @@ async function rsvLoadInbound(){
   if(!room){rsvInbItems=[];return;}
   try{
     var r=await sb.from('items').select('*').eq('room_id',room.id).order('date_str',{ascending:false}).order('created_at',{ascending:false});
-    rsvInbItems=(r.data||[]).filter(function(it){return !isReturnItem(it)&&((parseInt(it.qty,10)||0)-(parseInt(it.out_qty,10)||0))>0;});
+    rsvInbItems=(r.data||[]).filter(function(it){return !isReturnItem(it)&&(itemRemainQty(it))>0;});
   }catch(e){rsvInbItems=[];}
 }
 function rsvPickSetSrc(s){
@@ -11194,7 +11196,7 @@ function rsvPickRenderInbound(){
   var list=rsvInbItems.filter(function(it){var s=[it.src,it.model,it.spec,it.use_note,it.date_str].filter(Boolean).join(' ').toLowerCase();return !q||s.indexOf(q)>-1;}).slice(0,60);
   if(!list.length){el.innerHTML='<div style="text-align:center;color:#aaa;padding:18px 0;font-size:13px">검색 결과 없음 — 검색어를 바꿔보세요</div>';return;}
   el.innerHTML=list.map(function(it){
-    var rem=(parseInt(it.qty,10)||0)-(parseInt(it.out_qty,10)||0);
+    var rem=itemRemainQty(it);
     return '<div class="rsv-pick-card"><div class="rsv-pick-tit">'+stkEsc(it.model||'')+' · '+stkEsc(it.spec||'')+'</div>'+
       '<div class="rsv-pick-dot"><span>'+(it.src?stkEsc(it.src)+' · ':'')+(it.date_str?stkEsc(it.date_str.slice(5))+' · ':'')+'잔량 '+rem+'개'+(it.use_note?' · '+stkEsc(it.use_note):'')+'</span>'+
       '<button onclick="rsvInbChoose(\''+it.id+'\')">이걸로 출고</button></div></div>';
@@ -11202,7 +11204,7 @@ function rsvPickRenderInbound(){
 }
 function rsvInbChoose(itemId){
   var it=rsvInbItems.find(function(x){return x.id===itemId;}); if(!it)return;
-  var rem=(parseInt(it.qty,10)||0)-(parseInt(it.out_qty,10)||0);
+  var rem=itemRemainQty(it);
   var r=reservations.find(function(x){return x.id===rsvPickRsvId;});
   var def=(r&&r.qty)?Math.min(r.qty,rem):rem;
   var qStr=prompt((it.model||'')+' '+(it.spec||'')+'\n잔량 '+rem+'개 중 출고 수량', String(def)); if(qStr==null)return;
