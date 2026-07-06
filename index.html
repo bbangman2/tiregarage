@@ -1084,8 +1084,6 @@ body.rb-on #app{padding-top:58px}
     <div class="sb-rooms" id="sb-rooms"></div>
     <div class="sb-foot">
       <div id="admin-sidebar-btn" style="display:none">
-        <button class="admin-btn" onclick="stkOpenPerm()">👥 수정권한</button>
-        <button class="admin-btn" onclick="stkOpenRcPerm()">💰 실원가권한</button>
         <button class="admin-btn" onclick="stkOpenPw()">🔑 비밀번호</button>
         <button class="admin-btn" onclick="stkChangeMasterPw()">🔒 잠금/삭제 비번</button>
         <button class="admin-btn" onclick="openAdmin()">⚙️ 관리자 수정</button>
@@ -1551,6 +1549,15 @@ body.rb-on #app{padding-top:58px}
       <div class="del-hint" style="margin-bottom:10px">모든 방의 모든 액션(입력·수정·취소·삭제·완료·이동 등)이 시각·사람과 함께 기록됩니다. CSV로 내려받아 확인하세요.</div>
       <button class="btn-danger" style="background:#2563eb" onclick="auditDownload()">🧾 감사로그 CSV 다운로드</button> <button class="mng-btn" style="background:#0d9488" onclick="dailyBackup()">📥 일일백업 (원본+리포트)</button>
     </div>
+    <div class="danger-section" style="border-color:rgba(15,23,42,.25);background:rgba(15,23,42,.04)">
+      <div class="danger-title" style="color:#0f172a">🔐 권한 관리</div>
+      <div class="del-hint" style="margin-bottom:8px">재고 수정 · 실원가·할인율 · 거래처 종합방 · 백업/복구 — 네 가지 권한을 한 표에서 관리합니다. 체크하는 즉시 저장되고 감사로그에 기록됩니다.</div>
+      <button class="btn-danger" style="background:#0f172a;width:100%" onclick="permMatrixToggle()">🔐 권한표 펼치기 / 접기</button>
+      <div id="perm-matrix-wrap" style="display:none;margin-top:10px">
+        <div id="perm-matrix" style="overflow:auto"></div>
+        <div class="del-hint" style="margin-top:8px">대표는 항상 모든 권한이 있습니다. 이름은 직원 목록에서 자동으로 불러오므로 타이핑 오타로 권한이 조용히 빠지는 일이 없습니다.</div>
+      </div>
+    </div>
     <div class="danger-section">
       <div class="danger-title">📅 날짜별 삭제</div>
       <div class="del-row">
@@ -1648,15 +1655,6 @@ body.rb-on #app{padding-top:58px}
           <button onclick="document.getElementById('mdict-file').click()" style="padding:8px 13px;border:1px solid #0d9488;background:#fff;color:#0d9488;border-radius:8px;font-size:13px;font-weight:800;cursor:pointer">📤 파일 업로드</button>
           <input type="file" id="mdict-file" accept=".txt,.csv" style="display:none" onchange="mdictUploadFile(event)">
         </div>
-      </div>
-    </div>
-    <div class="danger-section" style="border-color:rgba(180,83,9,.3);background:rgba(180,83,9,.06)">
-      <div class="danger-title" style="color:#b45309">💰 거래처 종합방 권한</div>
-      <div class="del-hint" style="margin-bottom:10px">이 명단에 있는 사람에게만 <b>거래처 종합방</b>이 보입니다(대표는 항상). 방 접근 권한자는 잠금·편집·삭제가 모두 자유롭습니다.</div>
-      <div id="trv-list" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px"></div>
-      <div class="del-row" style="gap:6px">
-        <input id="trv-input" placeholder="이름 입력 (예: 김다영)" style="flex:1;min-width:120px;padding:8px 11px;border:1px solid var(--border);border-radius:8px;font-size:14px;outline:none;font-family:inherit">
-        <button class="btn-danger" style="background:#b45309" onclick="trvAdd()">추가</button>
       </div>
     </div>
     <div class="danger-section" style="border-color:rgba(91,53,176,.3);background:rgba(91,53,176,.06)">
@@ -1790,6 +1788,7 @@ async function logAudit(action, target, beforeVal, afterVal){
   }catch(e){ /* 로그 실패가 기능을 막지 않도록 무시 */ }
 }
 async function dailyBackup(){
+  if(typeof bkCanUse==='function'&&!bkCanUse()){alert('백업 권한이 없습니다 — 대표에게 요청해주세요.');return;}
   try{
     var TBLS=['items','deliveries','reservations','reservation_links','stock_products','stock_lots','stock_logs','jonghap_orders','trade_settle','trade_logs','staff_schedules','settings'];
     var snap={}, t, btn=null;
@@ -1859,6 +1858,7 @@ async function dailyBackup(){
   }catch(e){ alert('백업 실패: '+(e&&e.message||e)); }
 }
 async function auditDownload(){
+  if(typeof bkCanUse==='function'&&!bkCanUse()){alert('백업 권한이 없습니다 — 대표에게 요청해주세요.');return;}
   try{
     var all=[], from=0, step=1000;
     while(true){
@@ -1918,20 +1918,82 @@ var tradeViewers=['이호준','김다영','이정우'];  // 거래처 종합방 
 var tradeLocked=true;  // 기본 잠금
 function tradeCanView(){ return !!(me&&(me.name===ADMIN_NAME||tradeViewers.indexOf(me.name)>=0)); }
 async function tradeLoadViewers(){ try{ var r=await sb.from('settings').select('value').eq('key','trade_room_viewers').maybeSingle(); if(r&&r.data&&Array.isArray(r.data.value))tradeViewers=r.data.value; }catch(e){} }
-async function trvSave(){ try{ await sb.from('settings').upsert({key:'trade_room_viewers',value:tradeViewers,updated_at:new Date().toISOString()},{onConflict:'key'}); }catch(e){alert('저장 실패: '+e.message);} trvRender(); }
-function trvRender(){
-  var el=document.getElementById('trv-list'); if(!el)return;
-  if(!tradeViewers.length){ el.innerHTML='<span style="color:#94a3b8;font-size:13px">명단 없음 (대표만 보임)</span>'; return; }
-  el.innerHTML=tradeViewers.map(function(nm){
-    return '<span style="display:inline-flex;align-items:center;gap:5px;background:#fff;border:1.5px solid #fcd9a8;border-radius:8px;padding:5px 9px;font-size:13px;font-weight:700;color:#b45309">'+esc(nm)+(nm===ADMIN_NAME?' (대표)':'<button onclick="trvDel(\''+nm+'\')" style="border:none;background:none;color:#dc2626;cursor:pointer;font-weight:800;font-size:14px;padding:0 2px">×</button>')+'</span>';
-  }).join('');
+async function tradeSaveViewers(){ var r=await sb.from('settings').upsert({key:'trade_room_viewers',value:tradeViewers,updated_at:new Date().toISOString()},{onConflict:'key'}); if(r&&r.error)throw new Error(r.error.message||'저장 실패'); }
+
+// ===== 🔐 백업/복구 권한 (settings key='backup_users') =====
+var backupUsers=['이호준'];
+function bkCanUse(){ return !!(me&&(me.name===ADMIN_NAME||backupUsers.indexOf(me.name)>=0)); }
+async function bkLoadUsers(){ try{ var r=await sb.from('settings').select('value').eq('key','backup_users').maybeSingle(); if(r&&r.data&&Array.isArray(r.data.value))backupUsers=r.data.value; }catch(e){} }
+async function bkSaveUsers(){ var r=await sb.from('settings').upsert({key:'backup_users',value:backupUsers,updated_at:new Date().toISOString()},{onConflict:'key'}); if(r&&r.error)throw new Error(r.error.message||'저장 실패'); }
+
+// ===== 🔐 통합 권한 관리 매트릭스 (관리자 패널, 접힘식) =====
+// 저장 위치는 전부 기존 키 그대로 — 명단을 고치는 곳은 이 표 하나뿐 (두 군데 수정 금지 원칙)
+var PERM_DEFS=[
+  {key:'stock', label:'재고 수정', hint:'재고표 셀 수정·행추가·상품추가·삭제', list:function(){return STK_INLINE_EDITORS;}, save:function(){return stkSaveEditors();}, color:'#2563eb'},
+  {key:'rc', label:'실원가·할인율', hint:'재고표 실원가·할인율 칸 열람/수정', list:function(){return STK_REALCOST_VIEWERS;}, save:function(){return stkSaveRcViewers();}, color:'#0891b2'},
+  {key:'trade', label:'거래처방', hint:'거래처 종합방 표시 (대표는 항상)', list:function(){return tradeViewers;}, save:function(){return tradeSaveViewers();}, color:'#b45309'},
+  {key:'backup', label:'백업·복구', hint:'일일백업·감사로그 다운로드', list:function(){return backupUsers;}, save:function(){return bkSaveUsers();}, color:'#0d9488'}
+];
+var _permNames=[];
+async function permMatrixToggle(){
+  var wrap=document.getElementById('perm-matrix-wrap'); if(!wrap)return;
+  if(wrap.style.display!=='none'){ wrap.style.display='none'; return; }
+  if(!me||me.name!==ADMIN_NAME){ alert('관리자 전용입니다'); return; }
+  // 펼칠 때마다 4개 명단 + 직원 목록을 DB에서 새로 읽음 (다른 기기 변경 반영)
+  try{ await Promise.all([
+    (typeof stkLoadEditors==='function'?stkLoadEditors():null),
+    (typeof stkLoadRealcostViewers==='function'?stkLoadRealcostViewers():null),
+    tradeLoadViewers(), bkLoadUsers()
+  ]); }catch(e){}
+  var names={}; Object.keys(PW).forEach(function(n){names[n]=1;});
+  try{ var r=await sb.from('users').select('name'); (r.data||[]).forEach(function(u){ if(u&&u.name)names[String(u.name).trim()]=1; }); }catch(e){}
+  PERM_DEFS.forEach(function(p){ (p.list()||[]).forEach(function(n){ if(n)names[n]=1; }); });
+  delete names[ADMIN_NAME];
+  var order=Object.keys(PW);
+  _permNames=Object.keys(names).sort(function(a,b){ var ia=order.indexOf(a),ib=order.indexOf(b); if(ia<0)ia=999; if(ib<0)ib=999; return (ia-ib)||a.localeCompare(b,'ko'); });
+  permMatrixRender();
+  wrap.style.display='block';
 }
-function trvAdd(){
-  var v=(document.getElementById('trv-input').value||'').trim(); if(!v)return;
-  if(tradeViewers.indexOf(v)>=0){alert('이미 있는 이름이에요');return;}
-  tradeViewers.push(v); document.getElementById('trv-input').value=''; trvSave();
+function permMatrixRefreshIfOpen(){ var w=document.getElementById('perm-matrix-wrap'); if(w&&w.style.display!=='none')permMatrixRender(); }
+function permMatrixRender(){
+  var el=document.getElementById('perm-matrix'); if(!el)return;
+  var h='<table style="width:100%;border-collapse:collapse;font-size:13px;background:#fff;border-radius:10px;overflow:hidden;border:1px solid #e2e8f0">';
+  h+='<tr style="background:#f1f5f9"><th style="text-align:left;padding:8px 10px;border-bottom:2px solid #e2e8f0">직원</th>'
+    +PERM_DEFS.map(function(p){return '<th title="'+esc(p.hint)+'" style="padding:8px 4px;border-bottom:2px solid #e2e8f0;color:'+p.color+';font-size:12px;white-space:nowrap">'+esc(p.label)+'</th>';}).join('')+'</tr>';
+  h+='<tr style="background:#fffbeb"><td style="padding:7px 10px;border-bottom:1px solid #f1f5f9;font-weight:800">'+esc(ADMIN_NAME)+' <span style="font-size:11px;color:#b45309">(대표)</span></td>'
+    +PERM_DEFS.map(function(){return '<td style="text-align:center;border-bottom:1px solid #f1f5f9;color:#b45309;font-weight:800" title="대표는 항상 모든 권한">✓</td>';}).join('')+'</tr>';
+  _permNames.forEach(function(n){
+    var safe=n.replace(/\\/g,'').replace(/'/g,'');
+    h+='<tr><td style="padding:7px 10px;border-bottom:1px solid #f1f5f9;font-weight:700">'+esc(n)+'</td>';
+    PERM_DEFS.forEach(function(p){
+      var on=(p.list()||[]).indexOf(n)>=0;
+      h+='<td style="text-align:center;border-bottom:1px solid #f1f5f9"><input type="checkbox" '+(on?'checked ':'')+'style="width:17px;height:17px;accent-color:'+p.color+';cursor:pointer" onchange="permMatrixSet(\''+safe+'\',\''+p.key+'\',this.checked,this)"></td>';
+    });
+    h+='</tr>';
+  });
+  h+='</table>';
+  el.innerHTML=h;
 }
-function trvDel(nm){ tradeViewers=tradeViewers.filter(function(x){return x!==nm;}); trvSave(); }
+async function permMatrixSet(name,key,on,box){
+  if(!me||me.name!==ADMIN_NAME){ alert('관리자 전용입니다'); if(box)box.checked=!on; return; }
+  var p=null; for(var i=0;i<PERM_DEFS.length;i++)if(PERM_DEFS[i].key===key)p=PERM_DEFS[i];
+  if(!p){ if(box)box.checked=!on; return; }
+  var arr=p.list(); var before=arr.slice().join(', ')||'(없음)';
+  var idx=arr.indexOf(name);
+  if(on&&idx<0)arr.push(name); else if(!on&&idx>=0)arr.splice(idx,1); else return;
+  try{ await p.save(); }
+  catch(e){
+    // 저장 실패 → 메모리 원복 + 체크 원복 (화면과 DB가 어긋난 채 남지 않게)
+    var j=arr.indexOf(name);
+    if(on&&j>=0)arr.splice(j,1); else if(!on&&j<0)arr.push(name);
+    if(box)box.checked=!on;
+    alert('저장 실패: '+e.message); return;
+  }
+  try{ logAudit('🔐권한변경', p.label+' — '+name+(on?' 부여':' 회수'), before, arr.slice().join(', ')||'(없음)'); }catch(e){}
+  try{ if((key==='stock'||key==='rc')&&typeof stkLog==='function')stkLog('👥권한변경',name+' '+p.label+(on?' 권한 부여':' 권한 회수'),{},true); }catch(e){}
+  try{ if((key==='stock'||key==='rc')&&typeof stkRenderTable==='function')stkRenderTable(); }catch(e){}
+  permMatrixRefreshIfOpen();
+}
 var TRADE_TAB='import';
 function tradeInit(){ TRADE_TAB='import'; tradeSetTab('import'); }
 function tradeSetTab(t){
@@ -2460,6 +2522,7 @@ async function bootApp(){
   if(data&&!data.some(r=>r.name==='예약장착방'))data.splice(3,0,{id:'reserve-virtual',name:'예약장착방'});
   if(data&&!data.some(r=>r.name==='종합방'))data.splice(4,0,{id:'jonghap-virtual',name:'종합방'});
   await tradeLoadViewers();
+  await bkLoadUsers();
   if(data&&!data.some(r=>r.name==='거래처종합방')&&tradeCanView())data.splice(5,0,{id:'trade-virtual',name:'거래처종합방'});
   rooms=data||[];
   populateAdminSelects();renderSidebar();
@@ -3413,7 +3476,7 @@ async function restoreCSV(){
   reader.readAsText(file);
 }
 
-function openAdmin(){if(!me||me.name!==ADMIN_NAME){alert('관리자만 접근 가능합니다');return;}document.getElementById('admin-overlay').classList.add('on');renderSrcList();renderCatList();renderReturnKwList();if(typeof renderRecvKwList==='function')renderRecvKwList();if(typeof trvRender==='function')trvRender();if(typeof mdictRender==='function')mdictRender();}
+function openAdmin(){if(!me||me.name!==ADMIN_NAME){alert('관리자만 접근 가능합니다');return;}document.getElementById('admin-overlay').classList.add('on');renderSrcList();renderCatList();renderReturnKwList();if(typeof renderRecvKwList==='function')renderRecvKwList();if(typeof mdictRender==='function')mdictRender();}
 function closeAdmin(){document.getElementById('admin-overlay').classList.remove('on');}
 // 키워드 칩 렌더 공통
 function kwChips(arr,color,delFn){
@@ -3423,7 +3486,7 @@ function kwChips(arr,color,delFn){
   }).join('');
 }
 // 받아오기
-function renderRecvKwList(){const el=document.getElementById('recv-kw-list');if(el)el.innerHTML=kwChips(recvKeywords,'#15803d','delRecvKw');if(typeof mdictRender==='function')mdictRender();if(typeof trvRender==='function')trvRender();}
+function renderRecvKwList(){const el=document.getElementById('recv-kw-list');if(el)el.innerHTML=kwChips(recvKeywords,'#15803d','delRecvKw');if(typeof mdictRender==='function')mdictRender();}
 var SRC_GROUP_LABEL={recv:'🟢 받아오기',order:'🟣 거래처발주',arr:'🔵 물류차입고'};
 var SRC_GROUP_COLOR={recv:'#15803d',order:'#7c3aed',arr:'#2563eb'};
 function renderSrcList(){
@@ -7712,7 +7775,7 @@ async function stkLoadEditors(){
     }
   }catch(e){}
   if(STK_INLINE_EDITORS.indexOf(ADMIN_NAME)<0)STK_INLINE_EDITORS.push(ADMIN_NAME);
-  if(document.getElementById('stk-dlgPerm')&&document.getElementById('stk-dlgPerm').classList.contains('on'))stkRenderPerm();
+  if(typeof permMatrixRefreshIfOpen==='function')permMatrixRefreshIfOpen();
 }
 
 // ── 실원가(real_cost) 열람 권한 (stock_settings key='realcost_viewers', JSON 명단) ──
@@ -7842,71 +7905,19 @@ async function stkLoadRealcostViewers(){
 async function stkSaveEditors(){
   var val=JSON.stringify(STK_INLINE_EDITORS);
   var ex=await sb.from('stock_settings').select('key').eq('key','inline_editors');
-  if(ex.data&&ex.data.length){await sb.from('stock_settings').update({value:val}).eq('key','inline_editors');}
-  else{await sb.from('stock_settings').insert({key:'inline_editors',value:val});}
+  var r; if(ex.data&&ex.data.length){r=await sb.from('stock_settings').update({value:val}).eq('key','inline_editors');}
+  else{r=await sb.from('stock_settings').insert({key:'inline_editors',value:val});}
+  if(r&&r.error)throw new Error(r.error.message||'저장 실패');
 }
 // ── 실원가·할인율 열람 권한 관리 (stock_settings key='realcost_viewers') — 관리자 전용 ──
 async function stkSaveRcViewers(){
   var val=JSON.stringify(STK_REALCOST_VIEWERS);
   var ex=await sb.from('stock_settings').select('key').eq('key','realcost_viewers');
-  if(ex.data&&ex.data.length){await sb.from('stock_settings').update({value:val}).eq('key','realcost_viewers');}
-  else{await sb.from('stock_settings').insert({key:'realcost_viewers',value:val});}
+  var r; if(ex.data&&ex.data.length){r=await sb.from('stock_settings').update({value:val}).eq('key','realcost_viewers');}
+  else{r=await sb.from('stock_settings').insert({key:'realcost_viewers',value:val});}
+  if(r&&r.error)throw new Error(r.error.message||'저장 실패');
 }
-async function stkOpenRcPerm(){
-  if(!stkIsAdmin()){stkToast('관리자 전용입니다');return}
-  if(typeof stkLoadRealcostViewers==='function')await stkLoadRealcostViewers();
-  stkRenderRcPerm();
-  document.getElementById('stk-dlgRcPerm').classList.add('on');
-}
-function stkRenderRcPerm(){
-  var el=document.getElementById('stk-rcPermList');if(!el)return;
-  var names=Object.keys(PW);
-  el.innerHTML=names.map(function(n){
-    if(n===ADMIN_NAME){
-      return '<div class="perm-row"><span class="perm-name">'+stkEsc(n)+' <span class="perm-badge">관리자</span></span><span class="perm-fixed">항상 가능</span></div>';
-    }
-    var on=STK_REALCOST_VIEWERS.indexOf(n)>=0;
-    return '<div class="perm-row"><span class="perm-name">'+stkEsc(n)+'</span>'
-      +'<button class="perm-tog'+(on?' on':'')+'" onclick="stkSetRcViewer(\''+stkEsc(n).replace(/'/g,"")+'\','+(!on)+')">'+(on?'✓ 실원가·할인율 가능':'권한 없음')+'</button></div>';
-  }).join('');
-}
-async function stkSetRcViewer(name,on){
-  if(!stkIsAdmin()){stkToast('관리자 전용입니다');return}
-  if(name===ADMIN_NAME){stkToast('관리자는 항상 가능합니다');return}
-  var idx=STK_REALCOST_VIEWERS.indexOf(name);
-  if(on&&idx<0)STK_REALCOST_VIEWERS.push(name);
-  else if(!on&&idx>=0)STK_REALCOST_VIEWERS.splice(idx,1);
-  try{await stkSaveRcViewers();}catch(e){stkToast('저장 실패: '+e.message);return}
-  stkLog('👥권한변경',name+(on?' 실원가·할인율 권한 부여':' 실원가·할인율 권한 회수'),{});
-  stkToast('✓ '+name+' '+(on?'실원가·할인율 권한 부여':'권한 회수'));
-  stkRenderRcPerm();
-  if(typeof stkRenderTable==='function')stkRenderTable();
-}
-async function stkSetEditor(name,on){
-  if(!stkIsAdmin()){stkToast('관리자 전용입니다');return}
-  if(name===ADMIN_NAME){stkToast('관리자는 항상 수정 가능합니다');return}
-  var idx=STK_INLINE_EDITORS.indexOf(name);
-  if(on&&idx<0)STK_INLINE_EDITORS.push(name);
-  else if(!on&&idx>=0)STK_INLINE_EDITORS.splice(idx,1);
-  try{await stkSaveEditors();}catch(e){stkToast('저장 실패: '+e.message);return}
-  stkLog('👥권한변경',name+(on?' 수정권한 부여':' 수정권한 회수'),{});
-  stkToast('✓ '+name+' '+(on?'수정권한 부여':'수정권한 회수'));
-  stkRenderPerm();
-  if(typeof stkRenderTable==='function')stkRenderTable();
-}
-function stkRenderPerm(){
-  var el=document.getElementById('stk-permList');if(!el)return;
-  var names=Object.keys(PW);
-  el.innerHTML=names.map(function(n){
-    if(n===ADMIN_NAME){
-      return '<div class="perm-row"><span class="perm-name">'+stkEsc(n)+' <span class="perm-badge">관리자</span></span><span class="perm-fixed">항상 가능</span></div>';
-    }
-    var on=STK_INLINE_EDITORS.indexOf(n)>=0;
-    return '<div class="perm-row"><span class="perm-name">'+stkEsc(n)+'</span>'
-      +'<button class="perm-tog'+(on?' on':'')+'" onclick="stkSetEditor(\''+stkEsc(n).replace(/'/g,"")+'\','+(!on)+')">'+(on?'✓ 수정 가능':'권한 없음')+'</button></div>';
-  }).join('');
-}
-async function stkOpenPerm(){if(!stkIsAdmin()){stkToast('관리자 전용입니다');return}if(typeof stkLoadEditors==='function')await stkLoadEditors();stkRenderPerm();document.getElementById('stk-dlgPerm').classList.add('on');}
+// (재고방 수정권한·실원가 권한 UI는 관리자 패널 🔐 권한 관리 매트릭스로 통합됨)
 // ── 로그인 비밀번호 관리 (users 테이블, 관리자 전용) ──
 var stkUsersCache={};
 async function stkLoadUsersPw(){
@@ -12023,20 +12034,6 @@ async function rsvDelete(id){
   <textarea id="stk-upTa" rows="5" placeholder="엑셀에서 행들을 복사해 붙여넣으세요 (헤더 행 포함돼도 자동 제외)"></textarea>
   <div class="upbox" id="stk-upPrev" style="display:none"></div>
   <div class="stkacts"><button class="stk-no" onclick="stkCloseDlg()">취소</button><button class="stk-ok" id="stk-upGo" onclick="stkUpRun()">미리보기</button></div>
-</div></div>
-<div class="stkdlgbg" id="stk-dlgPerm" onclick="if(event.target===this)stkCloseDlg()"><div class="stkdlg" style="max-width:360px">
-  <h3>👥 재고방 수정권한</h3>
-  <div class="sub2">권한이 있는 사람만 재고표 셀 수정·행추가·상품추가·삭제가 가능합니다. 변경 즉시 모든 직원·기기에 반영됩니다.</div>
-  <div id="stk-permList" style="margin:6px 0 4px;max-height:50vh;overflow:auto"></div>
-  <div style="font-size:11px;color:#999;margin-top:6px">※ 출고(채널칸)는 권한과 무관하게 누구나 가능합니다.</div>
-  <div class="stkacts"><button class="stk-ok" onclick="stkCloseDlg()">닫기</button></div>
-</div></div>
-<div class="stkdlgbg" id="stk-dlgRcPerm" onclick="if(event.target===this)stkCloseDlg()"><div class="stkdlg" style="max-width:360px">
-  <h3>💰 실원가·할인율 권한</h3>
-  <div class="sub2">권한이 있는 사람만 재고표에서 실원가·할인율 칸을 보고 수정할 수 있습니다. 변경 즉시 모든 직원·기기에 반영됩니다.</div>
-  <div id="stk-rcPermList" style="margin:6px 0 4px;max-height:50vh;overflow:auto"></div>
-  <div style="font-size:11px;color:#999;margin-top:6px">※ 원가·택배가·장착가·공장도가는 모두에게 보입니다.</div>
-  <div class="stkacts"><button class="stk-ok" onclick="stkCloseDlg()">닫기</button></div>
 </div></div>
 <div class="stkdlgbg" id="stk-dlgPw" onclick="if(event.target===this)stkCloseDlg()"><div class="stkdlg" style="max-width:380px">
   <h3>🔑 로그인 비밀번호 관리</h3>
