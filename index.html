@@ -1549,7 +1549,7 @@ body.rb-on #app{padding-top:58px}
     <div class="danger-section" style="border-color:rgba(37,99,235,.3);background:rgba(37,99,235,.06)">
       <div class="danger-title" style="color:#2563eb">🧾 전체 감사로그 (누가·언제·무엇을)</div>
       <div class="del-hint" style="margin-bottom:10px">모든 방의 모든 액션(입력·수정·취소·삭제·완료·이동 등)이 시각·사람과 함께 기록됩니다. CSV로 내려받아 확인하세요.</div>
-      <button class="btn-danger" style="background:#2563eb" onclick="auditDownload()">🧾 감사로그 CSV 다운로드</button>
+      <button class="btn-danger" style="background:#2563eb" onclick="auditDownload()">🧾 감사로그 CSV 다운로드</button> <button class="mng-btn" style="background:#0d9488" onclick="dailyBackup()">📥 일일백업 (원본+리포트)</button>
     </div>
     <div class="danger-section">
       <div class="danger-title">📅 날짜별 삭제</div>
@@ -1788,6 +1788,75 @@ async function logAudit(action, target, beforeVal, afterVal){
       at:new Date().toISOString()
     });
   }catch(e){ /* 로그 실패가 기능을 막지 않도록 무시 */ }
+}
+async function dailyBackup(){
+  try{
+    var TBLS=['items','deliveries','reservations','reservation_links','stock_products','stock_lots','stock_logs','jonghap_orders','trade_settle','trade_logs','staff_schedules','settings'];
+    var snap={}, t, btn=null;
+    for(var ti=0;ti<TBLS.length;ti++){ t=TBLS[ti];
+      var all=[],from=0;
+      while(true){ var r=await sb.from(t).select('*').range(from,from+999);
+        if(r&&r.error){ all=null; break; }
+        if(r&&r.data&&r.data.length){ all=all.concat(r.data); if(r.data.length<1000)break; from+=1000; if(from>60000)break; } else break; }
+      snap[t]=all||[];
+    }
+    // 오늘 감사로그 (KST 자정 기준)
+    var now=new Date(), kstMid=new Date(now.getTime()+9*3600*1000); kstMid.setUTCHours(0,0,0,0);
+    var since=new Date(kstMid.getTime()-9*3600*1000).toISOString();
+    var logs=[],lf=0;
+    while(true){ var lr=await sb.from('audit_logs').select('*').gte('at',since).order('at',{ascending:true}).range(lf,lf+999);
+      if(lr&&lr.data&&lr.data.length){ logs=logs.concat(lr.data); if(lr.data.length<1000)break; lf+=1000; if(lf>30000)break; } else break; }
+    var dstr=getTodayISO();
+    // ── UUID → 사람 라벨 맵 ──
+    var LBL={};
+    (snap.items||[]).forEach(function(x){ LBL[x.id]='입고분: '+[x.model,x.spec].filter(Boolean).join(' ')+(x.src?' ['+x.src+']':''); });
+    (snap.deliveries||[]).forEach(function(x){ LBL[x.id]='직배송: '+(x.trade_client||x.recv||'')+' '+String(x.tire||x.spec||'').split('\n')[0].slice(0,40); });
+    (snap.reservations||[]).forEach(function(x){ LBL[x.id]='예약: '+(x.date_str||'')+' '+(x.time_slot||'')+' '+String(x.tire_spec||'').slice(0,40); });
+    (snap.jonghap_orders||[]).forEach(function(x){ LBL[x.id]='종합방주문: '+[x.brand,x.name,x.size].filter(Boolean).join(' ').slice(0,50); });
+    (snap.stock_products||[]).forEach(function(x){ LBL[x.id]='재고: '+String(x.name||x.model||x.id).slice(0,50); });
+    var FKO={qty:'수량',out_qty:'출고수량',cancel_qty:'취소수량',arrived:'실물입고',arrived_by:'확인자',model:'모델',spec:'규격',size:'사이즈',src:'출처',date_str:'날짜',recv:'받는분',tel:'전화',addr:'주소',tire:'타이어',brand:'브랜드',trade_client:'거래처',unit_price:'출고가',trade_memo:'거래메모',done:'완료',done_by:'완료자',out_done:'출고완료',out_to:'출고처',out_user:'출고자',status:'상태',memo:'메모',note:'메모',time_slot:'시간',tire_spec:'타이어',user_name:'작성자',wave_no:'배송묶음',car:'호차',cancelled:'취소',name:'이름',code:'코드',loc:'위치',dot:'DOT',deposit:'예약금',pay_method:'결제',work_note:'작업메모',stock_done:'재고연결',src_label:'출처표시',platform:'플랫폼',order_no:'주문번호',assignee:'담당'};
+    function humanize(s){
+      if(!s)return '';
+      s=String(s);
+      // JSON이면 한글 필드로 풀기
+      if(/^[\[{]/.test(s.trim())){ try{ var o=JSON.parse(s); if(Array.isArray(o))o=o[0]||{};
+        var parts=[]; Object.keys(o).forEach(function(k){ var v=o[k]; if(v==null||v==='')return; if(typeof v==='object')return;
+          if(k==='id'||k==='room_id'||/_id$/.test(k)){ if(LBL[v])parts.push((FKO[k]||k)+': '+LBL[v]); return; }
+          parts.push((FKO[k]||k)+': '+String(v).slice(0,60)); });
+        if(parts.length)return parts.join(' · ').slice(0,400);
+      }catch(e){} }
+      // UUID 치환
+      return s.replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi,function(u){return LBL[u]||u.slice(0,8)+'…';}).slice(0,400);
+    }
+    function dl(name,content,type){ var b=new Blob([content],{type:type}); var a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download=name; a.click(); setTimeout(function(){URL.revokeObjectURL(a.href);},4000); }
+    // ── ① 원본 JSON (복구용) ──
+    dl('백업_원본_'+dstr+'.json', JSON.stringify({backup_date:dstr,generated_at:new Date().toISOString(),tables:snap,audit_logs_today:logs},null,1),'application/json');
+    // ── ② 사람용 HTML 리포트 ──
+    function esc2(x){return String(x==null?'':x).replace(/&/g,'&amp;').replace(/</g,'&lt;');}
+    function table(title,rows,cols){
+      if(!rows||!rows.length)return '<h3>'+title+' (0건)</h3>';
+      var h='<h3>'+title+' ('+rows.length+'건)</h3><table><tr>'+cols.map(function(c){return '<th>'+(FKO[c]||c)+'</th>';}).join('')+'</tr>';
+      rows.forEach(function(r){ h+='<tr>'+cols.map(function(c){ var v=r[c]; if(v===true)v='✓'; if(v===false)v=''; return '<td>'+esc2(String(v==null?'':v).split('\n')[0].slice(0,46))+'</td>'; }).join('')+'</tr>'; });
+      return h+'</table>';
+    }
+    var rep='<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8"><title>일일백업 '+dstr+'</title><style>body{font-family:"Malgun Gothic",sans-serif;font-size:12px;margin:24px;color:#1f2937}h1{font-size:18px}h2{font-size:15px;margin:26px 0 6px;border-left:4px solid #1e6fd9;padding-left:8px}h3{font-size:13px;margin:14px 0 4px}table{border-collapse:collapse;width:100%;margin-bottom:8px}th,td{border:1px solid #d7dce3;padding:3px 6px;font-size:11px;text-align:left;white-space:nowrap}th{background:#eef2f7}tr:nth-child(even) td{background:#fafbfd}.lg td{white-space:normal}</style></head><body>';
+    rep+='<h1>📥 타이어게러지 일일백업 리포트 — '+dstr+'</h1><p>생성: '+new Date().toLocaleString('ko-KR',{timeZone:'Asia/Seoul'})+' · 아래는 이 시점의 <b>최종 데이터</b>와 <b>오늘 하루의 모든 작업기록</b>입니다.</p>';
+    rep+='<h2>📊 요약</h2><table><tr>'+TBLS.map(function(x){return '<th>'+x+'</th>';}).join('')+'<th>오늘 작업기록</th></tr><tr>'+TBLS.map(function(x){return '<td>'+snap[x].length+'건</td>';}).join('')+'<td>'+logs.length+'건</td></tr></table>';
+    rep+='<h2>🕘 오늘의 작업기록 (누가 · 언제 · 어느방 · 어느탭 · 무엇을 · 전→후)</h2>';
+    rep+='<table class="lg"><tr><th>시각</th><th>누가</th><th>방</th><th>액션(탭 포함)</th><th>대상</th><th>이전값</th><th>이후값/입력값</th></tr>';
+    logs.forEach(function(g){ var kst=g.at?new Date(new Date(g.at).getTime()+9*3600*1000).toISOString().replace('T',' ').slice(5,19):'';
+      rep+='<tr><td>'+kst+'</td><td>'+esc2(g.who)+'</td><td>'+esc2(g.room)+'</td><td>'+esc2(g.action)+'</td><td>'+esc2(humanize(g.target))+'</td><td>'+esc2(humanize(g.before_val))+'</td><td>'+esc2(humanize(g.after_val))+'</td></tr>'; });
+    rep+='</table>';
+    rep+='<h2>📦 입고방 — 최종 데이터</h2>'+table('입고분(입고예정=입고표)',snap.items,['date_str','src','model','spec','qty','cancel_qty','out_qty','arrived','arrived_by','out_done','out_to','out_user','user_name']);
+    rep+='<h2>🚚 직배송방</h2>'+table('직배송건',snap.deliveries,['date_str','tab','car','wave_no','channel','trade_client','recv','tire','spec','qty','addr','tel','done','done_by','cancelled','user_name']);
+    rep+='<h2>📅 예약등록방</h2>'+table('예약',snap.reservations,['date_str','time_slot','tire_spec','qty','status','deposit','pay_method','src_label','user_name'])+table('추가연결',snap.reservation_links,['tire_spec','qty','stock_done','src_label'])+table('직원 휴무/연차',snap.staff_schedules,['date_str','staff_name','kind','memo']);
+    rep+='<h2>🏬 재고방</h2>'+table('재고상품',snap.stock_products,['name','size','code','cost','source','qty'])+table('재고 lot',snap.stock_lots,['product_id','dot','qty','loc']);
+    rep+='<h2>💼 종합방</h2>'+table('주문',snap.jonghap_orders,['date_str','platform','dtype','brand','name','size','qty','recv','status','out_target','reg_user','out_user','cancelled']);
+    rep+='<h2>💰 거래처 정산</h2>'+table('정산행',snap.trade_settle,['in_date','client','pattern','spec','out_qty','out_price','sale_price','net_profit','payer','deleted']);
+    rep+='<p style="color:#94a3b8">※ 원본 전체(모든 컬럼)는 함께 받은 <b>백업_원본_'+dstr+'.json</b>에 있습니다 — 복구용으로 보관하세요.</p></body></html>';
+    setTimeout(function(){ dl('백업리포트_'+dstr+'.html', rep, 'text/html'); }, 350);
+    alert('📥 일일백업 완료\n\n· 백업_원본_'+dstr+'.json (복구용 원본 전체)\n· 백업리포트_'+dstr+'.html (사람용 — 방별 최종데이터 + 오늘 작업기록)\n\n두 파일이 다운로드됩니다.');
+  }catch(e){ alert('백업 실패: '+(e&&e.message||e)); }
 }
 async function auditDownload(){
   try{
