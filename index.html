@@ -1084,7 +1084,6 @@ body.rb-on #app{padding-top:58px}
     <div class="sb-rooms" id="sb-rooms"></div>
     <div class="sb-foot">
       <div id="admin-sidebar-btn" style="display:none">
-        <button class="admin-btn" onclick="stkOpenPw()">🔑 비밀번호</button>
         <button class="admin-btn" onclick="stkChangeMasterPw()">🔒 잠금/삭제 비번</button>
         <button class="admin-btn" onclick="openAdmin()">⚙️ 관리자 수정</button>
         <button class="admin-btn" onclick="dbBackupOpen()">💾 백업/복구</button>
@@ -1555,7 +1554,12 @@ body.rb-on #app{padding-top:58px}
       <button class="btn-danger" style="background:#0f172a;width:100%" onclick="permMatrixToggle()">🔐 권한표 펼치기 / 접기</button>
       <div id="perm-matrix-wrap" style="display:none;margin-top:10px">
         <div id="perm-matrix" style="overflow:auto"></div>
-        <div class="del-hint" style="margin-top:8px">대표는 항상 모든 권한이 있습니다. 이름은 직원 목록에서 자동으로 불러오므로 타이핑 오타로 권한이 조용히 빠지는 일이 없습니다.</div>
+        <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
+          <input id="perm-emp-name" placeholder="새 직원 이름" style="flex:1;min-width:110px;padding:8px 11px;border:1px solid var(--border);border-radius:8px;font-size:14px;outline:none;font-family:inherit">
+          <input id="perm-emp-pw" placeholder="초기 비밀번호 (4자 이상)" style="flex:1;min-width:150px;padding:8px 11px;border:1px solid var(--border);border-radius:8px;font-size:14px;outline:none;font-family:inherit">
+          <button class="btn-danger" style="background:#0f172a" onclick="permEmpAdd()">➕ 직원 추가</button>
+        </div>
+        <div class="del-hint" style="margin-top:8px">대표는 항상 모든 권한이 있습니다. 직원 추가·삭제·🔑비번변경·권한 체크 전부 이 표에서 하며, 즉시 저장·감사기록됩니다. 삭제해도 그 직원의 과거 메시지·작업기록은 그대로 남습니다.</div>
       </div>
     </div>
     <div class="danger-section">
@@ -1790,7 +1794,7 @@ async function logAudit(action, target, beforeVal, afterVal){
 async function dailyBackup(){
   if(typeof bkCanUse==='function'&&!bkCanUse()){alert('백업 권한이 없습니다 — 대표에게 요청해주세요.');return;}
   try{
-    var TBLS=['items','deliveries','reservations','reservation_links','stock_products','stock_lots','stock_logs','jonghap_orders','trade_settle','trade_logs','staff_schedules','settings'];
+    var TBLS=['items','deliveries','reservations','reservation_links','stock_products','stock_lots','stock_logs','jonghap_orders','trade_settle','trade_logs','staff_schedules','settings','stock_settings','users'];
     var snap={}, t, btn=null;
     for(var ti=0;ti<TBLS.length;ti++){ t=TBLS[ti];
       var all=[],from=0;
@@ -1798,6 +1802,7 @@ async function dailyBackup(){
         if(r&&r.error){ all=null; break; }
         if(r&&r.data&&r.data.length){ all=all.concat(r.data); if(r.data.length<1000)break; from+=1000; if(from>60000)break; } else break; }
       snap[t]=all||[];
+      if(t==='users')snap[t]=snap[t].map(function(u){ var c={}; Object.keys(u).forEach(function(k){c[k]=u[k];}); if('password' in c)c.password='(비공개)'; return c; }); // 백업 파일에 비밀번호 원문 저장 금지
     }
     // 오늘 감사로그 (KST 자정 기준)
     var now=new Date(), kstMid=new Date(now.getTime()+9*3600*1000); kstMid.setUTCHours(0,0,0,0);
@@ -1813,7 +1818,7 @@ async function dailyBackup(){
     (snap.reservations||[]).forEach(function(x){ LBL[x.id]='예약: '+(x.date_str||'')+' '+(x.time_slot||'')+' '+String(x.tire_spec||'').slice(0,40); });
     (snap.jonghap_orders||[]).forEach(function(x){ LBL[x.id]='종합방주문: '+[x.brand,x.name,x.size].filter(Boolean).join(' ').slice(0,50); });
     (snap.stock_products||[]).forEach(function(x){ LBL[x.id]='재고: '+String(x.name||x.model||x.id).slice(0,50); });
-    var FKO={qty:'수량',out_qty:'출고수량',cancel_qty:'취소수량',arrived:'실물입고',arrived_by:'확인자',model:'모델',spec:'규격',size:'사이즈',src:'출처',date_str:'날짜',recv:'받는분',tel:'전화',addr:'주소',tire:'타이어',brand:'브랜드',trade_client:'거래처',unit_price:'출고가',trade_memo:'거래메모',done:'완료',done_by:'완료자',out_done:'출고완료',out_to:'출고처',out_user:'출고자',status:'상태',memo:'메모',note:'메모',time_slot:'시간',tire_spec:'타이어',user_name:'작성자',wave_no:'배송묶음',car:'호차',cancelled:'취소',name:'이름',code:'코드',loc:'위치',dot:'DOT',deposit:'예약금',pay_method:'결제',work_note:'작업메모',stock_done:'재고연결',src_label:'출처표시',platform:'플랫폼',order_no:'주문번호',assignee:'담당'};
+    var FKO={qty:'수량',out_qty:'출고수량',cancel_qty:'취소수량',arrived:'실물입고',arrived_by:'확인자',model:'모델',spec:'규격',size:'사이즈',src:'출처',date_str:'날짜',recv:'받는분',tel:'전화',addr:'주소',tire:'타이어',brand:'브랜드',trade_client:'거래처',unit_price:'출고가',trade_memo:'거래메모',done:'완료',done_by:'완료자',out_done:'출고완료',out_to:'출고처',out_user:'출고자',status:'상태',memo:'메모',note:'메모',time_slot:'시간',tire_spec:'타이어',user_name:'작성자',wave_no:'배송묶음',car:'호차',cancelled:'취소',name:'이름',code:'코드',loc:'위치',dot:'DOT',deposit:'예약금',pay_method:'결제',work_note:'작업메모',stock_done:'재고연결',src_label:'출처표시',platform:'플랫폼',order_no:'주문번호',assignee:'담당',key:'권한',value:'명단',created_at:'등록일'};
     function humanize(s){
       if(!s)return '';
       s=String(s);
@@ -1852,6 +1857,8 @@ async function dailyBackup(){
     rep+='<h2>🏬 재고방</h2>'+table('재고상품',snap.stock_products,['name','size','code','cost','source','qty'])+table('재고 lot',snap.stock_lots,['product_id','dot','qty','loc']);
     rep+='<h2>💼 종합방</h2>'+table('주문',snap.jonghap_orders,['date_str','platform','dtype','brand','name','size','qty','recv','status','out_target','reg_user','out_user','cancelled']);
     rep+='<h2>💰 거래처 정산</h2>'+table('정산행',snap.trade_settle,['in_date','client','pattern','spec','out_qty','out_price','sale_price','net_profit','payer','deleted']);
+    rep+='<h2>👥 직원·권한</h2>'+table('직원 명단',snap.users,['name','created_at'])
+      +table('권한 명단(설정)',(snap.settings||[]).concat(snap.stock_settings||[]).filter(function(x){return ['trade_room_viewers','backup_users','inline_editors','realcost_viewers'].indexOf(x.key)>=0;}).map(function(x){var kk={inline_editors:'재고 수정',realcost_viewers:'실원가·할인율',trade_room_viewers:'거래처방',backup_users:'백업·복구'};return {key:kk[x.key]||x.key,value:(typeof x.value==='string'?x.value:JSON.stringify(x.value))};}),['key','value']);
     rep+='<p style="color:#94a3b8">※ 원본 전체(모든 컬럼)는 함께 받은 <b>백업_원본_'+dstr+'.json</b>에 있습니다 — 복구용으로 보관하세요.</p></body></html>';
     setTimeout(function(){ dl('백업리포트_'+dstr+'.html', rep, 'text/html'); }, 350);
     alert('📥 일일백업 완료\n\n· 백업_원본_'+dstr+'.json (복구용 원본 전체)\n· 백업리포트_'+dstr+'.html (사람용 — 방별 최종데이터 + 오늘 작업기록)\n\n두 파일이 다운로드됩니다.');
@@ -1940,28 +1947,33 @@ async function permMatrixToggle(){
   if(wrap.style.display!=='none'){ wrap.style.display='none'; return; }
   if(!me||me.name!==ADMIN_NAME){ alert('관리자 전용입니다'); return; }
   // 펼칠 때마다 4개 명단 + 직원 목록을 DB에서 새로 읽음 (다른 기기 변경 반영)
+  try{ await usersEnsureSeed(); }catch(e){}
   try{ await Promise.all([
     (typeof stkLoadEditors==='function'?stkLoadEditors():null),
     (typeof stkLoadRealcostViewers==='function'?stkLoadRealcostViewers():null),
     tradeLoadViewers(), bkLoadUsers()
   ]); }catch(e){}
-  var names={}; Object.keys(PW).forEach(function(n){names[n]=1;});
-  try{ var r=await sb.from('users').select('name'); (r.data||[]).forEach(function(u){ if(u&&u.name)names[String(u.name).trim()]=1; }); }catch(e){}
+  await permLoadNames();
+  permMatrixRender();
+  wrap.style.display='block';
+}
+// 표의 이름 소스 = users 테이블 ∪ 권한 명단 (코드 고정 명단은 합집합에서 제외 — 삭제한 직원이 유령처럼 되살아나는 것 방지)
+async function permLoadNames(){
+  var names={};
+  try{ var r=await sb.from('users').select('name'); if(!r.error)(r.data||[]).forEach(function(u){ if(u&&u.name)names[String(u.name).trim()]=1; }); }catch(e){}
   PERM_DEFS.forEach(function(p){ (p.list()||[]).forEach(function(n){ if(n)names[n]=1; }); });
   delete names[ADMIN_NAME];
   var order=Object.keys(PW);
   _permNames=Object.keys(names).sort(function(a,b){ var ia=order.indexOf(a),ib=order.indexOf(b); if(ia<0)ia=999; if(ib<0)ib=999; return (ia-ib)||a.localeCompare(b,'ko'); });
-  permMatrixRender();
-  wrap.style.display='block';
 }
 function permMatrixRefreshIfOpen(){ var w=document.getElementById('perm-matrix-wrap'); if(w&&w.style.display!=='none')permMatrixRender(); }
 function permMatrixRender(){
   var el=document.getElementById('perm-matrix'); if(!el)return;
   var h='<table style="width:100%;border-collapse:collapse;font-size:13px;background:#fff;border-radius:10px;overflow:hidden;border:1px solid #e2e8f0">';
   h+='<tr style="background:#f1f5f9"><th style="text-align:left;padding:8px 10px;border-bottom:2px solid #e2e8f0">직원</th>'
-    +PERM_DEFS.map(function(p){return '<th title="'+esc(p.hint)+'" style="padding:8px 4px;border-bottom:2px solid #e2e8f0;color:'+p.color+';font-size:12px;white-space:nowrap">'+esc(p.label)+'</th>';}).join('')+'</tr>';
+    +PERM_DEFS.map(function(p){return '<th title="'+esc(p.hint)+'" style="padding:8px 4px;border-bottom:2px solid #e2e8f0;color:'+p.color+';font-size:12px;white-space:nowrap">'+esc(p.label)+'</th>';}).join('')+'<th style="padding:8px 4px;border-bottom:2px solid #e2e8f0;font-size:12px">관리</th></tr>';
   h+='<tr style="background:#fffbeb"><td style="padding:7px 10px;border-bottom:1px solid #f1f5f9;font-weight:800">'+esc(ADMIN_NAME)+' <span style="font-size:11px;color:#b45309">(대표)</span></td>'
-    +PERM_DEFS.map(function(){return '<td style="text-align:center;border-bottom:1px solid #f1f5f9;color:#b45309;font-weight:800" title="대표는 항상 모든 권한">✓</td>';}).join('')+'</tr>';
+    +PERM_DEFS.map(function(){return '<td style="text-align:center;border-bottom:1px solid #f1f5f9;color:#b45309;font-weight:800" title="대표는 항상 모든 권한">✓</td>';}).join('')+'<td style="text-align:center;border-bottom:1px solid #f1f5f9;color:#cbd5e1">—</td></tr>';
   _permNames.forEach(function(n){
     var safe=n.replace(/\\/g,'').replace(/'/g,'');
     h+='<tr><td style="padding:7px 10px;border-bottom:1px solid #f1f5f9;font-weight:700">'+esc(n)+'</td>';
@@ -1969,6 +1981,9 @@ function permMatrixRender(){
       var on=(p.list()||[]).indexOf(n)>=0;
       h+='<td style="text-align:center;border-bottom:1px solid #f1f5f9"><input type="checkbox" '+(on?'checked ':'')+'style="width:17px;height:17px;accent-color:'+p.color+';cursor:pointer" onchange="permMatrixSet(\''+safe+'\',\''+p.key+'\',this.checked,this)"></td>';
     });
+    h+='<td style="text-align:center;white-space:nowrap;border-bottom:1px solid #f1f5f9">'
+      +'<button title="비밀번호 변경" onclick="permEmpPw(\''+safe+'\')" style="border:1px solid #e2e8f0;background:#fff;border-radius:6px;padding:3px 7px;cursor:pointer;font-size:12px">🔑</button> '
+      +'<button title="직원 삭제" onclick="permEmpDel(\''+safe+'\')" style="border:1px solid #fecaca;background:#fff;color:#dc2626;border-radius:6px;padding:3px 7px;cursor:pointer;font-size:12px;font-weight:800">✕</button></td>';
     h+='</tr>';
   });
   h+='</table>';
@@ -1993,6 +2008,62 @@ async function permMatrixSet(name,key,on,box){
   try{ if((key==='stock'||key==='rc')&&typeof stkLog==='function')stkLog('👥권한변경',name+' '+p.label+(on?' 권한 부여':' 권한 회수'),{},true); }catch(e){}
   try{ if((key==='stock'||key==='rc')&&typeof stkRenderTable==='function')stkRenderTable(); }catch(e){}
   permMatrixRefreshIfOpen();
+}
+async function permEmpAdd(){
+  if(!me||me.name!==ADMIN_NAME){ alert('관리자 전용입니다'); return; }
+  var nmEl=document.getElementById('perm-emp-name'), pwEl=document.getElementById('perm-emp-pw');
+  var nm=(nmEl.value||'').trim(), pw=(pwEl.value||'').trim();
+  if(!nm){ alert('이름을 입력해주세요'); return; }
+  if(nm.length>20){ alert('이름은 20자 이내로 해주세요'); return; }
+  if(/["'\\<>]/.test(nm)){ alert('이름에는 따옴표·꺾쇠·역슬래시 기호를 쓸 수 없습니다'); return; }
+  if(pw.length<4){ alert('초기 비밀번호는 4자 이상으로 해주세요'); return; }
+  if(nm===ADMIN_NAME||_permNames.indexOf(nm)>=0){ alert('이미 있는 이름입니다'); return; }
+  try{
+    var ex=await sb.from('users').select('name').eq('name',nm); if(ex.error)throw new Error(ex.error.message);
+    if(ex.data&&ex.data.length){ alert('이미 있는 이름입니다'); return; }
+    var r=await sb.from('users').insert({name:nm,password:pw}); if(r&&r.error)throw new Error(r.error.message);
+  }catch(e){ alert('추가 실패: '+e.message); return; }
+  try{ logAudit('👤직원 추가', nm, '(없음)', '직원 등록 — 권한은 전부 없음으로 시작'); }catch(e){}
+  nmEl.value=''; pwEl.value='';
+  await permLoadNames(); permMatrixRender();
+  try{ loadLoginNames(); }catch(e){}
+  alert('✓ '+nm+' 등록 완료 — 로그인 이름 목록에 추가되었습니다. 필요한 권한은 표에서 체크해주세요.');
+}
+async function permEmpPw(name){
+  if(!me||me.name!==ADMIN_NAME){ alert('관리자 전용입니다'); return; }
+  var np=prompt(name+' 님의 새 로그인 비밀번호 (4자 이상)'); if(np===null)return;
+  np=(''+np).trim(); if(np.length<4){ alert('비밀번호는 4자 이상으로 해주세요'); return; }
+  try{
+    var ex=await sb.from('users').select('name').eq('name',name); if(ex.error)throw new Error(ex.error.message);
+    var r; if(ex.data&&ex.data.length){ r=await sb.from('users').update({password:np}).eq('name',name); }
+    else{ r=await sb.from('users').insert({name:name,password:np}); }
+    if(r&&r.error)throw new Error(r.error.message);
+  }catch(e){ alert('저장 실패: '+e.message); return; }
+  try{ logAudit('🔑비번변경', name+' 로그인 비밀번호 변경', '', '(변경됨)'); }catch(e){} // 비밀번호 값 자체는 어디에도 기록하지 않음
+  alert('✓ '+name+' 비밀번호 변경됨 — 다음 로그인부터 적용 (이미 로그인된 기기는 유지)');
+}
+async function permEmpDel(name){
+  if(!me||me.name!==ADMIN_NAME){ alert('관리자 전용입니다'); return; }
+  if(name===ADMIN_NAME){ alert('대표 계정은 삭제할 수 없습니다'); return; }
+  var perms=PERM_DEFS.filter(function(p){return (p.list()||[]).indexOf(name)>=0;}).map(function(p){return p.label;});
+  if(!confirm('『'+name+'』 직원을 삭제할까요?\n\n· 로그인 불가 (이름 목록에서 제거)\n· 권한 '+(perms.length?perms.join(', '):'없음')+' 자동 회수\n· 과거 메시지·작업기록은 그대로 남습니다'))return;
+  // 1) 권한 4개 명단에서 먼저 제거 — 하나라도 실패하면 중단 (유령 권한 방지)
+  for(var i=0;i<PERM_DEFS.length;i++){
+    var p=PERM_DEFS[i], arr=p.list(), idx=arr.indexOf(name);
+    if(idx<0)continue;
+    var before=arr.slice().join(', ');
+    arr.splice(idx,1);
+    try{ await p.save(); }
+    catch(e){ arr.splice(idx,0,name); alert('권한 회수 실패('+p.label+'): '+e.message+'\n삭제를 중단합니다 — 다시 시도해주세요.'); permMatrixRefreshIfOpen(); return; }
+    try{ logAudit('🔐권한변경', p.label+' — '+name+' 회수(직원 삭제)', before, arr.slice().join(', ')||'(없음)'); }catch(e){}
+  }
+  // 2) 계정 삭제
+  try{ var r=await sb.from('users').delete().eq('name',name); if(r&&r.error)throw new Error(r.error.message); }
+  catch(e){ alert('계정 삭제 실패: '+e.message+'\n(권한은 이미 회수됨 — 다시 시도하면 계정만 삭제됩니다)'); await permLoadNames(); permMatrixRender(); return; }
+  try{ logAudit('👤직원 삭제', name, '직원 (보유했던 권한: '+(perms.length?perms.join(', '):'없음')+')', '(삭제)'); }catch(e){}
+  await permLoadNames(); permMatrixRender();
+  try{ loadLoginNames(); }catch(e){}
+  alert('✓ '+name+' 삭제 완료');
 }
 var TRADE_TAB='import';
 function tradeInit(){ TRADE_TAB='import'; tradeSetTab('import'); }
@@ -2508,11 +2579,46 @@ async function doLogin(){
   me=user;localStorage.setItem('tg_me',JSON.stringify(me));bootApp();
 }
 function showErr(msg){const e=document.getElementById('login-err');e.textContent=msg;e.style.display='block';}
-function doLogout(){me=null;localStorage.removeItem('tg_me');if(sub)sb.removeChannel(sub);document.getElementById('app').classList.remove('on');document.getElementById('login-wrap').style.display='flex';}
+function doLogout(){me=null;localStorage.removeItem('tg_me');if(sub)sb.removeChannel(sub);document.getElementById('app').classList.remove('on');document.getElementById('login-wrap').style.display='flex';try{loadLoginNames();}catch(e){}}
+
+// ===== 로그인 이름 목록: users 테이블 기반 (코드 고정 명단 PW는 시드·폴백 전용) =====
+var _seedDone=false;
+async function usersEnsureSeed(){ // 기존 명단(PW)에 있는데 users 테이블에 없는 직원을 '최초 1회만' 자동 등록
+  // ⚠️ DB에 완료 표시(users_seed_done)를 남겨 두 번 다시 실행되지 않게 함 — 안 그러면 대표가 삭제한 기존 직원이 새 브라우저에서 열 때마다 되살아나는 사고 발생
+  if(_seedDone||!sb)return;
+  try{
+    var fl=await sb.from('settings').select('value').eq('key','users_seed_done').maybeSingle();
+    if(fl&&!fl.error&&fl.data){ _seedDone=true; return; } // 이미 시드 완료 — 재시드 금지 (조회 오류면 아래로 안 내려가고 종료)
+    if(fl&&fl.error)return;
+    var r=await sb.from('users').select('name'); if(r.error)return;
+    var have={}; (r.data||[]).forEach(function(u){ if(u&&u.name)have[String(u.name).trim()]=1; });
+    var miss=Object.keys(PW).filter(function(n){ return !have[n]; });
+    if(miss.length){ var ir=await sb.from('users').insert(miss.map(function(n){return {name:n};})); if(ir&&ir.error)return; }
+    var fw=await sb.from('settings').upsert({key:'users_seed_done',value:true,updated_at:new Date().toISOString()},{onConflict:'key'});
+    if(fw&&fw.error)return;
+    _seedDone=true;
+  }catch(e){}
+}
+async function loadLoginNames(){
+  var sel=document.getElementById('sel-name'); if(!sel)return;
+  var names=null;
+  try{
+    if(sb){ await usersEnsureSeed(); var r=await sb.from('users').select('name'); if(!r.error&&r.data&&r.data.length){ names=r.data.map(function(u){return String(u.name||'').trim();}).filter(Boolean); } }
+  }catch(e){}
+  if(!names||!names.length)names=Object.keys(PW); // 조회 실패 시 기본 명단 폴백 — 로그인 불능 방지
+  var uniq={}; names.forEach(function(n){uniq[n]=1;});
+  var order=Object.keys(PW);
+  var list=Object.keys(uniq).sort(function(a,b){ if(a===ADMIN_NAME)return -1; if(b===ADMIN_NAME)return 1; var ia=order.indexOf(a),ib=order.indexOf(b); if(ia<0)ia=999; if(ib<0)ib=999; return (ia-ib)||a.localeCompare(b,'ko'); });
+  var cur=sel.value;
+  sel.innerHTML='<option value="">선택하세요</option>'+list.map(function(n){return '<option>'+esc(n)+'</option>';}).join('');
+  if(cur&&list.indexOf(cur)>=0)sel.value=cur;
+}
 function toggleSidebar(){document.querySelector('.sidebar').classList.toggle('open');document.getElementById('sidebar-backdrop').classList.toggle('open');}
 function closeSidebar(){document.querySelector('.sidebar').classList.remove('open');const b=document.getElementById('sidebar-backdrop');if(b)b.classList.remove('open');}
 
 async function bootApp(){
+  // 삭제된 계정의 자동로그인 차단 — 조회가 '성공'했고 '계정이 없음'이 확인될 때만 로그아웃 (네트워크 오류면 통과: 오판으로 업무가 막히지 않게)
+  try{ if(sb&&me&&me.name!==ADMIN_NAME){ var _uchk=await sb.from('users').select('name').eq('name',me.name).maybeSingle(); if(_uchk&&!_uchk.error&&!_uchk.data){ alert('로그인 계정이 삭제되어 로그아웃됩니다. 대표에게 문의하세요.'); doLogout(); return; } } }catch(e){}
   document.getElementById('login-wrap').style.display='none';
   document.getElementById('app').classList.add('on');
   document.getElementById('sb-username').textContent=me.name;
@@ -3633,7 +3739,8 @@ function clearKey(){if(confirm('API 키를 삭제하고 패턴 모드로 돌아�
 
 document.getElementById('inp-pw').addEventListener('keydown',function(e){if(e.key==='Enter')doLogin();});
 var _saved='';try{_saved=localStorage.getItem('tg_me');}catch(e){_saved='';}
-if(_saved){try{me=JSON.parse(_saved);bootApp();}catch(e){localStorage.removeItem('tg_me');}}
+if(_saved){try{me=JSON.parse(_saved);bootApp();}catch(e){localStorage.removeItem('tg_me');loadLoginNames();}}
+else{ loadLoginNames(); }
 
 // ============================================
 // 입고방 (items 모드) 전체 로직
@@ -7919,38 +8026,7 @@ async function stkSaveRcViewers(){
 }
 // (재고방 수정권한·실원가 권한 UI는 관리자 패널 🔐 권한 관리 매트릭스로 통합됨)
 // ── 로그인 비밀번호 관리 (users 테이블, 관리자 전용) ──
-var stkUsersCache={};
-async function stkLoadUsersPw(){
-  try{var r=await sb.from('users').select('*');stkUsersCache={};(r.data||[]).forEach(function(u){stkUsersCache[u.name]=u.password||'';});}catch(e){}
-}
-function stkRenderPw(){
-  var el=document.getElementById('stk-pwList');if(!el)return;
-  var names=Object.keys(PW);
-  el.innerHTML=names.map(function(n){
-    var cur=(n in stkUsersCache)?stkUsersCache[n]:(PW[n]||'');
-    var isDefault=(cur===(PW[n]||''));
-    return '<div class="perm-row"><span class="perm-name">'+stkEsc(n)+(n===ADMIN_NAME?' <span class="perm-badge">관리자</span>':'')+'</span>'
-      +'<span class="pw-cur'+(isDefault?' pw-def':'')+'">'+stkEsc(cur||'(미설정)')+'</span>'
-      +'<button class="perm-tog" onclick="stkSetPw(\''+stkEsc(n).replace(/\\/g,"").replace(/'/g,"")+'\')">🔑 변경</button></div>';
-  }).join('');
-}
-async function stkOpenPw(){if(!stkIsAdmin()){stkToast('관리자 전용입니다');return}await stkLoadUsersPw();stkRenderPw();document.getElementById('stk-dlgPw').classList.add('on');}
-async function stkSetPw(name){
-  if(!stkIsAdmin()){stkToast('관리자 전용입니다');return}
-  var np=prompt(name+' 님의 새 비밀번호 (4자 이상)');
-  if(np===null)return;
-  np=(''+np).trim();
-  if(np.length<4){stkToast('비밀번호는 4자 이상으로 해주세요');return}
-  try{
-    var ex=await sb.from('users').select('name').eq('name',name);
-    if(ex.data&&ex.data.length){await sb.from('users').update({password:np}).eq('name',name);}
-    else{await sb.from('users').insert({name:name,password:np});}
-  }catch(e){stkToast('저장 실패: '+e.message);return}
-  stkUsersCache[name]=np;
-  stkLog('🔑비번변경',name+' 로그인 비밀번호 변경',{});
-  stkToast('✓ '+name+' 비밀번호 변경됨');
-  stkRenderPw();
-}
+// (로그인 비밀번호 관리는 관리자 패널 🔐 권한 관리 매트릭스의 🔑 버튼으로 통합됨)
 
 async function stkChangeMasterPw(){
   if(!stkIsAdmin()){stkToast('관리자 전용입니다');return;}
@@ -10853,6 +10929,7 @@ async function loadReservations(){
     var r=await sb.from('reservations').select('*').order('date_str',{ascending:true}).order('time_slot',{ascending:true});
     reservations=r.data||[];
     try{ var _lr=await sb.from('reservation_links').select('*'); rsvLinks=(_lr&&_lr.data)||[]; }catch(_e){ rsvLinks=[]; }
+    try{ await rsvLoadLinkRefs(); }catch(_e){}
     try{ var _ss=await sb.from('staff_schedules').select('*'); staffSchedules=(_ss&&_ss.data)||[]; }catch(_e){ staffSchedules=[]; }
   }catch(e){reservations=[];rsvLinks=[];staffSchedules=[];}
   renderReserve();
@@ -10920,10 +10997,41 @@ async function rsvSaveWorkNote(id,val){
 }
 function rsvByDate(ds){return reservations.filter(function(r){return r.date_str===ds;}).sort(function(a,b){return (a.time_slot||'').localeCompare(b.time_slot||'');});}
 function noPP(s){return String(s||'').replace(/(\d)[Pp]{2,}\b/g,'$1P');}
-function rsvTiresLabel(r){
+// ===== 연결 타이어 상세표시: 저장하지 않고 렌더 시 계산 — 과거 연결도 소급 표시, 상품정보 바뀌어도 항상 최신 =====
+var rsvProdMap={}, rsvItemMap={};
+async function rsvLoadLinkRefs(){ // 예약·링크가 가리키는 상품/입고분 정보를 한 번에 조회해 캐시 (실패해도 표시는 사이즈 텍스트로 폴백)
+  var pids={}, iids={};
+  (reservations||[]).forEach(function(r){ if(r.src_kind==='rt'&&r.src_product_id)pids[r.src_product_id]=1; if(r.src_kind==='inbound'&&r.src_item_id)iids[r.src_item_id]=1; });
+  (rsvLinks||[]).forEach(function(lk){ if(lk.kind==='rt'&&lk.product_id)pids[lk.product_id]=1; if(lk.kind==='inbound'&&lk.item_id)iids[lk.item_id]=1; });
+  var pk=Object.keys(pids), ik=Object.keys(iids);
+  rsvProdMap={}; rsvItemMap={};
+  for(var i=0;i<pk.length;i+=200){ try{ var pr=await sb.from('stock_products').select('id,name,size,code,source').in('id',pk.slice(i,i+200)); if(pr&&!pr.error)(pr.data||[]).forEach(function(p){rsvProdMap[p.id]=p;}); }catch(e){} }
+  for(var j=0;j<ik.length;j+=200){ try{ var ir=await sb.from('items').select('id,model,spec,src,date_str').in('id',ik.slice(j,j+200)); if(ir&&!ir.error)(ir.data||[]).forEach(function(it){rsvItemMap[it.id]=it;}); }catch(e){} }
+}
+function rsvTireDetail(kind,pid,itemId,dot,spec,full,srcLabel){ // 한 연결분의 상세 문자열 — 재고/입고 구분 + rt=위치 / inbound=출처
+  if(kind==='rt'||kind==='lot'){
+    var p=rsvProdMap[pid];
+    var loc=srcLabel?('재고('+srcLabel+')'):'재고'; // 위치 미기록(과거 연결)이면 '재고'만
+    if(p){ var s=(p.name||'')+(p.code?' ['+p.code+']':'')+' '+noPP(p.size||spec||''); if(dot)s+=' · DOT '+dot; s+=' · '+loc; if(full&&p.source)s+=' · '+p.source; return s.trim(); }
+    var fb=noPP(spec||''); if(dot)fb+=' · DOT '+dot; fb+=' · '+loc; return fb; // 상품정보 조회 실패/삭제 시 폴백
+  }
+  if(kind==='inbound'){
+    var it=rsvItemMap[itemId];
+    if(it){ var s2=(it.model||'')+' '+noPP(it.spec||spec||''); if(full){ s2+=' · 입고분'+(it.date_str?'('+it.date_str+')':''); if(it.src)s2+=' · 출처 '+it.src; } else { s2+=' · 입고분'; } return s2.trim(); }
+    return noPP(spec||'')+' · 입고분'+(full&&srcLabel?' · 출처 '+srcLabel:'');
+  }
+  return noPP(spec||'');
+}
+function rsvTiresLabel(r,full){
   var arr=[];
-  if(r.tire_spec)arr.push(noPP(r.tire_spec)+((r.src_qty||r.qty)?' ×'+(r.src_qty||r.qty):'')+(r.src_label?' ['+r.src_label+']':''));
-  (typeof rsvLinks!=='undefined'?rsvLinks:[]).filter(function(x){return x.reservation_id===r.id;}).forEach(function(lk){ if(lk.tire_spec)arr.push(noPP(lk.tire_spec)+(lk.qty?' ×'+lk.qty:'')); });
+  if(r.src_kind&&(r.src_product_id||r.src_item_id)){
+    arr.push(rsvTireDetail(r.src_kind,r.src_product_id,r.src_item_id,r.src_dot,r.tire_spec,full,r.src_label)+((r.src_qty||r.qty)?' ×'+(r.src_qty||r.qty):''));
+  }else if(r.tire_spec){
+    arr.push(noPP(r.tire_spec)+((r.src_qty||r.qty)?' ×'+(r.src_qty||r.qty):'')+(r.src_label?' ['+r.src_label+']':''));
+  }
+  (typeof rsvLinks!=='undefined'?rsvLinks:[]).filter(function(x){return x.reservation_id===r.id;}).forEach(function(lk){
+    arr.push(rsvTireDetail(lk.kind,lk.product_id,lk.item_id,lk.dot,lk.tire_spec,full,lk.src_label)+(lk.qty?' ×'+lk.qty:''));
+  });
   return arr.join(' + ');
 }
 function rsvEngLine(r){
@@ -11393,7 +11501,7 @@ function _rsvLinkRestObj(lk){ if(lk.kind==='inbound')return {src_kind:'inbound',
 // 추가연결(link) 한 줄 동기화 — 기존 단일연결과 동일한 CAS + rsvStockOut/Restore 재사용
 async function rsvLinkSync(linkId, want){
   var lk=rsvLinks.find(function(x){return x.id===linkId;}); if(!lk||(!lk.product_id&&!lk.item_id))return;
-  if(want){ var c=await sb.from('reservation_links').update({stock_done:true}).eq('id',linkId).eq('stock_done',false).select(); if(c&&c.data&&c.data.length){ await rsvStockOut(_rsvLinkOutObj(lk), lk.qty||1, ''); } }
+  if(want){ var c=await sb.from('reservation_links').update({stock_done:true}).eq('id',linkId).eq('stock_done',false).select(); if(c&&c.data&&c.data.length){ await rsvStockOut(_rsvLinkOutObj(lk), lk.qty||1, ''); if((lk.kind||'rt')!=='inbound'){ try{ var _sl=_rsvLocLabel(); await sb.from('reservation_links').update({src_label:_sl}).eq('id',linkId); lk.src_label=_sl; }catch(_e){} } } }
   else{ var c2=await sb.from('reservation_links').update({stock_done:false}).eq('id',linkId).eq('stock_done',true).select(); if(c2&&c2.data&&c2.data.length){ await rsvStockRestore(_rsvLinkRestObj(lk), ''); } }
 }
 // 첫 연결 + 모든 추가연결 일괄 동기화 (각자 부족분만 1회)
@@ -11432,7 +11540,7 @@ async function _rsvPickSwapLink(pid,dot,spec,qty){
   try{
     if(lk.stock_done){ var c=await sb.from('reservation_links').update({stock_done:false}).eq('id',lk.id).eq('stock_done',true).select(); if(c&&c.data&&c.data.length){ await rsvStockRestore(_rsvLinkRestObj(lk), ''); } }
     await rsvStockOut({kind:'rt',product_id:pid,dot:dot,spec:spec}, qty, '');
-    var{error}=await sb.from('reservation_links').update({product_id:pid,dot:dot,qty:qty,tire_spec:spec,stock_done:true}).eq('id',lk.id); if(error)throw error;
+    var{error}=await sb.from('reservation_links').update({product_id:pid,dot:dot,qty:qty,tire_spec:spec,src_label:_rsvLocLabel(),stock_done:true}).eq('id',lk.id); if(error)throw error;
   }catch(e){alert('교체 실패: '+e.message);return;}
   var rid=lk.reservation_id; rsvPickClose(); rsvPickMode='first'; await loadReservations(); rsvShowDetail(rid);
 }
@@ -11452,9 +11560,9 @@ function rsvBuildLinksHtml(r){
   var lks=rsvLinks.filter(function(x){return x.reservation_id===r.id;});
   var h='<div style="margin-top:11px;border-top:1px solid #eef0f3;padding-top:10px">';
   h+='<div style="font-size:12px;font-weight:800;color:#64748b;margin-bottom:7px">🛞 연결 재고/입고분</div>';
-  if(firstLinked){ h+=_rsvLinkRow(noPP(r.tire_spec||'')+' × '+(r.src_qty||r.qty||1)+'개'+(firstInb?' (입고분)':'')+(r.src_label?' · 출처 '+r.src_label:''), r.stock_done, (firstInb?'rsvOutFromInbound':'rsvOutFromStock')+'(\''+r.id+'\')', (firstInb?'rsvUnlinkInbound':'rsvUnlinkStock')+'(\''+r.id+'\')', '교체','해제'); }
+  if(firstLinked){ h+=_rsvLinkRow(rsvTireDetail(r.src_kind,r.src_product_id,r.src_item_id,r.src_dot,r.tire_spec,true,r.src_label)+' × '+(r.src_qty||r.qty||1)+'개', r.stock_done, (firstInb?'rsvOutFromInbound':'rsvOutFromStock')+'(\''+r.id+'\')', (firstInb?'rsvUnlinkInbound':'rsvUnlinkStock')+'(\''+r.id+'\')', '교체','해제'); }
   else{ h+='<button onclick="rsvOutFromStock(\''+r.id+'\')" style="width:100%;border:1.5px solid #16a36a;background:#fff;color:#16a36a;padding:9px;border-radius:9px;font-size:13px;font-weight:800;cursor:pointer;margin-bottom:6px">📦 재고·입고분에서 출고 (첫 연결)</button>'; }
-  lks.forEach(function(lk){ var _inb=(lk.kind==='inbound'); h+=_rsvLinkRow(noPP(lk.tire_spec||'')+' × '+(lk.qty||1)+'개'+(_inb?' (입고분)':''), lk.stock_done, _inb?'':('rsvSwapLink(\''+lk.id+'\')'), 'rsvRemoveLink(\''+lk.id+'\')', '교체','제외'); });
+  lks.forEach(function(lk){ var _inb=(lk.kind==='inbound'); h+=_rsvLinkRow(rsvTireDetail(lk.kind,lk.product_id,lk.item_id,lk.dot,lk.tire_spec,true,lk.src_label)+' × '+(lk.qty||1)+'개', lk.stock_done, _inb?'':('rsvSwapLink(\''+lk.id+'\')'), 'rsvRemoveLink(\''+lk.id+'\')', '교체','제외'); });
   h+='<button onclick="rsvAddLinkFromStock(\''+r.id+'\')" style="width:100%;border:1.5px dashed #94a3b8;background:#f8fafc;color:#475569;padding:9px;border-radius:9px;font-size:13px;font-weight:800;cursor:pointer;margin-top:2px">+ 재고 추가 연결</button>';
   h+='</div>'; return h;
 }
@@ -11468,7 +11576,7 @@ async function rsvPickConfirm(pid,dot,spec,qty){
       if(_c && _c.data && _c.data.length){ await rsvStockRestore(r, r.memo); }
     }
     await rsvStockOut({kind:'rt',product_id:pid,dot:dot,spec:spec}, qty, r?r.memo:'');
-    var{error}=await sb.from('reservations').update({tire_spec:spec,qty:qty,src_kind:'rt',src_product_id:pid,src_dot:dot,src_qty:qty,stock_done:true}).eq('id',rsvPickRsvId);
+    var{error}=await sb.from('reservations').update({tire_spec:spec,qty:qty,src_kind:'rt',src_product_id:pid,src_dot:dot,src_qty:qty,src_label:_rsvLocLabel(),stock_done:true}).eq('id',rsvPickRsvId);
     if(error)throw error;
   }catch(e){alert('출고 실패: '+e.message);return;}
   rsvPickClose();
@@ -11491,7 +11599,7 @@ async function rsvUnlinkInbound(id){
       var c=await sb.from('reservations').update({stock_done:false}).eq('id',id).eq('stock_done',true).select();
       if(c && c.data && c.data.length){ await rsvStockRestore(r, r.memo); }
     }
-    var{error}=await sb.from('reservations').update({src_kind:null,src_item_id:null,src_product_id:null,src_dot:null,src_qty:null,src_lot_id:null,stock_done:false}).eq('id',id);
+    var{error}=await sb.from('reservations').update({src_kind:null,src_item_id:null,src_product_id:null,src_dot:null,src_qty:null,src_lot_id:null,src_label:null,stock_done:false}).eq('id',id);
     if(error)throw error;
   }catch(e){alert('해제 실패: '+e.message);return;}
   rsvCloseDetail();await loadReservations();
@@ -11650,6 +11758,7 @@ async function rsvSubmit(){
     if(!rsvEditId && oi && (oi.product_id||oi.item_id)){            // 신규+출고대기 → 재고/입고분 차감(출고 확정)
       var _did=await rsvStockOut(oi, outQty, rec.memo);
       rec.stock_done=(_did!==false);
+      if(_did!==false&&oi.kind!=='inbound')rec.src_label=_rsvLocLabel(); // rt/lot 차감 위치 기록 (inbound는 출처 로직 별도)
     }
     if(rsvEditId){var{error}=await sb.from('reservations').update(rec).eq('id',rsvEditId);if(error)throw error;}
     else{var ins2=await sb.from('reservations').insert(rec).select();if(ins2.error)throw ins2.error;
@@ -11675,8 +11784,12 @@ async function rsvSubmit(){
   if(_wasNew&&_wasTmp)alert('임시 예약으로 등록되었습니다.\n실제 출고(재고 차감)는 예약 상세에서 진행할 수 있어요.');
 }
 // 예약 저장 시 재고 출고(차감) + 로그 한 줄
+// 차감 위치 수집기 — rsvStockOut이 실제로 어느 lot(위치)에서 뺐는지 기록 (호출 직후 _rsvLocLabel()로 읽음)
+var _rsvOutLocs=[];
+function _rsvLocLabel(){ var seen={},out=[]; _rsvOutLocs.forEach(function(l){ var v=(l==='U'||!l)?'미배치':l; if(!seen[v]){seen[v]=1;out.push(v);} }); return out.join(','); }
 async function rsvStockOut(o,n,memo){
   var ts=new Date().toISOString();
+  _rsvOutLocs=[]; // 매 차감마다 초기화 (이전 호출 잔값 오염 방지)
   if(o.kind==='inbound'){
     var cur=await sb.from('items').select('qty,cancel_qty,out_qty,out_at,out_to,out_user').eq('id',o.item_id).maybeSingle();
     var d=(cur&&cur.data)?cur.data:{};
@@ -11687,17 +11800,18 @@ async function rsvStockOut(o,n,memo){
     return true;
   }
   if(o.kind==='lot'){
-    var cur=await sb.from('stock_lots').select('qty').eq('id',o.lot_id).maybeSingle();
+    var cur=await sb.from('stock_lots').select('qty,loc').eq('id',o.lot_id).maybeSingle();
     var curQ=(cur&&cur.data)?(cur.data.qty||0):0;
     await sb.from('stock_lots').update({qty:curQ-n,updated_at:ts}).eq('id',o.lot_id);
+    _rsvOutLocs.push((cur&&cur.data&&cur.data.loc)||'U');
   }else if(o.kind==='rt'){
     var lr=await sb.from('stock_lots').select('*').eq('product_id',o.product_id);
     var lots=((lr&&lr.data)||[]).filter(function(l){return (l.dot||'DOT누락')===((o.dot||'')||'DOT누락');});
     var rem=n;
-    for(var i=0;i<lots.length&&rem>0;i++){var take=Math.min(lots[i].qty,rem);if(take<=0)continue;await sb.from('stock_lots').update({qty:lots[i].qty-take,updated_at:ts}).eq('id',lots[i].id);rem-=take;}
+    for(var i=0;i<lots.length&&rem>0;i++){var take=Math.min(lots[i].qty,rem);if(take<=0)continue;await sb.from('stock_lots').update({qty:lots[i].qty-take,updated_at:ts}).eq('id',lots[i].id);rem-=take;_rsvOutLocs.push(lots[i].loc||'U');}
     if(rem>0){
-      if(lots.length){await sb.from('stock_lots').update({qty:(lots[0].qty-Math.min(lots[0].qty,n))-(rem),updated_at:ts}).eq('id',lots[0].id);}
-      else{await sb.from('stock_lots').insert({product_id:o.product_id,dot:(o.dot||''),qty:-rem,loc:'U'});}
+      if(lots.length){await sb.from('stock_lots').update({qty:(lots[0].qty-Math.min(lots[0].qty,n))-(rem),updated_at:ts}).eq('id',lots[0].id);_rsvOutLocs.push(lots[0].loc||'U');}
+      else{await sb.from('stock_lots').insert({product_id:o.product_id,dot:(o.dot||''),qty:-rem,loc:'U'});_rsvOutLocs.push('미등록');}
     }
   }
   stkLog('📦장착출고', o.spec+' −'+n+'개 · 예약'+(memo?' ['+memo+']':''), {product_id:o.product_id,dot:o.dot||'',qty:n,channel:'장착',ref:'예약등록'+(memo?' '+memo:'')});
@@ -11743,7 +11857,7 @@ function rsvShowDetail(id){
   row('일시',(r.date_str?((r.date_str||'')+' '+(r.time_slot||'')):'📌 미지정 (날짜 미정)'));
   row('상태',r.status);
   row('전화',r.phone);row('차량번호',r.car_no);row('차량명',r.car_name);
-  row('타이어',rsvTiresLabel(r)||noPP(r.tire_spec));row('수량',r.qty?r.qty+'짝':'');
+  row('타이어',rsvTiresLabel(r,true)||noPP(r.tire_spec));row('수량',r.qty?r.qty+'짝':'');
   if(r.align_state==='take')row('얼라이먼트','받기로함 · '+rsvWon(r.align_amount||0));
   else if(r.align_state==='inform')row('얼라이먼트','안내함'+(r.align_amount?' · '+rsvWon(r.align_amount):''));
   else if(r.alignment&&!r.align_state)row('얼라이먼트','✅ 포함');
@@ -11814,7 +11928,7 @@ async function rsvSyncStock(id, want){
   if(!r || !r.src_kind || !r.src_product_id) return; // 재고 연결된 예약만
   if(want){ // 미점유→점유 : stock_done false→true 전환 성공 시에만 차감
     var c=await sb.from('reservations').update({stock_done:true}).eq('id',id).eq('stock_done',false).select();
-    if(c && c.data && c.data.length){ await rsvStockOut({kind:r.src_kind,product_id:r.src_product_id,item_id:r.src_item_id,dot:r.src_dot,lot_id:r.src_lot_id,spec:r.tire_spec}, r.src_qty||r.qty||1, r.memo); }
+    if(c && c.data && c.data.length){ await rsvStockOut({kind:r.src_kind,product_id:r.src_product_id,item_id:r.src_item_id,dot:r.src_dot,lot_id:r.src_lot_id,spec:r.tire_spec}, r.src_qty||r.qty||1, r.memo); if(r.src_kind!=='inbound'){ try{ var _sl2=_rsvLocLabel(); await sb.from('reservations').update({src_label:_sl2}).eq('id',id); r.src_label=_sl2; }catch(_e){} } }
   }else{ // 점유→미점유 : stock_done true→false 전환 성공 시에만 복구
     var c2=await sb.from('reservations').update({stock_done:false}).eq('id',id).eq('stock_done',true).select();
     if(c2 && c2.data && c2.data.length){ await rsvStockRestore(r, r.memo); }
@@ -11830,7 +11944,7 @@ async function rsvUnlinkStock(id){
       var c=await sb.from('reservations').update({stock_done:false}).eq('id',id).eq('stock_done',true).select();
       if(c && c.data && c.data.length){ await rsvStockRestore(r, r.memo); }
     }
-    var{error}=await sb.from('reservations').update({src_kind:null,src_product_id:null,src_dot:null,src_qty:null,src_lot_id:null,stock_done:false}).eq('id',id);
+    var{error}=await sb.from('reservations').update({src_kind:null,src_product_id:null,src_dot:null,src_qty:null,src_lot_id:null,src_label:null,stock_done:false}).eq('id',id);
     if(error)throw error;
   }catch(e){alert('해제 실패: '+e.message);return;}
   rsvCloseDetail();await loadReservations();
@@ -12034,13 +12148,6 @@ async function rsvDelete(id){
   <textarea id="stk-upTa" rows="5" placeholder="엑셀에서 행들을 복사해 붙여넣으세요 (헤더 행 포함돼도 자동 제외)"></textarea>
   <div class="upbox" id="stk-upPrev" style="display:none"></div>
   <div class="stkacts"><button class="stk-no" onclick="stkCloseDlg()">취소</button><button class="stk-ok" id="stk-upGo" onclick="stkUpRun()">미리보기</button></div>
-</div></div>
-<div class="stkdlgbg" id="stk-dlgPw" onclick="if(event.target===this)stkCloseDlg()"><div class="stkdlg" style="max-width:380px">
-  <h3>🔑 로그인 비밀번호 관리</h3>
-  <div class="sub2">각 직원의 로그인 비밀번호를 바꿉니다. 변경 즉시 저장되며, 해당 직원의 다음 로그인부터 새 비밀번호가 적용됩니다. (이미 로그인된 기기는 그대로 유지)</div>
-  <div id="stk-pwList" style="margin:6px 0 4px;max-height:50vh;overflow:auto"></div>
-  <div style="font-size:11px;color:#c0392b;margin-top:6px">⚠️ 사내용 간이 인증입니다 — 민감정보 보호용 강력 보안은 아닙니다. 기본값(주황색) 그대로인 직원은 바꿔주세요.</div>
-  <div class="stkacts"><button class="stk-ok" onclick="stkCloseDlg()">닫기</button></div>
 </div></div>
 <div class="stktoast" id="stk-toast"></div>
 <div id="db-bk-modal" style="display:none;position:fixed;inset:0;z-index:61;background:rgba(0,0,0,.5)">
