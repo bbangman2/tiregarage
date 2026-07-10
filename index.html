@@ -2557,6 +2557,40 @@ async function sbFetchAll(makeQuery){
   }
   return out;
 }
+// ===== 입고방 30일 윈도우 (대표 확정 2026-07-10): 화면 = 최근30일 전량 + 미완료 상시표시 + 옛것 완료처리 후 7일 유예 =====
+var ITEMS_WINDOW_DAYS=30, ITEMS_GRACE_DAYS=7;
+function itemsWindowCutoff(){ var k=new Date(Date.now()+9*3600*1000); k.setUTCDate(k.getUTCDate()-ITEMS_WINDOW_DAYS); return k.toISOString().slice(0,10); }
+function _itemLastCancelAt(it){ var t=0; (Array.isArray(it&&it.logs)?it.logs:[]).forEach(function(l){ if(l&&l.type==='cancel'&&l.at&&l.at>t)t=l.at; }); return t; }
+function itemWindowShow(it,nowMs){ // cutoff 이전(옛) 항목 표시 판정 — 미완료=항상, 끝난 건=끝난 지 7일까지
+  var G=ITEMS_GRACE_DAYS*86400000;
+  if(it.cancelled){ var c=_itemLastCancelAt(it); return c>0&&(nowMs-c<=G); } // 취소시각은 logs의 cancel 기록에서
+  if(it.is_return){
+    if(!it.return_done)return true; // 반품 미처리 = 미완료
+    var d=Date.parse((it.return_done_date||'')+'T00:00:00+09:00'); return !isNaN(d)&&(nowMs-d<=G+86400000); // 날짜 단위 기록이라 하루 여유
+  }
+  if(it.out_done&&it.arrived){ // 🏁완료 — 끝난 시각 = 실물확인·출고 중 늦은 쪽
+    var t=Math.max(Date.parse(it.arrived_at||'')||0, Date.parse(it.out_at||'')||0);
+    return t>0&&(nowMs-t<=G); // 시각 기록 없는 옛 완료건은 유예 없이 내려감(합의)
+  }
+  return true; // wait/arrived/preout = 미완료
+}
+async function itemsFetchWindow(roomId){ // 오름차순 병합: [옛것 중 표시대상] + [최근 30일 전량]
+  var cutoff=itemsWindowCutoff();
+  var graceIso=new Date(Date.now()-(ITEMS_GRACE_DAYS+1)*86400000).toISOString();
+  var A=await sbFetchAll(function(){ return sb.from('items').select('*').eq('room_id',roomId).gte('date_str',cutoff).order('date_str',{ascending:true}).order('created_at',{ascending:true}); });
+  var B=[];
+  try{
+    // 후보를 넉넉히 가져오고(미완료·반품·취소·최근처리) 정밀 판정은 itemWindowShow 한 곳에서 — 판정 로직 이원화 방지
+    B=await sbFetchAll(function(){ return sb.from('items').select('*').eq('room_id',roomId).lt('date_str',cutoff)
+      .or('arrived.is.null,arrived.eq.false,out_done.is.null,out_done.eq.false,is_return.eq.true,cancelled.eq.true,arrived_at.gte.'+graceIso+',out_at.gte.'+graceIso)
+      .order('date_str',{ascending:true}).order('created_at',{ascending:true}); });
+  }catch(e){ B=[]; } // 옛 구간 조회 실패해도 최근 30일은 정상 동작
+  var nowMs=Date.now();
+  B=B.filter(function(it){ return itemWindowShow(it,nowMs); });
+  var seen={}, out=[];
+  B.concat(A).forEach(function(it){ if(it&&!seen[it.id]){ seen[it.id]=1; out.push(it); } });
+  return out;
+}
 // ===== 오후 3시 새로고침 알림 =====
 var REFRESH_HOUR=15; // 오후 3시
 function nowKSTHour(){return new Date(Date.now()+9*3600*1000).getUTCHours();}
@@ -3315,10 +3349,10 @@ async function loadAdminDates(){
   let dates=[];
   try{
     if(info.dateCol==='date_str'){
-      const{data}=await sb.from(info.tables[0]).select('date_str').eq('room_id',roomId);
+      const data=await sbFetchAll(function(){ return sb.from(info.tables[0]).select('date_str').eq('room_id',roomId).order('date_str',{ascending:true}); });
       dates=(data||[]).map(function(x){return x.date_str;});
     }else{
-      const{data}=await sb.from('messages').select('created_at').eq('room_id',roomId);
+      const data=await sbFetchAll(function(){ return sb.from('messages').select('created_at').eq('room_id',roomId).order('created_at',{ascending:true}); });
       dates=(data||[]).map(function(x){return toDateStr(x.created_at);});
     }
   }catch(e){adminLog('날짜 로드 오류: '+e.message);return;}
@@ -3405,10 +3439,10 @@ async function loadBakDates(){
   let dates=[];
   try{
     if(info.dateCol==='date_str'){
-      const{data}=await sb.from(info.tables[0]).select('date_str').eq('room_id',roomId);
+      const data=await sbFetchAll(function(){ return sb.from(info.tables[0]).select('date_str').eq('room_id',roomId).order('date_str',{ascending:true}); });
       dates=(data||[]).map(function(x){return x.date_str;});
     }else{
-      const{data}=await sb.from('messages').select('created_at').eq('room_id',roomId);
+      const data=await sbFetchAll(function(){ return sb.from('messages').select('created_at').eq('room_id',roomId).order('created_at',{ascending:true}); });
       dates=(data||[]).map(function(x){return toDateStr(x.created_at);});
     }
   }catch(e){return;}
@@ -3774,8 +3808,8 @@ async function loadItems(){
     var fullMode=(curItemTab==='list');
     let all;
     if(fullMode){
-      // 입고예정: 전체 이력 — 1000행 제한 때문에 반드시 페이지 단위 전량 로딩 (오름차순 단일조회는 최신 입력분이 잘려나감)
-      all=await sbFetchAll(function(){ return sb.from('items').select('*').eq('room_id',curRoom.id).order('date_str',{ascending:true}).order('created_at',{ascending:true}); });
+      // 입고예정: 30일 윈도우 (최근 30일 전량 + 미완료 상시 + 7일 유예) — 데이터가 쌓여도 항상 가벼움
+      all=await itemsFetchWindow(curRoom.id);
     }else{
       let q=sb.from('items').select('*').eq('room_id',curRoom.id);
       if(rangeMode&&sel.to&&sel.to!==sel.from){
@@ -4988,7 +5022,7 @@ async function renderItemLedger(){
   el.innerHTML='<div style="text-align:center;color:#999;padding:24px 0">불러오는 중…</div>';
   var data=[];
   try{
-    var r={data:await sbFetchAll(function(){ return sb.from('items').select('*').eq('room_id',curRoom.id).order('date_str',{ascending:false}).order('created_at',{ascending:false}); })};
+    var r={data:(await itemsFetchWindow(curRoom.id)).slice().reverse()}; // 30일 윈도우, 최신순
     data=r.data||[];
   }catch(e){el.innerHTML='<div style="text-align:center;color:#c00;padding:24px 0">불러오기 실패</div>';return;}
   ledgerCache=data.filter(function(it){ return !isReturnItem(it); }); // 전체 보유(완료·전 날짜) — 날짜/완료/용도 필터는 ledgerFilter에서
@@ -5113,7 +5147,7 @@ async function ledgerRefresh(){
   if(curItemTab!=='ledger'||!curRoom)return;
   if(!document.getElementById('ledger-tbody')){ renderItemLedger(); return; } // 화면 아직 없으면 전체 그림
   try{
-    var r={data:await sbFetchAll(function(){ return sb.from('items').select('*').eq('room_id',curRoom.id).order('date_str',{ascending:false}).order('created_at',{ascending:false}); })};
+    var r={data:(await itemsFetchWindow(curRoom.id)).slice().reverse()}; // 30일 윈도우, 최신순
     ledgerCache=(r.data||[]).filter(function(it){return !isReturnItem(it);});
     await ledgerRsvLoad();
     ledgerFilter(); // 표만 조용히 갱신 (헤더·칩·날짜 컨트롤 유지, 깜빡임 없음)
@@ -6651,7 +6685,7 @@ async function listBulkUndoJh(){
 }
 function renderItemList(){
   const el=document.getElementById('item-body');
-  el.innerHTML='<div class="iguide"><b>입력</b>: 스페이스=다음칸 / 규격칸만 스페이스 2번 / 빈칸 백스페이스=앞칸 / Enter=추가<br><b>실물입고</b>: 주문 입력 후 실물 도착하면 카드의 📦 실물입고 버튼을 누르세요(이중 입력 방지)</div>'
+  el.innerHTML='<div class="iguide"><b>입력</b>: 스페이스=다음칸 / 규격칸만 스페이스 2번 / 빈칸 백스페이스=앞칸 / Enter=추가<br><b>실물입고</b>: 주문 입력 후 실물 도착하면 카드의 📦 실물입고 버튼을 누르세요(이중 입력 방지)<br><b>표시범위</b>: 최근 30일 + 미완료 건(날짜 무관 상시 표시) · 30일 이전 기록은 입고표 엑셀 다운로드로 보세요</div>'
     +'<div class="sbox" style="margin-bottom:10px"><input id="list-q" placeholder="🔍 출처·패턴·규격·연도·용도·작성자·날짜 검색 (띄어쓰기로 여러 조건)" value="'+esc(itemSearchQuery)+'" oninput="listSearchInput(this.value)"><button onclick="(document.getElementById(\'list-q\')||{}).focus&&document.getElementById(\'list-q\').focus()">🔍</button></div>'
     +'<div id="list-chipbar"></div><div id="list-body"></div>';
   listPaint();
