@@ -4,6 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>타이어게러지 메신저</title>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#0f172a">
+<link rel="apple-touch-icon" href="/icon-192.png">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
 <style>
@@ -2540,6 +2543,20 @@ function fmtDate(d){return d.toLocaleDateString('ko-KR',{timeZone:'Asia/Seoul',m
 function fmtTime(d){return d.toLocaleTimeString('ko-KR',{timeZone:'Asia/Seoul',hour:'2-digit',minute:'2-digit'});}
 function toDateStr(u){const k=toKST(u);const y=k.getUTCFullYear(),m=String(k.getUTCMonth()+1).padStart(2,'0'),d=String(k.getUTCDate()).padStart(2,'0');return y+'-'+m+'-'+d;}
 function getTodayISO(){const k=new Date(Date.now()+9*3600*1000);return k.toISOString().slice(0,10);}
+// ⚠️ Supabase는 한 조회당 최대 1000행만 반환 — 전체 이력 조회는 반드시 이 헬퍼로 (1000행 잘림 = 최신/과거 데이터 무단 누락 사고)
+async function sbFetchAll(makeQuery){
+  var out=[], page=0, SIZE=1000;
+  while(true){
+    var r=await makeQuery().range(page*SIZE,(page+1)*SIZE-1);
+    if(r&&r.error)throw r.error;
+    var rows=(r&&r.data)||[];
+    out=out.concat(rows);
+    if(rows.length<SIZE)break;
+    page++;
+    if(page>60)break; // 6만행 안전상한
+  }
+  return out;
+}
 // ===== 오후 3시 새로고침 알림 =====
 var REFRESH_HOUR=15; // 오후 3시
 function nowKSTHour(){return new Date(Date.now()+9*3600*1000).getUTCHours();}
@@ -2637,6 +2654,10 @@ async function bootApp(){
   setInterval(checkScheduledRefresh,60000); // 1분마다 체크
   rolloverDeliveriesGlobal();                   // 로드 직후 1회 — 직배송방 안 봐도 자동 이월
   setInterval(rolloverDeliveriesGlobal,60000);  // 1분마다 체크(하루 1회만 실제 실행)
+  rsvNotifTick(); setInterval(rsvNotifTick,60000); // 🔔 예약 알림 — 어느 방을 보고 있든 작동
+  document.addEventListener('click',function _ntOnce(){ rsvNtAskPermission(); document.removeEventListener('click',_ntOnce); }); // 첫 클릭 때 OS알림 권한 요청(브라우저 정책상 제스처 필요)
+  try{ if('serviceWorker' in navigator&&location.protocol==='https:'){ navigator.serviceWorker.register('/sw.js').then(function(){ rsvPushSubscribe(); }).catch(function(){}); } }catch(e){}
+  try{ var _pr=new URLSearchParams(location.search).get('rsv'); if(_pr){ setTimeout(function(){ rsvNtOpen(_pr); },900); } }catch(e){} // 푸시 클릭 딥링크(?rsv=ID)
 }
 function renderSidebar(){
   const el=document.getElementById('sb-rooms');
@@ -3433,8 +3454,7 @@ async function exportItemsCSV(){
   if(from>to){const t=from;from=to;to=t;}
   let data=[];
   try{
-    const r=await sb.from('items').select('*').eq('room_id',curRoom.id).gte('date_str',from).lte('date_str',to).order('date_str',{ascending:true}).order('created_at',{ascending:true});
-    data=r.data||[];
+    data=await sbFetchAll(function(){ return sb.from('items').select('*').eq('room_id',curRoom.id).gte('date_str',from).lte('date_str',to).order('date_str',{ascending:true}).order('created_at',{ascending:true}); });
   }catch(e){alert('불러오기 실패: '+e.message);return;}
   if(!data.length){alert('해당 기간에 입고 기록이 없어요.');return;}
   try{ await stkLoadXLSX(); }catch(e){ alert('엑셀 라이브러리 로드 실패'); return; }
@@ -3752,17 +3772,21 @@ async function loadItems(){
   const sel=getSelectedRange();
   try{
     var fullMode=(curItemTab==='list');
-    let q=sb.from('items').select('*').eq('room_id',curRoom.id);
+    let all;
     if(fullMode){
-      // 입고예정/분석: 우측 상단 날짜와 무관하게 전체 조회 (표시는 자체 날짜 필터로)
-    }else if(rangeMode&&sel.to&&sel.to!==sel.from){
-      q=q.gte('date_str',sel.from).lte('date_str',sel.to);
+      // 입고예정: 전체 이력 — 1000행 제한 때문에 반드시 페이지 단위 전량 로딩 (오름차순 단일조회는 최신 입력분이 잘려나감)
+      all=await sbFetchAll(function(){ return sb.from('items').select('*').eq('room_id',curRoom.id).order('date_str',{ascending:true}).order('created_at',{ascending:true}); });
     }else{
-      q=q.eq('date_str',sel.from);
+      let q=sb.from('items').select('*').eq('room_id',curRoom.id);
+      if(rangeMode&&sel.to&&sel.to!==sel.from){
+        q=q.gte('date_str',sel.from).lte('date_str',sel.to);
+      }else{
+        q=q.eq('date_str',sel.from);
+      }
+      const{data,error}=await q.order('date_str',{ascending:true}).order('created_at',{ascending:true});
+      if(error)throw error;
+      all=data||[];
     }
-    const{data,error}=await q.order('date_str',{ascending:true}).order('created_at',{ascending:true});
-    if(error)throw error;
-    const all=data||[];
     // 반품과 일반 분리
     const todayDs=getTodayISO();
     let carryReturns=[];
@@ -4963,7 +4987,7 @@ async function renderItemLedger(){
   el.innerHTML='<div style="text-align:center;color:#999;padding:24px 0">불러오는 중…</div>';
   var data=[];
   try{
-    var r=await sb.from('items').select('*').eq('room_id',curRoom.id).order('date_str',{ascending:false}).order('created_at',{ascending:false});
+    var r={data:await sbFetchAll(function(){ return sb.from('items').select('*').eq('room_id',curRoom.id).order('date_str',{ascending:false}).order('created_at',{ascending:false}); })};
     data=r.data||[];
   }catch(e){el.innerHTML='<div style="text-align:center;color:#c00;padding:24px 0">불러오기 실패</div>';return;}
   ledgerCache=data.filter(function(it){ return !isReturnItem(it); }); // 전체 보유(완료·전 날짜) — 날짜/완료/용도 필터는 ledgerFilter에서
@@ -5088,7 +5112,7 @@ async function ledgerRefresh(){
   if(curItemTab!=='ledger'||!curRoom)return;
   if(!document.getElementById('ledger-tbody')){ renderItemLedger(); return; } // 화면 아직 없으면 전체 그림
   try{
-    var r=await sb.from('items').select('*').eq('room_id',curRoom.id).order('date_str',{ascending:false}).order('created_at',{ascending:false});
+    var r={data:await sbFetchAll(function(){ return sb.from('items').select('*').eq('room_id',curRoom.id).order('date_str',{ascending:false}).order('created_at',{ascending:false}); })};
     ledgerCache=(r.data||[]).filter(function(it){return !isReturnItem(it);});
     await ledgerRsvLoad();
     ledgerFilter(); // 표만 조용히 갱신 (헤더·칩·날짜 컨트롤 유지, 깜빡임 없음)
@@ -10822,6 +10846,107 @@ async function stkUpRun(){
 }
 
 // ========== 예약장착방 ==========
+// ===== 🔔 예약 알림 v3 — 건별 반복 알림 + [알림끄기]/[이번만 닫기] + 기기별 전체 ON/OFF =====
+// 규칙: 시간건은 30분 전부터 5분 간격 반복, 시간 지나도 완료 전이면 "N분 지남"으로 60분까지 리마인드.
+//       [🔕 알림끄기]=그 예약(현재 날짜·시간 기준)만 영구 끔 → 시간 옮기면 다시 알림. 완료/취소 시 자동 멈춤.
+var RSV_NT_REPEAT_MIN=5, RSV_NT_OVERDUE_MIN=60;
+var _rsvNtLast={}; // 건별 마지막 알림 시각(메모리 — 새로고침하면 즉시 1회 재알림)
+function rsvNtKey(k){ return 'tgN_'+(me?me.name:'')+'_'+k; }
+function rsvNtSeen(k){ try{return !!localStorage.getItem(rsvNtKey(k));}catch(e){return false;} }
+function rsvNtMark(k){ try{localStorage.setItem(rsvNtKey(k),'1');}catch(e){} }
+function rsvNtUnmark(k){ try{localStorage.removeItem(rsvNtKey(k));}catch(e){} }
+function rsvNtEnabled(){ return !rsvNtSeen('all_off'); }
+function rsvNtToggleAll(){
+  if(rsvNtEnabled()){ rsvNtMark('all_off'); } else { rsvNtUnmark('all_off'); _rsvNtLast={}; }
+  if(typeof rsvNtToggleBtnPaint==='function')rsvNtToggleBtnPaint();
+  if(rsvNtEnabled())rsvNotifTick();
+}
+function rsvNtToggleBtnPaint(){
+  var el=document.getElementById('rsv-nt-toggle'); if(!el)return;
+  var on=rsvNtEnabled();
+  el.textContent=on?'🔔 알림켜짐':'🔕 알림꺼짐';
+  el.style.cssText='margin-left:10px;border:1px solid '+(on?'#bfdbfe':'#fecaca')+';background:'+(on?'#eff6ff':'#fef2f2')+';color:'+(on?'#1d4ed8':'#dc2626')+';border-radius:7px;padding:2px 9px;font-size:11.5px;font-weight:800;cursor:pointer';
+}
+function rsvNtSound(){ try{ var C=window.AudioContext||window.webkitAudioContext; if(!C)return; var ctx=new C(); var o=ctx.createOscillator(),g=ctx.createGain(); o.connect(g); g.connect(ctx.destination); o.frequency.value=880; g.gain.setValueAtTime(0.001,ctx.currentTime); g.gain.exponentialRampToValueAtTime(0.18,ctx.currentTime+0.02); g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.5); o.start(); o.stop(ctx.currentTime+0.55); }catch(e){} }
+async function rsvNtOpen(rsvId){ // 배너/OS알림 클릭 → 예약방 이동 + 상세. 목록 로딩이 늦으면 최대 3초 기다렸다가 다시 연다
+  try{
+    if(typeof ledgerOpenRsv==='function')await ledgerOpenRsv(rsvId);
+    for(var i=0;i<10;i++){
+      if(typeof reservations!=='undefined'&&(reservations||[]).some(function(r){return r.id===rsvId;})){ if(typeof rsvShowDetail==='function')rsvShowDetail(rsvId); return; }
+      await new Promise(function(res){setTimeout(res,300);});
+    }
+  }catch(e){}
+}
+function rsvNtOs(title,body,tag,rsvId){ try{ if(window.Notification&&Notification.permission==='granted'){ var n=new Notification(title,{body:body,tag:tag}); if(rsvId)n.onclick=function(){ try{window.focus();}catch(e){} rsvNtOpen(rsvId); try{n.close();}catch(e){} }; } }catch(e){} }
+function rsvNtAskPermission(){ try{ if(window.Notification&&Notification.permission==='default'){ Notification.requestPermission().then(function(p){ if(p==='granted')rsvPushSubscribe(); }); } else if(window.Notification&&Notification.permission==='granted'){ rsvPushSubscribe(); } }catch(e){} }
+// ===== 📲 웹푸시 구독 (2단계) — 브라우저를 꺼도 폰으로 오는 알림. 구독정보를 DB에 저장하면 Supabase 자명종(Edge Function)이 30분 전 건별 발송 =====
+var PUSH_VAPID_PUBLIC='BBuuzO7sKN8dx6Sc6yh6gvCNYm7x-bKtf_fYtqX8FlC_EuvFc5CP4WE1eZF49-EyPgy2vRsstz265r_JlwljUt4';
+function _pushB64ToU8(s){ var pad='='.repeat((4-s.length%4)%4); var b=(s+pad).replace(/-/g,'+').replace(/_/g,'/'); var raw=atob(b); var arr=new Uint8Array(raw.length); for(var i=0;i<raw.length;i++)arr[i]=raw.charCodeAt(i); return arr; }
+async function rsvPushSubscribe(){
+  try{
+    if(!('serviceWorker' in navigator)||!window.PushManager||!me||!sb)return;
+    if(!window.isSecureContext)return; // https에서만
+    var reg=await navigator.serviceWorker.ready;
+    var sub=await reg.pushManager.getSubscription();
+    if(!sub)sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:_pushB64ToU8(PUSH_VAPID_PUBLIC)});
+    var j=sub.toJSON();
+    await sb.from('push_subscriptions').upsert({endpoint:sub.endpoint,p256dh:(j.keys||{}).p256dh||'',auth:(j.keys||{}).auth||'',user_name:me.name},{onConflict:'endpoint'});
+  }catch(e){}
+}
+function rsvNtBanner(html,rsvId,offKey){
+  var box=document.getElementById('tg-notif-box');
+  if(!box){ box=document.createElement('div'); box.id='tg-notif-box'; box.style.cssText='position:fixed;bottom:16px;right:16px;z-index:99999;display:flex;flex-direction:column;gap:8px;max-width:min(420px,92vw);pointer-events:none'; document.body.appendChild(box); } // 우하단 + 컨테이너는 클릭/드래그 통과(배너만 클릭됨) — 상단 미지정 카드 가림 방지
+  if(rsvId){ var ex=document.getElementById('tg-nt-'+rsvId); if(ex)ex.remove(); } // 같은 예약 배너는 1장만
+  var el=document.createElement('div');
+  if(rsvId)el.id='tg-nt-'+rsvId;
+  el.style.cssText='background:#0f172a;color:#fff;border-radius:12px;padding:12px 14px;box-shadow:0 8px 24px rgba(0,0,0,.35);font-size:13.5px;line-height:1.45;display:flex;flex-direction:column;gap:8px;pointer-events:auto';
+  var btns='';
+  if(offKey)btns='<button class="tgnt-off" style="border:1px solid #475569;background:#1e293b;color:#fca5a5;border-radius:8px;padding:5px 10px;font-size:12px;font-weight:800;cursor:pointer">🔕 이 예약 알림끄기</button>';
+  btns+='<button class="tgnt-x" style="border:1px solid #475569;background:#1e293b;color:#cbd5e1;border-radius:8px;padding:5px 10px;font-size:12px;font-weight:700;cursor:pointer">이번만 닫기</button>';
+  el.innerHTML='<div class="tgnt-body" style="cursor:pointer">'+html+'</div><div style="display:flex;gap:6px;justify-content:flex-end">'+btns+'</div>';
+  if(rsvId)el.querySelector('.tgnt-body').onclick=function(){ rsvNtOpen(rsvId); el.remove(); };
+  var xb=el.querySelector('.tgnt-x'); if(xb)xb.onclick=function(){ el.remove(); }; // 다음 반복(5분) 때 다시 뜸
+  var ob=el.querySelector('.tgnt-off'); if(ob)ob.onclick=function(){ rsvNtMark(offKey); el.remove(); };
+  box.appendChild(el);
+  setTimeout(function(){ try{el.remove();}catch(e){} },120000);
+}
+function _rsvNtLabel(r){ return (r.time_slot||'')+' '+[r.car_name,r.car_no].filter(Boolean).join(' ')+(r.tire_spec?' · '+noPP(r.tire_spec):'')+(r.qty?' ×'+r.qty:''); }
+async function rsvNotifTick(){
+  if(!sb||!me)return;
+  if(!rsvNtEnabled())return; // 🔕 이 기기 알림 전체 꺼짐
+  try{
+    var today=rsvDateStr(new Date());
+    var q=await sb.from('reservations').select('id,date_str,time_slot,status,tire_spec,car_name,car_no,qty').eq('date_str',today);
+    if(!q||q.error)return;
+    var list=(q.data||[]).filter(function(r){ return r.status!=='완료'&&r.status!=='취소'; });
+    var now=new Date();
+    list.forEach(function(r){
+      if(/^\d{2}:\d{2}$/.test(r.time_slot||'')){
+        var offKey='off_'+r.id+'_'+r.date_str+'_'+r.time_slot; // 시간을 옮기면 키가 바뀌어 다시 알림
+        if(rsvNtSeen(offKey))return;
+        var t=new Date(today+'T'+r.time_slot+':00');
+        var diff=(t-now)/60000; // +: 남음 / -: 지남
+        var inWin=(diff>0&&diff<=30)||(diff<=0&&diff>=-RSV_NT_OVERDUE_MIN);
+        if(!inWin)return;
+        var last=_rsvNtLast[r.id]||0;
+        if(now.getTime()-last<RSV_NT_REPEAT_MIN*60000)return; // 반복 간격 미달
+        _rsvNtLast[r.id]=now.getTime();
+        var title=diff>0?('🔔 '+Math.round(diff)+'분 뒤 예약'):('⏰ 예약시간 '+Math.round(-diff)+'분 지남');
+        rsvNtBanner('<b>'+title+'</b><br>'+esc(_rsvNtLabel(r)),r.id,offKey);
+        rsvNtOs(title.replace(/^[^ ]+ /,''),_rsvNtLabel(r),'tg-r30-'+r.id,r.id);
+        rsvNtSound();
+      }else{
+        // 날짜만 있는 예약 → 당일 첫 접속에 1건씩 1회 (반복 없음)
+        var dk='rday_'+today+'_'+r.id;
+        if(rsvNtSeen(dk))return;
+        rsvNtMark(dk);
+        rsvNtBanner('<b>📅 오늘 예약 (시간 미정)</b><br>'+esc(_rsvNtLabel(r)),r.id,null);
+        rsvNtOs('오늘 예약 (시간 미정)',_rsvNtLabel(r),'tg-rd-'+r.id,r.id);
+        rsvNtSound();
+      }
+    });
+  }catch(e){}
+}
 var rsvMode='quick', rsvEditId=null;
 function rsvDateStr(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 function rsvFillTimeOptions(){
@@ -11050,7 +11175,7 @@ function renderReserve(){
   var todays=rsvByDate(todayDs);
   var done=todays.filter(function(r){return r.status==='완료';}).length;
   var sumEl=document.getElementById('rsv-summary');
-  if(sumEl)sumEl.innerHTML='오늘 예약 <b>'+todays.length+'</b>건 · 완료 <b>'+done+'</b>건 · 대기 <b>'+(todays.filter(function(r){return r.status!=='완료'&&r.status!=='취소';}).length)+'</b>건';
+  if(sumEl){ sumEl.innerHTML='오늘 예약 <b>'+todays.length+'</b>건 · 완료 <b>'+done+'</b>건 · 대기 <b>'+(todays.filter(function(r){return r.status!=='완료'&&r.status!=='취소';}).length)+'</b>건'+'<button id="rsv-nt-toggle" onclick="rsvNtToggleAll()"></button>'; rsvNtToggleBtnPaint(); }
   rsvRenderUnscheduled();
   var sq=((document.getElementById('rsv-search')||{}).value||'').trim();
   var _hasRange=((document.getElementById('rsv-srch-from')||{}).value)||((document.getElementById('rsv-srch-to')||{}).value);
