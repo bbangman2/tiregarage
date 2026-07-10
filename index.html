@@ -2373,7 +2373,7 @@ async function tradeRenderImport(){
   el.innerHTML='<div style="color:#888;padding:16px 6px">불러오는 중…</div>';
   var dr=(rooms||[]).find(function(r){return r.name==='직배송방';});
   if(!dr){ el.innerHTML='<div style="color:#888;padding:16px 6px">직배송방을 찾을 수 없어요.</div>'; return; }
-  try{ var res=await sb.from('deliveries').select('*').eq('room_id',dr.id).eq('channel','trade'); tradeImportCache=(res&&res.data)||[]; }
+  try{ tradeImportCache=await sbFetchAll(function(){ return sb.from('deliveries').select('*').eq('room_id',dr.id).eq('channel','trade').order('date_str',{ascending:true}); }); }
   catch(e){ tradeImportCache=[]; }
   // 거래처종합방에서 숨긴(삭제한) 항목 — 직배송 원본은 안 건드림
   var hidden=tradeImpHidden||{};
@@ -3949,11 +3949,12 @@ async function loadDeliveries(){
   // 1) 미처리분 자동 이월 (오늘 조회 시 한 번) — 범위 모드에선 이월 안 함(보기 전용)
   if(!isRange)await rolloverDeliveries(ds);
   try{
-    let q=sb.from('deliveries').select('*').eq('room_id',curRoom.id);
-    if(isRange)q=q.gte('date_str',sel.from).lte('date_str',sel.to);
-    else q=q.eq('date_str',ds);
-    const {data}=await q.order('date_str',{ascending:true}).order('sort_order',{ascending:true});
-    deliveriesCache=data||[];
+    deliveriesCache=await sbFetchAll(function(){
+      let q=sb.from('deliveries').select('*').eq('room_id',curRoom.id);
+      if(isRange)q=q.gte('date_str',sel.from).lte('date_str',sel.to);
+      else q=q.eq('date_str',ds);
+      return q.order('date_str',{ascending:true}).order('sort_order',{ascending:true});
+    });
   }catch(e){console.error('loadDeliveries',e);deliveriesCache=[];}
   try{
     let lq=sb.from('delivery_logs').select('*').eq('room_id',curRoom.id);
@@ -4017,7 +4018,7 @@ async function rolloverDeliveries(today, roomId){
   _rollingOver=true;
   try{
     // 오늘 것 + 이전 것 모두 조회
-    const {data}=await sb.from('deliveries').select('*').eq('room_id',roomId).lte('date_str',today);
+    const data=await sbFetchAll(function(){ return sb.from('deliveries').select('*').eq('room_id',roomId).lte('date_str',today).order('date_str',{ascending:true}); }); // 1000행 잘림 시 과거 미배송분이 이월에서 누락되는 사고 방지
     if(!data||!data.length)return;
     const todayRows=data.filter(function(d){return d.date_str===today;});
     const pastRows=data.filter(function(d){return d.date_str<today;});
@@ -5562,8 +5563,8 @@ async function jhRollover(){
   if(JH_ROLLING)return; JH_ROLLING=true;
   try{
     var today=jhToday();
-    var r=await sb.from('jonghap_orders').select('*').lte('date_str',today);
-    var data=r.data||[]; if(!data.length)return;
+    var data=await sbFetchAll(function(){ return sb.from('jonghap_orders').select('*').lte('date_str',today).order('date_str',{ascending:true}); });
+    if(!data.length)return;
     var todayRows=data.filter(function(d){return d.date_str===today;});
     var pastRows=data.filter(function(d){return d.date_str<today;});
     // 오늘 이미 있는 뿌리/지문
