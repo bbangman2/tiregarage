@@ -1729,21 +1729,68 @@ var sb=null;
 const{createClient}=supabase;
 var _origFrom=null;
 function tgInitClient(){ sb=createClient(SUPA_URL,SUPA_KEY); _origFrom=sb.from.bind(sb); wrapSbAudit(); }
-// 모든 쓰기(insert/update/delete/upsert)를 자동으로 감사로그에 남김 — 217개 지점 일괄 커버
+// ===== 감사로그 v2 + 휴지통 엔진: 실행 시점 후킹 — 237개 쓰기 지점과 미래 기능까지 자동 커버 =====
+// 삭제는 [대상 선조회 -> tg_trash 원본 보존 -> 실제 삭제 -> 감사기록] 순서. 보존 실패 시 삭제 자체를 차단.
+// 수정은 이전 값(before)을 실값으로 감사기록. 어떤 방/탭이든 예외 없음(audit_logs·tg_trash 자신만 제외).
+var TG_TRASH_TBL='tg_trash';
+var AUDIT_SKIP={audit_logs:1,tg_trash:1};
+function tgRowId(table,row){ if(row==null)return''; var v=row.id!=null?row.id:(row.key!=null?row.key:(row.name!=null?row.name:(row.endpoint!=null?row.endpoint:''))); return String(v).slice(0,120); }
 function wrapSbAudit(){
   try{
     sb.from=function(table){
       var qb=_origFrom(table);
-      // 로그 테이블 자신·채팅은 제외(무한루프/과다 방지)
-      if(table==='audit_logs'||table==='messages')return qb;
+      if(AUDIT_SKIP[table])return qb;
       ['insert','update','delete','upsert'].forEach(function(op){
         if(typeof qb[op]!=='function')return;
         var orig=qb[op].bind(qb);
-        qb[op]=function(){ var payload=arguments[0]; try{ logAuditAuto(table,op,payload); }catch(e){} return orig.apply(null,arguments); };
+        qb[op]=function(){ var fb=orig.apply(null,arguments); return tgWrapExec(fb,table,op,arguments[0]); };
       });
       return qb;
     };
   }catch(e){}
+}
+function tgWrapExec(fb,table,op,payload){
+  var origThen=fb.then.bind(fb);
+  fb.then=function(onOk,onErr){
+    var p=(async function(){
+      var pre=null;
+      if(op==='update'||op==='delete'){ try{ pre=await tgPreRows(fb,table); }catch(e){ pre=null; } }
+      if(op==='delete'){
+        if(pre===null) return {data:null,error:{message:'휴지통 보존 실패(대상 조회 불가) — 삭제가 취소되었습니다'}};
+        if(pre.length){ try{ await tgTrashPut(table,pre); }catch(e){ return {data:null,error:{message:'휴지통 보존 실패 — 삭제가 취소되었습니다: '+(e&&e.message||e)}}; } }
+      }
+      var res=await origThen(function(r){return r;});
+      try{ await tgAuditWrite(table,op,payload,pre,res); }catch(e){}
+      return res;
+    })();
+    return p.then(onOk,onErr);
+  };
+  return fb;
+}
+async function tgPreRows(fb,table){
+  var out=[],from=0;
+  while(true){
+    var sel=_origFrom(table).select('*');
+    fb.url.searchParams.forEach(function(v,k){ if(k!=='select'&&k!=='columns'&&k!=='on_conflict')sel.url.searchParams.append(k,v); });
+    var r=await sel.range(from,from+999);
+    if(r.error)throw new Error(r.error.message||'선조회 실패');
+    out=out.concat(r.data||[]);
+    if(!r.data||r.data.length<1000)break;
+    from+=1000;
+    if(out.length>=20000)break;
+  }
+  return out;
+}
+async function tgTrashPut(table,rows){
+  var who=(typeof me!=='undefined'&&me)?me.name:'?';
+  var when=new Date().toISOString();
+  var room=(typeof curRoom!=='undefined'&&curRoom&&curRoom.name)||'';
+  var tab=(typeof curTabLabel==='function'?curTabLabel():'')||'';
+  for(var i=0;i<rows.length;i+=500){
+    var batch=rows.slice(i,i+500).map(function(r){ return {table_name:table,row_id:tgRowId(table,r),row_json:r,deleted_by:who,deleted_at:when,room:room,tab:tab}; });
+    var res=await _origFrom(TG_TRASH_TBL).insert(batch);
+    if(res.error)throw new Error(res.error.message||'휴지통 기록 실패');
+  }
 }
 function curTabLabel(){
   try{
@@ -1758,26 +1805,25 @@ function curTabLabel(){
   }catch(e){}
   return '';
 }
-async function logAuditAuto(table,op,payload){
-  try{
-    if(table==='audit_logs')return;
-    var OP_KO={insert:'추가/등록',update:'수정',delete:'삭제',upsert:'저장'};
-    var TBL_KO={deliveries:'직배송건',delivery_logs:'직배송기록',items:'입고건',jonghap_orders:'종합방건',reservations:'예약',reservation_links:'예약 추가연결',trade_settle:'거래처정산행',trade_logs:'거래처기록',stock:'재고',stock_logs:'재고이동',stock_items:'재고',settings:'설정',members:'멤버',rooms:'방'};
-    var tab=curTabLabel();
-    var what=TBL_KO[table]||table;
-    var act=(tab?tab+' · ':'')+what+' '+(OP_KO[op]||op);
-    var sum='';
-    if(payload){ if(Array.isArray(payload)){ sum=payload.length+'건'+(payload[0]?': '+JSON.stringify(payload[0]).slice(0,260):''); } else { sum=JSON.stringify(payload).slice(0,430); } }
-    await _origFrom('audit_logs').insert({
-      who:(typeof me!=='undefined'&&me)?me.name:'?',
-      room:(typeof curRoom!=='undefined'&&curRoom&&curRoom.name)||'',
-      action:act,
-      target:table,
-      before_val:'',
-      after_val:sum,
-      at:new Date().toISOString()
-    });
-  }catch(e){}
+async function tgAuditWrite(table,op,payload,pre,res){
+  if(table==='messages'&&op==='insert')return; // 채팅 '전송'은 본문 자체가 영구 기록 — 메시지 수정·삭제는 기록됨
+  var OP_KO={insert:'추가/등록',update:'수정',delete:'삭제',upsert:'저장'};
+  var TBL_KO={deliveries:'직배송건',delivery_logs:'직배송기록',items:'입고건',jonghap_orders:'종합방건',reservations:'예약',reservation_links:'예약 추가연결',trade_settle:'거래처정산행',trade_logs:'거래처기록',stock_products:'재고상품',stock_lots:'재고로트',stock_logs:'재고이동',settings:'설정',stock_settings:'재고설정',users:'직원계정',rooms:'방',staff_schedules:'직원스케줄',messages:'메시지',push_subscriptions:'푸시구독'};
+  var tab=(typeof curTabLabel==='function'?curTabLabel():'')||'';
+  var act=(tab?tab+' · ':'')+(TBL_KO[table]||table)+' '+(OP_KO[op]||op);
+  var ids='';
+  var src=(pre&&pre.length)?pre:((res&&res.data&&res.data.length)?res.data:null);
+  if(src){ ids=src.slice(0,20).map(function(r){return tgRowId(table,r);}).filter(Boolean).join(','); if(src.length>20)ids+=' 외'+(src.length-20)+'건'; }
+  var target=(table+(ids?('#'+ids):'')).slice(0,300);
+  var before=''; if(pre&&pre.length){ before=((pre.length>1?pre.length+'건 · 첫건: ':'')+JSON.stringify(pre[0])).slice(0,500); }
+  var after='';
+  if(op==='delete'){ after='(휴지통 이동 '+(pre?pre.length:0)+'건)'; }
+  else if(payload!=null){ after=(Array.isArray(payload)?(payload.length+'건: '+JSON.stringify(payload[0]||{})):JSON.stringify(payload)).slice(0,500); }
+  await _origFrom('audit_logs').insert({
+    who:(typeof me!=='undefined'&&me)?me.name:'?',
+    room:(typeof curRoom!=='undefined'&&curRoom&&curRoom.name)||'',
+    action:act,target:target,before_val:before,after_val:after,at:new Date().toISOString()
+  });
 }
 // ===== 통합 감사로그: 모든 액션(버튼·입력·수정·취소·삭제·완료 등)을 누가·언제·무엇을 기록 =====
 async function logAudit(action, target, beforeVal, afterVal){
@@ -10893,6 +10939,7 @@ function rsvNtUnmark(k){ try{localStorage.removeItem(rsvNtKey(k));}catch(e){} }
 function rsvNtEnabled(){ return !rsvNtSeen('all_off'); }
 function rsvNtToggleAll(){
   if(rsvNtEnabled()){ rsvNtMark('all_off'); } else { rsvNtUnmark('all_off'); _rsvNtLast={}; }
+  rsvPushToggleAll(rsvNtEnabled()); // 푸시도 함께 ON/OFF (이 기기)
   if(typeof rsvNtToggleBtnPaint==='function')rsvNtToggleBtnPaint();
   if(rsvNtEnabled())rsvNotifTick();
 }
@@ -10915,7 +10962,7 @@ async function rsvNtOpen(rsvId){ // 배너/OS알림 클릭 → 예약방 이동 
 function rsvNtOs(title,body,tag,rsvId){ try{ if(window.Notification&&Notification.permission==='granted'){ var n=new Notification(title,{body:body,tag:tag}); if(rsvId)n.onclick=function(){ try{window.focus();}catch(e){} rsvNtOpen(rsvId); try{n.close();}catch(e){} }; } }catch(e){} }
 function rsvNtAskPermission(){ try{ if(window.Notification&&Notification.permission==='default'){ Notification.requestPermission().then(function(p){ if(p==='granted')rsvPushSubscribe(); }); } else if(window.Notification&&Notification.permission==='granted'){ rsvPushSubscribe(); } }catch(e){} }
 // ===== 📲 웹푸시 구독 (2단계) — 브라우저를 꺼도 폰으로 오는 알림. 구독정보를 DB에 저장하면 Supabase 자명종(Edge Function)이 30분 전 건별 발송 =====
-var PUSH_VAPID_PUBLIC='BBuuzO7sKN8dx6Sc6yh6gvCNYm7x-bKtf_fYtqX8FlC_EuvFc5CP4WE1eZF49-EyPgy2vRsstz265r_JlwljUt4';
+var PUSH_VAPID_PUBLIC='BB70FbDh8wvFPAPubtfme-cCn9iXA1CpB9etkMPrscUBoLmf-GT1yfaEANly5bqfNTehIBAP3AxTJSiD5TSM_zg';
 function _pushB64ToU8(s){ var pad='='.repeat((4-s.length%4)%4); var b=(s+pad).replace(/-/g,'+').replace(/_/g,'/'); var raw=atob(b); var arr=new Uint8Array(raw.length); for(var i=0;i<raw.length;i++)arr[i]=raw.charCodeAt(i); return arr; }
 async function rsvPushSubscribe(){
   try{
@@ -10928,6 +10975,10 @@ async function rsvPushSubscribe(){
     await sb.from('push_subscriptions').upsert({endpoint:sub.endpoint,p256dh:(j.keys||{}).p256dh||'',auth:(j.keys||{}).auth||'',user_name:me.name},{onConflict:'endpoint'});
   }catch(e){}
 }
+// ===== 푸시 <-> 인앱 알림끄기 동기화 (기기별) — 서버가 localStorage를 볼 수 없어 DB에도 기록 =====
+async function tgPushEndpoint(){ try{ if(!('serviceWorker' in navigator)||!window.PushManager)return null; var reg=await navigator.serviceWorker.ready; var s=await reg.pushManager.getSubscription(); return s?s.endpoint:null; }catch(e){ return null; } }
+async function rsvPushMute(offKey){ try{ var ep=await tgPushEndpoint(); if(!ep||!sb)return; await sb.from('push_mutes').upsert({endpoint:ep,mute_key:offKey},{onConflict:'endpoint,mute_key'}); }catch(e){} }
+async function rsvPushToggleAll(on){ try{ var ep=await tgPushEndpoint(); if(!ep||!sb)return; await sb.from('push_subscriptions').update({enabled:!!on}).eq('endpoint',ep); }catch(e){} }
 function rsvNtBanner(html,rsvId,offKey){
   var box=document.getElementById('tg-notif-box');
   if(!box){ box=document.createElement('div'); box.id='tg-notif-box'; box.style.cssText='position:fixed;bottom:16px;right:16px;z-index:99999;display:flex;flex-direction:column;gap:8px;max-width:min(420px,92vw);pointer-events:none'; document.body.appendChild(box); } // 우하단 + 컨테이너는 클릭/드래그 통과(배너만 클릭됨) — 상단 미지정 카드 가림 방지
@@ -10941,7 +10992,7 @@ function rsvNtBanner(html,rsvId,offKey){
   el.innerHTML='<div class="tgnt-body" style="cursor:pointer">'+html+'</div><div style="display:flex;gap:6px;justify-content:flex-end">'+btns+'</div>';
   if(rsvId)el.querySelector('.tgnt-body').onclick=function(){ rsvNtOpen(rsvId); el.remove(); };
   var xb=el.querySelector('.tgnt-x'); if(xb)xb.onclick=function(){ el.remove(); }; // 다음 반복(5분) 때 다시 뜸
-  var ob=el.querySelector('.tgnt-off'); if(ob)ob.onclick=function(){ rsvNtMark(offKey); el.remove(); };
+  var ob=el.querySelector('.tgnt-off'); if(ob)ob.onclick=function(){ rsvNtMark(offKey); rsvPushMute(offKey); el.remove(); }; // 인앱+푸시 동시 끔(이 기기)
   box.appendChild(el);
   setTimeout(function(){ try{el.remove();}catch(e){} },120000);
 }
