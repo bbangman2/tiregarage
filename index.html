@@ -10969,8 +10969,15 @@ async function rsvPushSubscribe(){
     if(!('serviceWorker' in navigator)||!window.PushManager||!me||!sb)return;
     if(!window.isSecureContext)return; // https에서만
     var reg=await navigator.serviceWorker.ready;
+    var want=_pushB64ToU8(PUSH_VAPID_PUBLIC);
     var sub=await reg.pushManager.getSubscription();
-    if(!sub)sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:_pushB64ToU8(PUSH_VAPID_PUBLIC)});
+    if(sub){ // 기존 구독이 지금 열쇠와 다르면(열쇠 교체됨) 폐기 후 재구독 — 구 열쇠 구독 재사용 방지
+      var cur=(sub.options&&sub.options.applicationServerKey)?new Uint8Array(sub.options.applicationServerKey):null;
+      var same=!!cur&&cur.length===want.length;
+      if(same){ for(var _i=0;_i<cur.length;_i++){ if(cur[_i]!==want[_i]){ same=false; break; } } }
+      if(!same){ try{ await sub.unsubscribe(); }catch(e){} sub=null; }
+    }
+    if(!sub)sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:want});
     var j=sub.toJSON();
     await sb.from('push_subscriptions').upsert({endpoint:sub.endpoint,p256dh:(j.keys||{}).p256dh||'',auth:(j.keys||{}).auth||'',user_name:me.name},{onConflict:'endpoint'});
   }catch(e){}
