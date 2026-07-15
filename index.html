@@ -8647,9 +8647,12 @@ async function stkRtSaveNew(){
   var size=stkNormSize(sizeRaw);
   var fname=name||(code||'(이름미정)');
   try{
-    // ── 1) 같은 상품(브랜드+패턴+코드+사이즈+P수)이 이미 있으면 그 id 사용 (중복 생성 방지) ──
+    // ── 1) (v21) 같은 상품 판정 = 브랜드+패턴+코드+사이즈+P수 + 연식 — 연식이 다르면 새 상품 ──
     var pid=null, reused=false;
-    var exist=stkP.find(function(p){return p.br===br&&(p.name||'')===fname&&(p.code||'')===code&&p.size===size&&(p.ply||'')===ply;});
+    var _nd=String(dot||'').trim();
+    var _ident=function(p){return p.br===br&&(p.name||'')===fname&&(p.code||'')===code&&p.size===size&&(p.ply||'')===ply;};
+    var exist=stkP.find(function(p){ if(!_ident(p))return false; return (p.lots||[]).some(function(l){return String(l.dot==null?'':l.dot).trim()===_nd;}); });
+    if(!exist)exist=stkP.find(function(p){ return _ident(p)&&(!p.lots||!p.lots.length); }); // 재고 줄 없는 동일 상품(연식 미정)엔 합류
     if(exist){ pid=exist.id; reused=true; }
     else{
       var ins=await sb.from('stock_products').insert({brand:br,name:fname,code:code,size:size,category:cat,ply:ply}).select();
@@ -11452,7 +11455,7 @@ async function stkUpRun(){
       // 새 양식: c1브랜드 c2패턴 c3코드 c4사이즈 c5P수
       var newP=0;rows.forEach(function(c){
         var cName=c[2]||(c[3]||'(이름미정)');
-        var ex=stkP.find(function(p){return p.br===c[1]&&p.size===stkNormSize(c[4]||'')&&(p.code||'')===(c[3]||'')&&(p.name||'')===cName&&(p.ply||'')===(c[5]||'')&&(p.spec||'')===(c[6]||'')&&(String(p.factory_price||''))===String(parseInt(c[9])||'')&&(p.cat||'일반')===(c[0]||'일반')});
+        var ex=stkP.find(function(p){return p.br===c[1]&&p.size===stkNormSize(c[4]||'')&&(p.code||'')===(c[3]||'')&&(p.name||'')===cName&&(p.ply||'')===(c[5]||'')&&(p.spec||'')===(c[6]||'')&&(String(p.factory_price||''))===String(parseInt(c[9])||'')&&(p.cat||'일반')===(c[0]||'일반')&&(((p.lots||[]).some(function(l){return String(l.dot==null?'':l.dot).trim()===String(c[7]==null?'':c[7]).trim();}))||!(p.lots&&p.lots.length))});
         if(!ex)newP++;
       });
       msg.push(rows.length+'건 입고');
@@ -11495,12 +11498,19 @@ async function stkUpRun(){
       var newCats=[];
       rows.forEach(function(c){var ct=(c[0]||'').trim();if(ct&&stkCategories.indexOf(ct)<0&&newCats.indexOf(ct)<0)newCats.push(ct);});
       if(newCats.length){stkCategories=stkCategories.concat(newCats);await saveCategories(stkCategories);}
-      // 같은 상품 판정키 = 브랜드+패턴+코드+사이즈+P수+재원+공장도가+카테고리 (완전일치만 동일)
-      var keyOf=function(c){return [c[1],c[2]||(c[3]||'(이름미정)'),c[3]||'',stkNormSize(c[4]||''),c[5]||'',c[6]||'',String(parseInt(c[9])||''),c[0]||'일반',c[20]||''].join('|');};
+      // (v21) 같은 상품 판정키 = 브랜드+패턴+코드+사이즈+P수+재원+공장도가+카테고리+출처 + 연식 — 연식이 다르면 다른 상품
+      var ikOf=function(c){return [c[1],c[2]||(c[3]||'(이름미정)'),c[3]||'',stkNormSize(c[4]||''),c[5]||'',c[6]||'',String(parseInt(c[9])||''),c[0]||'일반',c[20]||''].join('|');};
+      var keyOf=function(c){return ikOf(c)+'|'+String(c[7]==null?'':c[7]).trim();};
       var _baseTs=Date.now();
-      // 기존 마스터 상품 캐시 (메모리 stkP 기준)
+      // 기존 마스터 상품 캐시 (메모리 stkP 기준, 연식별)
       var pidCache={};
-      stkP.forEach(function(p){pidCache[[p.br,p.name||'',p.code||'',p.size,p.ply||'',p.spec||'',String(p.factory_price||''),p.cat||'일반',p.source||''].join('|')]=p.id;});
+      stkP.forEach(function(p){
+        var ik=[p.br,p.name||'',p.code||'',p.size,p.ply||'',p.spec||'',String(p.factory_price||''),p.cat||'일반',p.source||''].join('|');
+        var ds={}; (p.lots||[]).forEach(function(l){ds[String(l.dot==null?'':l.dot).trim()]=1;});
+        var dl=Object.keys(ds);
+        if(!dl.length){ if(pidCache[ik+'|__재고없음']===undefined)pidCache[ik+'|__재고없음']=p.id; } // 재고 줄 없는 동일 상품 = 연식 미정
+        dl.forEach(function(d){ pidCache[ik+'|'+d]=p.id; });
+      });
       var lotOk=0,skip=0,createdN=0,failRows=[];
       for(var i=0;i<rows.length;i++){
         var c=rows[i];
@@ -11510,6 +11520,7 @@ async function stkUpRun(){
         var key=keyOf(c);
         try{
           var pid=pidCache[key];
+          if(!pid){ var _nk=ikOf(c)+'|__재고없음'; if(pidCache[_nk]){ pid=pidCache[_nk]; delete pidCache[_nk]; pidCache[key]=pid; } } // (v21) 연식 미정 상품에 첫 입고 연식 부여
           // 1) 없으면 상품 생성 + .select()로 즉시 id 확보 (재조회 안 함 → 키 어긋남 불가)
           if(!pid){
             var payload={brand:c[1],name:fname,code:c[3]||'',size:size,category:c[0]||'일반',ply:c[5]||'',spec:c[6]||'',factory_price:parseInt(c[9])||null,cost:parseInt(c[8])||null,source:c[20]||'',memo:c[12]||'',created_at:new Date(_baseTs+i).toISOString()};
