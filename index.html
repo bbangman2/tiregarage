@@ -8815,6 +8815,37 @@ function stkRtInlineCat(td,pid){
   inp.onkeydown=function(e){if(e.key==='Enter'||e.key==='Tab'){e.preventDefault();inp.blur();}else if(e.key==='Escape'){saved=true;td.textContent=cur;}};
 }
 // 가벼운 저장: 메모리(stkP)만 즉시 업데이트, DB는 백그라운드, 전체 재렌더 안 함
+async function stkRtSplitRow(p,rowDot,field,nv){ // (v20) 이 연식 줄만 새 상품으로 분리해 값 적용 — "줄이 다르면 다른 타이어"
+  try{
+    var colMap={cat:'category',source:'source',br:'brand',name:'name',code:'code',size:'size',ply:'ply',spec:'spec',fprice:'factory_price',cost:'cost',real_cost:'real_cost',discount_rate:'discount_rate',price:'price',inst:'inst_price'};
+    var col=colMap[field]; if(!col)return false;
+    var v=nv;
+    if(field==='fprice'||field==='cost'||field==='real_cost'||field==='price'||field==='inst')v=parseInt(String(nv).replace(/[^0-9]/g,''))||null;
+    else if(field==='discount_rate')v=(String(nv).trim()===''?null:(parseFloat(String(nv).replace(/[^0-9.]/g,''))||0));
+    else if(field==='size'&&typeof stkNormSize==='function')v=stkNormSize(nv);
+    if(field==='cat'&&v&&stkCategories.indexOf(v)<0){stkCategories.push(v);saveCategories(stkCategories);}
+    var bq=await _origFrom('stock_products').select('*').eq('id',p.id);
+    var base=bq.data&&bq.data[0]; if(!base){stkToast('⚠️ 분리 실패: 원본 상품 조회 실패');return false;}
+    var np={}; for(var k in base){ if(k!=='id')np[k]=base[k]; }
+    np[col]=v;
+    var ins=await sb.from('stock_products').insert(np).select();
+    if(ins.error||!ins.data||!ins.data[0]){stkToast('⚠️ 분리 실패: '+((ins.error&&ins.error.message)||'생성 결과 없음'));return false;}
+    var newId=ins.data[0].id;
+    var mv=await sb.from('stock_lots').update({product_id:newId}).eq('product_id',p.id).eq('dot',rowDot);
+    if(mv.error){ try{ await sb.from('stock_products').delete().eq('id',newId); }catch(_x){} stkToast('⚠️ 분리(재고 이동) 실패: '+mv.error.message); return false; } // 보상 회수
+    var moved=(p.lots||[]).filter(function(l){return String(l.dot==null?'':l.dot).trim()===rowDot;});
+    p.lots=(p.lots||[]).filter(function(l){return String(l.dot==null?'':l.dot).trim()!==rowDot;});
+    var p2={}; for(var k2 in p){ if(k2==='lots')continue; p2[k2]=p[k2]; }
+    p2.id=newId; p2.lots=moved;
+    if(field==='cat')p2.cat=v; else if(field==='source')p2.source=v; else if(field==='br')p2.br=v; else if(field==='name')p2.name=v; else if(field==='code')p2.code=v; else if(field==='size')p2.size=v; else if(field==='ply')p2.ply=v; else if(field==='spec')p2.spec=v; else if(field==='fprice')p2.factory_price=v; else if(field==='cost')p2.cost=v; else if(field==='real_cost')p2.real_cost=v; else if(field==='discount_rate')p2.discount_rate=v; else if(field==='price')p2.price=v; else if(field==='inst')p2.inst=v;
+    if(field==='discount_rate'){ try{ var _c=stkCalcRC(p2); if(_c!=null){p2.real_cost=_c; await sb.from('stock_products').update({real_cost:_c}).eq('id',newId);} }catch(_e){} }
+    var _pi=stkP.indexOf(p); stkP.splice(_pi>=0?_pi+1:stkP.length,0,p2);
+    stkLog('🔀상품분리(일반표)',p.br+' '+p.name+' '+p.size+' ('+(rowDot||'DOT누락')+') '+field+' 수정',{product_id:newId});
+    stkToast('🔀 이 줄만 분리 저장: '+(rowDot||'DOT누락')+' 연식 → 별도 상품 (다른 연식 줄 그대로)');
+    if(typeof stkRenderSearch==='function')stkRenderSearch();
+    return true;
+  }catch(e){ stkToast('⚠️ 분리 실패: '+(e.message||e)); return false; }
+}
 async function stkRtSaveFieldLight(pid,dot,field,nv,old,td){
   // 즉시수정 권한이 없어도, 택배가·장착가는 실원가 권한자(김다영·이정우 등)가 편집 가능
   if(!stkCanInline()){
@@ -8919,6 +8950,18 @@ async function stkRtSaveFieldLight(pid,dot,field,nv,old,td){
     }else{
       var col={cat:'category',source:'source',br:'brand',name:'name',code:'code',size:'size',ply:'ply',spec:'spec',fprice:'factory_price',cost:'cost',real_cost:'real_cost',discount_rate:'discount_rate',price:'price',inst:'inst_price'}[field];
       if(!col){return}
+      // ── (v20) 연식이 여러 줄인 상품의 상품칸 수정 = 그 줄만 분리 저장 · 다른 연식 줄에 절대 영향 없음 ──
+      var _dotsSet={}; (p.lots||[]).forEach(function(l){_dotsSet[String(l.dot==null?'':l.dot).trim()]=1;});
+      if(Object.keys(_dotsSet).length>1){
+        var _rowDot=String(dot==null?'':dot).trim();
+        if(!_rowDot&&td){ try{ var _tr=(td.closest?td.closest('tr[data-dot]'):null); _rowDot=((td.getAttribute&&td.getAttribute('data-dot'))||(_tr?_tr.getAttribute('data-dot'):'')||'').trim(); }catch(_e){} }
+        if(_rowDot==='DOT누락')_rowDot='';
+        if(!confirm('이 상품은 연식이 여러 줄입니다.\n['+p.br+' '+p.name+' '+p.size+' · '+(_rowDot||'DOT누락')+'] 줄만 바꾸고 별도 상품으로 분리합니다.\n다른 연식 줄은 그대로 둡니다. 진행할까요?')){ if(td)td.textContent=old; return; }
+        var _sr=await stkRtSplitRow(p,_rowDot,field,nv);
+        if(_sr===false){ if(td)td.textContent=old; return false; }
+        if(typeof stkRenderTable==='function')stkRenderTable();
+        return true;
+      }
       if((field==='price'||field==='inst')&&!(typeof stkCanSeeRealcost==='function'&&stkCanSeeRealcost())){ if(td)td.textContent=old; stkToast('택배가·장착가 수정 권한이 없습니다'); return; }
       var v=nv;
       if(field==='fprice'||field==='cost'||field==='real_cost'||field==='price'||field==='inst')v=parseInt(String(nv).replace(/[^0-9]/g,''))||null;
