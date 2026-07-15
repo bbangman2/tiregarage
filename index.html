@@ -8841,7 +8841,7 @@ async function stkRtSplitRow(p,rowDot,field,nv){ // (v20) 이 연식 줄만 새 
     if(field==='discount_rate'){ try{ var _c=stkCalcRC(p2); if(_c!=null){p2.real_cost=_c; await sb.from('stock_products').update({real_cost:_c}).eq('id',newId);} }catch(_e){} }
     var _pi=stkP.indexOf(p); stkP.splice(_pi>=0?_pi+1:stkP.length,0,p2);
     stkLog('🔀상품분리(일반표)',p.br+' '+p.name+' '+p.size+' ('+(rowDot||'DOT누락')+') '+field+' 수정',{product_id:newId});
-    stkToast('🔀 이 줄만 분리 저장: '+(rowDot||'DOT누락')+' 연식 → 별도 상품 (다른 연식 줄 그대로)');
+    stkToast('이 줄만 저장됨 · 다른 연식 줄 영향 없음');
     if(typeof stkRenderSearch==='function')stkRenderSearch();
     return true;
   }catch(e){ stkToast('⚠️ 분리 실패: '+(e.message||e)); return false; }
@@ -8950,13 +8950,12 @@ async function stkRtSaveFieldLight(pid,dot,field,nv,old,td){
     }else{
       var col={cat:'category',source:'source',br:'brand',name:'name',code:'code',size:'size',ply:'ply',spec:'spec',fprice:'factory_price',cost:'cost',real_cost:'real_cost',discount_rate:'discount_rate',price:'price',inst:'inst_price'}[field];
       if(!col){return}
-      // ── (v20) 연식이 여러 줄인 상품의 상품칸 수정 = 그 줄만 분리 저장 · 다른 연식 줄에 절대 영향 없음 ──
+      // ── (v20.1) 연식이 여러 줄이어도 수정은 그냥 수정 — 묻지 않고 그 줄만 저장 (다른 연식 줄 영향 없음) ──
       var _dotsSet={}; (p.lots||[]).forEach(function(l){_dotsSet[String(l.dot==null?'':l.dot).trim()]=1;});
       if(Object.keys(_dotsSet).length>1){
         var _rowDot=String(dot==null?'':dot).trim();
         if(!_rowDot&&td){ try{ var _tr=(td.closest?td.closest('tr[data-dot]'):null); _rowDot=((td.getAttribute&&td.getAttribute('data-dot'))||(_tr?_tr.getAttribute('data-dot'):'')||'').trim(); }catch(_e){} }
         if(_rowDot==='DOT누락')_rowDot='';
-        if(!confirm('이 상품은 연식이 여러 줄입니다.\n['+p.br+' '+p.name+' '+p.size+' · '+(_rowDot||'DOT누락')+'] 줄만 바꾸고 별도 상품으로 분리합니다.\n다른 연식 줄은 그대로 둡니다. 진행할까요?')){ if(td)td.textContent=old; return; }
         var _sr=await stkRtSplitRow(p,_rowDot,field,nv);
         if(_sr===false){ if(td)td.textContent=old; return false; }
         if(typeof stkRenderTable==='function')stkRenderTable();
