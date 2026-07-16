@@ -4267,7 +4267,7 @@ function dlvSummaryCard(c,idx,list){
   if(c.channel==='trade'){
     if(c.trade_client){
       _addrMain='<b>'+esc(c.trade_client)+'</b>';
-      _subHtml=esc(c.tire||'')+(c.spec?' '+esc(c.spec):'')+' · '+esc(c.qty||'')+'개';
+      _subHtml=esc(c.tire||'')+(c.spec?' '+esc(c.spec):'')+' · <span class="qty">'+esc(c.qty||'')+'개</span>';
     }else{
       // 옛 데이터/이월분(자유입력): 있는 내용 전부로 표시 — 어디 저장돼 있든 보이게
       var _lt=((c.tire||'')+(c.spec?' '+c.spec:'')).trim();
@@ -4343,6 +4343,7 @@ function dlvCardHtml(c,idx,list){
   if(c.channel==='trade'){
     h+='<div class="dc-tire">'+esc(c.tire||'')+'<span class="brand">'+esc(c.trade_client||'')+'</span><span class="qty">'+esc(c.qty||'')+'개</span></div>';
     if(c.spec||c.unit_price)h+='<div class="dc-tire" style="font-size:12px;color:#64748b">'+esc(c.spec||'')+(c.unit_price?' · 개당 '+esc(c.unit_price)+'원':'')+'</div>';
+    if(c.trade_memo)h+='<div class="dc-note">📝 '+esc(c.trade_memo)+'</div>';
   }else{
     h+='<div class="dc-tire">'+(c.code?'<span class="dc-code">['+esc(c.code)+']</span> ':'')+esc(c.tire||'')+'<span class="brand">'+esc(c.brand||'')+'</span><span class="qty">'+esc(c.qty||'')+'개</span></div>';
   }
@@ -8177,6 +8178,7 @@ function stkMatch(p,q){
     if(td===t&&td.length){
       if(sizeNums.indexOf(td)>=0)return true;  // 사이즈 숫자그룹 토막 일치 (235,55,18,35,12,50…)
       if(dotTokens.indexOf(td)>=0)return true; // 연식 일치
+      if(plyTok&&td===plyTok.replace(/[^0-9]/g,''))return true; // (v22) P수 숫자 일치 — "145 13 8"이 8P를 찾음
       if(td.length>=5&&sd.indexOf(td)>=0)return true; // 사이즈 통째 (2355518)
       return false;
     }
