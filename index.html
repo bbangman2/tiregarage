@@ -4285,17 +4285,32 @@ function dlvMapLink(a){return 'https://map.kakao.com/?q='+encodeURIComponent(a||
 
 // ── 택배 엑셀 내보내기 (택배전환 탭) — 읽기 전용, 기존 기능 무영향 ──
 // 배송운임 = 기존 사이즈별 배송료표(stkShipFee/STK_SHIP 308행) 그대로 사용
+// 2개 묶음 가능 규격(대표 확정 목록 그대로) — 195/70R15부터는 무조건 낱개
+var DLV_BUNDLE=(function(){var m={};
+  '500 80 12|550 80 13|145 80 13|155 65 13|155 70 12|155 70 13|155 70 14|155 80 12|155 80 13|165 60 14|165 60 15|165 65 13|165 65 14|175 50 15|175 60 13|175 60 14|175 65 14|175 65 15|175 70 13|175 70 14'.split('|').forEach(function(k){m[k]=6000;});
+  '185 55 15|185 60 14|185 60 15|185 65 14|185 65 15|185 80 14|195 40 17|195 45 15|195 45 16|195 50 15|195 50 16|195 55 15|195 55 16|195 60 14|195 60 15|195 65 15|195 70 14'.split('|').forEach(function(k){m[k]=9000;});
+  return m;})();
 function dlvShipFee(c){var f=stkShipFee(String(c.spec||c.tire||''));return (f==null?'':f);}
 async function dlvParcelXlsx(){
   try{await stkLoadXLSX();}catch(e){alert(e.message);return;}
   var list=dlvListOf('parcel').filter(function(c){return !c.cancelled;});
   if(!list.length){alert('택배전환 탭에 내보낼 카드가 없습니다.');return;}
   var HDR=['받는분','주소','상세주소','운송장번호','고객사주문번호','우편번호','도착영업소','전화번호','기타전화번호','선불후불','품목명','수량','포장상태','가로','세로','높이','무게','개별단가','배송운임','기타운임','별도운임','할증운임','도서운임','메모'];
-  var rows=list.map(function(c){
+  var rows=[];
+  list.forEach(function(c){
     var addr=String(c.addr||'').trim(), base=addr, detail='';
     var parts=addr.split(/\s+/);
     if(parts.length>=2){detail=parts.pop();base=parts.join(' ');}
-    return [c.recv||'',base,detail,'',c.code||'',c.zipcode||'','',c.tel||'',c.tel||'','선불',c.tire||'',c.qty||'','나체','','','','','',dlvShipFee(c),'','','','',''];
+    var fee=dlvShipFee(c); // 낱개 운임('' = 사이즈 미상)
+    var _t=stkParseSize(String(c.spec||c.tire||''));
+    var bundle=_t?(DLV_BUNDLE[_t[0]+' '+_t[1]+' '+_t[2]]||null):null; // 묶음은 확정 목록 규격만
+    function mk(q,f){return [c.recv||'',base,detail,'',c.code||'',c.zipcode||'','',c.tel||'',c.tel||'','선불',c.tire||'',q,'나체','','','','','',f,'','','','',''];}
+    var n=parseInt(c.qty,10);
+    if(bundle&&n>=2){
+      var pairs=Math.floor(n/2),rem=n%2;
+      for(var i=0;i<pairs;i++)rows.push(mk(2,bundle));
+      if(rem)rows.push(mk(1,fee));
+    }else rows.push(mk(c.qty||'',fee));
   });
   var ws=window.XLSX.utils.aoa_to_sheet([HDR].concat(rows));
   ws['!cols']=HDR.map(function(t,i){return {wch:(i===1?34:(i===10?24:12))};});
