@@ -4212,7 +4212,7 @@ async function rolloverDeliveries(today, roomId){
       if(isParcel){maxOp++;so=maxOp;}else{maxOd++;so=maxOd;}
       return {room_id:roomId,date_str:today,tab:destTab,channel:d.channel,code:d.code||'',car:destCar,wave_no:(d.wave_no||0),
         src:d.src||'',tire:d.tire||'',brand:d.brand||'',qty:d.qty||'',addr:d.addr||'',recv:d.recv||'',tel:d.tel||'',
-        trade_client:d.trade_client||'',spec:d.spec||'',unit_price:d.unit_price||'',trade_memo:d.trade_memo||'',
+        trade_client:d.trade_client||'',spec:d.spec||'',unit_price:d.unit_price||'',trade_memo:d.trade_memo||'',zipcode:(d.zipcode||undefined),
         note:d.note||'',due_date:d.due_date||null,need_done:!isParcel,done:false,cancelled:false,confirmed:false,
         origin_id:(d.origin_id||d.id), first_date:(d.first_date||d.date_str),
         sort_order:so,user_name:d.user_name||''};
@@ -4283,6 +4283,25 @@ function closeDlvSheet(){
 function dlvTelLink(t){return (t||'').replace(/[^0-9]/g,'');}
 function dlvMapLink(a){return 'https://map.kakao.com/?q='+encodeURIComponent(a||'');}
 
+// ── 택배 엑셀 내보내기 (택배전환 탭) — 읽기 전용, 기존 기능 무영향 ──
+// 배송운임 = 기존 사이즈별 배송료표(stkShipFee/STK_SHIP 308행) 그대로 사용
+function dlvShipFee(c){var f=stkShipFee(String(c.spec||c.tire||''));return (f==null?'':f);}
+async function dlvParcelXlsx(){
+  try{await stkLoadXLSX();}catch(e){alert(e.message);return;}
+  var list=dlvListOf('parcel').filter(function(c){return !c.cancelled;});
+  if(!list.length){alert('택배전환 탭에 내보낼 카드가 없습니다.');return;}
+  var HDR=['받는분','주소','상세주소','운송장번호','고객사주문번호','우편번호','도착영업소','전화번호','기타전화번호','선불후불','품목명','수량','포장상태','가로','세로','높이','무게','개별단가','배송운임','기타운임','별도운임','할증운임','도서운임','메모'];
+  var rows=list.map(function(c){
+    var addr=String(c.addr||'').trim(), base=addr, detail='';
+    var parts=addr.split(/\s+/);
+    if(parts.length>=2){detail=parts.pop();base=parts.join(' ');}
+    return [c.recv||'',base,detail,'',c.code||'',c.zipcode||'','',c.tel||'',c.tel||'','선불',c.tire||'',c.qty||'','나체','','','','','',dlvShipFee(c),'','','','',''];
+  });
+  var ws=window.XLSX.utils.aoa_to_sheet([HDR].concat(rows));
+  ws['!cols']=HDR.map(function(t,i){return {wch:(i===1?34:(i===10?24:12))};});
+  var wb=window.XLSX.utils.book_new();window.XLSX.utils.book_append_sheet(wb,ws,'택배');
+  window.XLSX.writeFile(wb,'택배전환_'+dlvDateStr()+'.xlsx');
+}
 function dlvListOf(tab){
   const realTab=(tab==='summary'||tab==='car2')?'deliv':tab;
   const arr=deliveriesCache.filter(function(c){return c.tab===realTab;});
@@ -4517,6 +4536,7 @@ function renderDelivery(){
   if(typeof DLV_CH!=='undefined'&&DLV_CH!=='all')list=list.filter(dlvChipPass);
   let html='';
   if(!_editable)html+='<div class="dlv-viewonly">👁 과거 날짜 — 보기 전용 (복사 버튼만 가능)</div>';
+  if(curDlvTab==='parcel')html+='<div style="margin:2px 0 8px;text-align:right"><button class="item-add-btn ghost" onclick="dlvParcelXlsx()">📥 택배 엑셀 다운로드</button></div>';
   if(curDlvTab==='summary'||curDlvTab==='car2'){
     const carNo=(curDlvTab==='car2')?2:3;
     // 해당 차량 카드만 (취소 포함 — 여기서 되돌리기 가능)
@@ -4839,7 +4859,7 @@ function dlvEdit(id){
     _fill(); setTimeout(_fill,60);
     dlvParsed=[{channel:'trade',code:'',src:c.src||'',trade_client:c.trade_client||'',tire:c.tire||'',spec:c.spec||'',year:'',brand:'',qty:c.qty||'',unit_price:c.unit_price||'',trade_memo:c.trade_memo||'',addr:'',recv:'',tel:'',multiline:false}];
   }else{
-    dlvParsed=[{channel:c.channel,code:c.code||'',src:c.src||'',tire:c.tire||'',spec:'',year:'',brand:c.brand||'',qty:c.qty||'',addr:c.addr||'',recv:c.recv||'',tel:c.tel||''}];
+    dlvParsed=[{channel:c.channel,code:c.code||'',src:c.src||'',tire:c.tire||'',spec:'',year:'',brand:c.brand||'',qty:c.qty||'',zipcode:c.zipcode||'',addr:c.addr||'',recv:c.recv||'',tel:c.tel||''}];
   }
   dlvRenderPreview();
 }
@@ -4937,7 +4957,7 @@ function dlvPastePreview(){
           src:(cols[5]||'').trim(),tire:(cols[6]||'').trim(),
           spec:(dlvNormSize(cols[7]||'')+(_detail?' '+_detail:'')).trim(),
           year:(cols[9]||'').trim(),brand:(cols[10]||'').trim(),qty:(cols[11]||'').trim(),
-          addr:(cols[13]||'').trim(),recv:(cols[14]||'').trim(),tel:(cols[15]||'').trim()};
+          zipcode:(cols[12]||'').trim(),addr:(cols[13]||'').trim(),recv:(cols[14]||'').trim(),tel:(cols[15]||'').trim()};
       }else{
         // (이전 양식 호환) (코드) 날짜 출고지 품명 싸이즈 세부 년식 제조사 수량 우편 주소 배송지 연락처
         const off=(n>=13)?1:0;
@@ -4946,14 +4966,14 @@ function dlvPastePreview(){
           src:cols[off+1]||'',tire:cols[off+2]||'',
           spec:(dlvNormSize(cols[off+3]||'')+(_detail?' '+_detail:'')).trim(),
           year:cols[off+5]||'',brand:cols[off+6]||'',qty:cols[off+7]||'',
-          addr:cols[off+9]||'',recv:cols[off+10]||'',tel:cols[off+11]||''};
+          zipcode:(cols[off+8]||'').trim(),addr:cols[off+9]||'',recv:cols[off+10]||'',tel:cols[off+11]||''};
       }
     }else{
       // 온라인: 판매처 날짜 출고지 품명 싸이즈 코드 DOT 제조사 수량 우편 주소 배송지 연락처
       // 빈칸도 탭으로 유지되면 항상 13칸 고정. (코드 칸은 비어도 자리 유지)
       d={channel:dlvChFromText(cols[0]),src:cols[2]||'',tire:cols[3]||'',spec:dlvNormSize(cols[4]||''),
         code:cols[5]||'',year:cols[6]||'',brand:cols[7]||'',qty:cols[8]||'',
-        addr:cols[10]||'',recv:cols[11]||'',tel:cols[12]||''};
+        zipcode:(cols[9]||'').trim(),addr:cols[10]||'',recv:cols[11]||'',tel:cols[12]||''};
       // 코드 칸에 P수(예: 12P)가 들어온 경우 → 싸이즈로 이동 (시트 줄마다 P수 위치가 달라서)
       if(/^\d+P$/i.test(d.code)){d.spec=(d.spec+' '+d.code).trim();d.code='';}
     }
@@ -5017,7 +5037,12 @@ async function dlvPasteRegister(){
     const fields={channel:d.channel,code:d.code||'',src:d.src||'',
       tire:(d.channel==='trade'?(d.tire||''):((d.tire||'')+(d.spec?' '+d.spec:'')).trim()),spec:d.spec||'',trade_client:d.trade_client||'',unit_price:d.unit_price||'',trade_memo:d.trade_memo||'',brand:d.brand||'',qty:d.qty||'',
       addr:d.addr||'',recv:d.recv||'',tel:d.tel||''};
-    try{await sb.from('deliveries').update(fields).eq('id',dlvEditId);}catch(e){alert('수정 실패: '+e.message);return;}
+    if(d.zipcode)fields.zipcode=d.zipcode;
+    try{await sb.from('deliveries').update(fields).eq('id',dlvEditId);}catch(e){
+      if(String(e.message||'').indexOf('zipcode')>=0){ delete fields.zipcode;
+        try{await sb.from('deliveries').update(fields).eq('id',dlvEditId);}catch(e2){alert('수정 실패: '+e2.message);return;}
+      }else{alert('수정 실패: '+e.message);return;}
+    }
     dlvEditId=null;
     document.getElementById('dlv-paste').value='';
     dlvClearPreview();
@@ -5032,9 +5057,13 @@ async function dlvPasteRegister(){
     if(d.channel==='ping'){maxO++;so=maxO;}else{maxO++;so=maxO;}
     return {room_id:curRoom.id,date_str:ds,tab:'deliv',channel:d.channel,code:d.code||'',car:1,
       src:d.src||'',tire:(d.channel==='trade'?(d.tire||''):((d.tire||'')+(d.spec?' '+d.spec:'')).trim()),spec:d.spec||'',trade_client:d.trade_client||'',unit_price:d.unit_price||'',trade_memo:d.trade_memo||'',brand:d.brand||'',qty:d.qty||'',
-      addr:d.addr||'',recv:d.recv||'',tel:d.tel||'',first_date:ds,sort_order:so,user_name:me?me.name:''};
+      addr:d.addr||'',recv:d.recv||'',tel:d.tel||'',zipcode:(d.zipcode||undefined),first_date:ds,sort_order:so,user_name:me?me.name:''};
   });
-  try{await sb.from('deliveries').insert(rows);}catch(e){alert('등록 실패: '+e.message);return;}
+  try{await sb.from('deliveries').insert(rows);}catch(e){
+    if(String(e.message||'').indexOf('zipcode')>=0){ rows.forEach(function(r){delete r.zipcode;});
+      try{await sb.from('deliveries').insert(rows);}catch(e2){alert('등록 실패: '+e2.message);return;}
+    }else{alert('등록 실패: '+e.message);return;}
+  }
   document.getElementById('dlv-paste').value='';
   dlvClearPreview();
   closeDlvSheet();
