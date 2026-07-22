@@ -1443,6 +1443,8 @@ body.rb-on #app{padding-top:58px}
         <span class="jh-chip" id="dlvch-ping" onclick="dlvSetChip('ping')">핑</span>
         <span class="jh-chip" id="dlvch-online" onclick="dlvSetChip('online')">온라인</span>
         <span class="jh-chip" id="dlvch-trade" onclick="dlvSetChip('trade')">거래처</span>
+        <span class="jh-chip" id="dlvch-linked" onclick="dlvSetChip('linked')">🔗 연결</span>
+        <span class="jh-chip" id="dlvch-unlinked" onclick="dlvSetChip('unlinked')">미연결</span>
       </div>
       <div class="dlv-body" id="dlv-body"></div>
       <button class="dlv-fab" id="dlv-fab" onclick="openDlvSheet()">➕</button>
@@ -4095,6 +4097,7 @@ async function loadDeliveries(){
       return q.order('date_str',{ascending:true}).order('sort_order',{ascending:true});
     });
   }catch(e){console.error('loadDeliveries',e);deliveriesCache=[];}
+  try{await dlvLoadLinkRefs();}catch(_e){}
   try{
     let lq=sb.from('delivery_logs').select('*').eq('room_id',curRoom.id);
     if(isRange)lq=lq.gte('date_str',sel.from).lte('date_str',sel.to);
@@ -4244,12 +4247,14 @@ function switchDlvTab(tab){
 var DLV_CH='all';
 function dlvSetChip(v){
   DLV_CH=(DLV_CH===v&&v!=='all')?'all':v;
-  ['all','ping','online','trade'].forEach(function(k){ var el=document.getElementById('dlvch-'+k); if(el)el.classList.toggle('on',k===DLV_CH); });
+  ['all','ping','online','trade','linked','unlinked'].forEach(function(k){ var el=document.getElementById('dlvch-'+k); if(el)el.classList.toggle('on',k===DLV_CH); });
   renderDelivery();
 }
 function dlvChipPass(d){
   if(DLV_CH==='all')return true;
   var c=(d.channel||'');
+  if(DLV_CH==='linked')return !!(d.src_kind&&(d.src_product_id||d.src_item_id));
+  if(DLV_CH==='unlinked')return !(d.src_kind&&(d.src_product_id||d.src_item_id));
   if(DLV_CH==='trade')return c==='trade';
   if(DLV_CH==='ping')return c==='ping';
   if(DLV_CH==='online')return c!=='ping'&&c!=='trade';
@@ -4316,6 +4321,93 @@ async function dlvParcelXlsx(){
   ws['!cols']=HDR.map(function(t,i){return {wch:(i===1?34:(i===10?24:12))};});
   var wb=window.XLSX.utils.book_new();window.XLSX.utils.book_append_sheet(wb,ws,'택배');
   window.XLSX.writeFile(wb,'택배전환_'+dlvDateStr()+'.xlsx');
+}
+// ── 직배송 재고연결 (카드당 1연결, 예약방 차감/복원 함수 재사용) ──
+async function dlvPickOpen(id){
+  if(!dlvGuardEdit())return;
+  var c=deliveriesCache.find(function(x){return x.id===id;}); if(!c)return;
+  dlvPickCardId=id; rsvPickCtx='dlv';
+  var sp=(c.spec||c.tire||'');
+  var open=function(){_rsvPickShow({tire_spec:sp}); rsvPickCtx='dlv';};
+  if(typeof stkLoad==='function'){Promise.resolve(stkLoad()).then(open);}else open();
+}
+async function dlvStkRestoreRow(row){
+  if(!row||!row.src_kind||!(row.src_product_id||row.src_item_id)||!row.stock_done)return;
+  var r=await sb.from('deliveries').update({stock_done:false}).eq('id',row.id).eq('stock_done',true).select();
+  if(r&&r.data&&r.data.length){
+    await rsvStockRestore({src_kind:row.src_kind,src_product_id:row.src_product_id,src_item_id:row.src_item_id,src_dot:row.src_dot,src_qty:row.src_qty,qty:parseInt(row.qty,10)||1,tire_spec:(row.spec||row.tire||'')},row.recv||row.trade_client||'','직배송');
+  }
+}
+async function dlvStkSync(id,want){
+  var c=deliveriesCache.find(function(x){return x.id===id;});
+  if(!c||!c.src_kind||!(c.src_product_id||c.src_item_id))return;
+  if(want){
+    var r1=await sb.from('deliveries').update({stock_done:true}).eq('id',id).eq('stock_done',false).select();
+    if(r1&&r1.data&&r1.data.length){
+      await rsvStockOut({kind:c.src_kind,product_id:c.src_product_id,item_id:c.src_item_id,dot:c.src_dot,lot_id:null,spec:(c.spec||c.tire||'')},c.src_qty||parseInt(c.qty,10)||1,c.recv||c.trade_client||'','직배송');
+      c.stock_done=true;
+      if(c.src_kind!=='inbound'){try{var l=_rsvLocLabel();await sb.from('deliveries').update({src_label:l}).eq('id',id);c.src_label=l;}catch(_e){}}
+    }
+  }else{
+    await dlvStkRestoreRow(c); c.stock_done=false;
+  }
+}
+async function dlvPickChoose(pid,dot){
+  var c=deliveriesCache.find(function(x){return x.id===dlvPickCardId;}); if(!c)return;
+  var p=stkP.find(function(x){return x.id===pid;}); if(!p)return;
+  var spec=p.br+' '+p.name+' '+p.size+(dot?' '+dot:'')+(p.ply?' '+p.ply:'');
+  var defQty=parseInt(c.qty,10)||1;
+  var qStr=prompt(spec+'\n출고 수량을 입력하세요',defQty); if(qStr==null)return;
+  var qty=parseInt(String(qStr).replace(/[^0-9]/g,''),10)||0;
+  if(qty<1){alert('수량을 확인하세요');return;}
+  try{
+    await dlvStkSync(c.id,false);
+    var u=await sb.from('deliveries').update({src_kind:'rt',src_product_id:pid,src_item_id:null,src_dot:(dot||''),src_qty:qty,src_label:null,stock_done:false}).eq('id',c.id);
+    if(u&&u.error)throw u.error;
+    c.src_kind='rt';c.src_product_id=pid;c.src_item_id=null;c.src_dot=(dot||'');c.src_qty=qty;c.src_label=null;c.stock_done=false;
+    await dlvStkSync(c.id,true);
+    logAudit('직배송 재고연결',(c.recv||c.trade_client||'')+' '+spec+' ×'+qty);
+  }catch(e){alert('연결 실패: '+e.message);return;}
+  rsvPickClose(); await loadDeliveries();
+}
+async function dlvInbChoose(itemId){
+  var it=rsvInbItems.find(function(x){return x.id===itemId;}); if(!it)return;
+  var c=deliveriesCache.find(function(x){return x.id===dlvPickCardId;}); if(!c)return;
+  var rem=itemRemainQty(it);
+  var def=Math.min(parseInt(c.qty,10)||1,rem);
+  var qStr=prompt((it.model||'')+' '+(it.spec||'')+'\n잔량 '+rem+'개 중 출고 수량',String(def)); if(qStr==null)return;
+  var qty=parseInt(String(qStr).replace(/[^0-9]/g,''),10)||0;
+  if(qty<1){alert('수량을 확인하세요');return;}
+  if(qty>rem){alert('잔량('+rem+'개)보다 많이 출고할 수 없어요');return;}
+  try{
+    await dlvStkSync(c.id,false);
+    var u=await sb.from('deliveries').update({src_kind:'inbound',src_product_id:null,src_item_id:itemId,src_dot:'',src_qty:qty,src_label:null,stock_done:false}).eq('id',c.id);
+    if(u&&u.error)throw u.error;
+    c.src_kind='inbound';c.src_product_id=null;c.src_item_id=itemId;c.src_dot='';c.src_qty=qty;c.src_label=null;c.stock_done=false;
+    await dlvStkSync(c.id,true);
+    logAudit('직배송 재고연결(입고분)',(c.recv||c.trade_client||'')+' '+(it.model||'')+' ×'+qty);
+  }catch(e){alert('연결 실패: '+e.message);return;}
+  rsvPickClose(); await loadDeliveries();
+}
+async function dlvStkUnlink(id){
+  if(!dlvGuardEdit())return;
+  var c=deliveriesCache.find(function(x){return x.id===id;}); if(!c)return;
+  if(!confirm('재고 연결을 해제할까요?\n· 차감했던 재고는 복구됩니다'))return;
+  try{
+    await dlvStkSync(id,false);
+    var u=await sb.from('deliveries').update({src_kind:null,src_product_id:null,src_item_id:null,src_dot:null,src_qty:null,src_label:null,stock_done:false}).eq('id',id);
+    if(u&&u.error)throw u.error;
+    logAudit('직배송 재고연결 해제',(c.recv||c.trade_client||''));
+  }catch(e){alert('해제 실패: '+e.message);return;}
+  await loadDeliveries();
+}
+async function dlvLoadLinkRefs(){
+  try{
+    var pids=[],iids=[];
+    deliveriesCache.forEach(function(c){ if(c.src_product_id&&pids.indexOf(c.src_product_id)<0)pids.push(c.src_product_id); if(c.src_item_id&&iids.indexOf(c.src_item_id)<0)iids.push(c.src_item_id); });
+    if(pids.length){var r=await sb.from('stock_products').select('id,brand,name,size,code,source,ply').in('id',pids); ((r&&r.data)||[]).forEach(function(p){rsvProdMap[p.id]=p;});}
+    if(iids.length){var r2=await sb.from('items').select('id,model,spec,src,date_str').in('id',iids); ((r2&&r2.data)||[]).forEach(function(it){rsvItemMap[it.id]=it;});}
+  }catch(e){}
 }
 function dlvListOf(tab){
   const realTab=(tab==='summary'||tab==='car2')?'deliv':tab;
@@ -4437,8 +4529,13 @@ function dlvCardHtml(c,idx,list){
     if(c.addr)h+='<div class="dc-addr">📍 <a href="'+dlvMapLink(c.addr)+'" target="_blank" rel="noopener" onclick="event.stopPropagation()">'+esc(c.addr)+'</a></div>';
     if(c.recv||c.tel)h+='<div class="dc-recv"><span class="name">'+esc(c.recv||'')+'</span>'+(c.tel?' · <a class="tel" href="tel:'+dlvTelLink(c.tel)+'" onclick="event.stopPropagation()">'+esc(c.tel)+'</a>':'')+'</div>';
   }
+  if(c.src_kind&&(c.src_product_id||c.src_item_id)){
+    var _lkTxt=(typeof rsvTireDetail==='function')?rsvTireDetail(c.src_kind,c.src_product_id,c.src_item_id,c.src_dot||'',(c.spec||c.tire||''),true,(c.src_label||'')):'';
+    var _cq=parseInt(c.qty,10)||0, _lq=c.src_qty||_cq||1;
+    h+='<div style="margin-top:6px;background:#f0fdfa;border:1.2px solid #99e3d0;border-radius:8px;padding:6px 9px;font-size:12px;line-height:1.6"><span style="font-size:10.5px;font-weight:800;color:#0d9488">🛞 출고 연결</span><br><b style="color:#04342c">'+esc(_lkTxt)+'</b> ×'+_lq+((_cq&&_lq!==_cq)?' <span style="color:#b45309;font-weight:700">(카드 '+_cq+'개 중)</span>':'')+(c.stock_done?' <span style="font-size:10px;font-weight:800;background:#0d9488;color:#fff;border-radius:5px;padding:1px 6px">✅ 재고 차감됨</span>':' <span style="font-size:10px;font-weight:800;background:#f1f5f9;color:#64748b;border-radius:5px;padding:1px 6px">⏳ 미차감</span>')+((c.cancelled||!dlvEditable())?'':(' <span onclick="event.stopPropagation();dlvPickOpen(\''+c.id+'\')" style="font-size:10.5px;font-weight:700;color:#0f766e;border:1px solid #99e3d0;background:#fff;border-radius:6px;padding:2px 7px;margin-left:5px;cursor:pointer">교체</span><span onclick="event.stopPropagation();dlvStkUnlink(\''+c.id+'\')" style="font-size:10.5px;font-weight:700;color:#0f766e;border:1px solid #99e3d0;background:#fff;border-radius:6px;padding:2px 7px;margin-left:3px;cursor:pointer">해제</span>'))+'</div>';
+  }
   if(c.note)h+='<div class="dc-note">📝 '+esc(c.note)+'</div>';
-  h+='<div class="dc-acts">';
+  h+='<div class="dc-acts">'+((!c.cancelled&&!c.src_kind&&dlvEditable())?'<button class="dact" style="background:#f0fdfa;color:#0f766e;border-color:#99e3d0;font-weight:800" onclick="event.stopPropagation();dlvPickOpen(\''+c.id+'\')">🔗 재고 연결</button>':'');
   if(c.cancelled){
     h+='<button class="dact" onclick="event.stopPropagation();dlvUncancel(\''+c.id+'\')">취소 되돌리기</button>';
     h+='<button class="dact copy-btn" onclick="event.stopPropagation();dlvCopy(\''+c.id+'\')">📋 복사</button>';
@@ -4823,6 +4920,10 @@ async function dlvCancel(id){
   try{
     var root=c.origin_id||c.id;  // 뿌리 — 사슬 전체 한꺼번에 취소
     await sb.from('deliveries').update({cancelled:true,cancelled_at:new Date().toISOString()}).or('id.eq.'+root+',origin_id.eq.'+root);
+    try{ var _ch=await sb.from('deliveries').select('*').or('id.eq.'+root+',origin_id.eq.'+root);
+      var _chRows=(_ch&&_ch.data)||[];
+      for(var _ci=0;_ci<_chRows.length;_ci++){ await dlvStkRestoreRow(_chRows[_ci]); }
+    }catch(_e){}
     await sb.from('delivery_logs').insert({room_id:curRoom.id,date_str:dlvDateStr(),text:(me?me.name:'?')+'님이 취소함 ('+(c.recv||c.tire||'')+')',user_name:me?me.name:''});
     logAudit('직배송 취소', (c.trade_client||c.recv||c.tire||''));
   }catch(e){alert('취소 실패: '+e.message);}
@@ -4833,6 +4934,7 @@ async function dlvUncancel(id){
   const c=deliveriesCache.find(function(x){return x.id===id;});if(!c)return;
   try{
     await sb.from('deliveries').update({cancelled:false}).eq('id',id);
+    try{ if(c.src_kind&&(c.src_product_id||c.src_item_id)&&!c.stock_done){ await dlvStkSync(id,true); } }catch(_e){}
     await sb.from('delivery_logs').insert({room_id:curRoom.id,date_str:dlvDateStr(),text:(me?me.name:'?')+'님이 취소 되돌림 ('+(c.recv||c.tire||'')+')',user_name:me?me.name:''});
     logAudit('직배송 취소 되돌림', (c.trade_client||c.recv||c.tire||''));
   }catch(e){alert('실패: '+e.message);}
@@ -12396,7 +12498,7 @@ function rsvBuildChips(){
   th+='<button type="button" class="rsv-chip'+(curMM==='30'?' on':'')+'" onclick="rsvChipHalf()">:30</button>';
   tl.innerHTML=th;
 }
-var rsvPickRsvId=null; var rsvPickMode='first', rsvPickLinkId=null, rsvLinks=[];
+var rsvPickRsvId=null; var rsvPickMode='first', rsvPickLinkId=null, rsvLinks=[]; var rsvPickCtx='rsv', dlvPickCardId=null;
 var rsvPickSrc='stock'; var rsvInbItems=[];
 function rsvSrcBtnCss(on){ return 'flex:1;padding:8px;border-radius:8px;font-size:13px;font-weight:800;cursor:pointer;border:1.5px solid '+(on?'#1e6fd9':'#cbd5e1')+';background:'+(on?'#1e6fd9':'#fff')+';color:'+(on?'#fff':'#475569'); }
 async function rsvLoadInbound(){
@@ -12427,6 +12529,7 @@ function rsvPickRenderInbound(){
   }).join('');
 }
 function rsvInbChoose(itemId){
+  if(rsvPickCtx==='dlv'){dlvInbChoose(itemId);return;}
   var it=rsvInbItems.find(function(x){return x.id===itemId;}); if(!it)return;
   var rem=itemRemainQty(it);
   var r=reservations.find(function(x){return x.id===rsvPickRsvId;});
@@ -12450,7 +12553,7 @@ async function rsvInbConfirm(it,qty){
   if(typeof rsvShowDetail==='function')rsvShowDetail(rsvPickRsvId);
 }
 function rsvOutFromStock(id){
-  rsvPickMode='first'; rsvPickLinkId=null; rsvPickRsvId=id;
+  rsvPickCtx='rsv'; rsvPickMode='first'; rsvPickLinkId=null; rsvPickRsvId=id;
   var r=reservations.find(function(x){return x.id===id;});
   rsvCloseDetail();
   if(typeof stkLoad==='function'){ Promise.resolve(stkLoad()).then(function(){_rsvPickShow(r);}); }
@@ -12466,7 +12569,7 @@ function _rsvPickShow(r){
   rsvPickRender();
   rsvLoadInbound(); // 입고분 미리 로드 (토글 시 바로 표시)
 }
-function rsvPickClose(){document.getElementById('rsv-pick-modal').classList.remove('on');}
+function rsvPickClose(){document.getElementById('rsv-pick-modal').classList.remove('on');rsvPickCtx='rsv';}
 function rsvPickRender(){
   if(rsvPickSrc==='inbound') return rsvPickRenderInbound();
   var q=document.getElementById('rsv-pick-q').value||'';
@@ -12488,6 +12591,7 @@ function rsvPickRender(){
   el.innerHTML=h;
 }
 function rsvPickChoose(pid,dot){
+  if(rsvPickCtx==='dlv'){dlvPickChoose(pid,dot);return;}
   var p=stkP.find(function(x){return x.id===pid;}); if(!p)return;
   var r=reservations.find(function(x){return x.id===rsvPickRsvId;});
   var spec=p.br+' '+p.name+' '+p.size+(dot?' '+dot:'')+(p.ply?' '+p.ply:'');
@@ -12513,9 +12617,9 @@ async function rsvSyncAllStock(rid, want){
   for(var i=0;i<lks.length;i++){ await rsvLinkSync(lks[i].id, want); }
 }
 // 재고 추가 연결: 픽창 재사용
-function rsvAddLinkFromStock(id){ rsvPickMode='add'; rsvPickRsvId=id; rsvPickLinkId=null; rsvCloseDetail(); if(typeof stkLoad==='function'){ Promise.resolve(stkLoad()).then(function(){_rsvPickShow(null);}); } else _rsvPickShow(null); }
+function rsvAddLinkFromStock(id){ rsvPickCtx='rsv'; rsvPickMode='add'; rsvPickRsvId=id; rsvPickLinkId=null; rsvCloseDetail(); if(typeof stkLoad==='function'){ Promise.resolve(stkLoad()).then(function(){_rsvPickShow(null);}); } else _rsvPickShow(null); }
 // 추가연결 줄 교체
-function rsvSwapLink(linkId){ var lk=rsvLinks.find(function(x){return x.id===linkId;}); if(!lk)return; rsvPickMode='swaplink'; rsvPickLinkId=linkId; rsvPickRsvId=lk.reservation_id; rsvCloseDetail(); if(typeof stkLoad==='function'){ Promise.resolve(stkLoad()).then(function(){_rsvPickShow(lk);}); } else _rsvPickShow(lk); }
+function rsvSwapLink(linkId){ var lk=rsvLinks.find(function(x){return x.id===linkId;}); if(!lk)return; rsvPickCtx='rsv'; rsvPickMode='swaplink'; rsvPickLinkId=linkId; rsvPickRsvId=lk.reservation_id; rsvCloseDetail(); if(typeof stkLoad==='function'){ Promise.resolve(stkLoad()).then(function(){_rsvPickShow(lk);}); } else _rsvPickShow(lk); }
 // 추가연결 줄 제외(복구 후 삭제)
 async function rsvRemoveLink(linkId){
   var lk=rsvLinks.find(function(x){return x.id===linkId;}); if(!lk)return;
@@ -12585,7 +12689,7 @@ async function rsvPickConfirm(pid,dot,spec,qty){
   rsvShowDetail(rsvPickRsvId);
 }
 function rsvOutFromInbound(id){
-  rsvPickMode='first'; rsvPickLinkId=null; rsvPickRsvId=id;
+  rsvPickCtx='rsv'; rsvPickMode='first'; rsvPickLinkId=null; rsvPickRsvId=id;
   var r=reservations.find(function(x){return x.id===id;});
   rsvCloseDetail();
   _rsvPickShow(r);
@@ -12788,7 +12892,7 @@ async function rsvSubmit(){
 // 차감 위치 수집기 — rsvStockOut이 실제로 어느 lot(위치)에서 뺐는지 기록 (호출 직후 _rsvLocLabel()로 읽음)
 var _rsvOutLocs=[];
 function _rsvLocLabel(){ var seen={},out=[]; _rsvOutLocs.forEach(function(l){ var v=(l==='U'||!l)?'미배치':l; if(!seen[v]){seen[v]=1;out.push(v);} }); return out.join(','); }
-async function rsvStockOut(o,n,memo){
+async function rsvStockOut(o,n,memo,src){
   var ts=new Date().toISOString();
   _rsvOutLocs=[]; // 매 차감마다 초기화 (이전 호출 잔값 오염 방지)
   if(o.kind==='inbound'){
@@ -12796,8 +12900,8 @@ async function rsvStockOut(o,n,memo){
     var d=(cur&&cur.data)?cur.data:{};
     var oq=(parseInt(d.out_qty,10)||0)+n, willDone=oq>=((parseInt(d.qty,10)||0)-(parseInt(d.cancel_qty,10)||0));
     var who=(typeof me!=='undefined'&&me)?me.name:'?';
-    await sb.from('items').update({out_qty:oq,out_done:willDone,out_at:(willDone?ts:(d.out_at||null)),out_to:(willDone?'예약장착':(d.out_to||null)),out_user:(willDone?who:(d.out_user||null))}).eq('id',o.item_id);
-    if(typeof stkLog==='function')stkLog('📤입고출고',(o.spec||'')+' → 예약장착 ×'+n+(memo?' ['+memo+']':''),{qty:n,channel:'예약장착',ref:'예약등록'});
+    await sb.from('items').update({out_qty:oq,out_done:willDone,out_at:(willDone?ts:(d.out_at||null)),out_to:(willDone?(src||'예약장착'):(d.out_to||null)),out_user:(willDone?who:(d.out_user||null))}).eq('id',o.item_id);
+    if(typeof stkLog==='function')stkLog('📤입고출고',(o.spec||'')+' → '+(src||'예약장착')+' ×'+n+(memo?' ['+memo+']':''),{qty:n,channel:(src||'예약장착'),ref:(src?src+'연결':'예약등록')});
     return true;
   }
   if(o.kind==='lot'){
@@ -12815,12 +12919,12 @@ async function rsvStockOut(o,n,memo){
       else{await sb.from('stock_lots').insert({product_id:o.product_id,dot:(o.dot||''),qty:-rem,loc:'U'});_rsvOutLocs.push('미등록');}
     }
   }
-  stkLog('📦장착출고', o.spec+' −'+n+'개 · 예약'+(memo?' ['+memo+']':''), {product_id:o.product_id,dot:o.dot||'',qty:n,channel:'장착',ref:'예약등록'+(memo?' '+memo:'')});
+  stkLog('📦장착출고', o.spec+' −'+n+'개 · '+(src||'예약')+(memo?' ['+memo+']':''), {product_id:o.product_id,dot:o.dot||'',qty:n,channel:'장착',ref:(src?src+'출고':'예약등록')+(memo?' '+memo:'')});
   if(typeof stkLoad==='function')await stkLoad();
   return true;
 }
 // 예약 취소/삭제 시 출고했던 재고 되돌리기 + 기록(누가 취소했는지 자동)
-async function rsvStockRestore(r,memo){
+async function rsvStockRestore(r,memo,src){
   var ts=new Date().toISOString();
   var n=r.src_qty||r.qty||1;
   if(r.src_kind==='inbound' && r.src_item_id){
@@ -12829,7 +12933,7 @@ async function rsvStockRestore(r,memo){
     var newOut=Math.max(0,(parseInt(idata.out_qty,10)||0)-n);
     var stillDone=newOut>0&&newOut>=((parseInt(idata.qty,10)||0)-(parseInt(idata.cancel_qty,10)||0));
     await sb.from('items').update({out_qty:newOut, out_done:stillDone, out_at:(newOut>0?(idata.out_at||null):null), out_to:(newOut>0?(idata.out_to||null):null), out_user:(newOut>0?(idata.out_user||null):null)}).eq('id',r.src_item_id);
-    if(typeof stkLog==='function')stkLog('↩️입고출고취소',(r.tire_spec||'')+' +'+n+'개 · 예약취소/해제 복구'+(memo?' ['+memo+']':''),{qty:n,channel:'예약장착',ref:'예약복구'});
+    if(typeof stkLog==='function')stkLog('↩️입고출고취소',(r.tire_spec||'')+' +'+n+'개 · '+(src||'예약')+'취소/해제 복구'+(memo?' ['+memo+']':''),{qty:n,channel:(src||'예약장착'),ref:(src?src+'복구':'예약복구')});
     return true;
   }
   if(r.src_kind==='lot' && r.src_lot_id){
@@ -12848,7 +12952,7 @@ async function rsvStockRestore(r,memo){
     var _cand=((_lg&&_lg.data)||[]).filter(function(g){var a=g.action||'';return a.indexOf('출고')>=0 && a.indexOf('취소')<0 && !(g.ref&&(''+g.ref).indexOf('[취소됨]')>=0) && Number(g.qty)===Number(n) && (g.dot||'')===(r.src_dot||'');});
     if(_cand.length){ await sb.from('stock_logs').update({ref:((_cand[0].ref||'')+' [취소됨]').trim()}).eq('id',_cand[0].id); }
   }catch(_e){}
-  stkLog('↩️재고복구', (r.tire_spec||'')+' +'+n+'개 · 예약취소'+(memo?' ['+memo+']':''), {product_id:r.src_product_id,dot:r.src_dot||'',qty:n,channel:'장착',ref:'예약취소복구'});
+  stkLog('↩️재고복구', (r.tire_spec||'')+' +'+n+'개 · '+(src||'예약취소')+(memo?' ['+memo+']':''), {product_id:r.src_product_id,dot:r.src_dot||'',qty:n,channel:'장착',ref:(src?src+'복구':'예약취소복구')});
   if(typeof stkLoad==='function')await stkLoad();
 }
 function rsvShowDetail(id){
