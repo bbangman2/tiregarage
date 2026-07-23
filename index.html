@@ -4335,7 +4335,7 @@ async function dlvStkRestoreRow(row){
   if(!row||!row.src_kind||!(row.src_product_id||row.src_item_id)||!row.stock_done)return;
   var r=await sb.from('deliveries').update({stock_done:false}).eq('id',row.id).eq('stock_done',true).select();
   if(r&&r.data&&r.data.length){
-    await rsvStockRestore({src_kind:row.src_kind,src_product_id:row.src_product_id,src_item_id:row.src_item_id,src_dot:row.src_dot,src_qty:row.src_qty,qty:parseInt(row.qty,10)||1,tire_spec:(row.spec||row.tire||'')},((row.date_str?row.date_str+' · ':'')+(row.recv||row.trade_client||'')),'직배송');
+    _stkDetailSet(_dlvSnapshot(row),row.id); await rsvStockRestore({src_kind:row.src_kind,src_product_id:row.src_product_id,src_item_id:row.src_item_id,src_dot:row.src_dot,src_qty:row.src_qty,qty:parseInt(row.qty,10)||1,tire_spec:(row.spec||row.tire||'')},((row.date_str?row.date_str+' · ':'')+(row.recv||row.trade_client||'')),'직배송');
   }
 }
 async function dlvStkSync(id,want){
@@ -4344,7 +4344,7 @@ async function dlvStkSync(id,want){
   if(want){
     var r1=await sb.from('deliveries').update({stock_done:true}).eq('id',id).eq('stock_done',false).select();
     if(r1&&r1.data&&r1.data.length){
-      await rsvStockOut({kind:c.src_kind,product_id:c.src_product_id,item_id:c.src_item_id,dot:c.src_dot,lot_id:null,spec:(c.spec||c.tire||'')},c.src_qty||parseInt(c.qty,10)||1,((c.date_str?c.date_str+' · ':'')+(c.recv||c.trade_client||'')),'직배송');
+      _stkDetailSet(_dlvSnapshot(c),c.id); await rsvStockOut({kind:c.src_kind,product_id:c.src_product_id,item_id:c.src_item_id,dot:c.src_dot,lot_id:null,spec:(c.spec||c.tire||'')},c.src_qty||parseInt(c.qty,10)||1,((c.date_str?c.date_str+' · ':'')+(c.recv||c.trade_client||'')),'직배송');
       c.stock_done=true;
       if(c.src_kind!=='inbound'){try{var l=_rsvLocLabel();await sb.from('deliveries').update({src_label:l}).eq('id',id);c.src_label=l;}catch(_e){}}
     }
@@ -8152,8 +8152,12 @@ function stkChk(r,ctx){ if(r&&r.error){ throw new Error((ctx?ctx+' ':'')+'재고
 async function stkLog(action,note,extra,skipReload){
   try{
     var rec=Object.assign({ts:new Date().toISOString(),user_name:me?me.name:'?',action:action,note:note},extra||{});
+    if(_stkLogDetail){ if(_stkLogDetail.detail)rec.detail=_stkLogDetail.detail; if(_stkLogDetail.ref_id)rec.ref_id=_stkLogDetail.ref_id; _stkLogDetail=null; }
     var r=await sb.from('stock_logs').insert(rec);
-    if(r&&r.error)throw r.error;
+    if(r&&r.error){
+      if(/detail|ref_id/.test(String(r.error.message||''))){ delete rec.detail; delete rec.ref_id; var r2=await sb.from('stock_logs').insert(rec); if(r2&&r2.error)throw r2.error; }
+      else throw r.error;
+    }
   }catch(e){ if(typeof stkToast==='function')stkToast('⚠️ 기록 저장 실패: '+(e.message||e)+' — 다시 시도하세요'); }
   if(!skipReload)stkLoadLogs();
 }
@@ -8445,6 +8449,23 @@ function stkLogClass(action){
   if(action.indexOf('잠금')>=0||action.indexOf('해제')>=0)return'lock';
   return'';
 }
+function stkLogDetailShow(logId){
+  var g=(stkLogRows||[]).find(function(x){return ''+x.id===''+logId;});
+  if(!g||!g.detail){stkToast('저장된 예약 내용이 없습니다');return;}
+  var old=document.getElementById('stk-detail-ovl'); if(old)old.remove();
+  var ovl=document.createElement('div');
+  ovl.id='stk-detail-ovl';
+  ovl.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.35);z-index:9000;display:flex;align-items:center;justify-content:center;padding:16px';
+  ovl.onclick=function(e){ if(e.target===ovl)ovl.remove(); };
+  var box=document.createElement('div');
+  box.style.cssText='background:#fff;border-radius:14px;max-width:440px;width:100%;max-height:80vh;overflow:auto;padding:16px;box-shadow:0 12px 40px rgba(0,0,0,0.25)';
+  var hd=document.createElement('div'); hd.style.cssText='font-size:14px;font-weight:800;color:#1a2035;margin-bottom:6px'; hd.textContent='📄 기록 당시 예약 내용';
+  var meta=document.createElement('div'); meta.style.cssText='font-size:11.5px;color:#94a3b8;margin-bottom:8px'; meta.textContent=(g.action||'')+' · '+(g.user_name||'')+(g.ref_id?(' · 예약번호 '+g.ref_id):'');
+  var pre=document.createElement('div'); pre.style.cssText='white-space:pre-wrap;font-size:13px;line-height:1.7;color:#1f2937;background:#f8fafc;border:1px solid #eef0f3;border-radius:9px;padding:10px 12px'; pre.textContent=g.detail;
+  var bt=document.createElement('button'); bt.textContent='닫기'; bt.style.cssText='margin-top:10px;width:100%;padding:9px;border:1px solid rgba(0,0,0,0.1);background:#f7f6f3;color:#333;border-radius:9px;font-size:13px;font-weight:800;cursor:pointer'; bt.onclick=function(){ovl.remove();};
+  box.appendChild(hd);box.appendChild(meta);box.appendChild(pre);box.appendChild(bt);
+  ovl.appendChild(box); document.body.appendChild(ovl);
+}
 async function stkUndoOut(logId){
   // 출고 취소/복원 토글 — 누구나 가능 (잠금·관리자 무관), 기록은 모두 남음
   var g=(stkLogRows||[]).find(function(x){return ''+x.id===''+logId;});
@@ -8514,6 +8535,7 @@ function stkRenderLogTab(){
     var extra='';
     if(g.channel)extra+=' · 판매처/채널 '+stkEsc(g.channel);
     if(g.ref && (g.action||'').indexOf('출고')>=0)extra+=' · 주문/메모 '+stkEsc(g.ref);
+    var detailBtn=g.detail?('<button onclick="stkLogDetailShow(\''+g.id+'\')" style="font-size:11px;padding:4px 9px;border:1px solid #cfe0f5;background:#eef4fb;color:#0c447c;border-radius:7px;font-weight:800;cursor:pointer;margin-right:5px">📄 예약내용</button>'):'';
     var isOut=(g.action||'').indexOf('출고')>=0 && (g.action||'').indexOf('취소')<0 && (g.action||'').indexOf('실패')<0;
     var undone=g.ref&&(''+g.ref).indexOf('[취소됨]')>=0;
     var undoBtn='';
@@ -8527,6 +8549,7 @@ function stkRenderLogTab(){
       else if(stkLogMoveParts(g).moved) undoBtn='<button onclick="stkUndoCellMove(\''+_e2(g.id)+'\')" style="font-size:11px;padding:4px 9px;border:1px solid #f3c2c2;background:#fdf2f2;color:#c0392b;border-radius:7px;font-weight:800;cursor:pointer">↩️ 위치 되돌리기</button>';
       else undoBtn='<span style="font-size:11px;color:#94a3b8;font-style:italic">↩️ 되돌리기 불가 — 옛 기록(옮긴 품목 미기재)</span>';
     }
+    undoBtn=detailBtn+undoBtn;
     var isMove=(g.from_loc&&g.to_loc); var noteHtml=stkEsc(g.note||''); var moveLine='';
     if(isMove){
       var _rt=(g.from_loc==='U'?'미배치':g.from_loc)+' → '+(g.to_loc==='U'?'미배치':g.to_loc);
@@ -12541,8 +12564,15 @@ function rsvInbChoose(itemId){
   rsvInbConfirm(it,qty);
 }
 async function rsvInbConfirm(it,qty){
+  if(rsvPickMode==='add'){ await _rsvPickAddInb(it,qty); return; }
+  if(rsvPickMode==='swaplink'){ await _rsvPickSwapLinkInb(it,qty); return; }
   var spec=(it.model||'')+' '+(it.spec||'');
+  var r=reservations.find(function(x){return x.id===rsvPickRsvId;});
   try{
+    if(r && r.stock_done && (r.src_product_id||r.src_item_id)){ // 교체: 기존 첫 연결 차감 먼저 복원(CAS)
+      var _c=await sb.from('reservations').update({stock_done:false}).eq('id',rsvPickRsvId).eq('stock_done',true).select();
+      if(_c && _c.data && _c.data.length){ await rsvStockRestore(r, _rsvLogTag(r)); }
+    }
     await rsvStockOut({kind:'inbound',item_id:it.id,spec:spec}, qty, _rsvLogTagById(rsvPickRsvId));
     var{error}=await sb.from('reservations').update({tire_spec:spec,qty:qty,src_kind:'inbound',src_item_id:it.id,src_product_id:null,src_dot:'',src_qty:qty,src_lot_id:null,src_label:(it.src||''),stock_done:true}).eq('id',rsvPickRsvId);
     if(error)throw error;
@@ -12640,6 +12670,30 @@ async function _rsvPickAdd(pid,dot,spec,qty,r){
   }catch(e){alert('추가 연결 실패: '+e.message);return;}
   rsvPickClose(); rsvPickMode='first'; await loadReservations(); rsvShowDetail(rsvPickRsvId);
 }
+async function _rsvPickAddInb(it,qty){
+  var spec=(it.model||'')+' '+(it.spec||'');
+  var r=reservations.find(function(x){return x.id===rsvPickRsvId;});
+  try{
+    var ins=await sb.from('reservation_links').insert({reservation_id:rsvPickRsvId,kind:'inbound',item_id:it.id,product_id:null,dot:'',qty:qty,lot_id:null,stock_done:false,tire_spec:spec,src_label:(it.src||'')}).select();
+    var lk=ins&&ins.data&&ins.data[0]; if(!lk)throw new Error('링크 생성 실패');
+    rsvLinks.push(lk);
+    if(r && r.status!=='취소'){ await rsvLinkSync(lk.id, true); }
+  }catch(e){alert('추가 연결 실패: '+e.message);return;}
+  logAudit('예약 입고분 추가연결', spec+' ×'+qty+(it.src?' [출처 '+it.src+']':''));
+  rsvPickClose(); rsvPickMode='first'; await loadReservations(); rsvShowDetail(rsvPickRsvId);
+}
+async function _rsvPickSwapLinkInb(it,qty){
+  var lk=rsvLinks.find(function(x){return x.id===rsvPickLinkId;}); if(!lk){rsvPickClose();return;}
+  var spec=(it.model||'')+' '+(it.spec||'');
+  try{
+    { var c=await sb.from('reservation_links').update({stock_done:false}).eq('id',lk.id).eq('stock_done',true).select(); if(c&&c.data&&c.data.length){ await rsvStockRestore(_rsvLinkRestObj(lk), _rsvLogTagById(lk.reservation_id)); } } // CAS가 직접 판단 — 캐시 플래그 미의존
+    await rsvStockOut({kind:'inbound',item_id:it.id,spec:spec}, qty, _rsvLogTagById(lk.reservation_id));
+    var{error}=await sb.from('reservation_links').update({kind:'inbound',item_id:it.id,product_id:null,dot:'',qty:qty,tire_spec:spec,src_label:(it.src||''),stock_done:true}).eq('id',lk.id); if(error)throw error;
+    Object.assign(lk,{kind:'inbound',item_id:it.id,product_id:null,dot:'',qty:qty,tire_spec:spec,src_label:(it.src||''),stock_done:true});
+  }catch(e){alert('교체 실패: '+e.message);return;}
+  logAudit('예약 연결 교체(입고분)', spec+' ×'+qty);
+  rsvPickClose(); rsvPickMode='first'; await loadReservations(); rsvShowDetail(rsvPickRsvId);
+}
 async function _rsvPickSwapLink(pid,dot,spec,qty){
   var lk=rsvLinks.find(function(x){return x.id===rsvPickLinkId;}); if(!lk){rsvPickClose();return;}
   try{
@@ -12676,7 +12730,7 @@ async function rsvPickConfirm(pid,dot,spec,qty){
   if(rsvPickMode==='add'){ await _rsvPickAdd(pid,dot,spec,qty,r); return; }
   if(rsvPickMode==='swaplink'){ await _rsvPickSwapLink(pid,dot,spec,qty); return; }
   try{
-    if(r && r.stock_done && r.src_product_id){   // 이미 연결됨 → 교체: 기존 재고 먼저 복구(CAS 1회)
+    if(r && r.stock_done && (r.src_product_id||r.src_item_id)){   // 이미 연결됨(재고·입고분) → 교체: 기존 차감 먼저 복구(CAS 1회)
       var _c=await sb.from('reservations').update({stock_done:false}).eq('id',rsvPickRsvId).eq('stock_done',true).select();
       if(_c && _c.data && _c.data.length){ await rsvStockRestore(r, _rsvLogTag(r)); }
     }
@@ -12892,7 +12946,46 @@ async function rsvSubmit(){
 // 차감 위치 수집기 — rsvStockOut이 실제로 어느 lot(위치)에서 뺐는지 기록 (호출 직후 _rsvLocLabel()로 읽음)
 var _rsvOutLocs=[];
 function _rsvLocLabel(){ var seen={},out=[]; _rsvOutLocs.forEach(function(l){ var v=(l==='U'||!l)?'미배치':l; if(!seen[v]){seen[v]=1;out.push(v);} }); return out.join(','); }
+var _stkLogDetail=null;
+function _stkDetailSet(detail,refId){ _stkLogDetail={detail:String(detail||''),ref_id:String(refId||'')}; }
+function _rsvSnapshot(r){ if(!r)return '';
+  var L=['예약번호: '+(r.id||'(등록 중)')];
+  L.push('일시: '+(r.date_str?((r.date_str||'')+' '+(r.time_slot||'')).trim():'미지정'));
+  if(r.status)L.push('상태: '+r.status);
+  if(r.phone)L.push('전화: '+r.phone);
+  if(r.car_no)L.push('차량번호: '+r.car_no);
+  if(r.car_name)L.push('차량명: '+r.car_name);
+  if(r.tire_spec)L.push('타이어: '+noPP(r.tire_spec));
+  if(r.qty)L.push('수량: '+r.qty+'짝');
+  if(r.align_state==='take')L.push('얼라이먼트: 받기로함'+(r.align_amount?' · '+rsvWon(r.align_amount):''));
+  else if(r.align_state==='inform')L.push('얼라이먼트: 안내함'+(r.align_amount?' · '+rsvWon(r.align_amount):''));
+  if(r.pay_amount)L.push('현장결제금액: '+rsvWon(r.pay_amount));
+  if(r.deposit)L.push('예약금: '+rsvWon(r.deposit));
+  if(r.pay_method)L.push('결제수단: '+r.pay_method);
+  if(r.memo)L.push('특이사항: '+r.memo);
+  if(r.user_name)L.push('작성자: '+r.user_name);
+  return L.join('\n');
+}
+function _dlvSnapshot(c){ if(!c)return '';
+  var L=['직배송 카드: '+(c.id||'')];
+  if(c.date_str)L.push('날짜: '+c.date_str);
+  if(c.channel)L.push('채널: '+((typeof DCH_LABEL!=='undefined'&&DCH_LABEL[c.channel])||c.channel));
+  if(c.src)L.push('입고처: '+c.src);
+  if(c.trade_client)L.push('거래처: '+c.trade_client);
+  if(c.tire)L.push('품명: '+c.tire);
+  if(c.spec)L.push('사이즈: '+c.spec);
+  if(c.qty)L.push('수량: '+c.qty);
+  if(c.unit_price)L.push('개당: '+c.unit_price);
+  if(c.recv)L.push('받는분: '+c.recv);
+  if(c.tel)L.push('전화: '+c.tel);
+  if(c.addr)L.push('주소: '+c.addr);
+  if(c.trade_memo)L.push('메모: '+c.trade_memo);
+  if(c.note)L.push('꼭배송 메모: '+c.note);
+  if(c.user_name)L.push('작성자: '+c.user_name);
+  return L.join('\n');
+}
 function _rsvLogTag(r){ if(!r)return ''; var d=r.date_str?((r.date_str||'')+' '+(r.time_slot||'')).trim():'날짜미정';
+  _stkDetailSet(_rsvSnapshot(r), r.id||''); // 기록 직전 스냅샷 준비
   var parts=[d]; var car=r.car_name||r.car_no||''; if(car)parts.push(car); if(r.memo)parts.push(r.memo);
   return parts.join(' · '); }
 function _rsvLogTagById(id){ var r=(typeof reservations!=='undefined'&&reservations)?reservations.find(function(x){return x.id===id;}):null; return _rsvLogTag(r); }
