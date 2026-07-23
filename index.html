@@ -4295,7 +4295,33 @@ var DLV_BUNDLE=(function(){var m={};
   '500 80 12|550 80 13|145 80 13|155 65 13|155 70 12|155 70 13|155 70 14|155 80 12|155 80 13|165 60 14|165 60 15|165 65 13|165 65 14|175 50 15|175 60 13|175 60 14|175 65 14|175 65 15|175 70 13|175 70 14'.split('|').forEach(function(k){m[k]=6000;});
   '185 55 15|185 60 14|185 60 15|185 65 14|185 65 15|185 80 14|195 40 17|195 45 15|195 45 16|195 50 15|195 50 16|195 55 15|195 55 16|195 60 14|195 60 15|195 65 15|195 70 14'.split('|').forEach(function(k){m[k]=9000;});
   return m;})();
-function dlvShipFee(c){var f=stkShipFee(String(c.spec||c.tire||''));return (f==null?'':f);}
+function _dlvSizeStr(c){return String(c.spec||c.tire||'').replace(/\b\d{1,2}\s*[pP](?![A-Za-z])/g,' ');} // P수가 사이즈 파싱을 오염하지 않게 제거
+function dlvShipFee(c){var f=stkShipFee(_dlvSizeStr(c));return (f==null?'':f);}
+var DLV_SRC_ABBR={'극동':'극','매일':'매','매일타이어':'매','창고':'창','퇴계원':'퇴','타이어에미치다':'치','타이어미치다':'치','타이어(에)미치다':'치'};
+function dlvSrcAbbr(src){ src=String(src||'').trim(); if(!src)return '';
+  var m=src.match(/^(.*?)(\d+)?$/); var base=(m&&m[1]?m[1]:'').trim(), num=(m&&m[2])||'';
+  if(DLV_SRC_ABBR[base]!=null)return DLV_SRC_ABBR[base]+num;
+  return base?(base.charAt(0)+num):'';
+}
+var DLV_ORIGINS=['한국','중국','베트남','인도네시아','인니','태국','일본','헝가리','유럽','미국','대만','세르비아','폴란드','포르투갈','독일','루마니아'];
+function _dlvFindSize(s){
+  var RES=[/\d{2,3}\s*[\/]\s*\d{2,3}\s*[Rr]?\s*\d{2}C?/, /\b\d{2}\s*[xX\u00d7]\s*\d{1,2}(?:\.\d+)?\s*[Rr]?\s*\d{2}\b/, /\b\d{3}\s+\d{2,3}\s+\d{2}\b/, /\b\d{2}\s+\d{1,2}(?:\.\d+)?\s+\d{2}\b/, /\b\d{3}\s*[Rr]\s*\d{2}C?\b/, /\b\d{3}\s+\d{2}\b/];
+  var best=null;
+  RES.forEach(function(re){var m=s.match(re); if(m){var st=m.index,en=m.index+m[0].length; if(!best||st<best.st||(st===best.st&&en>best.en))best={st:st,en:en};}});
+  return best;
+}
+function dlvParcelName(c){
+  var tire=String(c.tire||'').trim(), spec=String(c.spec||'').trim();
+  var bt=_dlvFindSize(tire), head, tail='';
+  if(bt){ head=tire.slice(0,bt.en).trim(); tail=tire.slice(bt.en); }
+  else{ var bs=_dlvFindSize(spec); var sp=bs?spec.slice(0,bs.en).trim():spec; head=(tire+' '+sp).trim(); tail=bs?spec.slice(bs.en):''; }
+  var pm=(tire+' '+spec).match(/(\d{1,2})\s*[pP](?![A-Za-z])/);
+  var ply=(pm&&parseInt(pm[1],10)!==4)?(parseInt(pm[1],10)+'P'):'';
+  var ym=String((c.brand||'')+' '+tire).match(/20(\d{2})/); var yy=ym?(ym[1]+'년'):'';
+  var origin=''; for(var i=0;i<DLV_ORIGINS.length;i++){ if(tail.indexOf(DLV_ORIGINS[i])>=0){origin=DLV_ORIGINS[i];break;} }
+  var total=String(c.qty||'').trim();
+  return [dlvSrcAbbr(c.src),head,ply,yy,origin,total].filter(function(x){return x!=='';}).join(' ');
+}
 async function dlvParcelXlsx(){
   try{await stkLoadXLSX();}catch(e){alert(e.message);return;}
   var list=dlvListOf('parcel').filter(function(c){return !c.cancelled;});
@@ -4307,15 +4333,18 @@ async function dlvParcelXlsx(){
     var parts=addr.split(/\s+/);
     if(parts.length>=2){detail=parts.pop();base=parts.join(' ');}
     var fee=dlvShipFee(c); // 낱개 운임('' = 사이즈 미상)
-    var _t=stkParseSize(String(c.spec||c.tire||''));
+    var _t=stkParseSize(_dlvSizeStr(c));
     var bundle=_t?(DLV_BUNDLE[_t[0]+' '+_t[1]+' '+_t[2]]||null):null; // 묶음은 확정 목록 규격만
-    function mk(q,f){return [c.recv||'',base,detail,'',c.code||'',c.zipcode||'','',c.tel||'',c.tel||'','선불',c.tire||'',q,'나체','','','','','',f,'','','','',''];}
-    var n=parseInt(c.qty,10);
+    var nm=dlvParcelName(c);
+    function mk(f){return [c.recv||'',base,detail,'',c.code||'',c.zipcode||'','',c.tel||'',c.tel||'','선불',nm,1,'나체','','','','',10,f,'','','','',''];}
+    var n=parseInt(c.qty,10)||1;
     if(bundle&&n>=2){
       var pairs=Math.floor(n/2),rem=n%2;
-      for(var i=0;i<pairs;i++)rows.push(mk(2,bundle));
-      if(rem)rows.push(mk(1,fee));
-    }else rows.push(mk(c.qty||'',fee));
+      for(var i=0;i<pairs;i++)rows.push(mk(bundle)); // 묶음 = 운송장 1건·수량 1
+      if(rem)rows.push(mk(fee));
+    }else{
+      for(var j=0;j<n;j++)rows.push(mk(fee)); // 묶음 불가 규격 = 한 개당 운송장 1건
+    }
   });
   var ws=window.XLSX.utils.aoa_to_sheet([HDR].concat(rows));
   ws['!cols']=HDR.map(function(t,i){return {wch:(i===1?34:(i===10?24:12))};});
