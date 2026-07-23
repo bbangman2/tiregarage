@@ -10316,7 +10316,7 @@ function stkRenderSearch(){
           '<span class="lotq"'+(isMinus?' style="color:#dc2626"':'')+'>'+(isMinus?l.q+'개 ⏳':l.q+'개')+'</span>'+
           '<span class="lotloc" onclick="event.stopPropagation();stkGoto(\''+l.loc+'\',\''+l.id+'\')">📍'+(l.loc==='U'?'미배치':l.loc)+'</span>'+
           '<button class="lotbtn" onclick="event.stopPropagation();stkOpenOut(\''+l.id+'\')">📦 출고</button>'+srcLine+'</div>';
-      }).join('')||'<div class="lotrow" style="color:#bbb">창고 재고 없음 — 출고하면 입고예정(마이너스)으로 잡힙니다</div>';
+      }).join('')||'<div class="lotrow" style="color:#bbb">창고 재고 없음 — 출고하면 입고예정(마이너스)으로 잡힙니다 <button class="lotbtn" onclick="event.stopPropagation();stkOutZero(\''+p.id+'\')">📦 출고</button></div>';
     var priceLine='<div style="font-size:12px;color:#444;padding:3px 0;display:flex;gap:14px;flex-wrap:wrap">'+
       '<span>🔧 장착가 <b style="color:#c2410c">'+(stkCalcJangchak(stkCostDisplay(p),p.size,stkIsOffroad(p))?stkWon(stkCalcJangchak(stkCostDisplay(p),p.size,stkIsOffroad(p))):'미정')+'</b></span>'+
       '<span>📦 택배가 <b style="color:#0c447c">'+(stkCalcTaekbae(stkCostDisplay(p),p.size)?stkWon(stkCalcTaekbae(stkCostDisplay(p),p.size)):'미정')+'</b></span>'+
@@ -10945,6 +10945,18 @@ async function stkDoNewOut(){
   }catch(e){stkToast('출고 준비 실패: '+e.message);return}
   stkCloseDlg();
   stkOpenOut(lot.id); // 바로 출고 다이얼로그 (재고 0이라 마이너스 흐름)
+}
+async function stkOutZero(pid){
+  var p=stkP.find(function(x){return x.id===pid}); if(!p)return;
+  var z=(p.lots||[]).find(function(l){return (l.q||0)===0;});
+  if(z){ stkOpenOut(z.id); return; }
+  try{
+    var li=stkChk(await sb.from('stock_lots').insert({product_id:pid,dot:'',qty:0,loc:'U'}).select(),'신규추가');
+    var lid=(li.data&&li.data[0]&&li.data[0].id)||('tmp'+Date.now());
+    var lot={id:lid,dot:'',q:0,loc:'U',price:null};
+    (p.lots=p.lots||[]).push(lot);
+    stkOpenOut(lot.id);
+  }catch(e){stkToast('출고 준비 실패: '+e.message);}
 }
 function stkOpenOut(lotId){
   var found=null,fp=null;
