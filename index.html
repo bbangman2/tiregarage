@@ -5577,7 +5577,7 @@ function dlvRenderPreview(){
 function dlvClearPreview(){dlvParsed=[];const a=document.getElementById('dlv-pv-area');if(a)a.innerHTML='';const r=document.getElementById('dlv-reg-row');if(r)r.style.display='none';}
 async function dlvPasteRegister(){
   if(!dlvGuardEdit())return;
-  if(dlvPasteFmt==='trade'){   // 미리보기 추가를 안 눌렀어도 새로 입력한 값은 등록에 포함
+  if(!dlvEditId&&dlvPasteFmt==='trade'){   // 미리보기 추가를 안 눌렀어도 새로 입력한 값은 등록에 포함(수정 모드 제외)
     var _tf=['t-out','t-client','t-pat','t-size','t-qty','t-price','t-memo'];
     var _typed=_tf.some(function(id){ var e=document.getElementById(id); return !!(e&&(e.value||'').trim()&&!e.classList.contains('ghosted')); });
     if(_typed&&typeof dlvTradeAddPreview==='function')dlvTradeAddPreview();
@@ -9171,7 +9171,8 @@ async function stkUndoOut(logId){
   var qty=Math.abs(parseInt(g.qty)||0);
   if(!qty){stkToast('수량이 없습니다');return}
   var p=stkP.find(function(x){return x.id===g.product_id;});
-  var pname=p?(p.br+' '+p.name+' '+p.size):'(삭제된 상품)';
+  if(!p&&g.product_id&&(!stkP||!stkP.length)){ try{ await stkLoad(); p=stkP.find(function(x){return x.id===g.product_id;}); }catch(_e){} }
+  var pname=p?(p.br+' '+p.name+' '+p.size):'(재고표 밖 상품)';
   var loc=g.from_loc||'U';
   var dot=g.dot||'';
   var isCancelled=g.ref&&(''+g.ref).indexOf('[취소됨]')>=0;
@@ -9179,10 +9180,20 @@ async function stkUndoOut(logId){
     // ── 출고 취소 (재고 되돌림) ──
     if(!confirm('이 출고를 취소할까요?\n\n'+pname+'\n'+qty+'개를 재고로 되돌립니다.\n채널 '+(g.channel||'')+' 집계에서도 빠집니다.\n\n(기록은 모두 남습니다)'))return;
     try{
-      if(p){
-        var lot=p.lots.find(function(l){return (l.loc||'U')===loc && (l.dot||'')===dot;});
-        if(lot){stkChk(await sb.from('stock_lots').update({qty:lot.q+qty,updated_at:new Date().toISOString()}).eq('id',lot.id),'출고취소복구');}
-        else{stkChk(await sb.from('stock_lots').insert({product_id:p.id,dot:dot,qty:qty,loc:loc}),'출고취소복구');}
+      // 재고칸 정보가 없는 기록(입고분 출고 등)은 여기서 되돌릴 수 없음 — 표시도 남기지 않음
+      if(!g.product_id){ stkToast('이 기록은 창고 재고칸 정보가 없어요 — 예약/직배송에서 연결 해제로 되돌려주세요'); return; }
+      var _tgt=null;
+      if(p){ _tgt=p.lots.find(function(l){return (l.loc||'U')===loc && (l.dot||'')===dot;}); }
+      if(!_tgt){   // 재고 미로딩·상품 캐시 없음·칸 정보 없음 → DB에서 직접 찾기
+        var _q=await sb.from('stock_lots').select('id,qty,loc,dot').eq('product_id',g.product_id);
+        var _rows=((_q&&_q.data)||[]).filter(function(l){return (l.dot||'')===dot;});
+        var _pick=null;
+        if(g.from_loc){ _pick=_rows.filter(function(l){return (l.loc||'U')===loc;})[0]||null; }
+        else{ _pick=_rows.filter(function(l){return (l.loc||'U')!=='U';})[0] || _rows[0] || null; }   // 칸 정보 없으면 실제 재고 칸 우선
+        if(_pick){ stkChk(await sb.from('stock_lots').update({qty:(parseInt(_pick.qty,10)||0)+qty,updated_at:new Date().toISOString()}).eq('id',_pick.id),'출고취소복구'); }
+        else{ stkChk(await sb.from('stock_lots').insert({product_id:g.product_id,dot:dot,qty:qty,loc:loc}),'출고취소복구'); }
+      }else{
+        stkChk(await sb.from('stock_lots').update({qty:_tgt.q+qty,updated_at:new Date().toISOString()}).eq('id',_tgt.id),'출고취소복구');
       }
       await sb.from('stock_logs').update({ref:((g.ref||'')+' [취소됨]').trim()}).eq('id',g.id);
       stkLog('↩️출고취소',pname+' '+qty+'개 취소',{product_id:g.product_id,dot:g.dot,qty:qty,to_loc:loc,channel:g.channel||''});
@@ -9193,13 +9204,20 @@ async function stkUndoOut(logId){
     // ── 취소 되돌리기 (다시 출고 상태로) ──
     if(!confirm('취소를 되돌려 다시 출고 상태로 만들까요?\n\n'+pname+'\n'+qty+'개를 재고에서 다시 뺍니다.\n채널 '+(g.channel||'')+' 집계에 다시 잡힙니다.\n\n(기록은 모두 남습니다)'))return;
     try{
-      if(p){
-        var lot2=p.lots.find(function(l){return (l.loc||'U')===loc && (l.dot||'')===dot;});
-        if(lot2){
-          if(lot2.q<qty){stkToast('재고가 부족해 되돌릴 수 없습니다 (현재 '+lot2.q+'개)');return}
-          stkChk(await sb.from('stock_lots').update({qty:lot2.q-qty,updated_at:new Date().toISOString()}).eq('id',lot2.id),'취소되돌림');
-        }else{stkToast('되돌릴 재고 위치를 찾을 수 없습니다');return}
-      }
+      var _l2=null;
+      if(p){ _l2=p.lots.find(function(l){return (l.loc||'U')===loc && (l.dot||'')===dot;}); }
+      if(_l2){
+        if(_l2.q<qty){stkToast('재고가 부족해 되돌릴 수 없습니다 (현재 '+_l2.q+'개)');return}
+        stkChk(await sb.from('stock_lots').update({qty:_l2.q-qty,updated_at:new Date().toISOString()}).eq('id',_l2.id),'취소되돌림');
+      }else if(g.product_id){
+        var _q2=await sb.from('stock_lots').select('id,qty,loc,dot').eq('product_id',g.product_id);
+        var _r2=((_q2&&_q2.data)||[]).filter(function(l){return (l.dot||'')===dot;});
+        var _p2=_r2.filter(function(l){return (l.loc||'U')===loc;})[0] || _r2[0];
+        if(!_p2){stkToast('되돌릴 재고 위치를 찾을 수 없습니다');return}
+        var _have=parseInt(_p2.qty,10)||0;
+        if(_have<qty){stkToast('재고가 부족해 되돌릴 수 없습니다 (현재 '+_have+'개)');return}
+        stkChk(await sb.from('stock_lots').update({qty:_have-qty,updated_at:new Date().toISOString()}).eq('id',_p2.id),'취소되돌림');
+      }else{stkToast('이 기록은 창고 재고칸 정보가 없어요');return}
       // [취소됨] 표시 제거
       var restored=(''+(g.ref||'')).replace(/\s*\[취소됨\]/,'').trim();
       await sb.from('stock_logs').update({ref:restored}).eq('id',g.id);
@@ -13769,7 +13787,7 @@ async function rsvStockOut(o,n,memo,src){
       else{await sb.from('stock_lots').insert({product_id:o.product_id,dot:(o.dot||''),qty:-rem,loc:'U'});_rsvOutLocs.push('미등록');}
     }
   }
-  stkLog('📦장착출고', o.spec+' −'+n+'개 · '+(src||'예약')+(memo?' ['+memo+']':''), {product_id:o.product_id,dot:o.dot||'',qty:n,channel:'장착',ref:(src?src+'출고':'예약등록')+(memo?' '+memo:'')});
+  stkLog('📦장착출고', o.spec+' −'+n+'개 · '+(src||'예약')+(memo?' ['+memo+']':''), {product_id:o.product_id,dot:o.dot||'',qty:n,channel:'장착',from_loc:((_rsvOutLocs&&_rsvOutLocs.length)?_rsvOutLocs[_rsvOutLocs.length-1]:''),ref:(src?src+'출고':'예약등록')+(memo?' '+memo:'')});
   if(typeof stkLoad==='function')await stkLoad();
   return true;
 }
