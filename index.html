@@ -9164,6 +9164,19 @@ function stkLogDetailShow(logId){
   box.appendChild(hd);box.appendChild(meta);box.appendChild(pre);box.appendChild(bt);
   ovl.appendChild(box); document.body.appendChild(ovl);
 }
+async function stkUndoClearMark(logId){   // 재고는 그대로, [취소됨] 표시만 지움 (예전 조용한 실패 복구용)
+  var g=(stkLogRows||[]).find(function(x){return ''+x.id===''+logId;});
+  if(!g)return;
+  if(String(g.ref||'').indexOf('[취소됨]')<0){ stkToast('취소 표시가 없는 기록입니다'); return; }
+  if(!confirm('이 기록의 [취소됨] 표시만 지울까요?\n\n· 재고 수량은 건드리지 않습니다\n· 지운 뒤 다시 \u2717 출고 취소를 누르면 재고가 정상 복구됩니다'))return;
+  try{
+    var _rs=String(g.ref||'').replace(/\s*\[취소됨\]/,'').trim();
+    await sb.from('stock_logs').update({ref:_rs}).eq('id',g.id);
+    stkLog('\u270f\ufe0f취소표시정리', (g.note||'')+' — 재고 변동 없음(표시만 정리)', {product_id:g.product_id,dot:g.dot||'',qty:Math.abs(parseInt(g.qty)||0),channel:g.channel||''});
+    stkToast('표시를 지웠습니다 — 이제 \u2717 출고 취소를 눌러주세요');
+    await stkLoadLogTab();
+  }catch(e){ stkToast('실패: '+e.message); }
+}
 async function stkUndoOut(logId){
   // 출고 취소/복원 토글 — 누구나 가능 (잠금·관리자 무관), 기록은 모두 남음
   var g=(stkLogRows||[]).find(function(x){return ''+x.id===''+logId;});
@@ -9256,7 +9269,7 @@ function stkRenderLogTab(){
     var undone=g.ref&&(''+g.ref).indexOf('[취소됨]')>=0;
     var undoBtn='';
     if(isOut){  // 출고 취소/복원 토글 — 누구나 가능
-      if(undone)undoBtn='<span style="font-size:11px;color:#c0392b;font-weight:800;margin-right:5px">✗ 취소됨</span><button onclick="stkUndoOut(\''+g.id+'\')" style="font-size:11px;padding:4px 9px;border:1px solid #b9e0c9;background:#eaf7ef;color:#15803d;border-radius:7px;font-weight:800;cursor:pointer">↩️ 되돌리기</button>';
+      if(undone)undoBtn='<span style="font-size:11px;color:#c0392b;font-weight:800;margin-right:5px">✗ 취소됨</span><button onclick="stkUndoOut(\''+g.id+'\')" style="font-size:11px;padding:4px 9px;border:1px solid #b9e0c9;background:#eaf7ef;color:#15803d;border-radius:7px;font-weight:800;cursor:pointer">↩️ 되돌리기</button><button onclick="stkUndoClearMark(\''+g.id+'\')" title="재고는 그대로, 취소 표시만 지움" style="font-size:11px;padding:4px 9px;border:1px solid #e2e8f0;background:#f7f6f3;color:#64748b;border-radius:7px;font-weight:800;cursor:pointer;margin-left:4px">🧹 표시만 지우기</button>';
       else undoBtn='<button onclick="stkUndoOut(\''+g.id+'\')" style="font-size:11px;padding:4px 9px;border:1px solid #f3c2c2;background:#fdf2f2;color:#c0392b;border-radius:7px;font-weight:800;cursor:pointer">✗ 출고 취소</button>';
     }
     if(!undoBtn && (g.action||'').indexOf('취소')<0 && (g.action||'').indexOf('되돌리기')<0 && g.from_loc && g.to_loc){
@@ -10184,7 +10197,7 @@ function stkRtFillFilters(){
 var TG_EM_COLS=[['cat','분류','p'],['source','출처','p'],['br','브랜드','p'],['name','패턴','p'],['code','패턴코드','p'],['size','사이즈','p'],['ply','P수','p'],['spec','재원','p'],['dot','DOT','l'],['price','택배가','$'],['inst','장착가','$'],['cost','원가','$'],['real_cost','실원가','!'],['discount_rate','할인율','!'],['fprice','공장도가','$'],['qty','수량','x'],['cur','변동재고','l']];
 var TG_EM_DBMAP={cat:'category',source:'source',br:'brand',name:'name',code:'code',size:'size',ply:'ply',spec:'spec',fprice:'factory_price',cost:'cost',real_cost:'real_cost',discount_rate:'discount_rate',price:'price',inst:'inst_price'}; // 실코드 stkRtSaveFieldLight와 동일 매핑
 var STK_EM_USERS=['이호준'];
-function stkCanEM(){ if(!me)return false; if(me.name===ADMIN_NAME)return true; return STK_EM_USERS.indexOf(me.name)>=0; }
+function stkCanEM(){ return !!(me&&me.name===ADMIN_NAME); }   // 편집모드는 대표만
 async function stkLoadEmUsers(){ try{ var r=await sb.from('stock_settings').select('*').eq('key','em_users'); if(r.data&&r.data[0]&&r.data[0].value){ var arr=JSON.parse(r.data[0].value); if(Array.isArray(arr)){STK_EM_USERS.length=0;arr.forEach(function(n){if(STK_EM_USERS.indexOf(n)<0)STK_EM_USERS.push(n);});} } }catch(e){} }
 async function stkSaveEmUsers(){ var val=JSON.stringify(STK_EM_USERS); var ex=await sb.from('stock_settings').select('key').eq('key','em_users'); var r; if(ex.data&&ex.data.length){r=await sb.from('stock_settings').update({value:val}).eq('key','em_users');} else{r=await sb.from('stock_settings').insert({key:'em_users',value:val});} if(r&&r.error)throw new Error(r.error.message||'저장 실패'); }
 
