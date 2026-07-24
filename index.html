@@ -4238,6 +4238,7 @@ async function rolloverDeliveries(today, roomId){
     });
     // upsert + 중복무시: DB 유니크 제약(room_id,date_str,origin_id)과 함께 동시실행 중복 차단
     await sb.from('deliveries').upsert(newRows,{onConflict:'room_id,date_str,origin_id',ignoreDuplicates:true});
+    try{ if(newRows.length)logAudit('직배송 자동 이월', newRows.length+'건 ('+today+'로 넘김)'); }catch(_e){}
   }catch(e){console.error('rollover',e);}
   finally{_rollingOver=false;}
 }
@@ -5576,7 +5577,12 @@ function dlvRenderPreview(){
 function dlvClearPreview(){dlvParsed=[];const a=document.getElementById('dlv-pv-area');if(a)a.innerHTML='';const r=document.getElementById('dlv-reg-row');if(r)r.style.display='none';}
 async function dlvPasteRegister(){
   if(!dlvGuardEdit())return;
-  if(!dlvParsed.length)return;
+  if(dlvPasteFmt==='trade'){   // 미리보기 추가를 안 눌렀어도 새로 입력한 값은 등록에 포함
+    var _tf=['t-out','t-client','t-pat','t-size','t-qty','t-price','t-memo'];
+    var _typed=_tf.some(function(id){ var e=document.getElementById(id); return !!(e&&(e.value||'').trim()&&!e.classList.contains('ghosted')); });
+    if(_typed&&typeof dlvTradeAddPreview==='function')dlvTradeAddPreview();
+  }
+  if(!dlvParsed.length){ alert('등록할 내용이 없어요 — 입력 후 ＋ 미리보기 추가를 눌러주세요'); return; }
   const ds=dlvDateStr();
   // 수정 모드: 첫 번째 항목으로 update
   if(dlvEditId){
@@ -6315,7 +6321,8 @@ async function jhRollover(){
         status:'wait', reg_user:d.reg_user, assignee:d.assignee, logs:d.logs||[]
       });
     });
-    if(toCopy.length){ await sb.from('jonghap_orders').insert(toCopy); }
+    if(toCopy.length){ await sb.from('jonghap_orders').insert(toCopy);
+      try{ logAudit('종합방 자동 이월', toCopy.length+'건 ('+today+'로 넘김)'); }catch(_e){} }
   }catch(e){}
   finally{ JH_ROLLING=false; }
 }
@@ -6551,6 +6558,7 @@ async function _jhUndoOne(o){
     if(it&&it.data){
       var d=it.data;
       if(d.arrived||(parseInt(d.out_qty,10)||0)>0||d.cancelled)return 'blocked';
+      try{ logAudit('종합방 되돌리기(입고 항목 삭제)', (o.model||'')+' '+(o.spec||'')+' '+((o.qty||'')+'')+' · '+(o.date_str||'')); }catch(_e){}
       try{ await sb.from('items').delete().eq('id',o.inbound_item_id); }catch(e){ return 'fail'; }
     }
   }
@@ -8323,12 +8331,19 @@ function updateFilled(){['i-src','i-model','i-spec','i-qty','i-use','i-chg'].for
     var isDbl=(id==='t-size'); var isMemo=(id==='t-memo'); var isTel=(id==='t-tel');
     input.addEventListener('keydown',function(e){
       // 불투명 값이 있는 칸에서 문자 입력 시작 → 원래값 기억해두고 공란
+      if(input.classList.contains('ghosted')&&e.key===' '){ e.preventDefault(); segNext(TIDS,pos); return; }   // 흐릿 값 그대로 두고 다음 칸
+      if(input.classList.contains('ghosted')&&e.key==='Backspace'){ e.preventDefault(); input.value=''; input.classList.remove('ghosted'); input.dataset.ghostVal=''; return; }   // 이 칸만 비우기
       if(input.classList.contains('ghosted')&&e.key.length===1){ input.dataset.ghostVal=input.value; input.value=''; input.classList.remove('ghosted'); }
       if(e.key==='Backspace'&&input.value===''){e.preventDefault();segPrev(TIDS,pos);return;}
       if(e.key==='Enter'){e.preventDefault();dlvTradeAddPreview();return;}
     });
-    // (A)방식: 불투명 칸에 포커스(클릭·띄어쓰기 도착·탭)가 닿는 순간 무조건 공란
-    input.addEventListener('focus',function(){ if(input.classList.contains('ghosted')){ input.value=''; input.classList.remove('ghosted'); } });
+    // 흐릿(직전 값) 칸은 포커스가 닿아도 지우지 않음 — 입력하면 대체, 그냥 넘어가면 그 값으로 등록
+    input.addEventListener('focus',function(){ try{ input.setSelectionRange(0,0); }catch(_e){} });   // 커서는 맨 왼쪽
+    // 한글 IME 안전: 조합 입력·모든 입력 시작 시점에도 흐릿한 직전 값을 비움 (keydown만으로는 한글이 뒤에 붙음)
+    var _ghostOff=function(){ if(input.classList.contains('ghosted')){ input.dataset.ghostVal=input.value; input.value=''; input.classList.remove('ghosted'); } };
+    input.addEventListener('compositionstart',_ghostOff);
+    input.addEventListener('beforeinput',function(e){ if(e&&e.inputType&&e.inputType.indexOf('delete')===0)return; _ghostOff(); });
+    input.addEventListener('paste',_ghostOff);
     input.addEventListener('input',function(){
       if(input.value!=='')input.classList.remove('ghosted');
       if(isMemo)return; // 메모는 자유 입력(이동 없음)
@@ -8363,8 +8378,8 @@ function dlvTradeAddPreview(){
   if(window._dlvEditingBack){ _row._edited=true; dlvParsed.unshift(_row); window._dlvEditingBack=false; } // 수정분: 맨 위 + 수정됨
   else{ dlvParsed.push(_row); }
   // (가)방식: 출고·거래처·전화·우편·주소는 유지(불투명), 타이어칸만 비움
-  var GHOST=['t-out','t-client'];
-  var CLEARF=['t-pat','t-size','t-qty','t-price','t-memo'];
+  var GHOST=['t-out','t-client','t-pat','t-size','t-qty','t-price','t-memo'];   // 직전 값 전부 흐릿하게 유지
+  var CLEARF=[];
   CLEARF.forEach(function(id){var e=document.getElementById(id);if(e){e.value='';e.classList.remove('ghosted');e.dataset.ghostVal='';}});
   GHOST.forEach(function(id){var e=document.getElementById(id);if(e){e.classList.add('ghosted'); e.dataset.ghostVal=e.value;}});
   dlvRenderPreview();
@@ -8451,6 +8466,7 @@ async function stkLoad(){
 var __stkConsolidating=false;
 // 특정 칸(loc)의 lot들을 즉시 합침 (이동/분리/드롭 직후 호출) — 같은 상품+연식+출처
 async function stkConsolidateCell(loc){
+  try{ logAudit('재고 중복정리(칸)', String(loc||'')); }catch(_e){}
   if(!loc)return;
   var _nm=function(v){return (v===null||v===undefined?'':String(v)).trim();};
   for(var pi=0;pi<stkP.length;pi++){
@@ -8479,6 +8495,7 @@ async function stkConsolidateCell(loc){
 async function stkConsolidate(){
   if(__stkConsolidating)return false; // 무한 루프 방지
   var merges=[]; // {keep, remove[], totalQ}
+  var _mgLog=function(n){ try{ if(n>0)logAudit('재고 중복정리', n+'건 통합(같은 위치·연식·출처 합산)'); }catch(_e){} };
   stkP.forEach(function(p){
     var groups={};
     p.lots.forEach(function(l){
@@ -8495,6 +8512,7 @@ async function stkConsolidate(){
     });
   });
   if(!merges.length)return false;
+  _mgLog(merges.length);
   __stkConsolidating=true;
   try{
     for(var i=0;i<merges.length;i++){
@@ -11635,6 +11653,7 @@ async function stkOutZero(pid){
     var lid=(li.data&&li.data[0]&&li.data[0].id)||('tmp'+Date.now());
     var lot={id:lid,dot:'',q:0,loc:'U',price:null};
     (p.lots=p.lots||[]).push(lot);
+    try{ stkLog('➕재고칸생성', (p.br||'')+' '+(p.name||'')+' '+(p.size||'')+' — 0개 칸 생성(부족 출고 준비)', {product_id:pid}); }catch(_e){}
     stkOpenOut(lot.id);
   }catch(e){stkToast('출고 준비 실패: '+e.message);}
 }
@@ -12696,10 +12715,10 @@ async function schSave(){
       var old=(staffSchedules||[]).find(function(x){return x.id===editId;});
       if(!old||old.staff_name!==who){alert('본인 스케줄만 수정할 수 있어요');return;}
       var lg=Array.isArray(old.logs)?old.logs.slice():[];
-      lg.push({type:'edit',text:'✏️ 수정: '+old.date_str+' '+old.kind+' → '+ds+' '+kind+(memo?' ('+memo+')':'')+' — '+who+' ('+new Date().toLocaleString('ko-KR')+')'});
+      lg.push({type:'edit',text:'✏️ 수정: '+old.date_str+' '+old.kind+' → '+ds+' '+kind+(memo?' ('+memo+')':'')+' — '+who+' ('+new Date().toLocaleString('ko-KR',{timeZone:'Asia/Seoul'})+')'});
       await sb.from('staff_schedules').update({date_str:ds,kind:kind,memo:memo,logs:lg}).eq('id',editId);
     }else{
-      await sb.from('staff_schedules').insert({date_str:ds,staff_name:who,kind:kind,memo:memo,created_by:who,logs:[{type:'',text:'➕ 등록: '+ds+' '+kind+(memo?' ('+memo+')':'')+' — '+who+' ('+new Date().toLocaleString('ko-KR')+')'}]});
+      await sb.from('staff_schedules').insert({date_str:ds,staff_name:who,kind:kind,memo:memo,created_by:who,logs:[{type:'',text:'➕ 등록: '+ds+' '+kind+(memo?' ('+memo+')':'')+' — '+who+' ('+new Date().toLocaleString('ko-KR',{timeZone:'Asia/Seoul'})+')'}]});
     }
   }catch(e){alert('저장 실패: '+e.message);return;}
   schClose(); loadReservations();
@@ -12732,7 +12751,7 @@ async function schDelete(id){
   var x=(staffSchedules||[]).find(function(y){return y.id===id;}); if(!x)return;
   if(!(me&&x.staff_name===me.name)){alert('본인 스케줄만 삭제할 수 있어요');return;}
   if(!confirm(x.date_str+' '+x.kind+'을(를) 삭제할까요?'))return;
-  try{ await sb.from('staff_schedules').delete().eq('id',id); }catch(e){alert('삭제 실패: '+e.message);return;}
+  try{ await sb.from('staff_schedules').delete().eq('id',id); logAudit('휴무/연차 삭제', (x.date_str||'')+' '+(x.kind||'')+' · '+(x.staff_name||'')); }catch(e){alert('삭제 실패: '+e.message);return;}
   schClose(); loadReservations();
 }
 function rsvHasLink(rid){ return (typeof rsvLinks!=='undefined')&&rsvLinks.some(function(L){return L.reservation_id===rid&&(L.stock_done||L.product_id||L.item_id);}); }
@@ -12810,7 +12829,8 @@ async function rsvSaveWorkNote(id,val){
   var r=reservations.find(function(x){return x.id===id;}); if(!r)return;
   val=(val||'').trim();
   if((r.work_note||'')===val)return;
-  try{ var resu=await sb.from('reservations').update({work_note:val}).eq('id',id); if(resu.error)throw resu.error; r.work_note=val; }
+  try{ var _prevWn=(r.work_note||''); var resu=await sb.from('reservations').update({work_note:val}).eq('id',id); if(resu.error)throw resu.error; r.work_note=val;
+       logAudit('예약 작업메모 '+(_prevWn?'수정':'작성'), ((r.date_str||'')+' '+(r.time_slot||'')).trim()+' · '+(val||'(지움)').slice(0,60)); }
   catch(e){ console.error('작업메모 저장 실패',e); }
 }
 function rsvByDate(ds){return reservations.filter(function(r){return r.date_str===ds;}).sort(function(a,b){return (a.time_slot||'').localeCompare(b.time_slot||'');});}
