@@ -4545,6 +4545,281 @@ async function tabLocate(scope,keyEnc,ds){
     if(elm2)_tlFlash(elm2); else alert('\ud574\ub2f9 \ud56d\ubaa9\uc744 \ucc3e\uc744 \uc218 \uc5c6\uc5b4\uc694'+(ds?(' ('+ds+' \uc785\uace0\ubd84)'):''));
   }
 }
+// ══ \uc624\ub298 \ucd9c\ub3d9\ud45c (\uc9c1\ubc30\uc1a1\ubc29\u00b7\uc785\uace0\ubc29 \uacf5\uc6a9) ══
+var DUTY_MKEY='duty_members', DUTY_EXT='배송직원';
+var dutyMembers=null, dutyAllNames=null, dutyCache={}, _dutyLoading={}, dutyTmp=null, dutyOpenList=null;
+function dutyIsAdmin(){ return !!(typeof me!=='undefined'&&me&&typeof ADMIN_NAME!=='undefined'&&me.name===ADMIN_NAME); }
+async function dutyLoadMembers(){
+  if(dutyMembers)return dutyMembers;
+  try{ var r=await sb.from('settings').select('value').eq('key',DUTY_MKEY).maybeSingle();
+       dutyMembers=(r&&r.data&&Array.isArray(r.data.value))?r.data.value:[]; }catch(e){ dutyMembers=[]; }
+  return dutyMembers;
+}
+async function dutySaveMembers(){
+  try{ var r=await sb.from('settings').upsert({key:DUTY_MKEY,value:dutyMembers,updated_at:new Date().toISOString()},{onConflict:'key'}); if(r&&r.error)throw r.error; }
+  catch(e){ alert('명단 저장 실패: '+e.message); }
+}
+async function dutyLoadNames(){
+  if(dutyAllNames)return dutyAllNames;
+  var out=[];
+  try{ if(typeof _permNames!=='undefined'&&Array.isArray(_permNames))_permNames.forEach(function(n){ if(n&&out.indexOf(String(n).trim())<0)out.push(String(n).trim()); }); }catch(e){}
+  if(!out.length){ try{ var r=await sb.from('users').select('name'); ((r&&r.data)||[]).forEach(function(u){ if(u&&u.name&&out.indexOf(String(u.name).trim())<0)out.push(String(u.name).trim()); }); }catch(e){} }
+  try{ if(typeof ADMIN_NAME!=='undefined'&&ADMIN_NAME&&out.indexOf(ADMIN_NAME)<0)out.unshift(ADMIN_NAME); }catch(e){}
+  dutyAllNames=out; return out;
+}
+function dutyCandNames(){ return (dutyMembers&&dutyMembers.length)?dutyMembers.slice():((dutyAllNames||[]).slice()); }
+function _dutyPlaces(v){ return String(v||'').split(',').map(function(x){return x.trim();}).filter(Boolean); }
+function dutyNorm(row){   // 저장 형식 → 화면 형식 (옛 1명 데이터 자동 이관)
+  row=row||{};
+  var recv=[];
+  if(row.recv_list){ try{ var a=JSON.parse(row.recv_list); if(Array.isArray(a))recv=a.map(function(r){ return {who:r.who||'',ext:!!r.ext,places:Array.isArray(r.places)?r.places.slice():[]}; }); }catch(e){} }
+  if(!recv.length&&(row.recv_who||row.recv_places))recv=[{who:row.recv_who||'',ext:!!row.recv_ext,places:_dutyPlaces(row.recv_places)}];
+  if(!recv.length)recv=[{who:'',ext:false,places:[]}];
+  return {car1:{who:row.car1||'',ext:!!row.car1_ext}, car2:{who:row.car2||'',ext:!!row.car2_ext}, recv:recv};
+}
+async function dutyLoad(ds){
+  try{ var r=await sb.from('day_duty').select('*').eq('date_str',ds).maybeSingle(); dutyCache[ds]=(r&&r.data)||{date_str:ds}; }
+  catch(e){ dutyCache[ds]=dutyCache[ds]||{date_str:ds}; }
+  return dutyCache[ds];
+}
+function dutyRow(ds){ return dutyCache[ds]||null; }
+function dutyData(ds){ return dutyNorm(dutyRow(ds)||{}); }
+function _dutyRepaint(){
+  try{ if(typeof _recvSumVisible==='function'&&_recvSumVisible()&&typeof renderItemSum==='function')renderItemSum(); }catch(e){}
+  try{ if(typeof renderDelivery==='function'&&document.getElementById('dlv-search'))renderDelivery(); }catch(e){}
+}
+function dutyEnsure(ds){
+  if(!ds||dutyCache[ds]||_dutyLoading[ds])return;
+  _dutyLoading[ds]=true;
+  Promise.all([dutyLoadMembers(),dutyLoadNames(),dutyLoad(ds)]).then(function(){ _dutyLoading[ds]=false; _dutyRepaint(); });
+}
+function _dutyWho(o){ return (o&&o.who)?((o.ext?'\ud83d\ude9b ':'')+o.who):''; }
+function dutyOwnerOf(place,d){ var o=null; (d.recv||[]).forEach(function(r){ if(r.places.indexOf(place)>=0)o=r; }); return o; }
+function dutyRecvSummary(d){
+  var list=(d.recv||[]).filter(function(r){return r.who||r.places.length;});
+  if(!list.length)return '';
+  return list.map(function(r){
+    var p=r.places, t=p.length?('('+(p.length<=2?p.join('\u00b7'):(p.slice(0,2).join('\u00b7')+'+'+(p.length-2)))+')'):'';
+    return (_dutyWho(r)||'미배정')+t;
+  }).join(' \u00b7 ');
+}
+function dutyBarHtml(ds){
+  if(!ds)return '';
+  var row=dutyRow(ds);
+  var wrap=function(inner){ return '<div onclick="dutyOpen(\''+ds+'\')" style="background:#fff;border:1.5px solid #d8d6cf;border-radius:11px;padding:8px 11px;display:flex;align-items:center;gap:7px;flex-wrap:wrap;cursor:pointer;margin-bottom:8px"><span style="font-size:12px;font-weight:800;color:#64748b;flex-shrink:0">\ud83e\udded 오늘 출동</span>'+inner+'<span style="margin-left:auto;font-size:11.5px;font-weight:800;color:#1d4ed8;background:#eef4ff;border:1px solid #bfdbfe;border-radius:8px;padding:6px 11px;flex-shrink:0">수정</span></div>'; };
+  if(!row){ dutyEnsure(ds); return wrap('<span style="font-size:12px;color:#94a3b8">불러오는 중\u2026</span>'); }
+  var d=dutyNorm(row);
+  function chip(txt,ok,bg,bd,fg){ return '<span style="display:inline-flex;align-items:center;gap:5px;font-size:12.5px;font-weight:800;border-radius:16px;padding:5px 12px;white-space:nowrap;border:1px solid '+(ok?bd:'#f7c7c7')+';background:'+(ok?bg:'#fdeaea')+';color:'+(ok?fg:'#b91c1c')+'">'+txt+'</span>'; }
+  var rs=dutyRecvSummary(d);
+  var h='';
+  h+=chip('\ud83d\ude9a 1호차 '+(_dutyWho(d.car1)||'미배정'), !!d.car1.who,'#f4f0ff','#ddd0ff','#4c1d95');
+  h+=chip('\ud83d\ude9a 2호차 '+(_dutyWho(d.car2)||'미배정'), !!d.car2.who,'#effcf9','#b8e6dd','#0f5f56');
+  h+=chip('\ud83d\udce6 받아오기 '+(rs?('<span style="font-weight:700;font-size:11px;opacity:.85">'+esc(rs)+'</span>'):'미배정'), !!rs,'#f0fdf4','#bbe6c8','#166534');
+  return wrap(h);
+}
+function dutyBadgeHtml(src){
+  var ds=(typeof getSelectedRange==='function')?getSelectedRange().from:'';
+  var row=dutyRow(ds);
+  if(!row){ dutyEnsure(ds); return '<span style="display:inline-block;margin-left:6px;font-size:11px;font-weight:800;background:#f1f5f9;color:#94a3b8;border:1px solid #e2e8f0;border-radius:11px;padding:3px 9px;vertical-align:middle">\u22ef</span>'; }
+  var o=dutyOwnerOf(src,dutyNorm(row));
+  var txt=o?('\ud83d\udeb6 '+_dutyWho(o)):'\u26a0 미배정';
+  var bg=o?'#e8f7ed':'#fdeaea', fg=o?'#0f6b32':'#b91c1c', bd=o?'#bbe6c8':'#f7c7c7';
+  return '<span onclick="event.stopPropagation();dutyOneOpen(\''+String(src).replace(/'/g,"&#39;")+'\')" style="display:inline-block;margin-left:6px;font-size:11px;font-weight:800;background:'+bg+';color:'+fg+';border:1px solid '+bd+';border-radius:11px;padding:3px 9px;cursor:pointer;vertical-align:middle">'+txt+'</span>';
+}
+function dutyPlaceCands(ds){
+  var names=[], cnt={};
+  try{ if(typeof srcList!=='undefined'&&srcList&&srcList.length)srcList.forEach(function(it){ if(it&&it.name&&srcGroup(it.name)==='recv'&&names.indexOf(it.name)<0)names.push(it.name); }); }catch(e){}
+  try{ if(!names.length&&typeof recvKeywords!=='undefined'&&recvKeywords)recvKeywords.forEach(function(k){ if(k&&names.indexOf(k)<0)names.push(k); }); }catch(e){}
+  try{ ((typeof itemsCache!=='undefined'&&itemsCache)||[]).forEach(function(it){
+        if(it.date_str===ds&&!it.cancelled&&srcGroup(it.src)==='recv'){ cnt[it.src]=(cnt[it.src]||0)+(((it.qty||0)-(it.cancel_qty||0))||0); if(names.indexOf(it.src)<0)names.push(it.src); } }); }catch(e){}
+  return names.map(function(n){ return [n,cnt[n]||0]; });
+}
+function _dutyOv(){
+  var ov=document.getElementById('duty-ov');
+  if(!ov){ ov=document.createElement('div'); ov.id='duty-ov';
+    ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:9000;display:flex;align-items:flex-start;justify-content:center;padding:18px 12px;overflow:auto';
+    ov.onclick=function(e){ if(e.target===ov)dutyClose(); };
+    document.body.appendChild(ov); }
+  return ov;
+}
+function dutyClose(){ var ov=document.getElementById('duty-ov'); if(ov)ov.remove(); }
+function _dutyShow(inner){ _dutyOv().innerHTML='<div style="background:#fff;border-radius:14px;padding:16px;max-width:430px;width:100%;box-shadow:0 12px 40px rgba(0,0,0,.22)">'+inner+'</div>'; }
+function dutyOpen(ds){
+  if(!dutyMembers||!dutyAllNames){ Promise.all([dutyLoadMembers(),dutyLoadNames()]).then(function(){ dutyOpen(ds); }); return; }
+  if(!dutyRow(ds)){ dutyLoad(ds).then(function(){ dutyOpen(ds); }); return; }
+  dutyTmp=dutyNorm(dutyRow(ds)); dutyTmp.ds=ds; dutyOpenList=null; dutyRender();
+}
+function dutyToggleList(k){ dutyOpenList=(dutyOpenList===k)?null:k; dutyRender(); }
+function _dutyPicker(key,o,fn){
+  var open=(dutyOpenList===key), cur=o.who, ext=o.ext;
+  var h='<div onclick="dutyToggleList(\''+key+'\')" style="display:flex;align-items:center;gap:8px;border:1.5px solid '+(cur?(ext?'#c2410c':'#15803d'):'#cbd5e1')+';border-radius:10px;padding:10px 12px;cursor:pointer;background:'+(cur?(ext?'#fff7ed':'#f0fdf4'):'#fff')+'">'
+    +'<span style="font-size:14px;font-weight:800;white-space:nowrap;color:'+(cur?'#1a2035':'#b91c1c')+'">'+(cur?esc(_dutyWho(o)):'미배정')+'</span>'
+    +'<span style="margin-left:auto;font-size:11px;color:#94a3b8;font-weight:700">'+(open?'접기 \u25b2':'변경 \u25be')+'</span></div>';
+  if(open){
+    h+='<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:7px">';
+    dutyCandNames().forEach(function(s){
+      var on=(!ext&&cur===s);
+      h+='<button onclick="'+fn+'(\''+String(s).replace(/'/g,"\\'")+'\',false)" style="font-size:13px;font-weight:700;padding:9px 14px;border-radius:9px;white-space:nowrap;cursor:pointer;border:1.4px solid '+(on?'#15803d':'#cbd5e1')+';background:'+(on?'#15803d':'#fff')+';color:'+(on?'#fff':'#334155')+'">'+esc(s)+'</button>';
+    });
+    if(!dutyCandNames().length)h+='<span style="font-size:12px;color:#94a3b8">직원 명단을 불러오는 중\u2026</span>';
+    h+='<button onclick="'+fn+'(\''+DUTY_EXT+'\',true)" style="font-size:13px;font-weight:800;padding:9px 14px;border-radius:9px;white-space:nowrap;cursor:pointer;border:1.4px solid '+(ext?'#c2410c':'#fcd9a8')+';background:'+(ext?'#c2410c':'#fff7ed')+';color:'+(ext?'#fff':'#9a3412')+'">\ud83d\ude9b 배송직원</button>';
+    h+='</div>';
+  }
+  return h;
+}
+function dutyRender(){
+  var cands=dutyPlaceCands(dutyTmp.ds);
+  var h='<div style="display:flex;align-items:center"><b style="font-size:15px">\ud83e\udded 오늘 누가 나가나요?</b>'+(dutyIsAdmin()?'<span onclick="dutyMembersOpen()" style="margin-left:auto;font-size:11.5px;font-weight:800;color:#1d4ed8;background:#eef4ff;border:1px solid #bfdbfe;border-radius:8px;padding:5px 10px;cursor:pointer">\ud83d\udc65 명단 관리</span>':'')+'</div>';
+  h+='<div style="font-size:11.5px;color:#64748b;margin:3px 0 2px">'+esc(dutyTmp.ds)+' \u00b7 누구나 적고 바꿀 수 있어요 \u00b7 같은 걸 다시 누르면 해제</div>';
+  h+='<div style="font-size:12.5px;font-weight:800;color:#334155;margin:14px 0 6px">\ud83d\ude9a 1호차</div>'+_dutyPicker('car1',dutyTmp.car1,'dutyPickCar1');
+  h+='<div style="font-size:12.5px;font-weight:800;color:#334155;margin:14px 0 6px">\ud83d\ude9a 2호차</div>'+_dutyPicker('car2',dutyTmp.car2,'dutyPickCar2');
+  h+='<div style="display:flex;align-items:center;font-size:12.5px;font-weight:800;color:#334155;margin:16px 0 6px">\ud83d\udce6 받아오기<span style="font-weight:600;color:#94a3b8;font-size:11px;margin-left:6px">나눠 받아올 때만 담당 추가</span></div>';
+  dutyTmp.recv.forEach(function(r,i){
+    var mine=r.places.length, all=cands.length;
+    h+='<div style="border:1.5px solid #e2e8f0;border-radius:12px;padding:11px;margin-bottom:9px;background:#fcfdfc">';
+    h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span style="font-size:11px;font-weight:800;color:#0f6b32;background:#e8f7ed;border-radius:10px;padding:3px 9px;white-space:nowrap">담당 '+(i+1)+'</span><div style="flex:1;min-width:0">'+_dutyPicker('recv'+i,r,'dutyPickRecv'+i)+'</div>'+(dutyTmp.recv.length>1?('<span onclick="dutyDelRecv('+i+')" style="font-size:11.5px;font-weight:800;color:#b91c1c;background:#fff;border:1px solid #f7c7c7;border-radius:8px;padding:6px 10px;cursor:pointer;white-space:nowrap">삭제</span>'):'')+'</div>';
+    h+='<div style="display:flex;align-items:center;margin-bottom:4px"><span style="font-size:11.5px;font-weight:800;color:#64748b">받아올 거래처</span><span onclick="dutyAllPlaces('+i+')" style="margin-left:auto;font-size:11px;font-weight:800;color:#1d4ed8;background:#eef4ff;border:1px solid #bfdbfe;border-radius:8px;padding:4px 9px;cursor:pointer">'+((mine&&mine>=all)?'전체 해제':'전체 선택')+'</span></div>';
+    h+='<div style="display:flex;flex-wrap:wrap;gap:6px">';
+    if(!cands.length)h+='<span style="font-size:12px;color:#94a3b8">받아오기 출처가 없어요 (입고방 → 출처 관리에서 등록)</span>';
+    cands.forEach(function(c){
+      var on=r.places.indexOf(c[0])>=0, o=dutyOwnerOf(c[0],dutyTmp), taken=(!on&&o&&o!==r);
+      var bg=on?'#15803d':(taken?'#f4f4f2':'#fff'), fg=on?'#fff':(taken?'#a6a6a1':'#334155'), bd=on?'#15803d':(taken?'#e2e2df':'#cbd5e1');
+      h+='<span onclick="dutyTogPlace('+i+',\''+String(c[0]).replace(/'/g,"\\'")+'\')" style="font-size:12.5px;font-weight:700;padding:8px 12px;border-radius:15px;white-space:nowrap;cursor:pointer;border:1.4px solid '+bd+';background:'+bg+';color:'+fg+'">'+esc(c[0])+(c[1]?('<span style="font-size:10.5px;opacity:.85;margin-left:4px">\u00b7'+c[1]+'개</span>'):'')+(taken?('<span style="font-size:10.5px;margin-left:4px">\ud83d\udd12 '+esc(o.who||'?')+'</span>'):'')+'</span>';
+    });
+    h+='</div></div>';
+  });
+  h+='<button onclick="dutyAddRecv()" style="width:100%;padding:11px;border-radius:10px;border:1.5px dashed #bbe6c8;background:#f7fdf9;color:#166534;font-size:12.5px;font-weight:800;cursor:pointer">\uff0b 받아오기 담당 추가 (나눠 받아올 때)</button>';
+  var _r=dutyRow(dutyTmp.ds)||{};
+  if(_r.chain)h+='<div style="font-size:10.5px;color:#b6bcc7;margin-top:8px;line-height:1.5">'+esc(String(_r.chain).split(' \u2192 ').slice(-3).join(' \u2192 '))+'</div>';
+  h+='<button onclick="dutySave()" style="width:100%;margin-top:12px;padding:12px;border-radius:9px;border:none;background:#1d4ed8;color:#fff;font-size:13.5px;font-weight:800;cursor:pointer">저장</button>';
+  h+='<button onclick="dutyClose()" style="width:100%;margin-top:6px;padding:10px;border-radius:9px;border:1px solid rgba(0,0,0,.1);background:#f7f6f3;font-size:13px;font-weight:800;cursor:pointer">취소</button>';
+  _dutyShow(h);
+  window.dutyPickCar1=function(n,e){ _dutyPk(dutyTmp.car1,n,e); };
+  window.dutyPickCar2=function(n,e){ _dutyPk(dutyTmp.car2,n,e); };
+  dutyTmp.recv.forEach(function(r,i){ window['dutyPickRecv'+i]=function(n,e){ _dutyPk(dutyTmp.recv[i],n,e); }; });
+}
+function _dutyPk(o,name,ext){ if(o.who===name&&(!!o.ext)===(!!ext)){ o.who=''; o.ext=false; } else { o.who=name; o.ext=!!ext; } dutyOpenList=null; dutyRender(); }
+function dutyTogPlace(i,p){
+  var r=dutyTmp.recv[i], j=r.places.indexOf(p);
+  if(j>=0){ r.places.splice(j,1); dutyRender(); return; }
+  var o=dutyOwnerOf(p,dutyTmp);
+  if(o&&o!==r){
+    if(!confirm(p+'은(는) 현재 '+(o.who||'다른 담당')+' 담당이에요.\n이 담당으로 옮길까요?'))return;
+    o.places.splice(o.places.indexOf(p),1);
+  }
+  r.places.push(p); dutyRender();
+}
+function dutyAllPlaces(i){
+  var r=dutyTmp.recv[i], cands=dutyPlaceCands(dutyTmp.ds).map(function(c){return c[0];});
+  if(r.places.length>=cands.length){ r.places=[]; dutyRender(); return; }
+  var taken=cands.filter(function(p){ var o=dutyOwnerOf(p,dutyTmp); return o&&o!==r; });
+  if(taken.length&&!confirm('다른 담당이 맡은 '+taken.length+'곳도 이 담당으로 옮길까요?\n('+taken.join(', ')+')')){
+    r.places=cands.filter(function(p){ var o=dutyOwnerOf(p,dutyTmp); return !o||o===r; });
+  }else{
+    dutyTmp.recv.forEach(function(x){ if(x!==r)x.places=[]; });
+    r.places=cands.slice();
+  }
+  dutyRender();
+}
+function dutyAddRecv(){ dutyTmp.recv.push({who:'',ext:false,places:[]}); dutyOpenList='recv'+(dutyTmp.recv.length-1); dutyRender(); }
+function dutyDelRecv(i){ dutyTmp.recv.splice(i,1); dutyOpenList=null; dutyRender(); }
+function _dutyRowFrom(ds,d,prev){
+  var list=(d.recv||[]).filter(function(r){return r.who||r.places.length;});
+  var first=list[0]||{who:'',ext:false,places:[]};
+  return {date_str:ds,
+    car1:d.car1.who||null, car1_ext:!!d.car1.ext,
+    car2:d.car2.who||null, car2_ext:!!d.car2.ext,
+    recv_list:JSON.stringify(list),
+    recv_who:first.who||null, recv_ext:!!first.ext, recv_places:first.places.join(','),
+    chain:(prev&&prev.chain)||null, updated_at:new Date().toISOString()};
+}
+async function dutyUpsert(row){   // recv_list 컬럼이 아직 없어도 저장이 막히지 않게
+  var r=await sb.from('day_duty').upsert(row,{onConflict:'date_str'});
+  if(r&&r.error&&/recv_list/.test(String(r.error.message||''))){
+    var r2=Object.assign({},row); delete r2.recv_list;
+    var rr=await sb.from('day_duty').upsert(r2,{onConflict:'date_str'});
+    if(rr&&rr.error)return rr;
+    return {error:null,_noList:true};
+  }
+  return r;
+}
+async function dutySave(){
+  if(!dutyTmp)return;
+  var ds=dutyTmp.ds, prev=dutyRow(ds)||{}, pd=dutyNorm(prev), ch=[];
+  function cmp(a,b,lbl){ if((a.who||'')!==(b.who||''))ch.push(lbl+'\u2192'+(b.who||'비움')); }
+  cmp(pd.car1,dutyTmp.car1,'1호차'); cmp(pd.car2,dutyTmp.car2,'2호차');
+  var ps=dutyRecvSummary(pd), ns=dutyRecvSummary(dutyTmp);
+  if(ps!==ns)ch.push('받아오기 '+(ns||'없음'));
+  var nm=(typeof me!=='undefined'&&me)?me.name:'?';
+  var chain=String(prev.chain||'');
+  if(ch.length){ var arr=chain?chain.split(' \u2192 '):[]; arr.push(nm+'('+ch.join(', ')+' '+_tlNow()+')'); if(arr.length>60)arr=arr.slice(arr.length-60); chain=arr.join(' \u2192 '); }
+  var row=_dutyRowFrom(ds,dutyTmp,prev); row.chain=chain;
+  dutyCache[ds]=Object.assign({},prev,row);
+  dutyClose(); _dutyRepaint();
+  try{ var r=await dutyUpsert(row); if(r&&r.error)throw r.error;
+       if(r&&r._noList&&(dutyTmp.recv||[]).filter(function(x){return x.who||x.places.length;}).length>1)alert('저장했지만 받아오기 담당 1명만 기록됐어요 — DB에 recv_list 칸을 추가하면 여러 명이 저장됩니다');
+  }catch(e){ alert('출동표 저장 실패: '+e.message); await dutyLoad(ds); _dutyRepaint(); return; }
+  if(ch.length)logAudit('출동표 변경', ds+' '+ch.join(', '));
+}
+function dutyOneOpen(src){
+  var ds=(typeof getSelectedRange==='function')?getSelectedRange().from:'';
+  if(!dutyMembers||!dutyAllNames){ Promise.all([dutyLoadMembers(),dutyLoadNames()]).then(function(){ dutyOneOpen(src); }); return; }
+  var d=dutyData(ds), o=dutyOwnerOf(src,d);
+  var h='<div style="font-size:15px;font-weight:800">\ud83c\udfec '+esc(src)+' 받아올 사람</div>';
+  h+='<div style="font-size:11.5px;color:#64748b;margin:3px 0 10px">'+esc(ds)+' \u00b7 이 거래처만 바꿉니다 \u00b7 같은 사람 다시 누르면 해제</div>';
+  h+='<div style="display:flex;flex-wrap:wrap;gap:6px">';
+  dutyCandNames().forEach(function(s){
+    var on=(o&&!o.ext&&o.who===s);
+    h+='<button onclick="dutyOneSet(\''+String(src).replace(/'/g,"\\'")+'\',\''+String(s).replace(/'/g,"\\'")+'\',false)" style="font-size:13px;font-weight:700;padding:9px 14px;border-radius:9px;white-space:nowrap;cursor:pointer;border:1.4px solid '+(on?'#15803d':'#cbd5e1')+';background:'+(on?'#15803d':'#fff')+';color:'+(on?'#fff':'#334155')+'">'+esc(s)+'</button>';
+  });
+  var ex=(o&&o.ext);
+  h+='<button onclick="dutyOneSet(\''+String(src).replace(/'/g,"\\'")+'\',\''+DUTY_EXT+'\',true)" style="font-size:13px;font-weight:800;padding:9px 14px;border-radius:9px;white-space:nowrap;cursor:pointer;border:1.4px solid '+(ex?'#c2410c':'#fcd9a8')+';background:'+(ex?'#c2410c':'#fff7ed')+';color:'+(ex?'#fff':'#9a3412')+'">\ud83d\ude9b 배송직원</button></div>';
+  h+='<button onclick="dutyClose()" style="width:100%;margin-top:12px;padding:10px;border-radius:9px;border:1px solid rgba(0,0,0,.1);background:#f7f6f3;font-size:13px;font-weight:800;cursor:pointer">닫기</button>';
+  _dutyShow(h);
+}
+async function dutyOneSet(src,name,ext){
+  var ds=(typeof getSelectedRange==='function')?getSelectedRange().from:'';
+  var prev=dutyRow(ds)||{}, d=dutyNorm(prev);
+  var o=dutyOwnerOf(src,d), same=(o&&o.who===name&&(!!o.ext)===(!!ext));
+  if(o)o.places.splice(o.places.indexOf(src),1);
+  if(!same){
+    var t=null; d.recv.forEach(function(r){ if(r.who===name&&(!!r.ext)===(!!ext))t=r; });
+    if(!t){ var empty=d.recv.filter(function(r){return !r.who&&!r.places.length;})[0]; t=empty||{who:'',ext:false,places:[]}; t.who=name; t.ext=!!ext; if(!empty)d.recv.push(t); }
+    t.places.push(src);
+  }
+  d.recv=d.recv.filter(function(r){return r.who||r.places.length;});
+  if(!d.recv.length)d.recv=[{who:'',ext:false,places:[]}];
+  var nm=(typeof me!=='undefined'&&me)?me.name:'?';
+  var arr=String(prev.chain||'')?String(prev.chain).split(' \u2192 '):[];
+  arr.push(nm+'('+src+'\u2192'+(same?'해제':name)+' '+_tlNow()+')'); if(arr.length>60)arr=arr.slice(arr.length-60);
+  var row=_dutyRowFrom(ds,d,prev); row.chain=arr.join(' \u2192 ');
+  dutyCache[ds]=Object.assign({},prev,row);
+  dutyClose(); _dutyRepaint();
+  try{ var r=await dutyUpsert(row); if(r&&r.error)throw r.error; }
+  catch(e){ alert('저장 실패: '+e.message); await dutyLoad(ds); _dutyRepaint(); return; }
+  logAudit('출동표 변경', ds+' '+src+'\u2192'+(same?'해제':name));
+}
+function dutyMembersOpen(){
+  if(!dutyIsAdmin())return;
+  var all=(dutyAllNames||[]).slice();
+  if(!all.length){ dutyLoadNames().then(function(){ dutyMembersOpen(); }); return; }
+  var h='<b style="font-size:15px">\ud83d\udc65 출동 명단</b><div style="font-size:11.5px;color:#64748b;margin:3px 0 10px">체크된 사람만 출동 담당으로 고를 수 있어요 (관리자만 변경)</div>';
+  all.forEach(function(s){
+    var on=(dutyMembers||[]).indexOf(s)>=0;
+    h+='<div onclick="dutyMemToggle(\''+String(s).replace(/'/g,"\\'")+'\')" style="display:flex;align-items:center;gap:9px;padding:9px 11px;border:1.4px solid '+(on?'#15803d':'#e2e8f0')+';border-radius:10px;margin-bottom:5px;cursor:pointer;font-size:13px;font-weight:700;background:'+(on?'#f0fdf4':'#fff')+';color:'+(on?'#166534':'#334155')+'"><span style="width:19px;height:19px;border-radius:6px;border:1.5px solid '+(on?'#15803d':'#cbd5e1')+';background:'+(on?'#15803d':'#fff')+';color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0">'+(on?'\u2713':'')+'</span>'+esc(s)+'</div>';
+  });
+  h+='<div style="background:#fffbea;border:1px solid #fde68a;border-radius:9px;padding:8px 11px;font-size:11.5px;color:#92400e;margin-top:8px">아무도 체크하지 않으면 전체 직원이 후보로 나옵니다. 배송직원(우리 직원 아님)은 명단과 무관하게 배정할 때 고르면 됩니다.</div>';
+  h+='<button onclick="dutyRender()" style="width:100%;margin-top:10px;padding:11px;border-radius:9px;border:none;background:#1d4ed8;color:#fff;font-size:13.5px;font-weight:800;cursor:pointer">\u2190 배정 화면으로</button>';
+  _dutyShow(h);
+}
+async function dutyMemToggle(s){
+  dutyMembers=dutyMembers||[];
+  var i=dutyMembers.indexOf(s);
+  if(i<0)dutyMembers.push(s); else dutyMembers.splice(i,1);
+  dutyMembersOpen();
+  await dutySaveMembers();
+  logAudit('출동 명단 '+(i<0?'추가':'삭제'), s);
+}
 function dlvListOf(tab){
   const realTab=(tab==='summary'||tab==='car2')?'deliv':tab;
   const arr=deliveriesCache.filter(function(c){return c.tab===realTab;});
@@ -4782,7 +5057,7 @@ function renderDelivery(){
   if(curDlvTab==='deliv')list=list.filter(function(c){return (c.car||1)===1;});
   if(dlvSearchQuery)list=list.filter(dlvMatchSearch);
   if(typeof DLV_CH!=='undefined'&&DLV_CH!=='all')list=list.filter(dlvChipPass);
-  let html='';
+  let html=dutyBarHtml(dlvDateStr());
   if(!_editable)html+='<div class="dlv-viewonly">👁 과거 날짜 — 보기 전용 (복사 버튼만 가능)</div>';
   if(curDlvTab==='parcel')html+='<div style="margin:2px 0 8px;text-align:right"><button class="item-add-btn ghost" onclick="dlvParcelXlsx()">📥 택배 엑셀 다운로드</button></div>';
   if(curDlvTab==='summary'||curDlvTab==='car2'){
@@ -7147,7 +7422,7 @@ function listPaint(){
 }
 
 var recvKeyMap={}, recvCarryCache=[], _recvCarryStamp='';
-var recvLocked=true, _recvLockTimer=null;
+var recvLocked=false, _recvLockTimer=null, RECV_LOCK_UI=false;   // 잠금 기능 보류: 기본 해제·버튼 숨김
 function recvDateGo(ds){
   if(!ds)return;
   if(typeof rangeMode!=='undefined'&&rangeMode&&typeof toggleRange==='function')toggleRange();
@@ -7190,6 +7465,11 @@ function recvApplyPending(){
     all.forEach(function(it){ if(it.id===id){ it.recv_done=p.v; it.recv_done_by=p.v?p.by:null; it.recv_done_at=p.v?p.at:null; } });
   });
 }   // 기본 잠김 (오탭 방지) — 재접속/새로고침 시에도 잠김
+function recvDateWarn(){ // 잠금 버튼 없이 날짜 주의만
+  var d=getSelectedRange().from, t=getTodayISO();
+  if(d===t)return '';
+  return '<div style="background:#fff7ed;border:1.5px solid #fcd9a8;border-radius:9px;padding:7px 11px;font-size:12px;font-weight:800;color:#c2410c;margin-bottom:8px">⚠ '+esc(d)+' 항목만 체크됩니다</div>';
+}
 function recvLockBar(){
   var _d=getSelectedRange().from, _isT=(_d===getTodayISO());
   return '<div class="dlock-bar"><span class="lbl">받아옴 체크: <b>'+(recvLocked?'잠김':'풀림')+'</b>'+(_isT?'':' <span style="color:#c2410c;font-weight:800">· '+esc(_d)+' 항목만 체크됩니다</span>')+'</span><button class="dlock-toggle '+(recvLocked?'locked':'unlocked')+'" onclick="recvToggleLock()">'+(recvLocked?'🔒 풀기':'🔓 잠그기')+'</button></div>';
@@ -7223,7 +7503,13 @@ async function loadRecvCarry(){
     if(from>=today)return;
     var r=await sb.from('items').select('*').eq('room_id',curRoom.id).gte('date_str',from).lt('date_str',today).or('recv_done.is.null,recv_done.eq.false');
     var rows=(r&&r.data)||[];
-    recvCarryCache=rows.filter(function(it){return srcGroup(it.src)==='recv'&&!it.recv_done&&!it.cancelled&&!isReturnItem(it)&&(((it.qty||0)-(it.cancel_qty||0))>0)&&(it.date_str||'')>=RECV_CARRY_FROM;});
+    recvCarryCache=rows.filter(function(it){
+      if(srcGroup(it.src)!=='recv')return false;
+      if(it.recv_done||it.cancelled||isReturnItem(it))return false;
+      if(it.arrived||it.out_done)return false;            // 실물입고·출고까지 끝난 건 이미 받아온 것 → 이월 제외
+      if(((it.qty||0)-(it.cancel_qty||0))<=0)return false;
+      return (it.date_str||'')>=RECV_CARRY_FROM;
+    });
   }catch(e){ recvCarryCache=[]; }
 }
 function recvCarryHtml(){
@@ -7332,7 +7618,7 @@ function itemSumBody(active){
       var openR=rows.filter(function(g){return !(g.n&&g.doneN===g.n);});
       rows.filter(function(g){return g.n&&g.doneN===g.n;}).forEach(function(g){recvDone.push({src:src,g:g});});
       if(openR.length){
-        chunk+='<div class="isrc-group"><div class="isrc-title '+cls+'">'+esc(src)+' ('+openR.length+'\uc885)</div>';
+        chunk+='<div class="isrc-group"><div style="display:flex;align-items:center;gap:6px;margin-bottom:8px"><div class="isrc-title '+cls+'" style="margin-bottom:0">'+esc(src)+' ('+openR.length+'\uc885)</div><span style="margin-left:auto">'+((typeof dutyBadgeHtml==='function')?dutyBadgeHtml(src):'')+'</span></div>';
         chunk+='<table class="itbl"><colgroup><col style="width:15%"><col><col style="width:10%"><col style="width:22%"><col style="width:15%"></colgroup><thead><tr><th>\ubaa8\ub378</th><th>\uaddc\uaca9</th><th class="qh">\uc218\ub7c9</th><th>\uc6a9\ub3c4</th><th></th></tr></thead><tbody>';
         openR.forEach(function(g){chunk+=recvRowHtml(src,g,false,false);});
         chunk+='</tbody></table></div>';
@@ -7465,9 +7751,9 @@ function renderItemSum(){
   const el=document.getElementById('analysis-body')||document.getElementById('item-body');
   if(!el)return;
   recvKeyMap={}; recvApplyPending();
-  let html=recvDateBar()+'<div class="iguide">같은 출처+모델+규격 수량 합산. 취소분 제외.</div>';
+  let html=recvDateBar()+dutyBarHtml(getSelectedRange().from)+'<div class="iguide">같은 출처+모델+규격 수량 합산. 취소분 제외.</div>';
   var _hasRecv=(recvCarryCache||[]).some(function(it){return !it.recv_done;})||((typeof itemsCache!=='undefined'?itemsCache:[])||[]).some(function(it){return srcGroup(it.src)==='recv'&&!it.cancelled;});
-  if(_hasRecv)html+=recvLockBar();
+  if(_hasRecv)html+=(RECV_LOCK_UI?recvLockBar():recvDateWarn());
   html+=recvCarryHtml();
   const active=searchedItemsAll().filter(function(it){return !it.cancelled;});
   if(!active.length){
@@ -13299,8 +13585,16 @@ async function rsvSubmit(){
       rec.stock_done=(_did!==false);
       if(_did!==false&&oi.kind!=='inbound')rec.src_label=_rsvLocLabel(); // rt/lot 차감 위치 기록 (inbound는 출처 로직 별도)
     }
-    if(rsvEditId){var{error}=await sb.from('reservations').update(rec).eq('id',rsvEditId);if(error)throw error;}
-    else{var ins2=await sb.from('reservations').insert(rec).select();if(ins2.error)throw ins2.error;
+    if(rsvEditId){
+      var _ru=await sb.from('reservations').update(rec).eq('id',rsvEditId);
+      if(_ru&&_ru.error){
+        if(/duration_min/.test(String(_ru.error.message||''))){ delete rec.duration_min; var _ru2=await sb.from('reservations').update(rec).eq('id',rsvEditId); if(_ru2&&_ru2.error)throw _ru2.error; }
+        else throw _ru.error;
+      }
+    }
+    else{var ins2=await sb.from('reservations').insert(rec).select();
+      if(ins2.error&&/duration_min/.test(String(ins2.error.message||''))){ delete rec.duration_min; ins2=await sb.from('reservations').insert(rec).select(); }
+      if(ins2.error)throw ins2.error;
       var _newId=ins2.data&&ins2.data[0]&&ins2.data[0].id;
       if(_newId && oi && oi.extraItems && oi.extraItems.length){
         for(var _e=0;_e<oi.extraItems.length;_e++){
