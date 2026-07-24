@@ -5935,7 +5935,7 @@ async function ledgerArriveSet(id, to){
   try{
     var _base={arrived:to,arrived_at:(to?new Date().toISOString():null),arrived_by:(to?who:null),logs:logs};
     if(to){ var _ra=await _recvAutoUpd(id,_base,it); if(_ra&&_ra.error)throw _ra.error; }
-    else { var{error}=await sb.from('items').update(_base).eq('id',id); if(error)throw error; }
+    else { var _ro=await _recvAutoOff(id,_base,it); if(_ro&&_ro.error)throw _ro.error; }
   }catch(e){alert((to?'실물입고 확인':'확인취소')+' 실패: '+e.message);return;}
   it.arrived=to; it.arrived_by=(to?who:null); it.logs=logs;   // 입고표 즉시 반영
   if(typeof ledgerFilter==='function')ledgerFilter();
@@ -7278,8 +7278,8 @@ async function itemUnarrive(id){
   var logs=it&&Array.isArray(it.logs)?it.logs.slice():[];
   logs.push({type:'edit',text:'↩️ 실물입고 확인취소 — '+(me?me.name:'?')+' ('+fmtDateLabel(getTodayISO())+')'});
   try{
-    var{error}=await sb.from('items').update({arrived:false,arrived_at:null,arrived_by:null,logs:logs}).eq('id',id);
-    if(error)throw error;
+    var _ro=await _recvAutoOff(id,{arrived:false,arrived_at:null,arrived_by:null,logs:logs},it);
+    if(_ro&&_ro.error)throw _ro.error;
   }catch(e){alert('입고취소 실패: '+e.message);return;}
   await loadItems();
 }
@@ -7333,7 +7333,7 @@ async function listBulkUnarrive(){
     var it=targets[i];
     var logs=Array.isArray(it.logs)?it.logs.slice():[];
     logs.push({type:'edit',text:'↩️ 실물입고 확인취소(일괄) — '+who+' ('+fmtDateLabel(getTodayISO())+')'});
-    try{ await sb.from('items').update({arrived:false,arrived_at:null,arrived_by:null,logs:logs}).eq('id',it.id); }catch(e){}
+    try{ await _recvAutoOff(it.id,{arrived:false,arrived_at:null,arrived_by:null,logs:logs},it); }catch(e){}
   }
   await loadItems();
 }
@@ -7511,6 +7511,26 @@ function _recvAutoNeed(it){
 }
 function _recvAutoPatch(){ var nm=(typeof me!=='undefined'&&me)?me.name:'?';
   return {recv_done:true, recv_done_by:nm, recv_done_at:new Date().toISOString()}; }
+async function _recvAutoOff(id,base,it){   // 실물입고 취소 → 받아옴도 해제 (받아오기 항목만)
+  var patch=Object.assign({},base);
+  var off=false;
+  try{ off=!!(it && it.recv_done && typeof srcGroup==='function' && srcGroup(it.src)==='recv' && !isReturnItem(it)); }catch(e){ off=false; }
+  if(off)Object.assign(patch,{recv_done:false,recv_done_by:null,recv_done_at:null});
+  var r=await sb.from('items').update(patch).eq('id',id);
+  if(r&&r.error&&off&&/recv_done/.test(String(r.error.message||''))){
+    r=await sb.from('items').update(base).eq('id',id); off=false;
+  }
+  if(r&&r.error)return r;
+  if(off){
+    try{ it.recv_done=false; it.recv_done_by=null;
+      var q=((it.qty||0)-(it.cancel_qty||0));
+      if(typeof tabLogAppend==='function')tabLogAppend('recv', it.src+'|'+it.model+'|'+it.spec+'|'+(it.date_str||''),
+        it.src+' '+it.model+' '+it.spec+' \u00d7'+q,
+        ((typeof me!=='undefined'&&me)?me.name:'?')+'(받아옴 해제\u00b7실물입고 취소 '+_tlNow()+')', it.date_str||'');
+    }catch(e){}
+  }
+  return {error:null,_off:off};
+}
 async function _recvAutoUpd(id,base,it){   // 실물입고 저장 + 받아옴 자동 체크 (컬럼 없으면 실물입고만)
   var patch=Object.assign({},base);
   var auto=_recvAutoNeed(it);
