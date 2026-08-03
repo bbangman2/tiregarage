@@ -1198,6 +1198,7 @@ body.rb-on #app{padding-top:58px}
       <button class="stk-mng-only" onclick="stkUpOpen('new')">➕ 신규 상품</button>
       <button onclick="stkOpenAdd()">✏️ 하나 추가</button>
       <button id="stk-rcUpBtn" onclick="stkUpOpen('rc')" style="display:none;background:#ecfeff;border-color:#a5f3fc;color:#0891b2">💰 실원가·할인율 업로드</button>
+      <button id="stk-fxBtn" onclick="stkFxOpen()" style="display:none;background:#f5f3ff;border-color:#ddd6fe;color:#6d28d9">⚙️ 계산식</button>
       <button id="stk-upLockBtn" onclick="stkTogUpLock()" style="margin-left:auto;background:#fef2f2;border-color:#fecaca;color:#b91c1c">🔒 업로드 잠김</button>
     </div>
     <div class="adminbar" id="stk-adminbar" style="display:none">🔧 관리자:
@@ -2917,12 +2918,13 @@ async function selectRoom(room){
     if(typeof stkLoadEditors==='function')await stkLoadEditors();
     if(typeof stkLoadRealcostViewers==='function')await stkLoadRealcostViewers();
     if(typeof stkLoadUpLock==='function')await stkLoadUpLock();
+    if(typeof stkLoadFx==='function')await stkLoadFx();
     if(typeof stkLoadEmUsers==='function')await stkLoadEmUsers();
     if(typeof stkLoadLogTab==='function')stkLoadLogTab();
     stockSub=sb.channel('stock-live')
       .on('postgres_changes',{event:'*',schema:'public',table:'stock_lots'},()=>{stkLoad();})
       .on('postgres_changes',{event:'*',schema:'public',table:'stock_products'},()=>{stkLoad();})
-      .on('postgres_changes',{event:'*',schema:'public',table:'stock_settings'},()=>{stkLoadLock();if(typeof stkLoadUpLock==='function')stkLoadUpLock();if(typeof stkLoadEditors==='function')stkLoadEditors();if(typeof stkLoadEmUsers==='function')stkLoadEmUsers();if(typeof stkLoadRealcostViewers==='function')stkLoadRealcostViewers();})   // ★ 편집모드·실원가 권한도 즉시 반영
+      .on('postgres_changes',{event:'*',schema:'public',table:'stock_settings'},()=>{stkLoadLock();if(typeof stkLoadUpLock==='function')stkLoadUpLock();if(typeof stkLoadFx==='function')stkLoadFx();if(typeof stkLoadEditors==='function')stkLoadEditors();if(typeof stkLoadEmUsers==='function')stkLoadEmUsers();if(typeof stkLoadRealcostViewers==='function')stkLoadRealcostViewers();})   // ★ 편집모드·실원가 권한도 즉시 반영
       .subscribe();
     return;
   }
@@ -9378,10 +9380,216 @@ function stkEffRC(r){ // 유효 실원가 (수동값 or 자동값)
   if(isNaN(fp)||!fp||isNaN(dr))return null;
   return Math.round(fp*(1-dr/100));
 }
-function stkCalcCostAuto(r){ // 원가 자동값 = 실원가×1.02, 100원 올림
+// ── 가격 계산식 설정 ──────────────────────────────────────────────
+// 관리자가 '⚙️ 계산식' 화면에서 바꾼다. DB(stock_settings)에 없으면 아래 기본값을 쓴다.
+// 올림 단위 100원은 대표 지시로 고정 — 설정 대상이 아니다.
+var STK_FX_DEF={
+  costK:1.04,      // 실원가를 직접 적은 경우 곱하는 계수 (= 할인율 50% 기준의 정확값 1+2/(100-50))
+  drDown:2,        // 공장도가·할인율이 있을 때 할인율에서 낮추는 폭(%p)
+  fee1:0.97,       // 택배가·장착가 수수료 요율 1 (나누기)
+  fee2:0.96,       // 택배가·장착가 수수료 요율 2 (나누기)
+  floatShip:15000, // 플로테이션(폭<100, 예 31x10.5R15) 배송비 고정
+  inst18:18000,    // 장착비 18인치 이하
+  inst19:19000,    // 장착비 19인치
+  inst20:22000,    // 장착비 20인치
+  inst21:25000,    // 장착비 21인치 이상
+  instOff:25000    // 오프로드 장착비 (인치 무관 — 대표 지시)
+};
+var STK_FX={};
+for(var _fk in STK_FX_DEF)STK_FX[_fk]=STK_FX_DEF[_fk];
+var STK_SHIP_CUSTOM=null;   // 화면에서 바꾼 사이즈별 배송비표(있으면 이것을 쓴다)
+function stkFxN(k){ var v=STK_FX[k]; v=(typeof v==='number')?v:parseFloat(v); return (v==null||isNaN(v))?STK_FX_DEF[k]:v; }
+function stkShipTable(){ return (STK_SHIP_CUSTOM&&STK_SHIP_CUSTOM.length)?STK_SHIP_CUSTOM:STK_SHIP; }
+var STK_COST_K=1.04;        // (구 이름 — 남겨두지만 계산에는 STK_FX 를 쓴다)
+var STK_COST_DR_DOWN=2;
+
+// ── 계산식 설정 불러오기 (stock_settings: price_formula / ship_table) ──
+async function stkLoadFx(){
+  try{
+    var r=await sb.from('stock_settings').select('*').in('key',['price_formula','ship_table']);
+    var rows=(r&&r.data)||[];
+    var fx={}; for(var k in STK_FX_DEF)fx[k]=STK_FX_DEF[k];
+    var pf=rows.filter(function(x){return x.key==='price_formula'})[0];
+    if(pf&&pf.value){
+      try{ var o=JSON.parse(pf.value);
+        if(o&&typeof o==='object'){ for(var k2 in STK_FX_DEF){ var v=parseFloat(o[k2]); if(!isNaN(v)&&v>0)fx[k2]=v; } }
+      }catch(e){}
+    }
+    STK_FX=fx;
+    var st=rows.filter(function(x){return x.key==='ship_table'})[0];
+    STK_SHIP_CUSTOM=null;
+    if(st&&st.value){
+      try{ var a=JSON.parse(st.value);
+        if(a&&a.length)STK_SHIP_CUSTOM=a.filter(function(e){return e&&e.length===4&&!isNaN(e[3])});
+      }catch(e){}
+    }
+  }catch(e){}
+  var b=document.getElementById('stk-fxBtn');
+  if(b)b.style.display=(typeof stkIsAdmin==='function'&&stkIsAdmin())?'':'none';
+}
+
+// ── 계산식 설정 화면 ──
+var _fxShipDraft=null;   // 편집 중인 배송비표(저장 눌러야 반영)
+function stkFxOpen(){
+  if(!stkIsAdmin()){stkToast('계산식 변경은 관리자만 할 수 있습니다');return}
+  _fxShipDraft=(stkShipTable()||[]).map(function(e){return [e[0],e[1],e[2],e[3]]});
+  var g=function(k){return stkFxN(k)};
+  var num=function(id,val,step){return '<input id="fx-'+id+'" type="number" step="'+(step||'1')+'" value="'+val+'" style="width:100%;padding:7px;border:1.5px solid #cbd5e1;border-radius:6px;font-size:14px;text-align:right;box-sizing:border-box">'};
+  var row=function(label,id,val,step,hint){
+    return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:7px">'+
+      '<div style="width:150px;font-size:13px;font-weight:700;color:#334155">'+label+'</div>'+
+      '<div style="width:120px">'+num(id,val,step)+'</div>'+
+      '<div style="flex:1;font-size:11px;color:#94a3b8">'+(hint||'')+'</div></div>';
+  };
+  var h='';
+  h+='<div style="font-size:12px;color:#64748b;margin-bottom:10px;line-height:1.6">'+
+     '바꾸면 <b>자동 계산되는 값만</b> 달라집니다. 직접 입력해 빨간색으로 고정한 칸은 그대로입니다.<br>'+
+     '올림 단위 100원은 고정입니다. 변경 내용은 기록에 남습니다.</div>';
+  h+='<div style="font-weight:800;font-size:13px;margin:12px 0 6px;color:#0f172a">원가</div>';
+  h+=row('실원가 계수','costK',g('costK'),'0.001','실원가를 직접 적은 상품 = 실원가 × 이 값');
+  h+=row('할인율 낮춤(%p)','drDown',g('drDown'),'0.1','공장도가·할인율이 있는 상품 = 할인율에서 이만큼 낮춰 적용');
+  h+='<div style="font-weight:800;font-size:13px;margin:14px 0 6px;color:#0f172a">택배가·장착가 수수료</div>';
+  h+=row('요율 1','fee1',g('fee1'),'0.001','(원가+비용) ÷ 요율1 ÷ 요율2');
+  h+=row('요율 2','fee2',g('fee2'),'0.001','');
+  h+='<div style="font-weight:800;font-size:13px;margin:14px 0 6px;color:#0f172a">장착비</div>';
+  h+=row('18인치 이하','inst18',g('inst18'),'100','');
+  h+=row('19인치','inst19',g('inst19'),'100','');
+  h+=row('20인치','inst20',g('inst20'),'100','');
+  h+=row('21인치 이상','inst21',g('inst21'),'100','');
+  h+=row('오프로드','instOff',g('instOff'),'100','AT·MT·RT 등 — 인치 구분 없음');
+  h+='<div style="font-weight:800;font-size:13px;margin:14px 0 6px;color:#0f172a">배송비</div>';
+  h+=row('플로테이션 고정','floatShip',g('floatShip'),'100','31x10.5R15 처럼 폭이 100 미만인 규격');
+  h+='<div style="font-weight:800;font-size:13px;margin:14px 0 6px;color:#0f172a">사이즈별 배송비표 <span id="fx-shipCnt" style="font-weight:600;color:#64748b"></span></div>';
+  h+='<div style="display:flex;gap:6px;margin-bottom:6px">'+
+     '<input id="fx-shipQ" placeholder="사이즈로 찾기 (예: 215 50 17)" oninput="stkFxShipList()" style="flex:1;padding:7px;border:1.5px solid #cbd5e1;border-radius:6px;font-size:13px">'+
+     '<button onclick="stkFxShipAdd()" style="padding:7px 10px;font-size:12px;font-weight:800;border:1px solid #bbf7d0;background:#f0fdf4;color:#15803d;border-radius:6px;cursor:pointer">+ 사이즈 추가</button></div>';
+  h+='<div id="fx-shipList" style="max-height:260px;overflow:auto;border:1px solid #e2e8f0;border-radius:8px"></div>';
+  h+='<details style="margin-top:8px"><summary style="font-size:12px;font-weight:700;color:#475569;cursor:pointer">엑셀에서 붙여넣어 한꺼번에 바꾸기</summary>'+
+     '<div style="font-size:11px;color:#94a3b8;margin:6px 0">한 줄에 하나씩: <b>폭 편평비 인치 배송비</b> (예: 215 50 17 5000). 탭·쉼표·띄어쓰기 모두 됩니다. 여기 넣은 것으로 <b>표 전체가 교체</b>됩니다.</div>'+
+     '<textarea id="fx-shipPaste" rows="5" placeholder="215 50 17 5000&#10;225 45 18 6000" style="width:100%;box-sizing:border-box;padding:7px;border:1.5px solid #cbd5e1;border-radius:6px;font-size:12px;font-family:monospace"></textarea>'+
+     '<button onclick="stkFxShipPaste()" style="margin-top:5px;padding:7px 12px;font-size:12px;font-weight:800;border:1px solid #bfdbfe;background:#eff6ff;color:#1d4ed8;border-radius:6px;cursor:pointer">붙여넣은 것으로 표 교체</button></details>';
+  document.getElementById('stk-fxBody').innerHTML=h;
+  stkFxShipList();
+  document.getElementById('stk-dlgFx').classList.add('on');
+}
+function stkFxShipList(){
+  var q=((document.getElementById('fx-shipQ')||{}).value||'').replace(/[^0-9]+/g,' ').trim();
+  var el=document.getElementById('fx-shipList'); if(!el)return;
+  var list=_fxShipDraft||[];
+  var cnt=document.getElementById('fx-shipCnt'); if(cnt)cnt.textContent='('+list.length+'개 규격)';
+  var view=list;
+  if(q){ var ks=q.split(/\s+/); view=list.filter(function(e){ var s=e[0]+' '+e[1]+' '+e[2]; return ks.every(function(k){return s.indexOf(k)>=0}) }); }
+  view=view.slice(0,300);
+  var h='<table style="width:100%;border-collapse:collapse;font-size:12px">';
+  h+='<tr style="background:#f8fafc;position:sticky;top:0"><th style="padding:5px;border-bottom:1px solid #e2e8f0">사이즈</th><th style="padding:5px;border-bottom:1px solid #e2e8f0;width:110px">배송비</th><th style="width:40px;border-bottom:1px solid #e2e8f0"></th></tr>';
+  if(!view.length)h+='<tr><td colspan="3" style="padding:14px;text-align:center;color:#94a3b8">찾는 규격이 없습니다</td></tr>';
+  view.forEach(function(e){
+    var i=list.indexOf(e);
+    h+='<tr><td style="padding:4px 6px;border-bottom:1px solid #f1f5f9">'+e[0]+'/'+e[1]+'R'+e[2]+'</td>'+
+       '<td style="padding:4px;border-bottom:1px solid #f1f5f9"><input type="number" step="100" value="'+e[3]+'" onchange="stkFxShipSet('+i+',this.value)" style="width:100%;padding:4px;border:1px solid #cbd5e1;border-radius:4px;font-size:12px;text-align:right;box-sizing:border-box"></td>'+
+       '<td style="padding:4px;border-bottom:1px solid #f1f5f9;text-align:center"><button onclick="stkFxShipDel('+i+')" style="border:none;background:none;cursor:pointer;color:#c0392b;font-size:13px">🗑️</button></td></tr>';
+  });
+  h+='</table>';
+  if(list.length>view.length&&!q)h+='<div style="padding:7px;text-align:center;font-size:11px;color:#94a3b8">앞 300개만 보입니다 — 위에서 사이즈로 찾으세요</div>';
+  el.innerHTML=h;
+}
+function stkFxShipSet(i,v){ if(!_fxShipDraft||!_fxShipDraft[i])return; var n=parseInt(v); if(isNaN(n)||n<0)return; _fxShipDraft[i][3]=n; }
+function stkFxShipDel(i){ if(!_fxShipDraft||!_fxShipDraft[i])return; _fxShipDraft.splice(i,1); stkFxShipList(); }
+function stkFxShipAdd(){
+  var s=prompt('추가할 규격과 배송비를 적어주세요 (예: 215 50 17 5000)');
+  if(!s)return;
+  var n=String(s).replace(/[^0-9]+/g,' ').trim().split(/\s+/).map(function(x){return parseInt(x)});
+  if(n.length<4||n.some(isNaN)){stkToast('폭 편평비 인치 배송비 네 개를 적어주세요');return}
+  var i=_fxShipDraft.findIndex(function(e){return e[0]===n[0]&&e[1]===n[1]&&e[2]===n[2]});
+  if(i>=0){_fxShipDraft[i][3]=n[3];stkToast('이미 있는 규격이라 배송비만 바꿨습니다');}
+  else{_fxShipDraft.push([n[0],n[1],n[2],n[3]]);}
+  var qq=document.getElementById('fx-shipQ'); if(qq)qq.value='';
+  stkFxShipList();
+}
+function stkFxShipPaste(){
+  var t=((document.getElementById('fx-shipPaste')||{}).value||'').trim();
+  if(!t){stkToast('붙여넣은 내용이 없습니다');return}
+  var out=[],bad=0;
+  t.split(/\n/).forEach(function(line){
+    if(!line.trim())return;
+    var n=line.replace(/[^0-9]+/g,' ').trim().split(/\s+/).map(function(x){return parseInt(x)});
+    if(n.length<4||n.slice(0,4).some(isNaN)){bad++;return}
+    out.push([n[0],n[1],n[2],n[3]]);
+  });
+  if(!out.length){stkToast('읽을 수 있는 줄이 없습니다');return}
+  if(!confirm('표 전체를 붙여넣은 '+out.length+'개 규격으로 바꿉니다.'+(bad?'\n(읽지 못한 줄 '+bad+'개는 건너뜁니다)':'')+'\n계속할까요?'))return;
+  _fxShipDraft=out;
+  var qq=document.getElementById('fx-shipQ'); if(qq)qq.value='';
+  stkFxShipList();
+  stkToast('표를 '+out.length+'개로 바꿨습니다 — 저장을 눌러야 반영됩니다');
+}
+async function stkFxSave(){
+  if(!stkIsAdmin()){stkToast('계산식 변경은 관리자만 할 수 있습니다');return}
+  var fx={},bad=[];
+  for(var k in STK_FX_DEF){
+    var el=document.getElementById('fx-'+k);
+    var v=el?parseFloat(el.value):NaN;
+    if(isNaN(v)||v<=0){bad.push(k);continue}
+    fx[k]=v;
+  }
+  if(bad.length){stkToast('빈 칸이나 0 이하 값이 있습니다 — 확인해 주세요');return}
+  if(fx.fee1>1||fx.fee2>1){ if(!confirm('요율이 1보다 큽니다. 나누기라서 값이 낮아집니다.\n그대로 저장할까요?'))return; }
+  if(fx.drDown>=100){stkToast('할인율 낮춤 폭이 너무 큽니다');return}
+  if(!_fxShipDraft||!_fxShipDraft.length){stkToast('배송비표가 비어 있습니다');return}
+  // 무엇이 바뀌었는지 기록용 요약
+  var chg=[];
+  for(var k3 in STK_FX_DEF){ if(stkFxN(k3)!==fx[k3])chg.push(k3+' '+stkFxN(k3)+'→'+fx[k3]); }
+  var oldShip=stkShipTable()||[];
+  var shipChanged=(oldShip.length!==_fxShipDraft.length)||_fxShipDraft.some(function(e,i){var o=oldShip[i];return !o||o[0]!==e[0]||o[1]!==e[1]||o[2]!==e[2]||o[3]!==e[3];});
+  if(shipChanged)chg.push('배송비표 '+oldShip.length+'→'+_fxShipDraft.length+'개 규격');
+  if(!chg.length){stkToast('바뀐 것이 없습니다');document.getElementById('stk-dlgFx').classList.remove('on');return}
+  var ok=await stkFxPut('price_formula',JSON.stringify(fx));
+  if(ok&&shipChanged)ok=await stkFxPut('ship_table',JSON.stringify(_fxShipDraft));
+  if(!ok){stkToast('⚠️ 저장 실패 — 다시 시도해 주세요');return}
+  STK_FX=fx; if(shipChanged)STK_SHIP_CUSTOM=_fxShipDraft.slice();
+  stkLog('⚙️계산식변경',chg.join(' / '),{});
+  document.getElementById('stk-dlgFx').classList.remove('on');
+  stkToast('계산식을 바꿨습니다 — 자동 계산 값이 다시 계산됩니다');
+  if(typeof stkRenderTable==='function')stkRenderTable();
+  if(typeof stkRenderSearch==='function')stkRenderSearch();
+}
+async function stkFxPut(key,val){
+  try{
+    var ex=await sb.from('stock_settings').select('key').eq('key',key);
+    var r=(ex.data&&ex.data.length)?await sb.from('stock_settings').update({value:val}).eq('key',key)
+                                   :await sb.from('stock_settings').insert({key:key,value:val});
+    return !(r&&r.error);
+  }catch(e){ return false }
+}
+async function stkFxReset(){
+  if(!stkIsAdmin()){stkToast('관리자만 할 수 있습니다');return}
+  if(!confirm('계산식과 배송비표를 처음 값으로 되돌립니다.\n계속할까요?'))return;
+  var ok=await stkFxPut('price_formula',JSON.stringify(STK_FX_DEF));
+  if(ok)ok=await stkFxPut('ship_table','');
+  if(!ok){stkToast('⚠️ 되돌리기 실패');return}
+  STK_FX={}; for(var k in STK_FX_DEF)STK_FX[k]=STK_FX_DEF[k];
+  STK_SHIP_CUSTOM=null;
+  stkLog('⚙️계산식초기화','기본값으로 되돌림',{});
+  document.getElementById('stk-dlgFx').classList.remove('on');
+  stkToast('처음 값으로 되돌렸습니다');
+  if(typeof stkRenderTable==='function')stkRenderTable();
+  if(typeof stkRenderSearch==='function')stkRenderSearch();
+}
+function stkCalcCostAuto(r){ // 원가 자동값 — 100원 올림
+  // ① 실원가를 직접 적어넣은 경우 → 할인율을 무시하고 그 실원가를 쓰기로 해둔 상태이므로 실원가 × 1.04
+  var mrc=(r.real_cost!==''&&r.real_cost!=null)?parseInt(r.real_cost):null;
+  if(mrc!=null&&!isNaN(mrc))return Math.ceil(Math.round(mrc*stkFxN('costK'))/100)*100;   // round 먼저 — 부동소수 오차로 100원 튀는 것 방지
+  // ② 공장도가·할인율이 제대로 있으면 → 할인율을 2%p 낮춰서 공장도가에 적용
+  //    (실원가와의 차이 = 공장도가의 2%)
+  var fp=parseInt((r.fprice!=null&&r.fprice!=='')?r.fprice:r.factory_price);
+  var dr=parseFloat(r.discount_rate);
+  // (1-x/100) 형태로 계산하면 부동소수 오차로 85,500이 85,500.000000001이 되어 100원이 더 붙는다.
+  // 먼저 곱하고 나누고 round 로 정수화한 뒤 100원 올림.
+  if(!isNaN(fp)&&fp&&!isNaN(dr))return Math.ceil(Math.round(fp*(100-(dr-stkFxN('drDown')))/100)/100)*100;
+  // ③ 그 외 — 실원가를 얻을 다른 경로가 있으면 계수 방식, 없으면 빈칸
   var rc=stkEffRC(r);
   if(rc==null||isNaN(rc))return null;
-  return Math.ceil(rc*1.02/100)*100;
+  return Math.ceil(Math.round(rc*stkFxN('costK'))/100)*100;
 }
 function stkCostDisplay(r){ // 표시/가격용 유효 원가 (수동값 있으면 그것, 없으면 자동값)
   if(r.cost!==''&&r.cost!=null)return parseInt(r.cost);
@@ -9431,8 +9639,9 @@ function stkParseSize(s){
 // 배송료: 정확일치 → 없으면 폭 우선·인치·편평비 순 가까운 것, 동률이면 높은 배송료
 function stkShipFee(size){
   var t=stkParseSize(size); if(!t)return null;
-  if(t[0]<100)return 15000;  // 플로테이션(예 31x10.5R15)은 배송비 15,000원 고정
+  if(t[0]<100)return stkFxN('floatShip');  // 플로테이션(예 31x10.5R15)은 고정 배송비
   var best=null,bestD=null;
+  var STK_SHIP=stkShipTable();             // 설정 화면에서 바꾼 표가 있으면 그것을 쓴다
   for(var i=0;i<STK_SHIP.length;i++){
     var e=STK_SHIP[i];
     if(e[0]===t[0]&&e[1]===t[1]&&e[2]===t[2])return e[3];
@@ -9444,22 +9653,22 @@ function stkShipFee(size){
 // 장착비 (인치별): ~18:18000 / 19:19000 / 20:22000 / 21+:25000
 function stkInstallFee(size,offroad){
   var t=stkParseSize(size); if(!t)return null; var inch=t[2];
-  if(offroad){ return inch<=19?35000:40000; }  // 오프로드: 19인치↓ 35000 / 20인치↑ 40000
-  if(inch<=18)return 18000;
-  if(inch===19)return 19000;
-  if(inch===20)return 22000;
-  return 25000;
+  if(offroad){ return stkFxN('instOff'); }   // 오프로드는 인치 무관 고정 (대표 지시)
+  if(inch<=18)return stkFxN('inst18');
+  if(inch===19)return stkFxN('inst19');
+  if(inch===20)return stkFxN('inst20');
+  return stkFxN('inst21');
 }
 // 택배가/장착가 자동계산 = (원가+배송료 또는 장착비)/0.97/0.96, 올림 100원
 function stkCalcTaekbae(cost,size){
   var c=parseInt(cost); if(isNaN(c)||!c)return null;
   var ship=stkShipFee(size); if(ship==null)return null;
-  return Math.ceil((c+ship)/0.97/0.96/100)*100;
+  return Math.ceil((c+ship)/stkFxN('fee1')/stkFxN('fee2')/100)*100;
 }
 function stkCalcJangchak(cost,size,offroad){
   var c=parseInt(cost); if(isNaN(c)||!c)return null;
   var fee=stkInstallFee(size,offroad); if(fee==null)return null;
-  return Math.ceil((c+fee)/0.97/0.96/100)*100;
+  return Math.ceil((c+fee)/stkFxN('fee1')/stkFxN('fee2')/100)*100;
 }
 function stkFmtAuto(v){return v==null?'':v;}
 
@@ -9497,11 +9706,19 @@ async function stkSaveRcViewers(){
 // (로그인 비밀번호 관리는 관리자 패널 🔐 권한 관리 매트릭스의 🔑 버튼으로 통합됨)
 
 async function stkChangeMasterPw(){
+  // 관리자는 지금 비밀번호를 바로 보고 고칠 수 있다.
+  // (로그인 비밀번호가 아니라 '재고방 잠금 해제·전부삭제'를 한 번 더 확인하는 용도라서,
+  //  이미 관리자로 로그인한 사람에게는 감출 이유가 없다. 잊으면 바꿀 수도 없게 되는 게 더 위험하다.)
   if(!stkIsAdmin()){stkToast('관리자 전용입니다');return;}
-  var cur=prompt('현재 비밀번호'); if(cur===null)return;
-  if(cur!==STK_UNLOCK_PW){ stkToast('현재 비밀번호가 달라요'); return; }
-  var np=prompt('새 비밀번호 (재고방 잠금/해제 + 전부삭제 공용, 4자 이상)'); if(np===null)return;
-  np=(''+np).trim(); if(np.length<4){ stkToast('4자 이상으로 해주세요'); return; }
+  var now=(typeof STK_UNLOCK_PW!=='undefined'&&STK_UNLOCK_PW)?STK_UNLOCK_PW:'tg1234';
+  var np=prompt('🔒 재고방 잠금 해제 · 전부삭제에 쓰는 비밀번호입니다.\n\n'+
+                '아래 칸에 지금 비밀번호가 적혀 있습니다.\n'+
+                '· 그대로 두고 확인을 누르면 바뀌지 않습니다\n'+
+                '· 고쳐서 확인을 누르면 새 비밀번호가 됩니다 (4자 이상)', now);
+  if(np===null)return;
+  np=(''+np).trim();
+  if(np===now){ stkToast('비밀번호는 그대로입니다 — '+now); return; }
+  if(np.length<4){ stkToast('4자 이상으로 해주세요'); return; }
   try{
     var ex=await sb.from('stock_settings').select('key').eq('key','master_pw');
     if(ex.data&&ex.data.length){ await sb.from('stock_settings').update({value:np}).eq('key','master_pw'); }
@@ -10723,7 +10940,9 @@ async function stkRtSaveFieldLight(pid,dot,field,nv,old,td){
         stkToast('⚠️ 저장 실패 ['+field+']: '+(_ur.error.message||_ur.error)+' — 새로고침하면 되돌아갑니다');
         if(td){td.style.outline='2px solid #dc2626';setTimeout(function(){if(td)td.style.outline='';},2500);}
       }else{
-        if(typeof stkRenderSearch==='function')stkRenderSearch(); // 재고표 수정 → 검색탭 카드 즉시 반영
+        // 검색탭 카드 반영 — 검색탭이 지금 보일 때만. 숨어 있는데도 9천 SKU를 다시 조립하면 그 사이 입력이 버벅인다.
+        var _pl0=document.getElementById('stk-plist');
+        if(typeof stkRenderSearch==='function'&&_pl0&&_pl0.offsetParent!==null)stkRenderSearch();
       }
       // ── 실원가 자동계산 연동 ──
       // 할인율 수정 → 실원가 재계산(자동값으로 덮어씀)
@@ -10757,20 +10976,37 @@ async function stkRtSaveFieldLight(pid,dot,field,nv,old,td){
       try{
         var _tr=(td&&td.closest)?td.closest('tr'):(td?td.parentElement:null);
         if(_tr){
+          var _act=(typeof document!=='undefined')?document.activeElement:null;
           var _set=function(f,val,manual){
             var cell=_tr.querySelector('td[data-field="'+f+'"]');
-            if(cell){ var sv=(val===''||val==null)?'':String(val); cell.textContent=sv; cell.setAttribute('data-old',sv); cell.style.color=manual?'#dc2626':''; cell.style.fontWeight=manual?'700':''; }
+            if(!cell)return;
+            if(cell===_act)return;   // ★ 지금 커서가 들어간 칸은 덮어쓰지 않는다 (Tab 이동이 튀는 것 방지)
+            var sv=(val===''||val==null)?'':String(val); cell.textContent=sv; cell.setAttribute('data-old',sv); cell.style.color=manual?'#dc2626':''; cell.style.fontWeight=manual?'700':'';
           };
-          if(field!=='cost') _set('cost', stkCostDisplay(p), stkCostIsManual(p));
-          if(field!=='price') _set('price', stkPriceDisplay(p), stkPriceIsManual(p));
-          if(field!=='inst') _set('inst', stkInstDisplay(p), stkInstIsManual(p));
+          // 상품 객체(p)는 fprice 가 없고 factory_price 만 갖는다 → 실원가 계산 함수가 읽지 못하므로 채워서 넘긴다
+          var _pv={}; for(var _pk in p)_pv[_pk]=p[_pk];
+          if(_pv.fprice==null||_pv.fprice==='')_pv.fprice=p.factory_price;
+          // 네 칸(원가·택배가·장착가·실원가)을 항상 다시 쓴다 — 방금 고친 칸도 포함.
+          // 그 칸을 '지운' 경우 자동값으로 돌아간 모습을 보여줘야 하는데, 표를 다시 그리지 않으므로 여기서 채운다.
+          // 직접 입력한 값이 있으면 stk*Display 가 그 값을 그대로 돌려주므로 덮어써도 값은 같다.
+          _set('cost', stkCostDisplay(_pv), stkCostIsManual(_pv));
+          _set('price', stkPriceDisplay(_pv), stkPriceIsManual(_pv));
+          _set('inst', stkInstDisplay(_pv), stkInstIsManual(_pv));
+          _set('real_cost', stkRCdisplay(_pv), stkRCisManual(_pv));
+          // ★ 방금 고친 칸 자신의 색도 갱신한다 — 직접 입력하면 빨강, 지우거나 자동값과 같아지면 검정.
+          //   표를 다시 그리지 않으므로 여기서 해야 한다. 글자는 건드리지 않고 색만 바꾸니 커서에 영향 없다.
+          var _mf={cost:stkCostIsManual,price:stkPriceIsManual,inst:stkInstIsManual,real_cost:stkRCisManual}[field];
+          if(_mf&&td){ var _mm=_mf(_pv); td.style.color=_mm?'#dc2626':''; td.style.fontWeight=_mm?'700':''; }
         }
       }catch(_ce){ console.error('행 셀 갱신 오류',_ce); }
-      // ② 전체 재렌더(정렬·요약 반영) — 실패해도 ①로 이미 반영됨
+      // ② 화면 갱신 — 표 전체를 다시 그리면 커서가 앉아 있던 칸이 사라져 Tab 이동이 끊긴다.
+      //    값은 ①에서 그 행에 이미 반영했으므로 전체 재렌더는 하지 않는다.
+      //    정렬(원가·택배가 등으로 정렬 중일 때 순서 이동)은 새로고침하거나 헤더를 눌러 정렬할 때 반영된다.
+      //    분류(cat)만 예외 — 분류 색과 행 왼쪽 컬러바가 바뀌어야 하므로 다시 그린다.
       try{
-        if(typeof stkRenderTable==='function')stkRenderTable();
-        if(typeof stkRenderSearch==='function')stkRenderSearch();
-      }catch(_re){ console.error('재렌더 오류(저장·셀갱신은 완료됨)',_re); }
+        if(field==='cat'){ if(typeof stkRenderTable==='function')stkRenderTable(); }
+        // 검색탭 갱신은 위 저장 성공 직후에서 이미 한다 — 여기서 또 부르면 같은 일을 두 번 한다.
+      }catch(_re){ console.error('화면 갱신 오류(저장·셀갱신은 완료됨)',_re); }
     }
     // 수정 후: 줄이 실제로 합쳐졌을 때만 표를 다시 그린다.
     // (값만 바뀐 경우엔 위에서 td.textContent로 이미 그 자리 반영됨 → 엑셀처럼 자연스럽게 유지)
@@ -12777,14 +13013,15 @@ async function stkDownload(){
   var XLSX=window.XLSX;
   // ── 시트1: 입고양식 (위치 포함, 다시 업로드 가능) — 새 양식(A): 분류·출처·...·원가·(실원가)·공장도가·수량·위치·비고 ──
   var _dlRC=(typeof stkCanSeeRealcost==='function'&&stkCanSeeRealcost());  // 권한자면 실원가도 내보냄
-  var _h1=['분류','출처','브랜드','패턴','패턴코드','사이즈','P수','재원','DOT','원가'];
-  if(_dlRC)_h1.push('실원가','할인율');
-  _h1=_h1.concat(['공장도가','수량','위치','비고']);
+  // ★ 앞 14열은 업로드 양식과 똑같은 순서로 고정한다. 권한자만 보는 실원가·할인율은 맨 뒤에 붙인다.
+  //   (중간에 끼우면 이 파일을 그대로 다시 올릴 때 수량 자리에 할인율이 들어가는 사고가 난다)
+  var _h1=['분류','출처','브랜드','패턴','패턴코드','사이즈','P수','재원','DOT','원가','공장도가','수량','위치','비고'];
+  if(_dlRC)_h1=_h1.concat(['실원가','할인율']);
   var aoa1=[_h1];
   function _row1(p,dot,qty,loc,memo){
-    var r=[p.cat||'일반',p.source||'',p.br,p.name,p.code||'',p.size,p.ply||'',p.spec||'',dot||'',(stkCostDisplay(p)===''?'':stkCostDisplay(p))];
-    if(_dlRC)r.push(p.real_cost==null?'':p.real_cost, p.discount_rate==null?'':p.discount_rate);
-    r=r.concat([p.factory_price||'',qty,loc,memo]);
+    var r=[p.cat||'일반',p.source||'',p.br,p.name,p.code||'',p.size,p.ply||'',p.spec||'',dot||'',(stkCostDisplay(p)===''?'':stkCostDisplay(p)),
+           p.factory_price||'',qty,loc,memo];
+    if(_dlRC)r=r.concat([p.real_cost==null?'':p.real_cost, p.discount_rate==null?'':p.discount_rate]);
     return r;
   }
   stkP.forEach(function(p){
@@ -12842,12 +13079,12 @@ async function stkDownload(){
     var _R=_i+1; // 엑셀 행번호(헤더=1)
     var _cost=aoa2[_i][10], _ship=aoa2[_i][11], _inst=aoa2[_i][13];
     if(typeof _cost==='number'&&typeof _ship==='number'){
-      var _tk=Math.ceil((_cost+_ship)/0.97/0.96/100)*100;  // 캐시값(없으면 저장 시 셀이 버려짐)
-      ws2['M'+_R]={t:'n',f:'ROUNDUP((K'+_R+'+L'+_R+')/0.97/0.96,-2)',v:_tk};
+      var _tk=Math.ceil((_cost+_ship)/stkFxN('fee1')/stkFxN('fee2')/100)*100;  // 캐시값(없으면 저장 시 셀이 버려짐)
+      ws2['M'+_R]={t:'n',f:'ROUNDUP((K'+_R+'+L'+_R+')/'+stkFxN('fee1')+'/'+stkFxN('fee2')+',-2)',v:_tk};
     }
     if(typeof _cost==='number'&&typeof _inst==='number'){
-      var _jc=Math.ceil((_cost+_inst)/0.97/0.96/100)*100;
-      ws2['O'+_R]={t:'n',f:'ROUNDUP((K'+_R+'+N'+_R+')/0.97/0.96,-2)',v:_jc};
+      var _jc=Math.ceil((_cost+_inst)/stkFxN('fee1')/stkFxN('fee2')/100)*100;
+      ws2['O'+_R]={t:'n',f:'ROUNDUP((K'+_R+'+N'+_R+')/'+stkFxN('fee1')+'/'+stkFxN('fee2')+',-2)',v:_jc};
     }
   }
   ws2['!cols']=[{wch:8},{wch:10},{wch:8},{wch:16},{wch:12},{wch:11},{wch:7},{wch:9},{wch:18},{wch:14},{wch:9},{wch:9},{wch:11},{wch:9},{wch:11},{wch:20}];
@@ -12880,13 +13117,138 @@ async function stkDownload(){
   XLSX.utils.book_append_sheet(wb,ws2,'② 현황리포트');
   XLSX.utils.book_append_sheet(wb,ws3,'③ 전체기록(복원용)');
   XLSX.utils.book_append_sheet(wb,ws4,'④ 가격수정(가격만입력)');
+
+  // ── ⑤ 재고표 (보기용) ─────────────────────────────────────────
+  // 재고방 화면의 재고표를 그대로 옮긴다. 색·글씨까지 화면과 같게.
+  // 올리는 용도가 아니다 — 시트 이름에 '입고/가격/신규/분류/실원가'가 없으므로 업로드에서 잡히지 않는다.
+  (function(){
+    var C=[['cat','분류'],['source','출처'],['br','브랜드'],['name','패턴'],['code','패턴코드'],['size','사이즈'],
+           ['ply','P수'],['spec','재원'],['dot','DOT'],['price','택배가'],['inst','장착가'],['cost','원가']];
+    if(_dlRC)C=C.concat([['real_cost','실원가'],['discount_rate','할인율']]);
+    C=C.concat([['fprice','공장도가'],['target','목표수량'],['qty','수량'],['cur','변동재고']]);
+    var CH=(typeof STK_CHANS!=='undefined')?STK_CHANS:[];
+    var heads=C.map(function(x){return x[1]}).concat(CH);
+
+    // 행 만들기 — 재고표와 같은 단위(상품 × 연식)
+    var _sums5=(typeof stkChannelSums==='function')?stkChannelSums():{};
+    var rows=[];
+    stkP.forEach(function(p){
+      var byDot={};
+      (p.lots||[]).forEach(function(l){ var d=l.dot||'DOT누락'; byDot[d]=(byDot[d]||0)+(l.q||0); });
+      var dots=Object.keys(byDot);
+      if(!dots.length)dots=['DOT누락'];
+      dots.forEach(function(dk){
+        var cur=byDot[dk]||0;
+        var ps=_sums5[p.id+'|'+dk]||{};              // 채널 출고 = 재고표와 같은 키(상품id|연식)
+        var chArr=CH.map(function(ch){ return ps[ch]||0 });
+        var chTot=chArr.reduce(function(a,b){return a+b},0);
+        rows.push({p:p,dot:dk,cur:cur,ch:chArr,qty:cur+chTot,
+                   target:(typeof stkTargetGet==='function')?stkTargetGet(p,dk):''});
+      });
+    });
+    // 화면과 같은 고정 정렬: 마이너스 → 목표 미달 → 나머지
+    (function(){ var neg=[],low=[],rest=[];
+      rows.forEach(function(r){
+        if((r.cur||0)<0){neg.push(r);return}
+        var t=(r.target===''||r.target==null)?null:parseInt(r.target);
+        if(t!=null&&!isNaN(t)&&(r.cur||0)<t){low.push(r);return}
+        rest.push(r);
+      });
+      rows=neg.concat(low,rest);
+    })();
+
+    var aoa5=[heads];
+    var meta=[];   // 행별 색 판정 결과
+    rows.forEach(function(r){
+      var p=r.p;
+      var pv={}; for(var k in p)pv[k]=p[k];
+      if(pv.fprice==null||pv.fprice==='')pv.fprice=p.factory_price;
+      var num=function(v){ var n=parseInt(v); return isNaN(n)?'':n; };
+      var line=[p.cat||'일반',p.source||'',p.br,p.name,p.code||'',p.size,p.ply||'',p.spec||'',
+                (r.dot==='DOT누락'?'':r.dot),
+                num(stkPriceDisplay(pv)),num(stkInstDisplay(pv)),num(stkCostDisplay(pv))];
+      if(_dlRC)line=line.concat([num(stkRCdisplay(pv)),(p.discount_rate==null||p.discount_rate==='')?'':num(p.discount_rate)]);
+      line=line.concat([num(p.factory_price),(r.target===''||r.target==null)?'':num(r.target),r.qty,r.cur]);
+      line=line.concat(r.ch);
+      aoa5.push(line);
+      var t=(r.target===''||r.target==null)?null:parseInt(r.target);
+      meta.push({
+        neg:((r.cur||0)<0),
+        low:(t!=null&&!isNaN(t)&&(r.cur||0)<t),
+        hi:(t!=null&&!isNaN(t)&&(r.cur||0)>t),
+        cat:(typeof stkCatStyle==='function')?stkCatStyle(p.cat||'일반'):null,
+        mPrice:(typeof stkPriceIsManual==='function')&&stkPriceIsManual(pv),
+        mInst:(typeof stkInstIsManual==='function')&&stkInstIsManual(pv),
+        mCost:(typeof stkCostIsManual==='function')&&stkCostIsManual(pv),
+        mRC:(typeof stkRCisManual==='function')&&stkRCisManual(pv)
+      });
+    });
+
+    var ws5=XLSX.utils.aoa_to_sheet(aoa5);
+    // 헤더
+    var hb5={font:{name:'Arial',sz:10,bold:true,color:{rgb:'FFFFFF'}},
+             fill:{patternType:'solid',fgColor:{rgb:'334155'}},
+             alignment:{horizontal:'center',vertical:'center'}};
+    for(var hc=0;hc<heads.length;hc++){
+      var ha=XLSX.utils.encode_cell({r:0,c:hc});
+      if(ws5[ha])ws5[ha].s=hb5;
+    }
+    // 데이터 — 색이 필요한 칸만 칠한다(9천 행에서 모든 칸을 칠하면 파일이 무거워진다)
+    var FILL=function(rgb){return {patternType:'solid',fgColor:{rgb:rgb}}};
+    var redFont={name:'Arial',sz:10,bold:true,color:{rgb:'DC2626'}};
+    var idxOf={}; C.forEach(function(x,i){idxOf[x[0]]=i});
+    var manualMap=[['price','mPrice'],['inst','mInst'],['cost','mCost'],['real_cost','mRC']];
+    for(var ri=0;ri<meta.length;ri++){
+      var m=meta[ri], R=ri+1;
+      // 행 배경: 마이너스 재고는 분홍, 아니면 목표 대비 색(분류 열은 제외 — 화면과 같음)
+      var rowFill=m.neg?FILL('FFE4E6'):(m.low?FILL('FEE2E2'):(m.hi?FILL('DCFCE7'):null));
+      if(rowFill){
+        // 분류 열(0번)은 아래에서 분류 색으로 칠하므로 여기서는 1번부터 (화면도 분류 칸은 분류 색이 유지된다)
+        for(var cc=1;cc<heads.length;cc++){
+          var ad=XLSX.utils.encode_cell({r:R,c:cc});
+          if(!ws5[ad])ws5[ad]={t:'s',v:''};
+          ws5[ad].s=Object.assign({},ws5[ad].s||{},{fill:rowFill});
+        }
+      }
+      // 분류 칸은 화면의 분류 색
+      if(m.cat&&m.cat.bg){
+        var ca=XLSX.utils.encode_cell({r:R,c:0});
+        if(!ws5[ca])ws5[ca]={t:'s',v:''};
+        var bg=String(m.cat.bg||'').replace('#','').toUpperCase();
+        var fg=String(m.cat.t||'').replace('#','').toUpperCase();
+        if(bg.length===6)ws5[ca].s={fill:FILL(bg),font:{name:'Arial',sz:10,bold:true,color:{rgb:(fg.length===6?fg:'333333')}},alignment:{horizontal:'center'}};
+      }
+      // 직접 입력한 값은 빨간 글씨 (화면과 같음)
+      manualMap.forEach(function(mm){
+        if(idxOf[mm[0]]==null||!m[mm[1]])return;
+        var da=XLSX.utils.encode_cell({r:R,c:idxOf[mm[0]]});
+        if(!ws5[da])ws5[da]={t:'s',v:''};
+        ws5[da].s=Object.assign({},ws5[da].s||{},{font:redFont});
+      });
+    }
+    ws5['!cols']=heads.map(function(h){
+      if(h==='패턴')return {wch:16};
+      if(h==='사이즈')return {wch:13};
+      if(h==='재원'||h==='출처')return {wch:12};
+      if(h==='분류'||h==='DOT'||h==='P수')return {wch:8};
+      if(h==='목표수량'||h==='변동재고'||h==='공장도가')return {wch:10};
+      return {wch:11};
+    });
+    ws5['!rows']=[{hpt:22}];
+    ws5['!freeze']={xSplit:0,ySplit:1};
+    ws5['!autofilter']={ref:XLSX.utils.encode_range({s:{r:0,c:0},e:{r:aoa5.length-1,c:heads.length-1}})};
+    XLSX.utils.book_append_sheet(wb,ws5,'⑤ 재고표(보기용)');
+  })();
   var now=new Date(new Date().getTime()+9*3600*1000);
   var fn='재고백업_'+now.toISOString().slice(0,10)+'.xlsx';
   XLSX.writeFile(wb,fn);
   stkToast('백업 다운로드: '+fn+' (재고+기록 포함)');
   stkLog('📥다운로드','재고+기록 백업 ('+(aoa1.length-1)+'행, 기록 '+(aoa3.length-1)+'건)',{});
 }
-var STK_RESET_PW='tg1234';
+// 전체 초기화 비밀번호 — 재고방 잠금 해제와 같은 값을 쓴다(관리자 패널 '🔒 잠금/삭제 비번'에서 확인·변경).
+// (종전엔 이 값만 코드에 박혀 있어서 마스터 비번을 바꿔도 초기화 비번은 안 바뀌었고, 잊으면 확인할 방법도 없었다)
+function stkResetPw(){ return (typeof STK_UNLOCK_PW!=='undefined'&&STK_UNLOCK_PW)?STK_UNLOCK_PW:'tg1234'; }
+var STK_RESET_PW='tg1234';   // (구 이름 — 남겨두지만 판정에는 stkResetPw() 를 쓴다)
 // ── 전체 초기화 (백업 유도 + 비번 + 이중확인) ──
 async function stkResetOpen(){
   if(!stkIsAdmin()){stkToast('관리자 전용입니다');return}
@@ -12895,9 +13257,9 @@ async function stkResetOpen(){
   await stkDownload();
   await new Promise(function(r){setTimeout(r,800);});
   // 2) 비번
-  var pw=prompt('초기화 비밀번호를 입력하세요\n(백업 파일이 잘 받아졌는지 먼저 확인하세요!)');
+  var pw=prompt('초기화 비밀번호를 입력하세요\n(백업 파일이 잘 받아졌는지 먼저 확인하세요!)\n\n· 재고방 잠금 해제와 같은 비밀번호입니다\n· 잊었으면 관리자 패널의 🔒 잠금/삭제 비번 에서 확인할 수 있습니다');
   if(pw===null)return;
-  if(pw!==STK_RESET_PW){stkToast('비밀번호가 틀렸습니다');return}
+  if(pw!==stkResetPw()){stkToast('비밀번호가 틀렸습니다');return}
   // 3) 마지막 확인
   if(!confirm('정말 전체 초기화할까요?\n이 작업은 되돌릴 수 없습니다.\n(백업 파일로만 복구 가능)'))return;
   // 4) 삭제 실행
@@ -13017,17 +13379,94 @@ function stkUpOpen(mode){
   document.getElementById('stk-upGo').textContent='미리보기';
   document.getElementById('stk-dlgUp').classList.add('on');
 }
+// ── 업로드 열 사전 ──────────────────────────────────────────────
+// 모드별로 '이 이름이 보이면 이 자리에 넣는다'. 자리 번호는 기존 처리 로직이 기대하는 그대로다.
+// 사전에 없는 열(예: 목표수량·택배가·변동재고)은 그냥 무시한다 → 백업 파일을 그대로 올려도 안전.
+var STK_UPCOL={
+  'in':{ 분류:0,카테고리:0, 브랜드:1, 패턴:2,패턴명:2,제품명:2, 패턴코드:3,코드:3, 사이즈:4, P수:5,피수:5,PLY:5,
+         재원:6,제원:6, DOT:7,연식:7,'연식DOT':7, 원가:8, 공장도가:9,공장가:9, 수량:10, 위치:11, 비고:12, 메모:12, 출처:20 },
+  'price':{ 브랜드:0, 패턴:1,패턴명:1,제품명:1, 패턴코드:2,코드:2, 사이즈:3, DOT:4,연식:4,'연식DOT':4,
+            '판매가택배':5,판매가:5,택배가:5, 장착가:6 },
+  'rc':{ 브랜드:0, 패턴:1,패턴명:1,제품명:1, 패턴코드:2,코드:2, 사이즈:3, 실원가:4, 할인율:5 },
+  'new':{ 브랜드:0, 패턴:1,패턴명:1,제품명:1, 패턴코드:2,코드:2, 사이즈:3, P수:4,피수:4,PLY:4, 재원:5,제원:5,
+          공장도가:6,공장가:6, '판매가택배':7,판매가:7,택배가:7, 장착가:8, 비고:9,메모:9 },
+  'cat':{ 브랜드:0, 패턴:1,패턴명:1,제품명:1, 패턴코드:2,코드:2, 사이즈:3, 카테고리:4,분류:4 }
+};
+// 모드별 '헤더 없이 붙여넣을 때' 기대하는 열 개수와 필수 자리
+var STK_UPSHAPE={
+  'in':   {cols:14, must:[1,4], name:'분류·출처·브랜드·패턴·패턴코드·사이즈·P수·재원·DOT·원가·공장도가·수량·위치·비고'},
+  'price':{cols:7,  must:[0,3], name:'브랜드·패턴·패턴코드·사이즈·연식·판매가(택배)·장착가'},
+  'rc':   {cols:6,  must:[0,3], name:'브랜드·패턴·패턴코드·사이즈·실원가·할인율'},
+  'new':  {cols:10, must:[0,3], name:'브랜드·패턴·패턴코드·사이즈·P수·재원·공장도가·판매가(택배)·장착가·비고'},
+  'cat':  {cols:5,  must:[0,3], name:'브랜드·패턴·패턴코드·사이즈·카테고리'}
+};
+// 열 이름 비교용 정규화 — 괄호 안 설명은 버린다: '패턴(제품명)'→'패턴', '판매가(택배)'→'판매가', '연식(DOT)'→'연식'
+function stkUpKey(s){
+  return String(s==null?'':s).replace(/\([^)]*\)/g,'').replace(/\[[^\]]*\]/g,'')
+    .replace(/[★*\s·\/()\[\]]/g,'').toUpperCase();
+}
+// 한 줄이 헤더 줄인지 판단 + 열 이름 → 자리 지도 만들기
+function stkUpHeaderMap(cells,mode){
+  var dict=STK_UPCOL[mode]||{}, up={};
+  for(var k in dict)up[stkUpKey(k)]=dict[k];
+  var map={},hits=0;
+  cells.forEach(function(v,i){
+    var k=stkUpKey(v);
+    if(k&&up[k]!=null){ if(map[up[k]]==null){map[up[k]]=i;} hits++; }
+  });
+  return {map:map,hits:hits};
+}
 function stkUpParse(){
   var raw=document.getElementById('stk-upTa').value;
   var lines=raw.split('\n').map(function(l){return l.replace(/\r/,'')}).filter(function(l){return l.trim()});
   var rows=[];
   // 모드별 필수 칸: in은 c1브랜드·c4사이즈 / 나머지는 c0브랜드·c3사이즈
   var isIn=(stkUpMode==='in');
+  // ① 첫 줄이 헤더면 '열 이름'으로 자리를 잡는다 → 순서가 달라도, 열이 더 있어도 안전
+  var HMAP=null;
+  if(lines.length){
+    var first=lines[0].split('\t').map(function(x){return x.trim()});
+    var hm=stkUpHeaderMap(first,stkUpMode);
+    if(hm.hits>=3){ HMAP=hm.map; lines=lines.slice(1); }
+  }
+  stkUpShapeWarn='';
+  // 제목 줄이 없으면 올리지 않는다 — 값만 붙여넣으면 어느 열인지 알 수 없어 사고가 난다
+  if(!HMAP&&lines.length){
+    var shp0=STK_UPSHAPE[stkUpMode];
+    stkUpShapeWarn='제목(헤더) 줄이 없습니다 — 그래서 올리지 않았습니다.\n'+
+      '· 엑셀에서 <b>제목 줄까지 함께</b> 복사해 붙여넣거나, 엑셀 파일을 그대로 올려주세요.\n'+
+      '· 제목이 있으면 열 순서가 달라도, 필요 없는 열이 섞여 있어도 이름을 읽어 알아서 맞춥니다.'+
+      (shp0?'\n· 이 양식의 열: '+shp0.name:'');
+    return [];
+  }
   lines.forEach(function(line){
     var c=line.split('\t').map(function(x){return x.trim()});
-    var hw=['브랜드','카테고리','분류','출처','패턴','패턴코드','코드','사이즈','P수','피수','재원','DOT','연식','원가','공장도가','공장가','수량','판매가','장착가','위치','비고'];
+    // 2행 설명 줄은 건너뛴다 — ※ 표시로 알아보고, 표시를 지웠어도 안내 낱말로 한 번 더 걸러낸다
+    if(/^[※*]/.test(c[0]||''))return;
+    var noteWords=['설명입니다','비워도','필수','숫자만','자유 메모','자동계산','예:','기호 없이'];
+    var nHit=c.filter(function(x){ x=String(x||''); return noteWords.some(function(w){return x.indexOf(w)>=0}) }).length;
+    if(nHit>=2)return;
+    var hw=['브랜드','카테고리','분류','출처','패턴','패턴코드','코드','사이즈','P수','피수','재원','DOT','연식','원가','공장도가','공장가','수량','판매가','장착가','위치','비고','실원가','할인율','목표수량','변동재고'];
     var hits=c.filter(function(x){return hw.indexOf((x||'').replace(/[★*\s]/g,''))>=0;}).length;
     if(hits>=2)return;
+    if(HMAP){
+      // 열 이름으로 잡은 자리에 맞춰 다시 담는다 (사전에 없는 열은 버린다)
+      var src=c, out=[];
+      for(var slot in HMAP){ out[slot]=src[HMAP[slot]]||''; }
+      for(var z=0;z<13;z++)if(out[z]==null)out[z]='';
+      c=out;
+      var mustH=(STK_UPSHAPE[stkUpMode]||{must:[]}).must;
+      if(mustH.some(function(i){return !String(c[i]||'').trim()}))return;
+      rows.push(c);
+      return;
+    }
+    // ② 헤더가 없으면 열 개수를 확인한다 — 안 맞으면 한 건도 넣지 않고 알린다
+    var shp=STK_UPSHAPE[stkUpMode];
+    if(shp&&c.length!==shp.cols&&!stkUpShapeWarn){
+      stkUpShapeWarn='열 개수가 '+c.length+'개입니다. 이 양식은 '+shp.cols+'개여야 합니다.\n'+
+        '· 필요한 순서: '+shp.name+'\n'+
+        '· 백업 파일처럼 열이 더 있는 경우엔 <b>헤더(제목) 줄을 함께 붙여넣으세요</b> — 열 이름을 보고 자동으로 맞춥니다.';
+    }
     if(isIn){
       // 새 양식(A+출처): 0분류 1출처 2브랜드 3패턴 4패턴코드 5사이즈 6P수 7재원 8DOT 9원가 10공장도가 11수량 12위치 13비고
       // → 기존 로직이 기대하는 옛 레이아웃(0분류 1브랜드 2패턴 3코드 4사이즈 5P수 6재원 7DOT 8원가 9공장도가 10수량 11위치 12비고)으로 재배열.
@@ -13041,8 +13480,10 @@ function stkUpParse(){
     }
     rows.push(c);
   });
+  if(stkUpShapeWarn)return [];   // 열 개수가 어긋나면 한 건도 올리지 않는다
   return rows;
 }
+var stkUpShapeWarn='';
 function stkFindProduct(br,name,code,size){
   return stkP.find(function(p){return p.br===br&&p.size===size&&((code&&p.code===code)||(!code&&p.name===name)||(p.name===name))})
     ||stkP.find(function(p){return p.br===br&&p.size===size&&code&&p.code===code});
@@ -13193,12 +13634,32 @@ async function stkDownloadTemplate(mode){
     }
   };
   
+  // ── 2행: 각 열에 무엇을 어떻게 적는지 설명 ──
+  // 첫 칸이 '※' 로 시작하므로 업로드할 때 자동으로 건너뛴다. 지우고 올려도 되고 그대로 올려도 된다.
+  var notes={
+    'in':['※이 줄은 설명입니다 (지워도 되고 그대로 올려도 됩니다)','거래처 이름 / 비워도 됨','필수 · 예: 금호',
+          '패턴 이름 / 예: 크루젠','제조사 코드 / 예: HP71','필수 · 예: 235 55 18','4P·6P·8P 등 / 없으면 비움',
+          '원산지·흡음재·마킹 등 자유','연식 4자리 / 예: 2026','숫자만 / 비우면 자동계산','숫자만 / 예: 90000',
+          '필수 · 숫자만 / 예: 10','창고칸 / 예: A-1 · 비우면 미배치','자유 메모'],
+    'price':['※이 줄은 설명입니다 (지워도 되고 그대로 올려도 됩니다)','패턴 이름','제조사 코드','필수 · 예: 235 55 18',
+             '연식 4자리 / 비우면 그 상품 전체','숫자만 / 비우면 자동계산','숫자만 / 비우면 자동계산'],
+    'rc':['※이 줄은 설명입니다 (지워도 되고 그대로 올려도 됩니다)','패턴 이름','제조사 코드','필수 · 예: 235 55 18',
+          '숫자만 / 비우면 할인율로 자동계산','숫자만 · % 기호 없이 / 예: 45'],
+    'new':['※이 줄은 설명입니다 (지워도 되고 그대로 올려도 됩니다)','패턴 이름','제조사 코드','필수 · 예: 235 55 18',
+           '4P·6P·8P 등 / 없으면 비움','원산지·마킹 등 자유','숫자만 / 예: 90000','숫자만 / 비우면 자동계산',
+           '숫자만 / 비우면 자동계산','자유 메모'],
+    'cat':['※이 줄은 설명입니다 (지워도 되고 그대로 올려도 됩니다)','패턴 이름','제조사 코드','필수 · 예: 235 55 18',
+           '필수 · 일반/행사/오프로드/중고/휠/튜닝 등']
+  };
   var cfg=configs[mode];
   if(!cfg){stkToast('양식 모드 오류');return;}
+  cfg.note=notes[mode]||null;
   
   // 메인 시트
   var wb=XLSX.utils.book_new();
-  var aoa=[cfg.headers].concat(cfg.examples);
+  var aoa=[cfg.headers];
+  if(cfg.note)aoa.push(cfg.note);
+  aoa=aoa.concat(cfg.examples);
   var ws=XLSX.utils.aoa_to_sheet(aoa);
   
   // 헤더 스타일 (색·흰글자·굵게·중앙·Arial 10)
@@ -13207,9 +13668,19 @@ async function stkDownloadTemplate(mode){
     var addr=XLSX.utils.encode_cell({r:0,c:c});
     if(ws[addr])ws[addr].s=Object.assign({},hb,{fill:{patternType:'solid',fgColor:{rgb:cfg.colors[c]}}});
   }
+  // 설명 행 스타일 (노란 배경 · 진한 글씨)
+  var noteRow=cfg.note?1:-1;
+  if(noteRow>0){
+    var nb={font:{name:'Arial',sz:9,color:{rgb:'7c2d12'}},fill:{patternType:'solid',fgColor:{rgb:'FEF3C7'}},alignment:{wrapText:true,vertical:'center'}};
+    for(var nc=0;nc<cfg.headers.length;nc++){
+      var nad=XLSX.utils.encode_cell({r:1,c:nc});
+      if(!ws[nad])ws[nad]={t:'s',v:''};
+      ws[nad].s=nb;
+    }
+  }
   // 예시 행 스타일 (옅은 색 폰트)
   var exFont={font:{name:'Arial',sz:10,italic:true,color:{rgb:'888888'}}};
-  for(var r=1;r<aoa.length;r++){
+  for(var r=(cfg.note?2:1);r<aoa.length;r++){
     for(var cc=0;cc<cfg.headers.length;cc++){
       var ad=XLSX.utils.encode_cell({r:r,c:cc});
       if(!ws[ad])ws[ad]={t:'s',v:''};
@@ -13217,12 +13688,24 @@ async function stkDownloadTemplate(mode){
     }
   }
   ws['!cols']=cfg.widths.map(function(w){return {wch:w}});
-  ws['!rows']=[{hpt:24}]; // 헤더 높이
-  ws['!freeze']={xSplit:0,ySplit:1};
+  ws['!rows']=cfg.note?[{hpt:24},{hpt:30}]:[{hpt:24}]; // 헤더·설명 행 높이
+  ws['!freeze']={xSplit:0,ySplit:(cfg.note?2:1)};
   XLSX.utils.book_append_sheet(wb,ws,cfg.sheet);
   
-  // 사용법 시트
-  var guideAoa=cfg.guide.map(function(g){return [g]});
+  // 사용법 시트 (맨 위에 공통 규칙을 붙인다)
+  var common=[
+    '📌 올릴 때 꼭 지켜주세요',
+    '',
+    '· 1행(제목 줄)을 지우지 마세요 — 열 이름을 읽어서 자리를 잡습니다.',
+    '  제목이 있으면 열 순서가 달라도, 필요 없는 열이 섞여 있어도 알아서 맞춥니다.',
+    '· 2행(노란 설명 줄)은 지워도 되고 그대로 올려도 됩니다 — 자동으로 건너뜁니다.',
+    '· 제목 줄 없이 값만 붙여넣으면 열 개수가 맞지 않을 때 올라가지 않고 막힙니다.',
+    '· 엑셀 파일을 그대로 올리면 제목 줄이 함께 들어가니 가장 안전합니다.',
+    '',
+    '────────────────────────────',
+    ''
+  ];
+  var guideAoa=common.concat(cfg.guide).map(function(g){return [g]});
   var wsG=XLSX.utils.aoa_to_sheet(guideAoa);
   wsG['!cols']=[{wch:80}];
   if(wsG['A1'])wsG['A1'].s={font:{name:'Arial',sz:13,bold:true,color:{rgb:'2F5496'}}};
@@ -13235,6 +13718,14 @@ async function stkDownloadTemplate(mode){
 async function stkUpRun(){
   if(!stkEditGuard())return;
   var rows=stkUpParse();
+  if(stkUpShapeWarn){
+    var pv=document.getElementById('stk-upPrev');
+    pv.innerHTML='<div style="color:#b91c1c;font-weight:800;margin-bottom:4px">⚠️ 올릴 수 없습니다 — 열이 맞지 않습니다</div>'+
+                 '<div style="font-size:12px;line-height:1.7">'+stkUpShapeWarn.replace(/\n/g,'<br>')+'</div>';
+    pv.style.display='block';
+    stkToast('열이 맞지 않아 올리지 않았습니다 — 안내를 확인해 주세요');
+    return;
+  }
   if(!rows.length){stkToast('붙여넣은 내용이 없습니다');return}
   var prev=document.getElementById('stk-upPrev');
   if(!stkUpRows){ // 1단계: 미리보기
@@ -14471,8 +14962,13 @@ function rsvOpenEdit(id){
   (function(){ var st=_rsvMin((r.time_slot||'').slice(0,5)); rsvFillTimeEnd(st==null?'':_rsvHM(st+(parseInt(r.duration_min,10)||60))); _rsvLastStart=st; })();
   document.getElementById('rsv-memo').value=r.memo||'';
   document.getElementById('rsv-phone').value=r.phone||'';document.getElementById('rsv-carno').value=r.car_no||'';document.getElementById('rsv-carname').value=r.car_name||'';
-  document.getElementById('rsv-payunit').value=(r.pay_amount||'').replace(/[^0-9]/g,'');
-  document.getElementById('rsv-payqty').value='';
+  if(r.pay_unit||r.pay_qty){ // 적었던 단가·개수 원문 그대로 복원 (2026-07-31)
+    document.getElementById('rsv-payunit').value=r.pay_unit||'';
+    document.getElementById('rsv-payqty').value=r.pay_qty||'';
+  }else{ // 구건(원문 미저장) — 종전대로 총액 표시
+    document.getElementById('rsv-payunit').value=(r.pay_amount||'').replace(/[^0-9]/g,'');
+    document.getElementById('rsv-payqty').value='';
+  }
   var _dpe=document.getElementById('rsv-deposit'); if(_dpe)_dpe.value=(r.deposit>0?String(r.deposit):'');
   rsvApplyPayMethod(r.pay_method||'');
   document.getElementById('rsv-algamt').value=(r.align_amount||'');
@@ -14499,6 +14995,8 @@ async function rsvSubmit(){
     align_state:rsvAlg,
     align_amount:((rsvAlg==='take'||rsvAlg==='inform')?a:null),
     pay_amount:(pc.val>0?String(pc.val):''),
+    pay_unit:(document.getElementById('rsv-payunit').value||'').trim(),
+    pay_qty:(document.getElementById('rsv-payqty').value||'').trim(),
     deposit:rsvParseWon((document.getElementById('rsv-deposit')||{}).value||''),
     pay_method:(rsvPayMethod||null),
     alignment:(rsvAlg==='take')
@@ -15020,6 +15518,16 @@ async function rsvDelete(id){
   <textarea id="stk-upTa" rows="5" placeholder="엑셀에서 행들을 복사해 붙여넣으세요 (헤더 행 포함돼도 자동 제외)"></textarea>
   <div class="upbox" id="stk-upPrev" style="display:none"></div>
   <div class="stkacts"><button class="stk-no" onclick="stkCloseDlg()">취소</button><button class="stk-ok" id="stk-upGo" onclick="stkUpRun()">미리보기</button></div>
+</div></div>
+<div class="stkdlgbg" id="stk-dlgFx" onclick="if(event.target===this)stkCloseDlg()"><div class="stkdlg" style="max-width:620px">
+  <h3>⚙️ 가격 계산식</h3>
+  <div class="sub2">관리자만 바꿀 수 있습니다</div>
+  <div id="stk-fxBody" style="max-height:62vh;overflow:auto;padding-right:4px"></div>
+  <div class="stkacts">
+    <button class="stk-no" onclick="stkFxReset()" style="background:#fff7ed;border-color:#fed7aa;color:#c2410c">처음 값으로</button>
+    <button class="stk-no" onclick="stkCloseDlg()">취소</button>
+    <button class="stk-ok" onclick="stkFxSave()">저장</button>
+  </div>
 </div></div>
 <div class="stktoast" id="stk-toast"></div>
 <div id="db-bk-modal" style="display:none;position:fixed;inset:0;z-index:61;background:rgba(0,0,0,.5)">
