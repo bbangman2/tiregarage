@@ -1485,11 +1485,7 @@ body.rb-on #app{padding-top:58px}
         <div class="dlv-sheet-head"><span class="t">🚚 직배송 추가</span><button class="x" onclick="closeDlvSheet()">×</button></div>
         <div class="dlv-fmt-pick">
           <button class="dlv-fmt-btn on" data-fmt="ping" onclick="pickDlvFmt('ping')">핑</button>
-          <button class="dlv-fmt-btn" data-fmt="online" onclick="pickDlvFmt('online')">온라인</button>
-          <button class="dlv-fmt-btn" data-fmt="st11" onclick="pickDlvFmt('st11')">11번가</button>
-          <button class="dlv-fmt-btn" data-fmt="spam" onclick="pickDlvFmt('spam')">스토어팜</button>
-          <button class="dlv-fmt-btn" data-fmt="tel" onclick="pickDlvFmt('tel')">전화주문</button>
-          <button class="dlv-fmt-btn" data-fmt="auto" onclick="pickDlvFmt('auto')">자동인식</button>
+          <button class="dlv-fmt-btn" data-fmt="auto" onclick="pickDlvFmt('auto')">온라인</button>
           <button class="dlv-fmt-btn" data-fmt="trade" onclick="pickDlvFmt('trade')">거래처</button>
         </div>
         <div class="dlv-fmt-desc" id="dlv-fmt-desc"></div>
@@ -4324,7 +4320,9 @@ function openDlvSheet(){
   document.querySelector('.dlv-fmt-pick').style.display='flex';
   document.getElementById('dlv-fmt-desc').style.display='block';
   const head=document.querySelector('#dlv-sheet .dlv-sheet-head .t');if(head)head.textContent='🚚 직배송 추가';
-  if(typeof pickDlvFmt==='function'){pickDlvFmt(dlvPasteFmt||'ping');}
+  var _f=dlvPasteFmt||'ping';
+  if(_f==='online'||_f==='st11'||_f==='spam'||_f==='tel')_f='auto';   // 버튼 정리(v86)로 제거된 양식은 온라인(자동판정)으로
+  if(typeof pickDlvFmt==='function'){pickDlvFmt(_f);}
   if(typeof dlvShopLoad==='function'){dlvShopLoad();}
   // 모바일: 입력칸 포커스 시 시트 안에서 보이게 스크롤
   const ta=document.getElementById('dlv-paste');
@@ -5795,7 +5793,7 @@ const DLV_FMT_DESC={
   st11:'<b>11번가</b> 정산서: <b>A열부터 Q열(배송방법/장착점)까지</b> 선택해 복사 → 붙여넣기. <b>제목 줄은 필요 없습니다.</b> 배송방법/장착점 칸으로 택배·직배송·장착을 자동 구분하고, 비어 있으면 옵션 글귀로 보완합니다.',
   spam:'<b>스토어팜</b> 정산서: <b>A열부터 O열(주소)까지</b> 선택해 복사 → 붙여넣기. 제목 줄 불필요. 배송방법/장착점(E열)으로 자동 구분합니다.',
   tel:'<b>전화주문</b> 정산서: <b>A열부터 M열(주소)까지</b> 선택해 복사 → 붙여넣기. 제목 줄 불필요. 배송방법/장착점(D열)으로 자동 구분합니다.',
-  auto:'<b>자동인식</b>: 11번가·스토어팜·전화주문 정산서를 <b>섞어서 한 번에</b> 붙여넣을 수 있습니다. 줄마다 칸 수로 양식을 자동 판정합니다(11번가 17칸 · 스토어팜 15칸 · 전화주문 13칸). 복사 범위는 각 양식과 동일 — <b>11번가 A~Q · 스토어팜 A~O · 전화주문 A~M</b>, 제목 줄 불필요.'
+  auto:'<b>온라인</b>: 11번가·스토어팜·전화주문 정산서를 <b>섞어서 한 번에</b> 붙여넣으세요(하나씩 이어 붙여도 됩니다). 줄마다 칸 수로 양식을 자동 판정합니다(11번가 17칸 · 스토어팜 15칸 · 전화주문 13칸). 복사 범위 — <b>11번가 A~Q · 스토어팜 A~O · 전화주문 A~M</b>, 제목 줄 불필요.'
 };
 
 /* ══════════ 협력점(장착점) 주소록 ══════════
@@ -6283,7 +6281,7 @@ function dlvRenderPreview(){
   if(dlvPasteFmt==='auto'){
     var _fc={};
     dlvParsed.forEach(function(d){_fc[d.channel]=(_fc[d.channel]||0)+1;});
-    h+='<div style="font-size:11px;color:var(--text2);margin:-2px 0 6px;font-weight:700">🔀 자동인식 결과: '+['st11','spam','tel'].filter(function(k){return _fc[k];}).map(function(k){return (DCH_LABEL[k]||k)+' '+_fc[k]+'건';}).join(' · ')+'</div>';
+    h+='<div style="font-size:11px;color:var(--text2);margin:-2px 0 6px;font-weight:700">🔀 온라인 자동판정: '+['st11','spam','tel'].filter(function(k){return _fc[k];}).map(function(k){return (DCH_LABEL[k]||k)+' '+_fc[k]+'건';}).join(' · ')+'</div>';
   }
   if(dlvParsed.some(function(d){return d.ship_type;})){
     var _cnt={};
