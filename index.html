@@ -1610,6 +1610,39 @@ body.rb-on #app{padding-top:58px}
 #jonghap-screen .pxtopscroll{overflow-x:auto;overflow-y:hidden;height:14px;flex-shrink:0;margin:0 0 2px}
 
 #jonghap-screen .pxtopscroll>div{height:1px}
+#jonghap-screen .exc-body{max-height:46vh;overflow-y:auto;overscroll-behavior:contain}
+
+/* v98: 가상 스크롤 열 폭 고정 — 스크롤해도 폭이 변하지 않는다 */
+#jonghap-screen #pgrid,#jonghap-screen #dgrid{table-layout:fixed;width:auto}
+#jonghap-screen #pgrid td .cv,#jonghap-screen #dgrid td .cv{overflow:hidden;text-overflow:ellipsis;max-width:none}
+#jonghap-screen #pgrid th:nth-child(1){width:56px}   /* 브랜드 */
+#jonghap-screen #pgrid th:nth-child(2){width:158px}  /* 패턴 */
+#jonghap-screen #pgrid th:nth-child(3){width:72px}   /* 제품번호 */
+#jonghap-screen #pgrid th:nth-child(4){width:80px}   /* 사이즈 */
+#jonghap-screen #pgrid th:nth-child(5){width:34px}   /* P수 */
+#jonghap-screen #pgrid th:nth-child(6){width:64px}   /* 특성 */
+#jonghap-screen #pgrid th:nth-child(7){width:46px}   /* DOT */
+#jonghap-screen #pgrid th:nth-child(8){width:56px}   /* 원산지 */
+#jonghap-screen #pgrid th:nth-child(9){width:70px}   /* 공장도 */
+#jonghap-screen #pgrid th:nth-child(10){width:84px}  /* 할인율 */
+#jonghap-screen #pgrid th:nth-child(11){width:70px}  /* 원가 */
+#jonghap-screen #pgrid th:nth-child(12){width:118px} /* 직접원가 */
+#jonghap-screen #pgrid th:nth-child(13){width:66px}  /* 핑최저가 */
+#jonghap-screen #pgrid th:nth-child(14){width:54px}  /* 택배비 */
+#jonghap-screen #pgrid th:nth-child(15),#jonghap-screen #pgrid th:nth-child(16),#jonghap-screen #pgrid th:nth-child(17){width:72px}
+#jonghap-screen #pgrid th:nth-child(18),#jonghap-screen #pgrid th:nth-child(19),#jonghap-screen #pgrid th:nth-child(20){width:80px}
+#jonghap-screen #dgrid th:nth-child(1){width:56px}
+#jonghap-screen #dgrid th:nth-child(2){width:158px}
+#jonghap-screen #dgrid th:nth-child(3){width:72px}
+#jonghap-screen #dgrid th:nth-child(4){width:80px}
+#jonghap-screen #dgrid th:nth-child(5){width:34px}
+#jonghap-screen #dgrid th:nth-child(6){width:64px}
+#jonghap-screen #dgrid th:nth-child(7){width:46px}
+#jonghap-screen #dgrid th:nth-child(8){width:56px}
+#jonghap-screen #dgrid th:nth-child(9){width:70px}
+#jonghap-screen #dgrid th:nth-child(n+10){width:96px}   /* 거래처 율/원가 칸 */
+
+
 </style>
 </head>
 <body>
@@ -1935,7 +1968,7 @@ body.rb-on #app{padding-top:58px}
       <option>전체 브랜드</option>
     </select>
     <select id="pst" onchange="PX.pReset();PX.renderPrice()" style="border:1.5px solid var(--border);border-radius:9px;padding:5px 8px;font-size:12px;font-family:inherit">
-      <option>전체 상태</option><option>거래처 율 있음</option><option>수입사 단가</option><option>핑최저가만</option><option>원가 없음</option><option>수정됨</option>
+      <option>전체 상태</option><option>거래처 율 있음</option><option>직접원가</option><option>핑최저가만</option><option>원가 없음</option><option>수정됨</option>
     </select>
     <button class="mini" id="btnRates" onclick="PX.toggleRates()">⚙ 거래처 율</button>
     <button class="mini" id="btnPiR" onclick="PX.togglePiR()">🛞 피렐리 율</button>
@@ -9843,7 +9876,7 @@ var BETA_WRITE=false; // 베타: 재고 차감 경로 잠금. false면 빗장 ON
 var STK_LANES={A:6,B:6,Y:3}, STK_LEN=10, stkFloor='A', stkZi=0, stkHoriz=false, stkZoomLane=-1;
 var STK_FL={A:'1층',B:'2층',Y:'야외'};
 var STK_ZOOM=[{fit:true,h:54,m:1},{h:64,m:1},{h:80,m:2},{h:100,m:2}];
-var STK_CAT={'일반':{c:'#378ADD',bg:'#E6F1FB',t:'#0C447C'},'오프로드':{c:'#D85A30',bg:'#FAECE7',t:'#712B13'},'휠':{c:'#1D9E75',bg:'#E1F5EE',t:'#085041'},'튜닝':{c:'#7F77DD',bg:'#EEEDFE',t:'#3C3489'},'행사':{c:'#E24B4A',bg:'#FCEBEB',t:'#A32D2D'},'중고':{c:'#888780',bg:'#F1EFE8',t:'#444441'}};
+var STK_CAT={'일반':{c:'#378ADD',bg:'#E6F1FB',t:'#0C447C'},'오프로드':{c:'#D85A30',bg:'#FAECE7',t:'#712B13'},'휠':{c:'#1D9E75',bg:'#E1F5EE',t:'#085041'},'튜닝':{c:'#7F77DD',bg:'#EEEDFE',t:'#3C3489'},'행사':{c:'#E24B4A',bg:'#FCEBEB',t:'#A32D2D'},'중고':{c:'#888780',bg:'#F1EFE8',t:'#444441'},'보관':{c:'#8B5CF6',bg:'#F3E8FF',t:'#5B21B6'}};   /* v101: 보관=보라(호준님) */
 function stkCatStyle(cat){return STK_CAT[cat]||STK_CAT['일반'];}
 var STK_BC={'한국':'#ef6c00','금호':'#1565c0','넥센':'#7b3fb5','미쉐린':'#00897b','피렐리':'#c62828','사일룬':'#6d4c41','레이다':'#00838f','브리지스톤':'#ad1457','브릿지스톤':'#ad1457','콘티넨탈':'#455a64','켄다':'#827717','굿이어':'#2e7d32','윈런':'#757575','맥스트랙':'#546e7a'}
 function stkBrandColor(name){ var h=0,s=String(name||''); for(var i=0;i<s.length;i++)h=(h*31+s.charCodeAt(i))%360; return 'hsl('+h+',58%,36%)'; };
@@ -12318,7 +12351,7 @@ function stkRtFillFilters(){
   bs.innerHTML='<option value="">전체 브랜드</option>'+brList.map(function(b){return '<option value="'+stkEsc(b)+'">'+stkEsc(b)+'</option>'}).join('');
   bs.value=preBr;
   // 분류 목록
-  var cs0=['일반','행사','오프로드','중고','휠','튜닝'];
+  var cs0=(typeof stkCategories!=='undefined'&&stkCategories.length?stkCategories.slice():['일반','행사','오프로드','중고','휠','튜닝']);(stkP||[]).forEach(function(p){var c=String(p.cat||'').trim();if(c&&cs0.indexOf(c)<0)cs0.push(c)});   /* v101: 새로 적은 분류도 자동 등장 */
   cs.innerHTML='<option value="">전체 분류</option>'+cs0.map(function(c){return '<option value="'+c+'">'+c+'</option>'}).join('');
   cs.value=preCat;
 }
@@ -13204,7 +13237,7 @@ function stkRenderSearch(){
     var memoLine=p.memo?'<div style="font-size:11px;color:#9a6b1f;padding:2px 0">📝 '+stkEsc(p.memo)+'</div>':'';
     var editBtn=(!stkLocked)?'<button class="lotbtn" style="background:#fffbe6;border-color:#f3e2a0;color:#7a5d00;margin-top:5px" onclick="event.stopPropagation();stkOpenEdit(\''+p.id+'\')">✏️ 정보 수정</button>':'';
     c.innerHTML='<div class="pbrandband" style="background:'+(STK_BC[p.br]||stkBrandColor(p.br))+'"><span class="pbrandvert">'+stkEsc(p.br)+'</span></div>'+'<div class="pcardbody"><div class="prow" data-pid="'+p.id+'">'+
-      '<div class="pcatline"><span class="pcatbadge" style="background:'+stkCatStyle(p.cat).bg+';color:'+stkCatStyle(p.cat).t+'">'+stkEsc(p.cat||'일반')+'</span></div><div class="pline1"><span class="psize">'+stkEsc(p.size)+'</span>'+(p.ply?'<span class="pply">'+stkEsc(p.ply)+'</span>':'')+'<span class="pname">'+stkEsc(p.name)+'</span>'+(p.code?'<span class="pcode"'+('피렐리'===p.br?' style="color:#c00;font-weight:800"':'')+'>'+stkEsc(p.code)+'</span>':'')+(p.spec?'<span class="pspec">'+stkEsc(p.spec)+'</span>':'')+'</div>'+
+      '<div class="pcatline"><span class="pcatbadge" style="background:'+stkCatStyle(p.cat).bg+';color:'+stkCatStyle(p.cat).t+'">'+stkEsc(p.cat||'일반')+'</span>'+(p.source?'<span style="font-size:10.5px;background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;border-radius:5px;padding:1px 6px;margin-left:5px">📦 '+stkEsc(p.source)+'</span>':'')+'</div><div class="pline1"><span class="psize">'+stkEsc(p.size)+'</span>'+(p.ply?'<span class="pply">'+stkEsc(p.ply)+'</span>':'')+'<span class="pname">'+stkEsc(p.name)+'</span>'+(p.code?'<span class="pcode"'+('피렐리'===p.br?' style="color:#c00;font-weight:800"':'')+'>'+stkEsc(p.code)+'</span>':'')+(p.spec?'<span class="pspec">'+stkEsc(p.spec)+'</span>':'')+'</div>'+
       '<div class="pline2"><span class="pprice">'+(p.inst?stkWon(p.inst)+' <small>장착가</small>':(stkTopPrice(p)?stkWon(stkTopPrice(p))+' <small>택배가</small>':'가격 미정'))+'</span>'+
       ((function(){var ds=p.lots.filter(function(l){return l.q!==0&&l.dot;}).map(function(l){return l.dot;});ds=ds.filter(function(v,i){return ds.indexOf(v)===i;});return ds.length?'<span class="pinfo">📅 '+ds.join(',')+'</span>':'';})())+
       (qty>0?'<span class="pstock">재고 '+qty+'개 ▾</span>':(qty<0?'<span class="pstock" style="color:#dc2626">재고 '+qty+'개 ⏳ ▾</span>':'<span class="pstock n">재고 없음</span>'))+
@@ -16697,7 +16730,7 @@ function pxSmart(c){
   /* 거래처 = 창고·물류·주문중·타이어 등 */
   for(i=0;i<c.length;i++){ if(used[i])continue;
     v=String(c[i]==null?'':c[i]).trim();
-    if(/창고|물류|주문|미치다|매일|극동|황제|대구|천안|강남|퇴계원|아파치|썬베이|선베이/.test(v)&&v.length<=24){take(i,'inbVendor',v);break}
+    if(/창고|물류|주문|미치다|매일|극동|황제|대구|천안|강남|퇴계원|아파치|선베이|선베이/.test(v)&&v.length<=24){take(i,'inbVendor',v);break}
   }
   /* 판매방법 */
   for(i=0;i<c.length;i++){ if(used[i])continue;
@@ -17100,19 +17133,19 @@ function setView(v){
   popHide(true);
   if(v==='sheet')renderSheet();else if(v==='price')renderPrice();else renderDisc();
 }
-/* ══════════ 단가표 v15 — 브랜드·패턴·제품번호·사이즈 × 거래처 율 × 수입사 단가 × 목표가 3종 ══════════ */
+/* ══════════ 단가표 v15 — 브랜드·패턴·제품번호·사이즈 × 거래처 율 × 직접원가 × 목표가 3종 ══════════ */
 var __pd={ROWS:[],RULES:[],SUPS:['극동','넥센본사전산','넥센이월','대구','매일','천안','타이어미치다','한국본사전산','한타프로모션','황제','강남']};
 var PDT=__pd.ROWS, PRULES=__pd.RULES, PSUPS=__pd.SUPS;   /* v88: 데이터는 Supabase에서 채운다(PX.init) */
 /* v19: 피렐리 거래처(08-07 호준님) — 하나타이어(기본율 50%)·그랜드타이어(율 미확정, 호준님 직접 입력 예정. 콘티넨탈은 원가 직접 등록) */
 ['하나타이어','그랜드타이어'].forEach(function(s){if(PSUPS.indexOf(s)<0)PSUPS.push(s)});
 /* v28 (08-10 호준님): 할인율 자료는 없고 단가표(원가)로만 거래하는 곳도 거래처 열로 세운다 — 할인율 탭에서 원가를 바로 확인하기 위함 */
-['아파치','썬베이','타이어왕도매'].forEach(function(s){if(PSUPS.indexOf(s)<0)PSUPS.push(s)});
-/* 수입사 단가(원가) 출처 ↔ 거래처 */
+['아파치','선베이','타이어왕도매'].forEach(function(s){if(PSUPS.indexOf(s)<0)PSUPS.push(s)});
+/* 직접원가(원가) 출처 ↔ 거래처 */
 var SUPSRC={'SAILUN단가':'아파치','웨스트레이크단가':'아파치','브레데스타인단가':'아파치',
-            '썬베이단가':'썬베이','윈런단가':'타이어왕도매','매일이월':'매일','극동이월':'극동'};
+            '선베이단가':'선베이','윈런단가':'타이어왕도매','매일이월':'매일','극동이월':'극동'};
 /* 거래처가 담당하는 브랜드 (율 자료가 없어 원가만 보이는 라인). 하빌리드 = 하빌리드·윈런·안나이트·안치 4브랜드 한 거래처(호준님 08-10) */
 var SUPBRAND={'아파치':['사일룬','트라이앵글','웨스트레이크','브레데스타인'],
-              '썬베이':['레이다','킨포레스트'],
+              '선베이':['레이다','킨포레스트'],
               '타이어왕도매':['하빌리드캡센','윈런','안나이트','안치']};
 var BRANDSUP={};Object.keys(SUPBRAND).forEach(function(sp){SUPBRAND[sp].forEach(function(b){BRANDSUP[b]=sp})});
 var PRIX={}; PRULES.forEach(function(x){PRIX[x.id]=x});
@@ -17193,7 +17226,7 @@ function coInstOf(x){var i=x.in||0;return i<=17?PSET.co17:(i<=19?PSET.co19:PSET.
 function denomOf(x){return x.ln==='정상품'?PSET.d정상품:(x.ln==='사일룬·레이다'?PSET.d사일룬:null)}
 function ceilTo(v,u){return Math.ceil(v/u-1e-9)*u} /* v17: 부동소수점 오차로 정확한 배수가 한 단위 올라가는 것 방지(예: 220000×0.55=121000.0000000001) */
 var NOTGT={'매일이월':1,'극동이월':1,'윈런단가':1,'JS단가':1};  /* 원가만 확정·산식 미정(호준님: 금호·기타 이월 산식 정하지 않음) */
-/* ── 우선순위: 셀 수정(빨강) → 거래처 율 → 수입사 단가(보라) → 핑최저가 ── */
+/* ── 우선순위: 셀 수정(빨강) → 거래처 율 → 직접원가(보라) → 핑최저가 ── */
 /* v19: 피렐리 공장도 = 신공장가(단가파일 역산 우선, 없으면 마스터 공장도 — 08-07 "신공장가로 적용" 확정) */
 function effF(i){var o=POV[i];if(o&&o.f!=null)return o.f;
   var x=PDT[i];
@@ -17230,7 +17263,7 @@ function supCost(i,sup){var f=effF(i),r=effRate(i,sup);
   var add=PDT[i].ln==='피렐리'?PSET.pi원가가산:0;
   return ceilTo(f*(1-r/100)+add,PSET.roundTo)}
 /* v28: "율은 없고 원가만 있는" 값. 율이 있으면 율이 우선(null 반환).
-   ①그 거래처가 이 행 원가(수입사 단가)의 출처면 그 금액 ②담당 브랜드인데 단가 자료가 아직 없으면 핑최저가(원가 폴백) */
+   ①그 거래처가 이 행 원가(직접원가)의 출처면 그 금액 ②담당 브랜드인데 단가 자료가 아직 없으면 핑최저가(원가 폴백) */
 function supBrandOf(i){return BRANDSUP[PDT[i].b]||null}
 function supDirect(i,sup){var x=PDT[i];
   if(effRate(i,sup)!=null)return null;
@@ -17283,7 +17316,7 @@ function tgt(i,kind,ff){if(ff==null)ff=curFF();var o=POV[i]||{};var k={t1:'t1',t
     var M=PSET.pi마진;
     if(kind==='t1')return {v:ceilTo((c+feeOf(x)+M)/ff,PSET.roundTo)+PSET.feeAdd};
     if(kind==='t2')return {v:ceilTo((c+piInst(x)+M)/ff,PSET.roundTo)};
-    var raw2=ceilTo((c+coInstOf(x)+PSET.coShip+M)/ff,PSET.roundTo);
+    var raw2=ceilTo((c+coInstOf(x)+coShipOf(x)+M)/ff,PSET.roundTo);
     var pt2=tgt(i,'t2',ff).v;
     return {v:Math.max(raw2,pt2||0),low:(pt2&&raw2<pt2)?1:0};
   }
@@ -17291,7 +17324,7 @@ function tgt(i,kind,ff){if(ff==null)ff=curFF();var o=POV[i]||{};var k={t1:'t1',t
     var S=x.msrp; if(S==null)return {v:null};
     if(kind==='t1')return {v:ceilTo(S,PSET.roundTo)};
     if(kind==='t2')return {v:ceilTo(S+instOf(x),PSET.roundTo)};
-    var rawW=ceilTo(S+coInstOf(x)+(PSET.wl협력배송?PSET.coShip:0),PSET.roundTo);
+    var rawW=ceilTo(S+coInstOf(x)+(PSET.wl협력배송?coShipOf(x):0),PSET.roundTo);
     var t2W=tgt(i,'t2',ff).v;
     return {v:Math.max(rawW,t2W||0),low:(t2W&&rawW<t2W)?1:0};
   }
@@ -17300,7 +17333,7 @@ function tgt(i,kind,ff){if(ff==null)ff=curFF();var o=POV[i]||{};var k={t1:'t1',t
   var v;
   if(kind==='t1')v=ceilTo((c+feeOf(x))/ff/d,PSET.roundTo)+PSET.feeAdd;
   else if(kind==='t2')v=ceilTo((c+instOf(x))/ff/d,PSET.roundTo);
-  else{var raw=ceilTo((c+coInstOf(x)+PSET.coShip)/ff/d,PSET.roundTo);
+  else{var raw=ceilTo((c+coInstOf(x)+coShipOf(x))/ff/d,PSET.roundTo);
     var t2=tgt(i,'t2',ff).v; v=Math.max(raw,t2||0); return {v:v,low:(t2&&raw<t2)?1:0};}
   return {v:v}}
 /* ══════════ v17 플랫폼별 마진 (08-07 호준님 확정) ══════════
@@ -17338,7 +17371,7 @@ function renderPExp(){
     body='<div style="margin-top:5px;line-height:1.75">'
     +'· <b>행</b>: 최종마스터 기준. DOT 연도가 여러 개면 <b>연도별 별도 행(별개 상품)</b>. DOT 공란은 올해(26년) 신품으로 간주.<br>'
     +'· <b>할인율</b>: 룩업 v4.9 원본율에서 −'+(PSET.safe||0)+'%p 여유를 둔 값. 원가·가격은 전부 100원 올림.<br>'
-    +'· <b>원가</b>: 셀 수정(<span style="color:#dc2626;font-weight:800">빨강</span>) → 거래처 율(<span style="color:var(--blue);font-weight:800">파랑=기준</span>·<span style="color:#059669;font-weight:800">초록=최고율</span>) → <span style="color:#7c3aed;font-weight:800">수입사 단가</span> → <span style="color:#0369a1;font-weight:800">핑최저가</span>. 거래처 드롭다운으로 기준 지정 가능.<br>'
+    +'· <b>원가</b>: 셀 수정(<span style="color:#dc2626;font-weight:800">빨강</span>) → 거래처 율(<span style="color:var(--blue);font-weight:800">파랑=기준</span>·<span style="color:#059669;font-weight:800">초록=최고율</span>) → <span style="color:#7c3aed;font-weight:800">직접원가</span> → <span style="color:#0369a1;font-weight:800">핑최저가</span>. 거래처 드롭다운으로 기준 지정 가능.<br>'
     +'· <b>목표가·마진</b>: 선택한 플랫폼 수수료로 계산(기본 네이버). <b>목표가·마진 칸 호버=플랫폼별 수수료·판매가·마진</b>, 원가 칸 호버=거래처별 율·원가(이월 거래처는 연식별 율 포함).<br>'
     +'· <b>편집</b>: ✎ 칸 클릭 수정(지우면 수식 복귀) · ✏ 편집모드=방향키·범위·Ctrl+C/X/V.<br>'
     +'· <b>특성</b>: 런플렛·EV·흡음재·계절·OE마크를 따로 표기(패턴명은 원본 그대로 유지).<br>'
@@ -17350,7 +17383,7 @@ function renderPExp(){
 function dn(s){return String(s||'').replace(/[^0-9]/g,'')}
 /* ══ v29 검색 (호준님 08-10) — 화면에 보이는 값이면 뭐든 검색된다. 띄어쓰기 = AND(전부 만족).
    · 글자: 브랜드·패턴·제품번호·사이즈·P수·특성·연식·원산지·OE·라인·거래처명·단가출처
-   · 숫자: 공장도·원가·거래처별 원가·수입사단가·핑최저가·택배비·목표3가·마진3·할인율 (앞부분만 쳐도 걸림, 4자리 이상)
+   · 숫자: 공장도·원가·거래처별 원가·직접원가·핑최저가·택배비·목표3가·마진3·할인율 (앞부분만 쳐도 걸림, 4자리 이상)
    · 사이즈+P수 붙여쓰기: 19580158P → 195/80R15 와 8P 를 동시에 정확히 충족하는 행만
    · 재고표 방식 그대로: 부분일치 + 기호 무시 일치 + 숫자만 이어붙인 일치(2356018 ↔ 235/60R18) ══ */
 var PDQ={q:null,t:null};
@@ -17427,7 +17460,7 @@ function pFilter(){
     if(ln!=='전체 브랜드'&&x.b!==ln)continue;
     if(st!=='전체 상태'){
       if(st==='거래처 율 있음'&&!baseSup(i))continue;
-      if(st==='수입사 단가'&&!x.s2)continue;
+      if(st==='직접원가'&&!x.s2)continue;
       if(st==='핑최저가만'&&costSrc(i)!=='핑최저가')continue;
       if(st==='원가 없음'&&effC(i)!=null)continue;
       if(st==='수정됨'&&!POV[i])continue;
@@ -17470,7 +17503,7 @@ function renderPrice(keep){
   var cnt=pxvsCount('price');
   if(st.start>Math.max(0,idx.length-1))st.start=Math.max(0,idx.length-1);
   PVIS=idx.slice(st.start,st.start+cnt);
-  var h=thRow('price',['브랜드','패턴','제품번호','사이즈','P수','특성','DOT연식','원산지','공장도 ✎','할인율','원가 ✎','수입사 단가','핑최저가','택배비','목표 택배 ✎','목표 장착 ✎','목표 협력 ✎','택배마진('+PPLAT+')','장착마진('+PPLAT+')','협력마진('+PPLAT+')']);
+  var h=thRow('price',['브랜드','패턴','제품번호','사이즈','P수','특성','DOT연식','원산지','공장도 ✎','할인율','원가 ✎','직접원가','핑최저가','택배비','목표 택배 ✎','목표 장착 ✎','목표 협력 ✎','택배마진('+PPLAT+')','장착마진('+PPLAT+')','협력마진('+PPLAT+')']);
   var b='';
   for(var j=0;j<PVIS.length;j++)b+=pRowHTML(j,PVIS[j]);
   var _cols=EGCOLS.price.length,_h=PXVS.price.h||26;
@@ -17497,7 +17530,7 @@ function pRowHTML(j,i){
    +'<td class="calc" style="cursor:text" data-j="'+j+'" data-c="8"><div class="cv'+(o.f!=null?' ovv':'')+'">'+(effF(i)!=null?fmt(effF(i)):'')+'</div></td>'
    +rateCellHTML('price',j,i,9)
    +'<td class="calc hovC" style="cursor:pointer" data-j="'+j+'" data-c="10" data-i="'+i+'"><div class="cv'+(o.c!=null?' ovv':'')+(sc==='핑최저가'?' pgc':(x.s2&&sc===x.s2[0]?' s2c':''))+'">'+(effC(i)!=null?fmt(effC(i)):'')+'</div></td>'
-   +'<td data-j="'+j+'" data-c="11"><div class="cv s2c">'+(x.s2?'<span style="font-size:10px;background:#f3e8ff;border-radius:4px;padding:0 3px;margin-right:3px">'+x.s2[0]+'</span>'+fmt(x.s2[1]):'')+'</div></td>'
+   +'<td data-j="'+j+'" data-c="11"><div class="cv s2c">'+(x.s2?'<span style="font-size:10px;background:#f3e8ff;border-radius:4px;padding:0 3px;margin-right:3px">'+pxSrcLabel(x.s2[0])+'</span>'+fmt(x.s2[1]):'')+'</div></td>'
    +'<td data-j="'+j+'" data-c="12"><div class="cv pgc">'+(x.pg!=null?fmt(x.pg):'')+'</div></td>'
    +'<td class="calc" data-j="'+j+'" data-c="13"><div class="cv" style="color:var(--text2)">'+fmt(feeOf(x))+'</div></td>'
    +'<td class="calc hovT" style="cursor:text" data-j="'+j+'" data-c="14" data-i="'+i+'" data-k="t1"><div class="cv'+(o.t1!=null?' ovv':'')+'">'+(t1.v!=null?fmt(t1.v):'')+'</div></td>'
@@ -17580,7 +17613,7 @@ function renderRates(){
       var cur=(RGV[x.id]!=null)?RGV[x.id]:x.pub, mod=(RGV[x.id]!=null);
       var cond=[x.dt,x.sz,x.org,x['in']].filter(Boolean).join('·');
       var lbl=cond||(x.ap==='계절상품'?'계절':'기본');
-      return '<span onclick="PX.rChip('+x.id+')" title="'+esc2(x.sub||'')+' / '+esc2(x.ap||'')+'" style="cursor:pointer;border:1px solid '+(mod?'#dc2626':'var(--border)')+';border-radius:7px;padding:0 5px;margin:1px 2px 1px 0;display:inline-block;font-size:10.5px;'+(mod?'color:#dc2626;font-weight:800;background:#fef2f2':'background:#f8fafc')+'">'+lbl+' <b>'+cur+'</b>%</span>';
+      return '<span onclick="PX.ruleEdit('+x.id+')" title="'+esc2(x.sub||'')+' / '+esc2(x.ap||'')+'" style="cursor:pointer;border:1px solid '+(mod?'#dc2626':'var(--border)')+';border-radius:7px;padding:0 5px;margin:1px 2px 1px 0;display:inline-block;font-size:10.5px;'+(mod?'color:#dc2626;font-weight:800;background:#fef2f2':'background:#f8fafc')+'">'+lbl+' <b>'+cur+'</b>%</span>';
     }).join('');
     h+='<tr><td><div class="cv" style="font-weight:700">'+g.sup+'</div></td><td><div class="cv">'+g.b+'</div></td>'
      +'<td><div class="cv" style="font-weight:700;max-width:190px;overflow:hidden;text-overflow:ellipsis" title="'+esc2(g.pn||g.pat)+'">'+pxesc(g.pat)+'</div></td>'
@@ -17680,11 +17713,11 @@ function pxExcel(){
         }else if(x.ln==='피렐리'){
           row.push({t:'n',f:'IF('+K+'="","",CEILING(('+K+'+'+feeOf(x)+'+'+PSET.pi마진+')/'+ff+','+PSET.roundTo+')+'+PSET.feeAdd+')'});
           row.push({t:'n',f:'IF('+K+'="","",CEILING(('+K+'+'+piInst(x)+'+'+PSET.pi마진+')/'+ff+','+PSET.roundTo+'))'});
-          row.push({t:'n',f:'IF('+K+'="","",MAX(CEILING(('+K+'+'+(coInstOf(x)+PSET.coShip)+'+'+PSET.pi마진+')/'+ff+','+PSET.roundTo+'),'+N+'))'});
+          row.push({t:'n',f:'IF('+K+'="","",MAX(CEILING(('+K+'+'+(coInstOf(x)+coShipOf(x))+'+'+PSET.pi마진+')/'+ff+','+PSET.roundTo+'),'+N+'))'});
         }else{
           row.push({t:'n',f:'IF('+K+'="","",CEILING(('+K+'+'+feeOf(x)+')/'+ff+'/'+d+','+PSET.roundTo+')+'+PSET.feeAdd+')'});
           row.push({t:'n',f:'IF('+K+'="","",CEILING(('+K+'+'+instOf(x)+')/'+ff+'/'+d+','+PSET.roundTo+'))'});
-          row.push({t:'n',f:'IF('+K+'="","",MAX(CEILING(('+K+'+'+(coInstOf(x)+PSET.coShip)+')/'+ff+'/'+d+','+PSET.roundTo+'),'+N+'))'});
+          row.push({t:'n',f:'IF('+K+'="","",MAX(CEILING(('+K+'+'+(coInstOf(x)+coShipOf(x))+')/'+ff+'/'+d+','+PSET.roundTo+'),'+N+'))'});
         }
         var ffm=wlFF(x,fee);   /* v27: 웨스트레이크 수수료 차감 여부(설정) 반영 */
         row.push({t:'n',f:'IF(OR(M'+n+'="",'+K+'=""),"",ROUND(M'+n+'*'+ffm+'-'+feeOf(x)+'-'+K+',0))'});
@@ -17736,7 +17769,7 @@ function pxExcel(){
    ['판매가 = 올림((원가+비용)÷(1−수수료)÷분모) · 피렐리 = 올림((원가+비용+피렐리마진 '+PSET.pi마진.toLocaleString()+')÷(1−수수료)).'],
    ['마진 = 판매가×(1−수수료) − (택배는 택배비·협력은 협력장착비) − 원가. 협력배송·장착 공임은 차감 안 함(08-07 확정).'],
    ['원가 열은 화면의 기준(자동 또는 지정 거래처) 값. 각 거래처별 원가는 할인율 시트에 수식으로 있음.'],
-   ['할인율 시트: 율이 없고 원가만 있는 거래처(아파치·썬베이·타이어왕도매)는 율 칸이 비고 원가 칸에 금액이 들어갑니다.'],
+   ['할인율 시트: 율이 없고 원가만 있는 거래처(아파치·선베이·타이어왕도매)는 율 칸이 비고 원가 칸에 금액이 들어갑니다.'],
    ['웨스트레이크(아파치 단가표) = 권장소비자가가 곧 택배 판매가(택배비·수수료 가산 없음), 원가=납품가. 장착=+장착비, 협력=+협력장착비'+(PSET.wl협력배송?'+협력배송':'')+'. 마진 수수료차감 '+(PSET.wl수수료?'함':'안 함')+'(설정).'],
    ['금호·기타이월 등 산식 미확정 라인은 판매가·마진 공란(호준님 "정하지 마" 방침).']]),'안내');
   XLSX.writeFile(wb,'단가표_v30.xlsx');
@@ -17836,7 +17869,7 @@ function moInit(){
     MO_BRANDS[PDT[i].b]=1;
   }
 }
-var MO_BALIAS={'한국타이어':'한국','금호타이어':'금호','넥센타이어':'넥센','미셸린':'미쉐린','미쉘린':'미쉐린','브릿지스톤':'브리지스톤','WESTLAKE':'웨스트레이크','Westlake':'웨스트레이크','웨스트레익':'웨스트레이크','웨스트레이크':'웨스트레이크'};
+var MO_BALIAS={'하빌리드':'하빌리드캡센','캅센':'하빌리드캡센','캡센':'하빌리드캡센','KAPSEN':'하빌리드캡센','HABILEAD':'하빌리드캡센','WINRUN':'윈런','윈런타이어':'윈런','한국타이어':'한국','금호타이어':'금호','넥센타이어':'넥센','미셸린':'미쉐린','미쉘린':'미쉐린','브릿지스톤':'브리지스톤','WESTLAKE':'웨스트레이크','Westlake':'웨스트레이크','웨스트레익':'웨스트레이크','웨스트레이크':'웨스트레이크'};
 function moBrandOf(nm){
   for(var k in MO_BALIAS){if(nm.indexOf(k)>=0)return MO_BALIAS[k]}
   var tk=String(nm).toUpperCase().match(/[A-Z0-9]+/g)||[];
@@ -17878,7 +17911,12 @@ function pdOrderMatch(pname,szStr){
     if(hit.length&&!moLineOnly(hit))
       scored.push({i:i,sc:hit.length,extra:rt2.filter(function(w){return ot.indexOf(w)<0}).length,pn:PDT[i].p})
   });
-  if(!scored.length)return {why:'패턴 표기를 단가표에서 못 찾음(사전 보강 필요)'};
+  if(!scored.length){
+    var uniq={},pick1=null;
+    pool.forEach(function(i){var k=jsNorm(PDT[i].p);if(!uniq[k]){uniq[k]=1;pick1=i}});
+    if(Object.keys(uniq).length===1&&pick1!=null){scored=[{i:pick1,sc:0,extra:0,pn:PDT[pick1].p}];}
+    else{return {why:'패턴을 못 찾음 — 그 사이즈 후보 '+Object.keys(uniq).length+'종'};}
+  }
   var mx=0;scored.forEach(function(x){if(x.sc>mx)mx=x.sc});
   var best=scored.filter(function(x){return x.sc===mx});
   var mnEx=Math.min.apply(null,best.map(function(x){return x.extra}));
@@ -18011,7 +18049,7 @@ function popHTML(i,mode,pinned,sup){
       +' <span style="font-weight:400;color:var(--text3)">(장착=권장+장착비 · 협력=권장+협력장착비'+(PSET.wl협력배송?'+협력배송':'')+' · 마진 수수료차감 '+(PSET.wl수수료?'함':'안 함')+' — 관리자 설정에서 전환)</span></div>';
   }
   h+=yearTierHTML(i);
-  if(x.s2)h+='<div style="font-size:11px;color:#7c3aed;font-weight:700;margin-top:4px">수입사 단가 '+x.s2[0]+' '+fmt(x.s2[1])+'</div>';
+  if(x.s2)h+='<div style="font-size:11px;color:#7c3aed;font-weight:700;margin-top:4px">직접원가 '+x.s2[0]+' '+fmt(x.s2[1])+'</div>';
   if(x.pg!=null)h+='<div style="font-size:11px;color:#0369a1;font-weight:700;margin-top:2px">타이어핑 최저가 '+fmt(x.pg)+(costSrc(i)==='핑최저가'?' — 원가 폴백 사용 중':'')+'</div>';
   if(pinned){
     if(mode==='cost'){
@@ -18097,8 +18135,8 @@ function renderDisc(keep){
   pxvsMeasure('disc'); pxvsRestoreCur('disc'); pxvsBind('disc','dgrid');
   $('#dmore').style.display='none';
   $('#dcnt2').textContent='일치 '+idx.length.toLocaleString()+' / 전체 '+PDT.length.toLocaleString();
-  $('#dexp').innerHTML='📖 할인율 전용 표(단가표와 실시간 연동) — 같은 상품을 다루는 거래처 전부 열로 전개. <b style="color:#7c3aed">할인율이 없고 원가만 있는 거래처는 원가를 표시</b>(아파치·썬베이·타이어왕도매). <span onclick="PX.expToggle(\'disc\')" style="cursor:pointer;color:var(--blue);font-weight:700">'+(EXPO.disc?'▾ 설명 접기':'▸ 설명 보기')+'</span>'
-   +(EXPO.disc?'<div style="margin-top:5px;line-height:1.75">· 표시 율 = 룩업 원본율 −'+(PSET.safe||0)+'%p. 율 칸 호버/클릭 = 그 거래처 원가(연식별 이월율 포함).<br>· <span style="font-size:9px;background:#f3e8ff;color:#7c3aed;border-radius:4px;padding:0 3px">원가</span> = 할인율 자료가 없어 <b>단가표에서 받은 원가</b>를 그대로 적은 것 (아파치=사일룬·트라이앵글·웨스트레이크 / 썬베이=레이다·킨포레스트 / 타이어왕도매=하빌리드·윈런·안나이트·안치) · <span style="font-size:9px;background:#e0f2fe;color:#0369a1;border-radius:4px;padding:0 3px">핑</span> = 단가 자료가 아직 없어 타이어핑 최저가를 원가로 쓰는 중.<br>· <span style="color:var(--blue);font-weight:800">파랑=기준</span>(매일→극동→최저) · <span style="color:#059669;font-weight:800">초록=최고율</span> · <span style="color:#dc2626;font-weight:800">빨강=수정</span>(입력값=적용율, 추가 차감 없음).<br>· ✏ 편집모드: 방향키·바로 타이핑·범위·Ctrl+C/X/V·Delete=복귀.</div>':'');
+  $('#dexp').innerHTML='📖 할인율 전용 표(단가표와 실시간 연동) — 같은 상품을 다루는 거래처 전부 열로 전개. <b style="color:#7c3aed">할인율이 없고 원가만 있는 거래처는 원가를 표시</b>(아파치·선베이·타이어왕도매). <span onclick="PX.expToggle(\'disc\')" style="cursor:pointer;color:var(--blue);font-weight:700">'+(EXPO.disc?'▾ 설명 접기':'▸ 설명 보기')+'</span>'
+   +(EXPO.disc?'<div style="margin-top:5px;line-height:1.75">· 표시 율 = 룩업 원본율 −'+(PSET.safe||0)+'%p. 율 칸 호버/클릭 = 그 거래처 원가(연식별 이월율 포함).<br>· <span style="font-size:9px;background:#f3e8ff;color:#7c3aed;border-radius:4px;padding:0 3px">원가</span> = 할인율 자료가 없어 <b>단가표에서 받은 원가</b>를 그대로 적은 것 (아파치=사일룬·트라이앵글·웨스트레이크 / 선베이=레이다·킨포레스트 / 타이어왕도매=하빌리드·윈런·안나이트·안치) · <span style="font-size:9px;background:#e0f2fe;color:#0369a1;border-radius:4px;padding:0 3px">핑</span> = 단가 자료가 아직 없어 타이어핑 최저가를 원가로 쓰는 중.<br>· <span style="color:var(--blue);font-weight:800">파랑=기준</span>(매일→극동→최저) · <span style="color:#059669;font-weight:800">초록=최고율</span> · <span style="color:#dc2626;font-weight:800">빨강=수정</span>(입력값=적용율, 추가 차감 없음).<br>· ✏ 편집모드: 방향키·바로 타이핑·범위·Ctrl+C/X/V·Delete=복귀.</div>':'');
   ePaint('disc');
   try{pxTopScroll('dgrid','pxTopD')}catch(_e){}
 }
@@ -18224,7 +18262,7 @@ function eMove(tab,dr,dc,extend){
 function eEdit(tab,j,ci,initial){
   var vis=egVis(tab),cols=EGCOLS[tab];
   var i=vis[j],col=cols[ci];if(i==null||!col)return;
-  if(col.ro){toast('계산 칸입니다 — 수입사 단가·핑최저가·택배비·마진은 이 표에서 수정하지 않습니다(마진은 목표가·수수료에서 자동 계산)');return}
+  if(col.ro){toast('계산 칸입니다 — 직접원가·핑최저가·택배비·마진은 이 표에서 수정하지 않습니다(마진은 목표가·수수료에서 자동 계산)');return}
   var t=egTbl(tab),tr=t.rows[j+2];if(!tr)return;
   var td=tr.cells[ci];if(!td||td.querySelector('input'))return;
   var cur=(initial!==undefined)?initial:gGet(i,col.k);
@@ -18383,7 +18421,7 @@ var SUPDICT_SEED=[
  {name:'넥센본사전산',keys:['넥센SFP','양지물류','넥센입고','넥센물류','양주sfp'],note:'SFP는 브랜드 게이트 — 넥센 브랜드일 때 이쪽. 넥센입고·물류·양주sfp = 입고방 실표기'},
  {name:'타이어미치다',keys:['미치다','마치다'],note:'"미치다 들어가면 전부 동일"(호준님 확정)'},
  {name:'아파치',keys:['사일룬','트라이앵글','웨스트레이크','웨스트레익','westlake','브레데스타인'],note:'아파치 = 사일룬·트라이앵글·웨스트레이크·브레데스타인 같은 양식(08-10)'},
- {name:'썬베이',keys:['선베이','레이다','킨포레스트','킨포']},
+ {name:'선베이',keys:['선베이','레이다','킨포레스트','킨포']},
  {name:'타이어왕도매',keys:['타이어왕','왕도매','하빌리드','캡센','윈런','안나이트','안치'],note:'타이어왕도매 = 하빌리드·윈런·안나이트·안치 4브랜드(호준님 08-10 확정)'},
  {name:'하나타이어',keys:['하나']},
  {name:'그랜드타이어',keys:['그랜드']},
@@ -18880,10 +18918,10 @@ function renderPanel(){
     +'<div class="ph">출고 — 남은 수량 <b style="color:'+(remain===0?'#15803d':'#b91c1c')+'">'+remain+'</b></div>'
     +(remain>0?'<div class="pxprow"><button class="pri" onclick="PX.openConnect('+r.id+')">🔗 재고연결</button></div>'
       +'<div class="pxprow" style="align-items:center">입고 새 기록: <input type="text" value="'+(r.inbVendor||'')+'" placeholder="거래처명" onchange="PX.vSetVendor('+r.id+',\'inbVendor\',this.value)">'
-      +'<input type="number" min="1" value="'+(r.inbQty||1)+'" style="width:48px" onchange="PX.R('+r.id+').inbQty=Math.max(1,parseInt(this.value,10)||1)" title="수량">'
+      +'<input type="number" min="1" value="'+(r._inbQtyTouched?(r.inbQty||1):(remain||1))+'" style="width:48px" onchange="PX.R('+r.id+').inbQty=Math.max(1,parseInt(this.value,10)||1);PX.R('+r.id+')._inbQtyTouched=1" title="수량">'
       +'<button onclick="PX.newInb('+r.id+')">기록</button></div>'
       +'<div class="pxprow" style="align-items:center">직송: <input type="text" value="'+(r.dlVendor||'')+'" placeholder="거래처명(필수)" onchange="PX.vSetVendor('+r.id+',\'dlVendor\',this.value)">'
-      +'<input type="number" min="1" value="'+(r.dlQty||1)+'" style="width:48px" onchange="PX.R('+r.id+').dlQty=Math.max(1,parseInt(this.value,10)||1)" title="수량">'
+      +'<input type="number" min="1" value="'+(r._dlQtyTouched?(r.dlQty||1):(remain||1))+'" style="width:48px" onchange="PX.R('+r.id+').dlQty=Math.max(1,parseInt(this.value,10)||1);PX.R('+r.id+')._dlQtyTouched=1" title="수량">'
       +'<button onclick="PX.dlAdd('+r.id+')">직송</button></div>'
     :'<div style="font-size:11.5px;color:#15803d;font-weight:800">✓ 전량 연결됨'+(st==='wait'?' — 입고 실물 대기':'')+'</div>')
     +(lots?'<div class="ph">연결된 조각 — ✕는 그 조각만 취소</div>'+lots:'')
@@ -19225,6 +19263,7 @@ function doPaste(){
   var PXMAP=null;   /* v88-2: 이번 붙여넣기의 헤더 열 매핑 */
   aBegin();
   lines.forEach(function(l){
+    if(!String(l||'').replace(/[	,;|\s]/g,'')){return}
     var c=l.split('\t');
     var _hm=pxHeaderMap(c);
     if(_hm){PXMAP=_hm;ch=shTab;return}          /* v88-2: 헤더 줄 → 열 위치 학습 */
@@ -19234,7 +19273,7 @@ function doPaste(){
     if(!d){ d='SMART'; }   /* v88-3: 양식 판별 실패 → 내용 기반 자동 매핑 */
     ch=d;
     var r=PXMAP?pxRowByMap(PXMAP,c,shTab):(d==='SMART'?pxRowSmart(c,shTab):pxRow(d,c));
-    if(r){
+    if(r&&!pxRowUseless(r)){
       r.store=($('#pStore').value||'').trim();
       r.origin=($('#pOrigin').value||'').trim();
       var m=pdOrderMatch(r.pname,r.sz); /* v24: 단가표 실매칭(무표기=기본형·무연식=2026) */
@@ -19244,7 +19283,7 @@ function doPaste(){
         else if(m.cost!=null)r.cost=m.cost;
         r.pdIdx=m.i;r.pdLabel=m.label;if(m.yfb)r.yfb=m.yfb;matched++;
       }
-      else { EXC.push({id:'e'+(excSeq++),kind:'nomatch',rowId:r.id,pname:r.pname,ch:r.ch,sz:r.sz,
+      else if(!pxTraySkip(r.pname,m)) { EXC.push({id:'e'+(excSeq++),kind:'nomatch',rowId:r.id,pname:r.pname,ch:r.ch,sz:r.sz,
         note:(m&&m.why?m.why:'원가 매칭 실패')+" — 자동 기입 안 함(행은 '원가 필요')"}); exc++; }
       ROWS.unshift(r);added++;
     }
@@ -19293,7 +19332,7 @@ setView('sheet');
 
 /* ══════════ v25 📁 데이터 업데이트 — 원천 파일을 받은 형식 그대로 드롭하면 자동 인식·적용 (08-07 호준님)
    지원: ①최종마스터_*.csv(공장도·핑최저가·제품번호·신규 상품/연식 행) ②할인율_룩업 v4.9(② 시트 — 율 갱신·신규 규칙 매칭)
-        ③피렐리 공장도가격표(Ipcode·26공장도가) ④SAILUN PRICE LIST(패턴·사이즈·타이어게러지 열) ⑤썬베이_사이트데이터 ⑥아파치 양식(WESTLAKE·브레데스타인 — 권장소비자가·납품가)
+        ③피렐리 공장도가격표(Ipcode·26공장도가) ④SAILUN PRICE LIST(패턴·사이즈·타이어게러지 열) ⑤선베이_사이트데이터 ⑥아파치 양식(WESTLAKE·브레데스타인 — 권장소비자가·납품가)
    윈런은 PDF라 제외(본구현에서). 적용 내용은 이 브라우저에 저장되어 새로고침에도 유지(전체 원복 별도 버튼). ══════════ */
 var DUP={};
 try{DUP=JSON.parse(localStorage.getItem('tg25_data')||'{}')}catch(_e){DUP={}}
@@ -19543,7 +19582,7 @@ function dupApplySailun(list){
   dupDirty();
   return 'SAILUN: 단가 갱신 '+nu+'행 · 미매칭(단가표에 그 패턴·사이즈 없음) '+miss+'건';
 }
-/* ── ⑤ 썬베이 ── */
+/* ── ⑤ 선베이 ── */
 function dupParseSunbay(wb){
   var ws=wb.Sheets['사이트_전체상품'];if(!ws)return null;
   var aoa=XLSX.utils.sheet_to_json(ws,{header:1});
@@ -19561,7 +19600,7 @@ function dupParseSunbay(wb){
     var km=body.match(/[가-힣].*$/);var pat=km?km[0]:'';
     pat=pat.replace(/\[[^\]]+\]/g,'').replace(/\([^)]*대체[^)]*\)/g,'').replace(/\([^)]*광폭[^)]*\)/g,'');
     pat=pat.replace(/(\s+\d+(\.\d+)?){2,}\s*$/,'').replace(/[\s,]+$/,'').trim().replace(/(\s+\d+(\.\d+)?){2,}\s*$/,'').trim();
-    var b='썬베이기타',ln='';
+    var b='선베이기타',ln='';
     if(pat.indexOf('레니게이드')>=0||pat.indexOf('디맥스')>=0||/DIMAX/i.test(pat)){b='레이다';ln='사일룬·레이다'}
     else if(pat.indexOf('킨포')>=0||/^KF/i.test(pat)){b='킨포레스트'}
     out.push({no:no,pat:pat,sz:sz,inch:inch,ply:pr?pr[1]:'',dot:dot,cons:cons,sale:sale,b:b,ln:ln});
@@ -19570,21 +19609,21 @@ function dupParseSunbay(wb){
 }
 function dupApplySunbay(list){
   var byNo={};
-  for(var i=0;i<PDT.length;i++){if(PDT[i].s2&&PDT[i].s2[0]==='썬베이단가')byNo[String(PDT[i].no)]=i}
+  for(var i=0;i<PDT.length;i++){if(PDT[i].s2&&PDT[i].s2[0]==='선베이단가')byNo[String(PDT[i].no)]=i}
   var nu=0,na=0,gone=0,seen={};
   list.forEach(function(it){
     seen[it.no]=1;
     var i=byNo[it.no];
-    if(i!=null){var x=PDT[i];x.s2=['썬베이단가',it.sale];x.fac=it.cons||x.fac;x.dot=it.dot||x.dot;nu++}
+    if(i!=null){var x=PDT[i];x.s2=['선베이단가',it.sale];x.fac=it.cons||x.fac;x.dot=it.dot||x.dot;nu++}
     else{
-      var nx={b:it.b,p:it.pat,no:it.no,sz:it.sz,ply:it.ply,oe:'',dot:it.dot,org:'','in':it.inch,fac:it.cons,pg:null,s2:['썬베이단가',it.sale]};
+      var nx={b:it.b,p:it.pat,no:it.no,sz:it.sz,ply:it.ply,oe:'',dot:it.dot,org:'','in':it.inch,fac:it.cons,pg:null,s2:['선베이단가',it.sale]};
       if(it.ln)nx.ln=it.ln;
       PDT.push(nx);na++;
     }
   });
   Object.keys(byNo).forEach(function(no){if(!seen[no]){var x=PDT[byNo[no]];delete x.s2;gone++}});
   dupDirty();
-  return '썬베이: 갱신 '+nu+'행 · 신규 +'+na+'행 · 사이트에서 내려간 상품 '+gone+'행(원가 비움·행 유지)';
+  return '선베이: 갱신 '+nu+'행 · 신규 +'+na+'행 · 사이트에서 내려간 상품 '+gone+'행(원가 비움·행 유지)';
 }
 /* ── ⑥ 아파치 양식(웨스트레이크·브레데스타인 등) — 08-10 호준님: 권장소비자가=택배 판매가 그대로 · 납품가=우리 원가 ── */
 function dupParseWest(wb){
@@ -19771,7 +19810,7 @@ function dupDetect(name,buf){
       DUP.lookup=pl2;dupSave();return '✅ '+dupApplyLookup(pl2);
     }
     if(wb.SheetNames.indexOf('사이트_전체상품')>=0){
-      var pl5=dupParseSunbay(wb);if(!pl5)return '❌ '+name+': 썬베이 형식 해석 실패';
+      var pl5=dupParseSunbay(wb);if(!pl5)return '❌ '+name+': 선베이 형식 해석 실패';
       DUP.sunbay=pl5;dupSave();return '✅ '+dupApplySunbay(pl5);
     }
     var plR=dupParseRDC(wb);
@@ -19784,7 +19823,7 @@ function dupDetect(name,buf){
     if(plS){DUP.sailun=plS;dupSave();return '✅ '+dupApplySailun(plS)}
     var plW=dupParseWest(wb);
     if(plW){DUP.west=plW;dupSave();return '✅ '+dupApplyWest(plW)}
-    return '❌ '+name+': 형식을 인식하지 못함 (지원: 최종마스터 CSV·룩업 v4.9·피렐리 가격표·SAILUN·WESTLAKE(아파치)·썬베이 / 윈런 PDF는 미지원)';
+    return '❌ '+name+': 형식을 인식하지 못함 (지원: 최종마스터 CSV·룩업 v4.9·피렐리 가격표·SAILUN·WESTLAKE(아파치)·선베이 / 윈런 PDF는 미지원)';
   }catch(e){return '❌ '+name+': 처리 오류 — '+e.message}
 }
 function dupApplyAll(){
@@ -19816,13 +19855,13 @@ function dupPanel(){
 function dupRender(logs){
   var el=document.getElementById('dupWrap');if(!el)return;
   var have=['master','lookup','pirelli','sailun','sunbay','west'].filter(function(k){return DUP[k]});
-  var NAME={master:'최종마스터 CSV',lookup:'할인율 룩업',pirelli:'피렐리 가격표',sailun:'SAILUN',sunbay:'썬베이',west:'웨스트레이크(아파치)'};
+  var NAME={master:'최종마스터 CSV',lookup:'할인율 룩업',pirelli:'피렐리 가격표',sailun:'SAILUN',sunbay:'선베이',west:'웨스트레이크(아파치)'};
   el.innerHTML='<div style="padding:8px 10px">'
    +'<b style="font-size:12px">📁 데이터 업데이트</b> <span style="font-size:11px;color:var(--text3)">— 원천 파일을 받은 형식 그대로 끌어다 놓거나 선택하면 자동 인식해 해당 데이터만 갱신합니다. 여러 파일 한 번에 가능. 이 브라우저에 저장되어 새로고침에도 유지.</span>'
    +'<div id="dupDrop" style="margin-top:6px;border:2px dashed var(--border);border-radius:10px;padding:16px;text-align:center;font-size:12px;color:var(--text2);background:#f8fafc;cursor:pointer" '
    +'ondragover="event.preventDefault();this.style.borderColor=\'#0f766e\'" ondragleave="this.style.borderColor=\'var(--border)\'" '
    +'ondrop="event.preventDefault();this.style.borderColor=\'var(--border)\';PX.dupFiles(event.dataTransfer.files)" onclick="document.getElementById(\'dupFile\').click()">'
-   +'📂 여기로 파일을 끌어다 놓기 / 클릭해서 선택<br><span style="font-size:10.5px;color:var(--text3)">지원: 최종마스터_*.csv · 할인율_룩업_v4_9.xlsx · 피렐리 공장도가격표 · SAILUN · WESTLAKE(아파치) · 썬베이 · <b>종합방 목업 .html(단가표 통째로 가져오기)</b></span></div>'
+   +'📂 여기로 파일을 끌어다 놓기 / 클릭해서 선택<br><span style="font-size:10.5px;color:var(--text3)">지원: 최종마스터_*.csv · 할인율_룩업_v4_9.xlsx · 피렐리 공장도가격표 · SAILUN · WESTLAKE(아파치) · 선베이 · <b>종합방 목업 .html(단가표 통째로 가져오기)</b></span></div>'
    +'<input type="file" id="dupFile" multiple accept=".csv,.xlsx" style="display:none" onchange="PX.dupFiles(this.files);this.value=\'\'">'
    +'<div style="margin-top:6px;font-size:11px;color:var(--text2)">저장된 업데이트: '+(have.length?have.map(function(k){return '<b>'+NAME[k]+'</b>'}).join(' · '):'없음(원본 데이터)')
    +(have.length?' <button class="mini" onclick="PX.dupReset()">전체 원복</button>':'')
@@ -19888,8 +19927,946 @@ function pxTopScroll(gridId,barId){
 }
 
 
+/* ══════════ v96 (08-11) 매칭 엔진 재정의 — 원본 함수를 덮어쓴다 ══════════ */
+MO_BALIAS['하빌리드']='하빌리드캡센';MO_BALIAS['캅센']='하빌리드캡센';MO_BALIAS['캡센']='하빌리드캡센';
+MO_BALIAS['KAPSEN']='하빌리드캡센';MO_BALIAS['HABILEAD']='하빌리드캡센';
+/* 라우펜 코드는 '한국타이어'라 적혀 있어도 라우펜이다(세컨 브랜드) — 별칭 사전보다 먼저 판정 */
+var _mb0x=moBrandOf;
+moBrandOf=function(nm){
+  if(/(^|[^A-Za-z0-9])(LH\s*01|LH\s*41|LD\s*01)(?![0-9A-Za-z])/i.test(String(nm||'')))return '라우펜';
+  return _mb0x(nm);
+};
+MO_BALIAS['BF GOODRICH']='BFGOODRICH';MO_BALIAS['BFGOODRICH']='BFGOODRICH';
+MO_BALIAS['BF굿리치']='BFGOODRICH';MO_BALIAS['굿리치']='BFGOODRICH';MO_BALIAS['BFG']='BFGOODRICH';
+(function(){var A={'벡터':'VECTOR','프라이머시':'PRIMACY','프라이마시':'PRIMACY','클라이밋':'CLIMATE','클라이메이트':'CLIMATE',
+ '크로스':'CROSS','테라맥스':'TERRAMAX','마샬':'MARSHAL','래디얼':'RADIAL','레디알':'RADIAL','스노우':'SNOW','스노':'SNOW',
+ '아이스':'ICE','컴포트':'COMFORT','투어':'TOUR','제로':'ZERO','켄다':'KENDA','어슈어런스':'ASSURANCE','이피션트그립':'EFFICIENTGRIP',
+ '듀얼러':'DUELER','에코피아':'ECOPIA','뉴센스':'NUSENSE','윈터크래프트':'WINTERCRAFT','포텐자':'POTENZA','투란자':'TURANZA',
+ '플러스':'PLUS','올시즌':'AS','사계절':'AS','로드벤쳐':'ROADVENTURE','클레버':'KLEVER','베즈다':'VEZDA',
+ '인스파이어':'INSPIRE','어시메트릭':'ASY','어시매트릭':'ASY','이글':'E','밴컨텍트':'VANCONTACT','밴컨택트':'VANCONTACT',
+ '마제스티X':'MAJESTYX','아이온':'ION','엔페라':'NFERA','키너지':'KINERGY','다이나프로':'DYNAPRO'};
+ for(var k in A)MO_ALIAS[k]=A[k];})();
+var MO_1CH=null;
+/* 칸 안 배지 축약 — 'SAILUN단가110,000'(106px)이 칸(97px)을 넘어 옆 열과 겹쳤다.
+   '단가' 접미만 떼면 겹침이 사라지고, 이월(매일이월·극동이월)은 이월인 게 그대로 보인다. */
+function pxSrcLabel(s){return String(s||'').replace(/단가$/,'')}
+/* 오프로드 표기 통일(호준님) : A/T·AT·A/T-2·AT-2·AT/M·AT-M·M/T·MT·R/T·RT 를 한 형태로 */
+moCanon=function(t){t=String(t||'');
+  t=t.replace(/[×✕]/g,'x');
+  /* 'ZSR 2'→'ZSR2' 는 유지하되, 'VECTOR 4SEASONS'가 'VECTOR4SEASONS'로 뭉치던 것 차단
+     (숫자 뒤에 영문이 이어지면 그건 다음 낱말의 첫 글자다) */
+  t=t.replace(/([A-Z]{2,})\s+(\d)(?![0-9A-Za-z가-힣])/g,'$1$2');
+  /* 던롭 VEURO 'VE 303'·'VE 304' 만 한 덩어리로. 일반 규칙(2글자+3자리)으로 만들면
+     '테라맥스 RT 275 55 20'의 'RT 275'(패턴+사이즈)까지 붙어버린다(실측으로 잡음). */
+  t=t.replace(/(^|[^A-Za-z0-9])VE\s+(\d{3})(?![0-9])/ig,'$1VE$2');
+  t=t.replace(/WINSPIKE\s*3/ig,' WINSPIKE3 ');
+  t=t.replace(/(^|[^A-Za-z0-9])W\s*S\s*3(?![0-9A-Za-z])/ig,'$1 WINSPIKE3 ');
+  t=t.replace(/(^|[^A-Za-z0-9])W\s*S(?![0-9A-Za-z])/ig,'$1 WINSPIKE ');
+  t=t.replace(/(^|[^A-Za-z0-9])WG(?![0-9A-Za-z])/ig,'$1 WINGUARD ');
+  t=t.replace(/(^|[^A-Za-z0-9])RO(?![0-9A-Za-z])/ig,'$1 ROADIAN ');
+  t=t.replace(/(^|[^A-Za-z0-9])NF(?![0-9A-Za-z])/ig,'$1 NFERA ');
+  t=t.replace(/(^|[^A-Za-z0-9])NX(?![0-9A-Za-z])/ig,'$1 ');
+  t=t.replace(/(^|[^A-Za-z0-9])([AMR])\s*\/\s*T\s*[-–]\s*([0-9M])(?![0-9])/ig,'$1 $2T$3 ');
+  t=t.replace(/(^|[^A-Za-z0-9])([AMR])\s*T\s*[-–]\s*([0-9M])(?![0-9])/ig,'$1 $2T$3 ');
+  t=t.replace(/(^|[^A-Za-z0-9])AT\s*\/\s*M(?![A-Za-z0-9])/ig,'$1 ATM ');
+  t=t.replace(/(^|[^A-Za-z0-9])([AMR])\s*\/\s*T(?![A-Za-z0-9])/ig,'$1 $2T ');
+  /* 호준님 08-11 확정 동의어: CC=CROSS CLIMATE · CC2=CROSS CLIMATE 2 · TA21C=TA21
+     (중국산 구분용으로 다르게 적을 뿐 같은 제품 — "다르게 쓸지언정 같은 제품으로 봐줘야 해") */
+  t=t.replace(/(^|[^A-Za-z0-9])CC\s*2(?![0-9A-Za-z])/ig,'$1 CROSS CLIMATE 2 ');
+  t=t.replace(/(^|[^A-Za-z0-9])CC(?![0-9A-Za-z])/ig,'$1 CROSS CLIMATE ');
+  t=t.replace(/(^|[^A-Za-z0-9])TA\s*21\s*C(?![0-9A-Za-z])/ig,'$1 TA21 ');
+  /* 라우펜 코드 ↔ 패턴명 — 룩업 v4_9 ②할인율마스터의 대응 그대로 (LH01=S FIT AS · LH41=G FIT AS · LD01=X FIT HT).
+     단가표엔 패턴명만 있고 주문엔 코드만 오는 경우가 많아 여기서 잇는다. */
+  t=t.replace(/(^|[^A-Za-z0-9])LH\s*01(?![0-9A-Za-z])/ig,'$1 S FIT AS ');
+  t=t.replace(/(^|[^A-Za-z0-9])LH\s*41(?![0-9A-Za-z])/ig,'$1 G FIT AS ');
+  t=t.replace(/(^|[^A-Za-z0-9])LD\s*01(?![0-9A-Za-z])/ig,'$1 X FIT HT ');
+  t=t.replace(/['’ʼ]/g,'');
+  t=t.replace(/Z\s*[-–]\s*007/ig,' Z007 ');
+  for(var k in MO_ALIAS)t=t.split(k).join(' '+MO_ALIAS[k]+' ');
+  t=t.toUpperCase();
+  t=t.replace(/A\/S/g,' AS ');
+  t=t.replace(/\+/g,' PLUS ');
+  /* 코드에 변형이 붙어 온 것을 떼어낸다 — 주문 'TA51EV'·'PS71EV' ↔ 단가표 '솔루스 TA51 EV'·'엑스타 PS71 EV' */
+  t=t.replace(/(^|[^A-Z0-9])([A-Z]{1,4}\d{2,4})(EV|SUV|XL|RFT|FOAM)(?![A-Z0-9])/g,'$1$2 $3 ');
+  t=t.replace(/(^|[^A-Z0-9])P\s+ZERO/g,'$1 PZERO ');   /* 단가표 'P ZERO' = 주문 '피제로' */
+  t=t.replace(/([A-Z]{3,})\s+(\d)(?![0-9A-Za-z가-힣])/g,'$1$2');
+  return t};
+/* 토큰 필터 — 짧은 패턴코드를 살리고, 사이즈/하중·속도/P수 노이즈만 걸러낸다 */
+moToks=function(t){
+  return (moCanon(t).match(/[A-Z0-9]+/g)||[]).filter(function(w){
+    if(MO_STOP[w])return false;
+    if(!/[A-Z]/.test(w))return false;
+    if(/^\d{1,2}P$/.test(w))return false;
+    if(/^\d{2,3}[A-Z]$/.test(w))return false;
+    if(/^\d{2,3}[RX]\d{1,2}$/.test(w))return false;
+    if(/^R\d{2}$/.test(w))return false;
+    if(w.length===1)return !!(MO_1CH&&MO_1CH[w]);
+    return true;
+  })};
+/* 사이즈 키 — 편평비 무표기=80(호준님) · 플로테이션 후행0 정리 · 전각 곱셈기호 */
+function pxSzKey(s){
+  s=String(s||'').replace(/[×✕]/g,'x');
+  var m=s.match(/(\d{2})\s*x\s*(\d{1,2}(?:\.\d+)?)\s*R?\s*(\d{2})(?![0-9])/i);
+  if(m)return (m[1]+m[2].replace(/(\.\d)0+$/,'$1')+m[3]).replace(/[^0-9]/g,'');
+  m=s.match(/(\d{3})\s*[\/ ]\s*(\d{2})\s*Z?R?\s*(\d{2})(?![0-9])/);
+  if(m)return m[1]+m[2]+m[3];
+  m=s.match(/^\s*(\d{3})\s*Z?R\s*(\d{2})\s*$/i);
+  if(m)return m[1]+'80'+m[2];
+  var d=s.replace(/[^0-9]/g,'');
+  return (d.length===7)?d:'';
+}
+function pxSzFromName(nm){
+  nm=String(nm||'').replace(/[×✕]/g,'x');
+  var out=[],m,re;
+  re=/(\d{2})\s*x\s*(\d{1,2}(?:\.\d+)?)\s*R?\s*(\d{2})(?![0-9])/ig;
+  while((m=re.exec(nm)))out.push((m[1]+m[2].replace(/(\.\d)0+$/,'$1')+m[3]).replace(/[^0-9]/g,''));
+  re=/(\d{3})\s*[\/ ]\s*(\d{2})\s*Z?R?\s*(\d{2})(?![0-9])/g;
+  while((m=re.exec(nm)))out.push(m[1]+m[2]+m[3]);
+  re=/(?:^|[^0-9])(\d{7})(?![0-9])/g;
+  while((m=re.exec(nm)))out.push(m[1]);
+  re=/(\d{3})\s*Z?R\s*(\d{2})(?![0-9.])/ig;
+  while((m=re.exec(nm)))out.push(m[1]+'80'+m[2]);
+  re=/(?:^|[^0-9])(\d{3})\s+(\d{2})(?![0-9])/g;
+  while((m=re.exec(nm)))out.push(m[1]+'80'+m[2]);
+  for(var i=0;i<out.length;i++)if(out[i] in MO_BYSZ)return out[i];
+  return '';
+}
+/* P수 — 무표기 = 4P(호준님). 하중지수(92P 등)와 구분하려고 20 이하만 P수로 본다 */
+function pxPlyOf(nm){
+  var m=String(nm).match(/(?:^|[^0-9A-Za-z.])(\d{1,2})\s*P(?![A-Za-z0-9])/);
+  if(!m)return null;
+  var v=parseInt(m[1],10);
+  return (v>=2&&v<=20)?v:null;
+}
+function pxDotY(i){var d=PDT[i].dot;return (d==null||d==='')?2026:(parseInt(d,10)||2026)}
+/* ★제품코드 = 영문과 숫자가 섞인 토큰(IH71A·H462·LH01·TA21C·K129·PZ4·VE304·RT05·AT2).
+   판매처가 코드를 적어줬다면 그게 가장 확실한 단서다 — 일반 낱말과 같은 1점으로 세면
+   'ION·AS·SUV 3개 맞은 쪽'과 'IH71A 하나 맞은 쪽'이 동점이 되어 후보 복수로 떨어진다. */
+function pxIsCode(w){return /[A-Z]/.test(w)&&/\d/.test(w)&&String(w).length>=2}
+/* 코드 유사 — 주문 K137·IH01 ↔ 단가표 K137A·IH01A (뒤 한 글자 차이만 허용) */
+function pxCodeEq(a,b){
+  if(a===b)return true;
+  if(!pxIsCode(a)||!pxIsCode(b))return false;
+  if(Math.abs(a.length-b.length)!==1||Math.min(a.length,b.length)<3)return false;
+  var s=a.length<b.length?a:b,l=a.length<b.length?b:a;
+  return l.slice(0,-1)===s&&/[A-Z]/.test(l.slice(-1));
+}
+var MO_PTOK={};
+function pxPatToks(p){var k=String(p||'');var v=MO_PTOK[k];if(v)return v;return (MO_PTOK[k]=moToks(k))}
+moInit=function(){
+  if(MO_BYSZ)return;
+  MO_PTOK={};
+  MO_BYSZ={};MO_BRANDS={};MO_1CH={};
+  for(var i=0;i<PDT.length;i++){
+    var d=dn(PDT[i].sz); if(!d)continue;
+    (MO_BYSZ[d]=MO_BYSZ[d]||[]).push(i);
+    MO_BRANDS[PDT[i].b]=1;
+    var mm=String(PDT[i].p||'').toUpperCase().match(/[A-Z0-9]+/g)||[];
+    for(var q=0;q<mm.length;q++)if(mm[q].length===1&&/[A-Z]/.test(mm[q]))MO_1CH[mm[q]]=1;
+  }
+};
+/* ══ v96-B 오프로드 판정 재정의 (호준님 08-11 확정: A/T·M/T·R/T·X/T·T/A·ATX 계열만) ══
+   원래 정규식 /(AT|MT|RT|ATM|AT-M|AT2|AT-2)/ 는 슬래시 표기를 못 잡아 271행이 빠져 있었다
+   (사일룬 A/T 40·A/T-2 38·R/T 35·M/T 8 / BFGOODRICH KO2 37·KO3 8·KM3 10 / 넥센 ROADIAN ATX 34 …).
+   그 행들은 오프로드 공임(25,000)이 아니라 인치별 장착비를 받고 있었다.
+   반대로 던롭 SPORT MAXX RT·제너럴 ALTIMAX RT43(19행)은 RT가 오프로드 뜻이 아닌데 잡히던 오탐.
+   H/T·H/P·H/L·CV·SRX·DHP 는 온로드 SUV라 제외(호준님 확정). */
+isOffPat=function(p){
+  var raw=String(p||'').toUpperCase();
+  if(!raw)return false;
+  if(/SPORT\s*MAXX|ALTIMAX|BLUEARTH/.test(raw))return false;              /* RT가 오프로드가 아닌 승용 */
+  if(/H\s*\/\s*[TLP]|\bHTS|\bHT\d|\bSRX\b|\bCV\b|DHP/.test(raw))return false; /* 온로드 SUV */
+  if(/ALL\s*TERRAIN|MUD\s*TERRAIN|OFF\s*ROAD|RENEGADE|레니게이드|ST\s*MAXX|\bSTT\b/.test(raw))return true;
+  var t=' '+raw.replace(/[\/\.\-_()]/g,' ').replace(/\s+/g,' ')+' ';
+  if(/ (A|M|R|X) T\d* /.test(t))return true;      /* A/T · M/T · R/T · X/T · A/T4 */
+  if(/ T A /.test(t))return true;                 /* T/A (BFGoodrich) */
+  if(/ (AT|MT|RT|XT)\d*[A-Z]? /.test(t))return true;  /* AT · AT2 · AT3 · MT71 · RT05 · XT */
+  if(/ ATM? /.test(t))return true;                /* AT/M */
+  if(/ATX/.test(t))return true;                   /* ROADIAN ATX */
+  return false;
+};
+/* ★호준님 08-11 확정: "배송료만 올려" — 장착 공임은 지금 그대로 둔다.
+   isOffPat 을 넓혔으므로 instOf 가 딸려 올라가지 않도록, 장착 공임은 옛 판정식을 그대로 쓴다. */
+function isOffPatInst(p){return /(^|[^A-Z])(AT|MT|RT|ATM|AT-M|AT2|AT-2)([^A-Z]|$)/.test(String(p||'').toUpperCase())}
+instOf=function(x){if(isOffPatInst(x.p))return PSET.off;
+  var i=x['in']||0;return i<=18?PSET.in18:(i===19?PSET.in19:(i<=21?PSET.in21:PSET.in22))};
+/* 오프로드 배송 가산 — 택배비·협력배송 양쪽에 붙는다 */
+if(PSET.offShip==null)PSET.offShip=5000;
+if(typeof PSET_FIELDS!=='undefined'&&PSET_FIELDS.push&&!PSET_FIELDS.some(function(f){return f[0]==='offShip'}))
+  PSET_FIELDS.push(['offShip','오프로드 배송 가산']);
+feeOf=function(x){var i=x['in']||0;
+  var b=(i<=17?PSET.fee17:(i<=19?PSET.fee19:PSET.fee20));
+  return b+(isOffPat(x.p)?(PSET.offShip||0):0)};
+function coShipOf(x){return PSET.coShip+(isOffPat(x&&x.p)?(PSET.offShip||0):0)}
+/* ★호준님 08-11: "'> ~로 대체/교체 발송'은 실제 나간 물건(> 뒤)으로 잡아라"
+   원가·마진이 실제 출고품 기준이 되어야 장부와 맞는다.
+   '>2개만 주문 / 2개 부분취소'처럼 상품이 아닌 꼬리는 토큰이 안 나오므로 자동으로 원문 매칭으로 되돌아간다. */
+function pxAfterArrow(nm){
+  var m=String(nm||'').match(/(?:>>?|》)\s*([^>》]{2,})$/);
+  if(!m)return null;
+  var tail=m[1].trim();
+  return /[A-Za-z0-9가-힣]/.test(tail)?tail:null;
+}
+/* ★호준님 08-11: 타이어가 아닌 행(휠·스프링·옵션 줄)은 따로 모은다 — 진짜 매칭 실패를 가리고 있었다 */
+function pxNonTire(nm){
+  var s=String(nm||'');
+  if(/\d{3}\s*[\/ ]\s*\d{2}\s*Z?R?\s*\d{2}|\d{2}\s*[xX×]\s*\d{1,2}/.test(s))return false;  /* 타이어 규격이 보이면 타이어 */
+  if(/\d+(\.\d+)?\s*J\b|\bPCD\b|\d+\s*홀|오프셋|[+\-]\d{1,2}\s*114|림\b|휠\b/i.test(s))return true;      /* 휠 */
+  if(/스프링|리프트업|서스펜션|쇼바|브레이크|와이퍼|엔진오일|배터리|블랙박스/.test(s))return true;         /* 타이어 아닌 부품 */
+  /* 판매처 옵션 줄 — '선택/장착점(공임택배비포함): 광진점 타이어테크' 처럼 형태가 제각각이라
+     '장착점·옵션선택·공임택배비·셀프장착' 같은 말이 있는데 타이어 규격이 없으면 옵션 줄로 본다 */
+  if(/장착점|옵션\s*선택|택배\s*\/|배송상품|장착비만|추가금|공임택배비|셀프장착|장착X/.test(s))return true;
+  return false;
+}
+/* ★호준님 08-11: "내용이 아예 없는 줄이면 행 추가하지 말라니까. 트레이에도 넣지 말고"
+   지금까지는 트레이에만 안 올리고 시트 행은 만들어서, 옵션 줄·빈 줄이 시트를 채우고 있었다. */
+function pxRowUseless(r){
+  var nm=String(r&&r.pname||'').trim();
+  if(!nm)return true;
+  if(pxNonTire(nm))return true;
+  /* 사이즈·수량·주문번호가 다 비었어도 상품명에 규격이 보이면 진짜 주문이다 — 버리면 안 된다 */
+  if(!String(r.sz||'').trim() && !(parseInt(r.qty,10)>0) && !String(r.ono||'').trim()){
+    if(!/\d{3}\s*[\/ ]\s*\d{2}|\d{2}\s*[xX×]\s*\d{1,2}|\d{3}\s*Z?R\s*\d{2}|\d{3}\s+\d{2}(?:\s|$)/.test(nm))return true;
+  }
+  return false;
+}
+function pdOrderMatch(pname,szStr){
+  /* 사람이 [상품 지정]으로 한 번 지정한 건 그대로 따른다(학습) */
+  moInit();
+  var _lk=pxLearnKey(pname,szStr);
+  if(PXLEARN[_lk]){var _li=pxFindBySig(PXLEARN[_lk]); if(_li>=0)return pxResult(_li,' · 🎓지정 학습');}
+  /* '> 뒤' 우선 시도 → 못 붙으면 원문으로 되돌아간다 */
+  var _ar=pxAfterArrow(pname);
+  if(_ar){var _r=pdMatchCore(_ar,szStr,pname);if(_r&&_r.i!=null)return _r}
+  return pdMatchCore(pname,szStr,pname);
+}
+function pdMatchCore(pname,szStr,srcName){
+  moInit();
+  var nm=String(pname||'');
+  var nmFull=String(srcName==null?pname:srcName||'');
+  var szd=dn(szStr||'');
+  if(!(szd in MO_BYSZ))szd=pxSzKey(szStr||'');
+  if(!(szd in MO_BYSZ))szd=pxSzFromName(nm);
+  if(!(szd in MO_BYSZ))szd=pxSzFromName(nmFull);
+  if(!(szd in MO_BYSZ)){
+    if(pxNonTire(nmFull))return {why:'타이어 아님 — 휠·부품·옵션 줄',nontire:1};
+    return {why:'사이즈를 단가표에서 못 찾음'};
+  }
+  var ob=moBrandOf(nmFull);
+  var poolAll=MO_BYSZ[szd];
+  var pool=poolAll,brandMiss=false;
+  if(ob){var bp=poolAll.filter(function(i){return PDT[i].b===ob});
+    if(bp.length)pool=bp; else brandMiss=true}
+  var ot=moToks(nm);
+  /* ★제품코드가 그 사이즈에서 한 패턴만 가리키면 브랜드를 안 봐도 그게 정답이다.
+     'LH01 235 50 18'(브랜드 없음)·'한국타이어 … G FIT AS LH41'(라우펜인데 한국타이어로 적힘) 둘 다 여기서 잡힌다. */
+  var _codes=ot.filter(pxIsCode);
+  if(_codes.length){
+    var ch=[],chp={};
+    poolAll.forEach(function(i){var pt=pxPatToks(PDT[i].p);
+      outer:for(var q=0;q<_codes.length;q++)for(var w2=0;w2<pt.length;w2++)
+        if(pxCodeEq(pt[w2],_codes[q])){ch.push(i);chp[jsNorm(PDT[i].p)]=1;break outer}});
+    if(ch.length&&Object.keys(chp).length===1)pool=ch;
+  }
+  var scored=[],lineOnly=[];
+  pool.forEach(function(i){
+    var rt2=pxPatToks(PDT[i].p);
+    var hit=[];rt2.forEach(function(w){
+      if(ot.indexOf(w)>=0){hit.push(w);return}
+      if(pxIsCode(w))for(var q2=0;q2<ot.length;q2++)if(pxCodeEq(ot[q2],w)){hit.push(w);return}
+    });
+    if(!hit.length)return;
+    var _sc=0;for(var q=0;q<hit.length;q++)_sc+=pxIsCode(hit[q])?10:1;   /* 코드는 10점 */
+    var rec={i:i,sc:_sc,extra:rt2.filter(function(w){return ot.indexOf(w)<0}).length,pn:PDT[i].p};
+    if(moLineOnly(hit))lineOnly.push(rec);else scored.push(rec);
+  });
+  if(!scored.length&&lineOnly.length)scored=lineOnly;
+  if(!scored.length){
+    var uniq={},pick1=null;
+    pool.forEach(function(i){var k=jsNorm(PDT[i].p);if(!uniq[k]){uniq[k]=1;pick1=i}});
+    if(Object.keys(uniq).length===1&&pick1!=null){scored=[{i:pick1,sc:0,extra:0,pn:PDT[pick1].p}];}
+    else if(brandMiss){return {why:ob+' 상품이 이 사이즈엔 단가표에 없음(전체 후보 '+Object.keys(uniq).length+'종)'};}
+    else{return {why:'패턴을 못 찾음 — 그 사이즈 후보 '+Object.keys(uniq).length+'종'};}
+  }
+  var mx=0;scored.forEach(function(x){if(x.sc>mx)mx=x.sc});
+  var best=scored.filter(function(x){return x.sc===mx});
+  var mnEx=Math.min.apply(null,best.map(function(x){return x.extra}));
+  best=best.filter(function(x){return x.extra===mnEx});
+  var rowsP=best.map(function(x){return x.i});
+  var pats={};best.forEach(function(x){pats[jsNorm(x.pn)]=1});
+  if(Object.keys(pats).length>1)return {why:'후보 복수: '+best.map(function(x){return x.pn}).filter(function(v,ix,a){return a.indexOf(v)===ix}).slice(0,3).join(' / ')};
+  /* ★순서 중요 — 연식으로 먼저 좁히고, 그 안에서만 P수로 고른다.
+     P수를 먼저 걸면 '신품 6P'가 탈락하고 '이월 4P'가 뽑혀 원가가 달라진다
+     (실측: 넥센 ROADIAN CTX 215/65R17 → 2026 6P 119,400 이던 것이 2025 4P 115,300 으로 바뀜) */
+  var y=moYearOf(nmFull);
+  var cand=null,yNote='',yFB=null;
+  if(y){
+    cand=rowsP.filter(function(i){return pxDotY(i)===y});
+    if(!cand.length){
+      var _up=rowsP.filter(function(i){return pxDotY(i)>y});
+      if(_up.length){var _mn=Math.min.apply(null,_up.map(function(i){return pxDotY(i)}));
+        cand=_up.filter(function(i){return pxDotY(i)===_mn})}
+      else{var _dw=rowsP.filter(function(i){return pxDotY(i)<y});
+        if(_dw.length){var _mx=Math.max.apply(null,_dw.map(function(i){return pxDotY(i)}));
+          cand=_dw.filter(function(i){return pxDotY(i)===_mx})}}
+      if(cand&&cand.length){yFB=(PDT[cand[0]].dot||'신품');yNote=' · ⚠'+yFB+' 할인율 적용';}
+      else return {why:y+'년 행 없음(보유: '+rowsP.map(function(i){return PDT[i].dot||'신품'}).join(',')+')'};
+    }
+  }else{
+    cand=rowsP.filter(function(i){return !PDT[i].dot||PDT[i].dot==='2026'});
+    if(!cand.length){var _mx2=Math.max.apply(null,rowsP.map(function(i){return pxDotY(i)}));
+      cand=rowsP.filter(function(i){return pxDotY(i)===_mx2});yNote=' · 신품행 없어 최신연식'}
+  }
+  /* P수(호준님 확정: 무표기 = 4P) — 좁혔는데 0개가 되면 무시하고 되돌린다 */
+  if(cand.length>1){
+    var oply=pxPlyOf(nmFull),oplyX=(oply!=null);if(oply==null)oply=4;
+    var byPly=cand.filter(function(i){var v=PDT[i].ply;var n=(v==null||v==='')?null:parseInt(v,10);
+      return oplyX?(n===oply):(n===4||n==null)});
+    if(byPly.length)cand=byPly;
+  }
+  return pxResult(cand[0],yNote,yFB);
+}
+function pxResult(i2,yNote,yFB){
+  var bs=baseSup(i2);
+  return {i:i2,yfb:yFB||null,fp:effF(i2),rate:bs?effRate(i2,bs):null,cost:effC(i2),src:costSrc(i2),
+    label:PDT[i2].b+' '+PDT[i2].p+' '+PDT[i2].sz+(PDT[i2].dot?' '+PDT[i2].dot:' 신품')+(bs?' · '+bs+' '+effRate(i2,bs)+'%':(PDT[i2].s2?' · '+PDT[i2].s2[0]:''))+(yNote||'')};
+}
+
+/* ══════════ v97 (08-11) 예외 트레이 수리 — [상품 지정] · [단가표에 새로 추가] ══════════
+   호준님: *"명단에 없으면 등록을 못 하냐고 매칭을 못 하냐고. 표에 없으면 말야"*
+   실측으로 드러난 것 2가지:
+    ① [상품 지정]이 목업 데모 재고 STOCK(이식 때 0건으로 비움)을 검색하고 있었다.
+       단가표 PDT(14,581행)가 아니라서 무엇을 쳐도 "검색 결과 없음" — 표에 있는 상품조차 연결 불가.
+    ② 단가표에 행을 넣는 함수가 아예 없었다(파일 통째 업로드가 유일한 경로).
+   → ①은 PDT 검색으로 수리(주문에서 뽑은 브랜드·사이즈를 검색어에 미리 채움)
+     ②는 [단가표에 새로 추가] 신설. 호준님 확정: 공장도가·원가·핑최저가를 하나도 몰라도 일단 등록 허용. */
+
+/* 학습 사전 — 인덱스는 데이터를 다시 받으면 바뀌므로 '행 지문'으로 저장한다 */
+var PXLEARN={};
+try{PXLEARN=JSON.parse(localStorage.getItem('px_learn')||'{}')}catch(_e){PXLEARN={}}
+function pxLearnKey(nm,sz){return (moCanon(String(nm||'')).replace(/[^A-Z0-9]/g,'')+'|'+dn(sz||'')).slice(0,140)}
+function pxRowSig(i){var x=PDT[i];return [x.b,x.p,x.sz,x.dot||'',x.ply||''].join('|')}
+function pxFindBySig(sig){for(var i=0;i<PDT.length;i++)if(pxRowSig(i)===sig)return i;return -1}
+function pxLearnSave(){try{localStorage.setItem('px_learn',JSON.stringify(PXLEARN))}catch(_e){}}
+
+/* 사이즈 문자열에서 인치 뽑기 — 225/40R18·35x12.5R18 둘 다 */
+function pxInchOf(sz){var m=String(sz||'').match(/R\s*(\d{2}(?:\.\d)?)/i);return m?Math.round(parseFloat(m[1])):null}
+
+excAssign=function(i){
+  var e=EXC[i]; if(!e)return;
+  modalFor='exc:'+i; modalKind='match';
+  var mq=$('#mq'); mq.style.display='';
+  $('#mtitle').textContent='상품 지정 — '+String(e.pname||'').slice(0,44)+(e.sz?'  ['+e.sz+']':'');
+  var pre=[]; var ob=moBrandOf(e.pname||''); if(ob)pre.push(ob); if(e.sz)pre.push(e.sz);
+  mq.value=pre.join(' ');
+  mq.placeholder='단가표 검색 — 브랜드·패턴·사이즈·제품번호 아무거나';
+  $('#modalBg').style.display='flex'; renderModal(); mq.focus(); mq.select();
+};
+var _pxRM0=renderModal;
+renderModal=function(){
+  if(modalKind==='paste'){pxPrevRender();return}
+  if(modalKind!=='match')return _pxRM0();
+  var idx=parseInt(String(modalFor).split(':')[1],10), e=EXC[idx];
+  var q=($('#mq').value||'').trim();
+  var hits=[];
+  if(q){for(var i=0;i<PDT.length&&hits.length<300;i++){if(pdHit(i,q))hits.push(i)}}
+  var body='';
+  if(!q){body='<div style="padding:18px;text-align:center;color:var(--text3);font-size:12px">검색어를 넣으세요 — 브랜드·패턴·사이즈·제품번호 아무거나</div>'}
+  else if(!hits.length){body='<div style="padding:18px;text-align:center;color:var(--text3);font-size:12px">단가표에 없습니다 — 아래 <b>＋단가표에 새로 추가</b>로 등록하세요</div>'}
+  else{
+    body=hits.slice(0,120).map(function(i){var x=PDT[i];var c=effC(i);
+      return '<div class="srow"><span class="nm">'+pxesc(x.b)+' '+pxesc(x.p)+' <span>'+pxesc(x.sz)+'</span></span>'
+        +'<span class="dot">'+(x.dot||'신품')+'</span>'
+        +'<span class="loc">'+(x.ply?x.ply+'P':'')+'</span>'
+        +'<span class="av">'+(c!=null?fmt(c)+'원':'<span style="color:#b45309">원가없음</span>')+'</span>'
+        +'<button class="mini pri" onclick="PX.excPick('+i+')">이걸로</button></div>';
+    }).join('');
+    if(hits.length>120)body+='<div style="padding:6px 10px;font-size:11px;color:var(--text3)">…상위 120건만 표시 (검색어를 더 좁히세요) · 전체 '+hits.length+'건</div>';
+  }
+  var raw=String(e&&e.pname||'');
+  $('#mlist').innerHTML=body
+    +'<div style="border-top:1px dashed var(--border);margin-top:8px;padding:8px 10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">'
+    +'<span style="font-size:11.5px;color:var(--text2)">표에 없는 새 상품인가요?</span>'
+    +'<button class="mini pri" style="background:#0f766e;border-color:#0f766e" onclick="PX.excNew('+idx+')">＋ 단가표에 새로 추가</button>'
+    +'<span style="font-size:11px;color:var(--text3)">주문 원문에서 뽑은 값을 미리 채워둡니다</span></div>'
+    +'<div style="padding:0 10px 8px;font-size:11px;color:var(--text3)">원문: '+pxesc(raw.slice(0,90))+'</div>';
+};
+excPick=function(pi){
+  var idx=parseInt(String(modalFor).split(':')[1],10), e=EXC[idx];
+  if(!e||pi==null||!PDT[pi])return;
+  aBegin();
+  var r=(e.rowId!=null)?R(e.rowId):null;
+  if(r){
+    var fp=effF(pi),bs=baseSup(pi),rate=bs?effRate(pi,bs):null,c=effC(pi);
+    if(fp!=null)r.fp=fp;
+    if(rate!=null)r.dc=String(rate); else if(c!=null)r.cost=c;
+    r.pdIdx=pi; r.pdLabel=PDT[pi].b+' '+PDT[pi].p+' '+PDT[pi].sz+(PDT[pi].dot?' '+PDT[pi].dot:' 신품');
+  }
+  aEnd('🎓상품 지정',String(e.pname||'').slice(0,30)+' → '+PDT[pi].b+' '+PDT[pi].p);
+  PXLEARN[pxLearnKey(e.pname,e.sz)]=pxRowSig(pi); pxLearnSave();
+  EXC.splice(idx,1); closeModal(); renderExc();
+  if(typeof renderCards==='function')renderCards();
+  renderSheet();
+  toast('지정 완료 — 다음부터 이 상품명은 자동으로 붙습니다');
+};
+/* ＋단가표에 새로 추가 — 주문 원문에서 뽑은 값을 미리 채운다 */
+function excNew(idx){
+  var e=EXC[idx]; if(!e)return;
+  var nm=String(e.pname||'');
+  var b=moBrandOf(nm)||'';
+  var sz=e.sz||'';
+  if(!sz){var k=pxSzFromName(nm); if(k&&k.length===7)sz=k.slice(0,3)+'/'+k.slice(3,5)+'R'+k.slice(5)}
+  var ply=pxPlyOf(nm); var y=moYearOf(nm);
+  var pat=moToks(nm).filter(function(w){return !MO_LINE[w]&&w!==(b||'').toUpperCase()}).slice(0,4).join(' ');
+  function fld(id,lab,val,w,ph){return '<label style="display:flex;flex-direction:column;gap:2px;font-size:11px;color:var(--text2)">'+lab
+    +'<input id="'+id+'" value="'+esc2(val==null?'':val)+'" placeholder="'+(ph||'')+'" style="width:'+w+'px;border:1.5px solid var(--border);border-radius:7px;padding:4px 6px;font:inherit;font-size:12px"></label>'}
+  $('#mtitle').textContent='단가표에 새로 추가';
+  $('#mq').style.display='none';
+  $('#mlist').innerHTML='<div style="padding:10px">'
+    +'<div style="font-size:11.5px;color:var(--text3);margin-bottom:8px">주문 원문: '+pxesc(nm.slice(0,90))+'</div>'
+    +'<div style="display:flex;flex-wrap:wrap;gap:8px">'
+    +fld('nrB','브랜드 *',b,110,'예: 사일룬')+fld('nrP','패턴',pat,170,'예: A/T-2')
+    +fld('nrSz','사이즈 *',sz,110,'예: 265/60R18')+fld('nrPly','P수',ply==null?'':ply,50,'4')
+    +fld('nrDot','연식',y==null?'':y,60,'비우면 신품')+fld('nrOrg','원산지','',80,'')
+    +fld('nrNo','제품번호','',100,'')
+    +'</div>'
+    +'<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;padding-top:8px;border-top:1px dashed var(--border)">'
+    +fld('nrFac','공장도가',' ',100,'율 적용됨')+fld('nrCost','원가(직접)','',100,'금액 확정')+fld('nrPg','핑 최저가','',100,'')
+    +'</div>'
+    +'<div style="font-size:11px;color:var(--text3);margin-top:7px;line-height:1.7">'
+    +'· <b>공장도가</b>를 넣으면 그 브랜드의 거래처 할인율이 자동 적용돼 원가가 나옵니다.<br>'
+    +'· <b>원가</b>를 직접 넣어도 되고, <b>핑 최저가</b>만 알아도 됩니다.<br>'
+    +'· <b>셋 다 몰라도 등록됩니다</b> — 원가는 비어 있고 나중에 단가표에서 채우시면 됩니다.</div>'
+    +'<div style="display:flex;gap:8px;margin-top:12px">'
+    +'<button class="mini pri" style="padding:7px 14px;font-size:12.5px;font-weight:800" onclick="PX.excNewSave('+idx+')">단가표에 추가하고 이 주문에 적용</button>'
+    +'<button class="mini" onclick="PX.excAssign('+idx+')">← 검색으로 돌아가기</button></div>'
+    +'<div style="font-size:11px;color:#b45309;margin-top:8px">추가한 뒤 단가표에서 <b>💾 DB에 저장</b>을 눌러야 전 직원이 같이 씁니다.</div>'
+    +'</div>';
+  var f=document.getElementById('nrB'); if(f){f.focus();f.select()}
+}
+function excNewSave(idx){
+  var e=EXC[idx]; if(!e)return;
+  function g(id){var el=document.getElementById(id);return el?String(el.value||'').trim():''}
+  function num(id){var v=g(id).replace(/[^0-9]/g,'');return v?parseInt(v,10):null}
+  var b=g('nrB'), sz=g('nrSz');
+  if(!b||!sz){alert('브랜드와 사이즈는 넣어야 합니다');return}
+  var x={b:b,p:g('nrP'),no:g('nrNo'),sz:sz,
+    ply:g('nrPly')||null, dot:g('nrDot')||'', org:g('nrOrg')||'',
+    fac:num('nrFac'), pg:num('nrPg'), rt:{}};
+  x['in']=pxInchOf(sz);
+  var c=num('nrCost'); if(c!=null)x.s2=['직접입력',c];
+  PDT.push(x);
+  var pi=PDT.length-1;
+  MO_BYSZ=null; MO_BRANDS=null; MO_1CH=null;   /* 매칭 색인 재생성 */
+  if(typeof pdNumsReset==='function')pdNumsReset();
+  if(typeof pxFillBrands==='function')pxFillBrands();
+  toast('단가표에 추가했습니다 — 💾 DB에 저장을 눌러야 전 직원이 같이 씁니다');
+  excPick(pi);
+  if(typeof renderPrice==='function')renderPrice();
+}
+/* ══════════ v97-C 붙여넣기 파서 보강 (호준님 08-11) ══════════
+   호준님: *"헤더에 뭐가 적혀있었는지 다시 알려줘야 해?? 11번가 파일에 다 나와있잖아"*
+           *"붙여넣기해서 행 추가된 거에서도 뭐가 누락되거나 이런 것들이 많다"*
+   실측(정산서 11번가&스토어팜&타이어핑&효성.xlsx):
+    · 11번가 시트 = 30열. A~C가 비어 있고 D가 날짜라 pxDetect 의 '완료|취소…' 규칙이 안 걸리고,
+      열 수 30 이 n>=24 에 먼저 걸려 ★핑으로 오인식★ 됐다 → 핑 열 순서로 읽어 값이 전부 어긋남.
+    · 헤더 사전 PXH 에 출고지·공장도가·원가할인율·원가·택배비·장착예약일이 아예 없었다.
+      11번가·스토어팜 시트에는 그 값이 이미 계산돼 들어 있는데 읽지 않고 버리고 있었다.
+   → ①사이트명으로 채널을 먼저 가른다 ②헤더 사전을 정산서 엑셀 기준으로 넓힌다
+     ③헤더는 '정확히 같은 이름'을 먼저 맞춘다('원가할인율'이 '원가'로 잡히던 것 방지)
+     ④읽은 공장도가·할인율·원가·택배비를 시트 행에 그대로 채운다(매칭이 실패해도 원가가 남는다) */
+(function(){
+  var add={
+    inbVendor:['출고지','입고거래처','거래처','매입처','공급처'],
+    fp:['공장도가','공장도','공장도금액'],
+    dc:['원가할인율','할인율','원가율'],
+    cost:['원가','개별원가'],
+    fee:['택배비'],
+    resv:['장착예약일','장착예약일(발송일)','장착예약','예약일'],
+    store:['주문사이트','주문 사이트','판매사이트','스토어','브랜드'],
+    note:['처리내역','판매자메모','배송메시지','배송메세지','요청사항','비고','메모'],
+    odate:['날짜','주문일','결제일','출고일','기록일','발주일','주문일시'],
+    /* pay 는 '정산예정금액'이어야 한다. '주문금액'을 여기 넣으면 11번가에서 빈 M열(주문금액)이
+       N열(정산예정금액)보다 먼저 잡혀 정산이 0으로 들어온다(실측) → 판매가는 sale 로 따로 받는다. */
+    pay:['정산예정금액','정산금액','실 결제금액','결제금액','합계액','견적'],
+    sale:['주문금액','판매가','판매단가','상품금액'],
+    ship:['배송방법/장착점','배송방법','판매방법','배송']
+  };
+  for(var k in add){
+    if(!PXH[k])PXH[k]=[];
+    for(var j=0;j<add[k].length;j++)if(PXH[k].indexOf(add[k][j])<0)PXH[k].push(add[k][j]);
+  }
+})();
+/* 헤더 매칭 — 1차 정확 일치, 2차 부분 포함. 순서를 안 두면 '원가할인율'이 '원가'(cost)로 잡힌다. */
+pxHeaderMap=function(cols){
+  var map={},hit=0,used={};
+  function scan(exact){
+    for(var i=0;i<cols.length;i++){
+      if(used[i])continue;
+      var t=String(cols[i]==null?'':cols[i]).replace(/\s+/g,'');
+      if(!t)continue;
+      for(var k in PXH){
+        if(map[k]!=null)continue;
+        for(var j=0;j<PXH[k].length;j++){
+          var h=PXH[k][j].replace(/\s+/g,'');
+          if(exact?(t===h):(t.indexOf(h)>=0)){map[k]=i;used[i]=1;hit++;break}
+        }
+        if(map[k]===i)break;
+      }
+    }
+  }
+  scan(true); scan(false);
+  return hit>=4?map:null;
+};
+var _pxDetect0=pxDetect;
+pxDetect=function(c){
+  var n=c.length;
+  /* 정산서 엑셀을 그대로 복사해 붙이는 경우 — 앞쪽 칸의 사이트명으로 먼저 가른다 */
+  for(var q=0;q<Math.min(n,8);q++){
+    var v=String(c[q]==null?'':c[q]);
+    if(/11번가/.test(v))return '11번가';
+    if(/롯데온|쿠팡/.test(v))return '11번가';
+    if(/핸드폰주문|사무실전화|사무실방문|전화주문/.test(v))return '전화';
+    if(/스토어팜|스마트스토어|제이제이제이|서울경기타이어|타이어구매|오프로드|온앤오프|가성비/.test(v))return '스팜';
+  }
+  return _pxDetect0(c);
+};
+/* 전화주문 — 정산서 '전화주문' 시트(29열)를 헤더 없이 붙여넣어도 맞게 읽는다.
+   0날짜 1주문사이트 2처리내역 3배송방법/장착점 4장착예약일 5출고지 6재고유무 7상품명 8수량
+   9수취인명 10연락처 11우편번호 12주소 13개당견적 14견적 15택배비 16공장도 17원가할인율 18원가 */
+var _pxRow0=pxRow;
+pxRow=function(d,c){
+  if(d==='전화'&&c.length>=18){
+    function s0(i){return String(c[i]==null?'':c[i]).trim()}
+    function n0(i){var v=s0(i).replace(/[^\d.]/g,'');if(!v)return null;var f=parseFloat(v);return isNaN(f)?null:Math.round(f)}
+    var pn=s0(7);
+    if(pn||s0(9)||s0(10)){
+      var r=mkRow({ch:'전화',regDate:shDate,odate:s0(0),note:s0(2),ship:s0(3),
+        inbVendor:s0(5),pname:pn,sz:extractSize(pn),qty:n0(8)||1,
+        recv:s0(9),tel:s0(10),addr:s0(12),pay:n0(14)||0,fee:n0(15)||''});
+      var fp=n0(16); if(fp)r.fp=fp;
+      var dv=parseFloat(s0(17)); if(!isNaN(dv)&&dv>0){if(dv<1)dv=Math.round(dv*1000)/10;r.dc=String(dv)}
+      var ct=n0(18); if(ct&&!fp)r.cost=ct;
+      var rv=s0(4); if(rv)r.resvAt=rv;
+      return r;
+    }
+  }
+  return _pxRow0(d,c);
+};
+var _pxRBM0=pxRowByMap;
+pxRowByMap=function(map,c,ch){
+  var r=_pxRBM0(map,c,ch);
+  function s(k){var i=map[k];return i==null?'':String(c[i]==null?'':c[i]).trim()}
+  function num(k){var v=s(k).replace(/[^\d.]/g,'');if(!v)return null;var f=parseFloat(v);return isNaN(f)?null:Math.round(f)}
+  /* 판매처 파일이 이미 갖고 있는 값 — 매칭이 실패해도 이게 있으면 원가가 빈 채로 남지 않는다 */
+  var fp=num('fp');   if(fp)r.fp=fp;
+  var cst=num('cost');if(cst)r.cost=cst;
+  var fee=num('fee'); if(fee!=null)r.fee=fee;
+  var d=s('dc');
+  if(d){var dv=parseFloat(d.replace(/[^\d.]/g,''));
+    if(!isNaN(dv)&&dv>0){ if(dv<1)dv=Math.round(dv*1000)/10; r.dc=String(dv) }}
+  var st=s('store'); if(st&&!r.store)r.store=st;
+  var rv=s('resv');  if(rv)r.resvAt=rv;
+  /* sale 은 시트에서 판매구분(정상/취소)으로 쓰는 칸이다 — 금액을 넣으면 안 된다.
+     판매가는 정산예정금액이 비어 있을 때 pay 를 메우는 용도로만 쓴다. */
+  var sl=num('sale'); if(!r.pay&&sl)r.pay=sl;
+  return r;
+};
+
+/* ══════════ v100 (08-11) 붙여넣기 미리보기 — "미리보기로 한번 보고 나서 입력하게" ══════════
+   [붙여넣기 분석]을 누르면 바로 행이 추가되던 것을 → 채널·건수·원가자동·미매칭·제외를 먼저 보여주고
+   [이대로 추가]를 눌러야 시트에 들어간다. 취소하면 아무것도 안 들어간다. */
+var PXPREV=null;
+function pxAnalyze(txt){
+  var lines=txt.split(/\r?\n/).filter(function(l){return l.replace(/\t/g,'').trim()!==''});
+  var out=[],ch=null,MAP=null,matched=0,exc=0,skip=0;
+  lines.forEach(function(l){
+    if(!String(l||'').replace(/[\t,;|\s]/g,''))return;
+    var c=l.split('\t');
+    var _hm=pxHeaderMap(c);
+    if(_hm){MAP=_hm;ch=shTab;return}
+    if(isHeaderLine(c[0]))return;
+    if(c.length<2)return;
+    var d=MAP?shTab:pxDetect(c); if(!d)d='SMART';
+    ch=d;
+    var r=MAP?pxRowByMap(MAP,c,shTab):(d==='SMART'?pxRowSmart(c,shTab):pxRow(d,c));
+    if(!r)return;
+    if(pxRowUseless(r)){skip++;out.push({r:r,skip:1});return}
+    r.store=($('#pStore').value||'').trim();
+    r.origin=($('#pOrigin').value||'').trim();
+    var m=pdOrderMatch(r.pname,r.sz);
+    var rec={r:r};
+    if(m&&m.i!=null){
+      if(r.fp==='')r.fp=m.fp||'';
+      if(m.rate!=null)r.dc=String(m.rate); else if(m.cost!=null)r.cost=m.cost;
+      r.pdIdx=m.i;r.pdLabel=m.label;if(m.yfb)r.yfb=m.yfb;matched++;rec.ok=1;
+    }else if(!pxTraySkip(r.pname,m)){rec.exc=(m&&m.why?m.why:'원가 매칭 실패');exc++}
+    out.push(rec);
+  });
+  return {ch:ch,rows:out,matched:matched,exc:exc,skip:skip,addN:out.filter(function(x){return !x.skip}).length};
+}
+doPaste=function(){
+  if(!IEDIT){toast('보기 전용 상태입니다');return}
+  if(shReadOnly()){toast('전체 탭은 보기 전용 — 채널 탭에서 붙여넣으세요');return}
+  var txt=$('#pasteBox').value;
+  if(!txt.trim()){toast('붙여넣을 내용이 없습니다');return}
+  PXPREV=pxAnalyze(txt);
+  if(!PXPREV.addN){toast('추가할 행이 없습니다'+(PXPREV.skip?' — 전부 옵션·빈 줄('+PXPREV.skip+'건)':''));PXPREV=null;return}
+  modalKind='paste';modalFor='paste';
+  $('#mq').style.display='none';
+  $('#mtitle').textContent='붙여넣기 미리보기';
+  $('#modalBg').style.display='flex';
+  pxPrevRender();
+};
+function pxPrevRender(){
+  var P=PXPREV;if(!P)return;
+  var head='<div style="padding:8px 10px;font-size:12.5px;display:flex;gap:14px;flex-wrap:wrap;border-bottom:1px solid var(--border)">'
+   +'<b>'+pxesc(P.ch||'')+' — '+P.addN+'건 추가 예정</b>'
+   +'<span style="color:#15803d;font-weight:700">원가 자동 '+P.matched+'</span>'
+   +'<span style="color:#b45309;font-weight:700">미매칭 '+P.exc+'</span>'
+   +(P.skip?'<span style="color:var(--text3)">제외(옵션·빈줄) '+P.skip+'</span>':'')+'</div>';
+  var body=P.rows.filter(function(x){return !x.skip}).slice(0,200).map(function(x){var r=x.r;
+    return '<div class="srow"><span class="nm" style="flex:2">'+pxesc(String(r.pname).slice(0,44))+'</span>'
+     +'<span style="color:var(--blue);font-weight:700">'+pxesc(r.sz||'')+'</span><span>×'+(r.qty||'')+'</span>'
+     +'<span style="min-width:86px;text-align:right">'+(x.ok?('<b style="color:#15803d">'+fmt(rowCost(r)||r.cost||'')+'</b>'):'<span style="color:#b45309" title="'+esc2(x.exc||'')+'">미매칭</span>')+'</span></div>';
+  }).join('');
+  if(P.addN>200)body+='<div style="padding:6px 10px;font-size:11px;color:var(--text3)">…표시는 200건까지 · 추가는 전건 됩니다</div>';
+  $('#mlist').innerHTML=head+body
+   +'<div style="display:flex;gap:8px;padding:10px;border-top:1px solid var(--border);position:sticky;bottom:0;background:var(--bg,#fff)">'
+   +'<button class="mini pri" style="padding:8px 16px;font-size:13px;font-weight:800" onclick="PX.pasteCommit()">이대로 '+P.addN+'건 추가</button>'
+   +'<button class="mini" onclick="PX.pasteCancel()">취소</button></div>';
+}
+function pasteCommit(){
+  var P=PXPREV;if(!P)return;
+  aBegin();
+  P.rows.forEach(function(x){
+    if(x.skip)return;
+    if(x.exc)EXC.push({id:'e'+(excSeq++),kind:'nomatch',rowId:x.r.id,pname:x.r.pname,ch:x.r.ch,sz:x.r.sz,note:x.exc+" — 자동 기입 안 함(행은 '원가 필요')"});
+    ROWS.unshift(x.r);
+  });
+  aEnd('📥원본 붙여넣기',(P.ch||'')+' '+P.addN+'건'+(P.exc?' · 매칭실패 '+P.exc:''));
+  $('#pasteBox').value='';PXPREV=null;closeModal();
+  renderExc();renderSheet();
+  toast((P.ch||'')+' '+P.addN+'건 추가 · 원가 자동 '+P.matched+'건'+(P.exc?' · ⚠미매칭 '+P.exc+'건(트레이)':''));
+}
+function pasteCancel(){PXPREV=null;closeModal();toast('추가하지 않았습니다 — 붙여넣은 원문은 입력칸에 그대로 있습니다')}
+
+/* ══════════ v97-B 예외 트레이 정리 (호준님 08-11) ══════════
+   ①"빈칸은 그냥 아예 안 잡혀도 되잖아" → 사이즈를 못 찾은 건(휠·부품·옵션 줄·전화번호·빈 상품명)은
+     애초에 트레이에 올리지 않는다. 시트 행은 그대로 남고 '원가 필요' 상태다.
+   ②탭별로 보기 — 핑/스팜/11번가/전화 탭에서는 그 채널 것만, 전체 탭에서는 전부.
+   ③"한번에 삭제" — 삭제 모드에서 왼쪽 체크박스로 골라 한꺼번에 뺀다.
+   ★안전: 트레이에서 빼는 것은 알림 목록에서 지우는 것일 뿐, 주문 행은 지워지지 않는다.
+     그래도 되돌릴 수 있게 실행취소(↩)에 기록하고, 여러 건을 뺄 때는 확인을 받는다. */
+function pxTraySkip(nm,m){
+  if(m&&m.nontire)return true;
+  var s=String(nm||'').trim();
+  if(!s)return true;                                            /* 상품명 없음 */
+  if(/^0\d{1,2}[-. ]?\d{3,4}[-. ]?\d{4}$/.test(s))return true;  /* 전화번호만 있는 줄 */
+  if(m&&m.why&&m.why.indexOf('사이즈를')===0){
+    /* 사이즈를 단가표에서 못 찾았어도 상품명에 타이어 규격이 보이면 진짜 주문이다.
+       (트라이앵글 TR652 165 13 8P → 165/80R13 이 단가표에 없을 뿐)
+       이런 건 트레이에 남겨야 [단가표에 새로 추가]로 등록할 수 있다. */
+    if(/\d{3}\s*[\/ ]\s*\d{2}|\d{2}\s*[xX×]\s*\d{1,2}|\d{3}\s*Z?R\s*\d{2}|\d{3}\s+\d{2}(?:\s|$)/.test(s))return false;
+    return true;
+  }
+  return false;
+}
+var EXCDEL=false, EXCSEL={};
+function excVis(){
+  var out=[];
+  for(var i=0;i<EXC.length;i++){
+    var e=EXC[i];
+    if(typeof shTab!=='undefined'&&shTab&&shTab!=='전체'&&e.ch&&e.ch!==shTab)continue;
+    out.push(i);
+  }
+  return out;
+}
+excHTML=function(){
+  var vis=excVis();
+  if(!vis.length)return '';
+  var h='<div class="exc"><div class="exc-h">'
+    +'<span onclick="excOpen=!excOpen;PX.renderExc()" style="cursor:pointer">⚠ 예외 트레이 <span class="pxcnt">'+vis.length+'</span></span>'
+    +'<span class="sub">자동 기입하지 않고 모아뒀습니다 — 사람이 지정하면 학습돼 다음부터 자동</span>';
+  if(excOpen){
+    h+='<span style="margin-left:auto;display:flex;gap:6px;align-items:center">';
+    if(EXCDEL){
+      var n=Object.keys(EXCSEL).length;
+      h+='<label style="font-size:10.5px;display:flex;align-items:center;gap:3px;cursor:pointer"><input type="checkbox" onchange="PX.excSelAll(this.checked)"'+(n&&n===vis.length?' checked':'')+'> 전체선택</label>'
+       +'<button class="mini" style="background:#dc2626;color:#fff;border-color:#dc2626" onclick="PX.excDelSel()">선택 '+n+'건 빼기</button>'
+       +'<button class="mini" onclick="PX.excSelMode()">취소</button>';
+    }else{
+      h+='<button class="mini" onclick="PX.excSelMode()">☑ 선택해서 빼기</button>';
+    }
+    h+='<span onclick="excOpen=!excOpen;PX.renderExc()" style="cursor:pointer;font-size:10.5px">▲ 접기</span></span>';
+  }else{
+    h+='<span onclick="excOpen=!excOpen;PX.renderExc()" style="margin-left:auto;cursor:pointer;font-size:10.5px">▼ 펼치기</span>';
+  }
+  h+='</div>';
+  if(excOpen){ h+='<div class="exc-body">'+vis.map(function(i){
+    var e=EXC[i];
+    var cb=EXCDEL?('<input type="checkbox" onchange="PX.excSelOne('+i+',this.checked)"'+(EXCSEL[i]?' checked':'')+' style="margin-right:6px;flex-shrink:0">'):'';
+    if(e.kind==='nomatch'){
+      return '<div class="exc-row">'+cb+'<span class="why nomatch">상품 미매칭</span><span class="nm2">'+pxesc(e.pname)+'</span>'
+        +'<span style="font-weight:800;color:var(--blue);font-size:11px">'+pxesc(e.sz||extractSize(e.pname)||'사이즈 없음')+'</span>'
+        +'<span class="raw">'+pxesc(e.note||'원가를 못 찾아 자동 기입하지 않았습니다')+'</span>'
+        +'<button class="mini pri" onclick="PX.excAssign('+i+')">상품 지정</button>'
+        +'<button class="mini" onclick="PX.excDrop('+i+')">트레이에서 제거</button></div>';
+    }
+    return '<div class="exc-row">'+cb+'<span class="why norec">줄 미인식</span>'
+      +'<span class="raw" title="'+esc2(e.raw||'')+'">'+pxesc(e.raw||'')+'</span>'
+      +'<span style="flex-shrink:0;font-size:10.5px;color:var(--text3)">'+pxesc(e.why||'')+'</span>'
+      +'<button class="mini pri" onclick="PX.excToRow('+i+')">시트에 빈 행으로</button>'
+      +'<button class="mini" onclick="PX.excDrop('+i+')">버리기</button></div>';
+  }).join('')+'</div>'; }
+  return h+'</div>';
+};
+function excSelMode(){EXCDEL=!EXCDEL;EXCSEL={};renderExc()}
+function excSelOne(i,on){if(on)EXCSEL[i]=1;else delete EXCSEL[i];renderExc()}
+function excSelAll(on){EXCSEL={};if(on)excVis().forEach(function(i){EXCSEL[i]=1});renderExc()}
+function excDelSel(){
+  var ids=Object.keys(EXCSEL).map(Number).filter(function(i){return EXC[i]}).sort(function(a,b){return b-a});
+  if(!ids.length){toast('고른 것이 없습니다');return}
+  if(!confirm('예외 트레이에서 '+ids.length+'건을 뺍니다.\n\n주문 행은 지워지지 않습니다 — 원가만 비어 있는 상태로 시트에 그대로 남습니다.\n되돌리려면 ↩ 실행취소를 누르세요.'))return;
+  aBegin();
+  ids.forEach(function(i){EXC.splice(i,1)});
+  aEnd('🧹예외 트레이 정리',ids.length+'건 뺌(주문 행은 유지)');
+  EXCSEL={};EXCDEL=false;renderExc();
+  toast(ids.length+'건을 트레이에서 뺐습니다 — 주문 행은 그대로 있습니다');
+}
+/* ══════════ v99 (08-11) 재고연결 = 기존 픽커(#rsv-pick-modal) 그대로 ══════════
+   호준님: "재고연결 인터페이스 바꿔줘, 내가 원래 기존에 쓰던 걸로" — 예약·직배송이 쓰는
+   재고/입고분 탭 + 검색 + [이걸로 출고] 픽커를 종합방에서도 연다(ctx='jh').
+   ⚠단, 종합방에서 고르면 **화면 연결만** 한다 — 실제 재고 차감·예약 기록은 2단계 실연동 때.
+   (기존 예약·직배송 흐름은 ctx가 'jh'가 아니므로 한 줄도 안 바뀐다) */
+if(typeof rsvPickChoose==='function'&&typeof rsvInbChoose==='function'){
+  var JHPICK=null;
+  openConnect=function(rowId){
+    var r=R(rowId); if(!r)return;
+    JHPICK=rowId; rsvPickCtx='jh'; if(typeof rsvPickMode!=='undefined')rsvPickMode='first';
+    var show=function(){
+      var q=document.getElementById('rsv-pick-q');
+      if(q)q.value=(String(r.sz||'')+' '+String(r.pname||'').split(/\s+/).slice(0,3).join(' ')).trim();
+      rsvPickSrc='stock';
+      var a=document.getElementById('rsv-src-stock'),b2=document.getElementById('rsv-src-inbound');
+      if(a)a.style.cssText=rsvSrcBtnCss(true); if(b2)b2.style.cssText=rsvSrcBtnCss(false);
+      document.getElementById('rsv-pick-modal').classList.add('on');
+      rsvPickRender();
+      if(typeof rsvLoadInbound==='function')rsvLoadInbound();
+    };
+    if(typeof stkLoad==='function'){Promise.resolve(stkLoad()).then(show)}else show();
+  };
+  var _jhStk0=rsvPickChoose;
+  rsvPickChoose=function(pid,dot){
+    if(rsvPickCtx!=='jh')return _jhStk0(pid,dot);
+    var p=stkP.find(function(x){return x.id===pid}); var r=R(JHPICK);
+    if(!p||!r){rsvPickClose();return}
+    var lot=p.lots.find(function(l){return String(l.dot||'')===String(dot||'')});
+    var avail=lot?lot.q:0;
+    var remain=Math.max(1,(r.qty||1)-linkedOf(r));
+    var spec=p.br+' '+p.name+' '+p.size+(dot?' '+dot:'');
+    var qStr=prompt(spec+'\n재고 '+avail+'개 중 연결 수량',Math.min(remain,avail||remain));
+    if(qStr==null)return;
+    var qty=parseInt(String(qStr).replace(/[^0-9]/g,''),10)||0;
+    if(qty<1)return;
+    if(avail&&qty>avail){alert('재고('+avail+'개)보다 많이 연결할 수 없습니다');return}
+    aBegin();
+    r.whLots.push({vendor:'창고',loc:lot?lot.loc:'',qty:qty,pn:p.br+' '+p.name,sz:p.size,dot:dot||'',pid:pid});
+    aEnd('🔗재고연결',spec+' ×'+qty);
+    rsvPickClose(); renderSheet();
+    toast('연결됨(화면 기록) — ⚠창고재고 실차감은 아직 안 합니다(2단계 연동 전)');
+  };
+  var _jhInb0x=rsvInbChoose;
+  rsvInbChoose=function(itemId){
+    if(rsvPickCtx!=='jh')return _jhInb0x(itemId);
+    var it=rsvInbItems.find(function(x){return x.id===itemId}); var r=R(JHPICK);
+    if(!it||!r){rsvPickClose();return}
+    var rem=itemRemainQty(it);
+    var remain=Math.max(1,(r.qty||1)-linkedOf(r));
+    var qStr=prompt((it.model||'')+' '+(it.spec||'')+'\n잔량 '+rem+'개 중 연결 수량',Math.min(remain,rem||remain));
+    if(qStr==null)return;
+    var qty=parseInt(String(qStr).replace(/[^0-9]/g,''),10)||0;
+    if(qty<1)return;
+    if(qty>rem){alert('잔량('+rem+'개)보다 많이 연결할 수 없습니다');return}
+    aBegin();
+    r.inbLots.push({vendor:it.src||'입고분',qty:qty,arrived:false,src:'exist',pn:it.model||'',sz:it.spec||'',itemId:it.id});
+    aEnd('📦입고분 연결',(it.model||'')+' ×'+qty);
+    rsvPickClose(); renderSheet();
+    toast('입고분 연결(화면 기록) — ⚠실제 입고분 차감은 아직 안 합니다(2단계 연동 전)');
+  };
+}
+
+/* ══════════ v99-C 룩업 규칙 재연결 (호준님 08-11: "패턴코드·패턴이 일치하면 할인율도 동일. 거래처는 매일도 한국도 둘 다") ══════════
+   정밀 점검 실측: 규칙 640개 중 302개(47%)가 한 행에도 안 붙어 있었다.
+   원인 = 목업이 rt를 만들 때 ①규칙 브랜드 '한국' ↔ 행 브랜드 '라우펜' 불일치(세컨 브랜드)
+          ②코드(LH01) ↔ 행 패턴명(S FIT AS) 불일치. 라우펜 전 행이 핑최저가 폴백으로 계산되고 있었다.
+   원칙: ▸기본율만 잇는다(볼륨·연식 조건부는 제외 — 오적용 방지)
+         ▸기존 연결(x.rt)은 절대 덮지 않는다
+         ▸과년(dot) 행·이월원가(s2) 보유 행은 건드리지 않는다 — "과년재고는 별도로 준 파일의 율" 원칙 보호
+         ▸사이즈·원산지·인치 조건이 달린 규칙도 여기선 잇지 않는다 */
+var MAPL_LAUFENN={'S FIT AS':'LH01','G FIT AS':'LH41','X FIT HT':'LD01'};
+function pxRuleRelink(){
+  var added=0,rows=0,bySup={};
+  for(var i=0;i<PDT.length;i++){var x=PDT[i];
+    if(x.dot&&x.dot!=='2026')continue;          /* 과년은 별도 파일 율 — 여기서 안 만짐 */
+    if(x.s2)continue;                            /* 이월·수입사 원가 보유 행도 보호 */
+    var toks=jsToks(x.p);
+    var codeAlias=MAPL_LAUFENN[String(x.p||'').trim()]||null;
+    var touched=false;
+    for(var k=0;k<PRULES.length;k++){var r=PRULES[k];
+      if(r.dt||/조건부/.test(r.ap||''))continue;
+      if(r.sz||r.org||r['in'])continue;
+      if(x.rt&&x.rt[r.sup]!=null)continue;
+      var hit=false;
+      if(r.code){var rc=String(r.code).toUpperCase();
+        if(rc!=='일반상품'&&toks.indexOf(rc)>=0)hit=true;
+        else if(codeAlias&&rc===codeAlias)hit=true;
+        else if(jsNorm(r.code)===jsNorm(x.p))hit=true;}
+      if(!hit&&r.pn&&jsNorm(r.pn)===jsNorm(x.p))hit=true;
+      if(!hit)continue;
+      if(r.b&&r.b!==x.b&&!(x.b==='라우펜'&&r.b==='한국'))continue;   /* 라우펜↔한국(세컨 브랜드)만 예외 */
+      x.rt=x.rt||{}; x.rt[r.sup]=[r.pub,r.id];
+      added++;touched=true;bySup[r.sup]=(bySup[r.sup]||0)+1;
+    }
+    if(touched)rows++;
+  }
+  try{console.log('[v99-C] 룩업 재연결: 행',rows,'· 연결',added,bySup)}catch(_e){}
+  return {rows:rows,added:added,bySup:bySup};
+}
+var _pxAD0=(typeof pxAfterData==='function')?pxAfterData:null;
+if(_pxAD0){pxAfterData=function(){_pxAD0();pxRuleRelink()}}
+
+/* ══════════ v100-B 할인율 탭 원가 폴백 (호준님 08-11: "율 없으면 원가, 그것조차 없으면 핑최저가") ══════════
+   그랜드타이어는 피렐리 담당 거래처인데 개별 율 자료가 아직 없어(인수인계: "율 자료 오면 거래처 열로 이관")
+   열 전체가 빈칸이었다 → 피렐리 행에 한해 핑최저가를 폴백으로 보여준다. 율 자료가 들어오면 율이 우선한다. */
+var _sd0=supDirect;
+supDirect=function(i,sup){
+  var v=_sd0(i,sup); if(v)return v;
+  if(sup==='그랜드타이어'){
+    if(effRate(i,sup)!=null)return null;
+    var x=PDT[i];
+    if(x.ln==='피렐리'&&x.pg!=null)return {v:ceilTo(x.pg,PSET.roundTo),src:'핑최저가'};
+  }
+  return null;
+};
+
+/* 단가표 검색에도 동의어 — 'CC2'·'TA21C'로 쳐도 CROSS CLIMATE 2·TA21 이 나온다 */
+var _pdParse0=pdParse;
+pdParse=function(q){
+  q=String(q||'').toLowerCase();
+  q=q.replace(/(^|\s)cc\s*2($|\s)/g,'$1cross climate 2$2');
+  q=q.replace(/(^|\s)cc($|\s)/g,'$1cross climate$2');
+  q=q.replace(/(^|\s)ta21c($|\s)/g,'$1ta21$2');
+  q=q.replace(/(^|\s)피제로($|\s)/g,'$1p zero$2');
+  return _pdParse0(q);
+};
+
+/* ══════════ v98 (08-11) 시트 가상 창 렌더 — "1000건이면 엄청 버벅인다" ══════════
+   원인 실측: 매 클릭·매 방향키마다 ①1,000행×25칸 HTML 전체 재생성(행마다 원가·마진 재계산)
+   ②$$('#grid td[data-r]')로 셀 2만5천 개에 onclick 개별 바인딩.
+   → 보이는 창(약 40행)만 그리고, 클릭은 #grid 위임 리스너 1개로. data-r 은 전역 인덱스 그대로라
+     startEdit('#grid td[data-r=..]')·선택범위(rngBounds)·패널이 전부 그대로 동작한다. */
+var PXSHV={start:0,h:27,lock:0};
+var _pxRS0=renderSheet;
+renderSheet=function(){
+  renderShTabs();
+  var _carryEl=$('#shCarry'); var _carrySaved=_carryEl?_carryEl.checked:true;
+  renderShFilter(); if($('#shCarry'))$('#shCarry').checked=_carrySaved;
+  $('#shDate').value=shDate;
+  var rows=shRows();
+  $('#dcnt').textContent=shQ()?('전체 날짜 검색 — '+rows.length+'건'):(shDate+' 기록 '+rows.length+'건');
+  var allSel=rows.length>0&&rows.every(function(r){return SEL[r.id]});
+  var h='<tr><th style="width:'+(delMode?74:30)+'px"><input type="checkbox" class="rcbx" '+(allSel?'checked ':'')+'onclick="PX.shSelAll(event)"></th>'+COLS.map(function(c){return '<th>'+c.n+'</th>'}).join('')+'</tr>';
+  var box=document.querySelector('#sheetWrap .gridbox')||($('#grid')?$('#grid').parentElement:null);
+  var cnt=box?Math.max(14,Math.ceil(box.clientHeight/PXSHV.h)+8):46;
+  var start=PXSHV.start;
+  /* 커서가 창 밖이면 창을 커서 쪽으로 옮긴다(방향키로 끝까지 이동 가능) */
+  if(selR>=0){
+    if(selR<start+2)start=Math.max(0,selR-2);
+    else if(selR>start+cnt-6)start=Math.max(0,selR-cnt+6);
+  }
+  if(start>Math.max(0,rows.length-1))start=Math.max(0,rows.length-cnt);
+  if(start<0)start=0;
+  if(start!==PXSHV.start){PXSHV.start=start;
+    if(box){PXSHV.lock=1;box.scrollTop=Math.max(0,start*PXSHV.h)}}
+  var end=Math.min(rows.length,start+cnt);
+  var b='';
+  for(var ri=start;ri<end;ri++){(function(r,ri){
+    var cost=rowCost(r),mg=rowMargin(r),ov=rowOverride(r);
+    var autoable=(parseInt(r.fp,10)>0&&dcToBp(r.dc)!==null);
+    var tds=COLS.map(function(c,ci){
+      var cls=(ri===selR&&ci===selC?'sel ':'');
+      if(selR2>=0||selC2>=0){var bb=rngBounds();if(ri>=bb.r1&&ri<=bb.r2&&ci>=bb.c1&&ci<=bb.c2)cls+='rng ';}
+      var v='';
+      if(c.k==='_st'){var st0=deriveStatus(r);cls+='calc stcell';v='<span class="pxstbadge st-c-'+st0+'">'+(st0==='cxl'?r.sale:stLabel(st0))+'</span>'+((!shQ()&&r.regDate<shDate)?' <span style="font-size:9px;font-weight:900;color:#b91c1c">⏱이월</span>':'')}
+      else if(c.k==='_mg'){cls+='calc '+(mg?(mg.margin<0?'mg-neg':'mg-pos'):'');v=mg?fmt(mg.margin):'<span class="need">원가 필요</span>'}
+      else if(c.k==='_per'){cls+='calc';v=mg?fmt(mg.per):''}
+      else if(c.k==='cost'){
+        if(ov){cls+='override';v=fmt(cost)+' <span style="font-size:9px">(덮어씀)</span>'}
+        else if(autoable){cls+='calc';v=fmt(cost)+' <span style="font-size:9.5px">(자동)</span>'}
+        else v=fmt(r.cost);
+      }
+      else if(c.k==='dc'){
+        if(r.dcMan){cls+='override';v=String(r.dc==null?'':r.dc)+' <span style="font-size:9px">(수정)</span>'}
+        else if(r.dcAuto!=null&&r.dc!==''&&String(r.dc)===String(r.dcAuto)){cls+='calc';v=String(r.dc)+' <span style="font-size:9.5px">('+((r.inbVendor||r.dlVendor||'거래처'))+' 자동)</span>'}
+        else v=(r[c.k]==null)?'':String(r[c.k]);
+      }
+      else if(c.num)v=fmt(r[c.k]);
+      else v=(r[c.k]===undefined||r[c.k]===null)?'':String(r[c.k]);
+      return '<td class="'+cls+'" data-r="'+ri+'" data-c="'+ci+'"><div class="cv">'+(v===''?'&nbsp;':v)+'</div></td>';
+    }).join('');
+    var st1=deriveStatus(r);
+    var band=st1==='hold'?'r-hold':(r.ship?'r-'+r.ship:'');
+    var selectable=(st1==='prog'||st1==='ready'||st1==='hold'||st1==='wait');
+    b+='<tr class="'+(r.sale!=='정상'?'cxl ':'')+band+'"><td style="white-space:nowrap">'
+      +((selectable||delMode)?'<input type="checkbox" class="rcbx" '+(SEL[r.id]?'checked ':'')+'onclick="PX.toggleSelSh('+r.id+',event)"> ':'')
+      +((delMode&&!shReadOnly())?'<button class="rowdel-big" onclick="PX.delRow('+r.id+')">삭제</button>':'')+'</td>'+tds+'</tr>';
+  })(rows[ri],ri)}
+  var spTop='<tr class="pxsp"><td colspan="'+(COLS.length+1)+'" style="height:'+Math.max(0,start*PXSHV.h)+'px;padding:0;border:0"></td></tr>';
+  var spBot='<tr class="pxsp"><td colspan="'+(COLS.length+1)+'" style="height:'+Math.max(0,(rows.length-end)*PXSHV.h)+'px;padding:0;border:0"></td></tr>';
+  var g=$('#grid');
+  g.innerHTML=h+spTop+b+spBot;
+  /* 실측 행 높이로 보정(첫 렌더 뒤 1회) */
+  var tr1=g.querySelector('tr:not(.pxsp) td[data-r]');
+  if(tr1){var hh=tr1.parentElement.getBoundingClientRect().height;if(hh>10&&Math.abs(hh-PXSHV.h)>0.5)PXSHV.h=hh}
+  /* 클릭·더블클릭은 위임 1개 — 셀마다 안 붙인다 */
+  if(!g._pxBound){g._pxBound=1;
+    g.addEventListener('click',function(ev){
+      var td=ev.target.closest?ev.target.closest('td[data-r]'):null;if(!td)return;
+      if(ev.shiftKey&&selR>=0){selR2=+td.dataset.r;selC2=+td.dataset.c}
+      else{selR=+td.dataset.r;selC=+td.dataset.c;selR2=-1;selC2=-1}
+      renderSheet();
+    });
+    g.addEventListener('dblclick',function(ev){
+      var td=ev.target.closest?ev.target.closest('td[data-r]'):null;if(!td)return;
+      startEdit(+td.dataset.r,+td.dataset.c);
+    });
+  }
+  if(box&&!box._pxBound){box._pxBound=1;
+    box.addEventListener('scroll',function(){
+      if(PXSHV.lock){PXSHV.lock=0;return}
+      var st2=Math.max(0,Math.floor(box.scrollTop/PXSHV.h)-2);
+      if(Math.abs(st2-PXSHV.start)>=4){PXSHV.start=st2;requestAnimationFrame(function(){renderSheet()})}
+    });
+  }
+  renderExc();
+  renderPanel();
+  var selTd=g.querySelector('td.sel');
+  if(selTd&&selTd.scrollIntoView)selTd.scrollIntoView({block:'nearest',inline:'nearest'});
+  if(selC===0){var gb0=$('#sheetWrap .gridbox');if(gb0)gb0.scrollLeft=0;}
+};
+
+/* excNew·excNewSave 는 아래 _expose 목록에 추가해 PX.* 로 노출한다.
+   (여기서 window.PX 에 직접 넣으면 build_index 의 window.PX={...} 통째 대입에 덮인다) */
+
+
+
 /* ══════════════ v88 Supabase 연동 (종합방 = 목업 이식) ══════════════ */
 var PX_READY=false, PX_MSG='', PX_FROM_CACHE=false;
+function pxRowKey(o){   /* 변경 감지용 지문 — 값이 그대로면 저장 대상에서 빠진다 */
+  return [o.b,o.p,o.no,o.sz,o.ply,o.dot,o.org,o.oe,o.ft,o['in'],o.ln,o.fac,o.pg,
+          o.s2?o.s2[0]:'',o.s2?o.s2[1]:'',o.msrp,JSON.stringify(o.rt||{})].join('');
+}
 function pxRowFromDB(x){
   var o={b:x.brand||'',p:x.pattern||'',no:x.code||'',sz:x.size||'',ply:x.ply||'',oe:x.oe||'',
          dot:x.dot||'',org:x.org||'','in':x.inch||0,fac:x.factory,pg:x.ping_low,
@@ -19897,6 +20874,7 @@ function pxRowFromDB(x){
   if(x.feat)o.ft=x.feat;
   if(x.sup_src)o.s2=[x.sup_src,x.sup_price];
   if(x.msrp!=null)o.msrp=x.msrp;
+  o.dbid=x.id; o.sig=pxRowKey(o);      /* v93: 부분 저장용 — DB id + 로드 시점 지문 */
   return o;
 }
 function pxRowToDB(x){
@@ -19985,7 +20963,7 @@ async function pxLoadDB(force){
     PRULES.forEach(function(x){if(x.sup)sup[x.sup]=1});
     PDT.forEach(function(x){if(x.rt)Object.keys(x.rt).forEach(function(s){sup[s]=1})});
     PSUPS.length=0; Object.keys(sup).sort().forEach(function(s){PSUPS.push(s)});
-    ['하나타이어','그랜드타이어','아파치','썬베이','타이어왕도매'].forEach(function(s){if(PSUPS.indexOf(s)<0)PSUPS.push(s)});
+    ['하나타이어','그랜드타이어','아파치','선베이','타이어왕도매'].forEach(function(s){if(PSUPS.indexOf(s)<0)PSUPS.push(s)});
     DSUPS=['매일','극동'].concat(PSUPS.filter(function(s){return s!=='매일'&&s!=='극동'}));
     EGCOLS.disc=[{k:'b',d:1},{k:'p',d:1},{k:'no',d:1},{k:'sz',d:1},{k:'ply',d:1},{k:'ft',ro:1},
                  {k:'dot',d:1},{k:'org',d:1},{k:'f',ov:1}].concat(DSUPS.map(function(s){return {k:'r:'+s,ov:1}}));
@@ -20001,17 +20979,31 @@ async function pxSaveDB(){
   if(!confirm('지금 화면의 단가표 '+PDT.length.toLocaleString()+'행과 할인율 규칙 '+PRULES.length+'개를 DB에 저장할까요?\n(전 직원이 같은 데이터를 보게 됩니다)'))return;
   var btn=document.getElementById('pxSaveBtn'); if(btn){btn.disabled=true;btn.textContent='저장 중…'}
   try{
-    /* 같은 브랜드·패턴·사이즈라도 제품번호·공장도가 다른 별개 상품이 484건 있어(콘티넨탈 등)
-       키 기반 upsert가 불가 → 전체 교체(비우고 순서대로 다시 넣기). 순서 = 화면 행 순서 */
-    var dl=await sb.from('price_rows').delete().gte('id',0);
-    if(dl.error) throw new Error('기존 데이터 비우기 실패: '+dl.error.message);
-    var ck=500,done=0;
-    for(var i=0;i<PDT.length;i+=ck){
-      var part=PDT.slice(i,i+ck).map(pxRowToDB);
-      var r=await sb.from('price_rows').insert(part);
-      if(r.error) throw new Error(r.error.message);
+    /* v93 부분 저장 — 전체 삭제 후 재삽입(요청 31회·5.5MB·중간에 끊기면 데이터 증발)을 없앴다.
+       바뀐 행만 UPDATE · 새 행만 INSERT · 화면에서 사라진 행만 DELETE. */
+    var upd=[],ins=[],seen={};
+    for(var i=0;i<PDT.length;i++){var x=PDT[i];
+      var sig=pxRowKey(x);
+      if(x.dbid){ seen[x.dbid]=1; if(x.sig!==sig)upd.push({i:i,row:x,sig:sig}); }
+      else ins.push({i:i,row:x,sig:sig});
+    }
+    /* v95 (호준님 08-11): 삭제는 하지 않는다 — "동일하면 수정, 없으면 추가"만.
+       화면에서 행을 지우는 기능이 없으므로 삭제가 필요한 경우가 없고,
+       불러오기가 일부만 됐을 때 남은 행이 통째로 지워지는 사고만 만든다. */
+    var done=0,total=upd.length+ins.length;
+    for(var u=0;u<upd.length;u++){
+      var ru=await sb.from('price_rows').update(pxRowToDB(upd[u].row)).eq('id',upd[u].row.dbid);
+      if(ru.error) throw new Error('수정 실패: '+ru.error.message);
+      upd[u].row.sig=upd[u].sig; done++;
+      if(btn&&done%20===0)btn.textContent='저장 중… '+done+'/'+total;
+    }
+    for(var k=0;k<ins.length;k+=500){
+      var part=ins.slice(k,k+500);
+      var ri=await sb.from('price_rows').insert(part.map(function(p2){return pxRowToDB(p2.row)})).select('id');
+      if(ri.error) throw new Error('추가 실패: '+ri.error.message);
+      (ri.data||[]).forEach(function(d,idx){ if(part[idx]){part[idx].row.dbid=d.id; part[idx].row.sig=part[idx].sig} });
       done+=part.length;
-      if(btn)btn.textContent='저장 중… '+done.toLocaleString()+'/'+PDT.length.toLocaleString();
+      if(btn)btn.textContent='저장 중… '+done+'/'+total;
     }
     var rr=PRULES.map(function(x){return {id:x.id,brand:x.b||'',sup:x.sup||'',sub:x.sub||'',code:x.code||'',
       pattern_name:x.pn||'',size_cond:x.sz||'',org_cond:x.org||'',inch_cond:x['in']||'',dot_cond:x.dt||'',
@@ -20023,7 +21015,7 @@ async function pxSaveDB(){
     var nv=String(Date.now());
     await pxSetDataVersion(nv);
     try{ await pxIdbPut('price_v1',{ver:nv,rows:PDT.slice(),rules:PRULES.slice(),sups:PSUPS.slice(),at:new Date().toISOString()}); }catch(e){}
-    alert('✅ DB 저장 완료 — 단가표 '+done.toLocaleString()+'행 · 규칙 '+rr.length+'개 — 전 직원은 다음 접속 때 자동으로 최신본을 받습니다.');
+    alert('✅ 저장 완료 — 수정 '+upd.length.toLocaleString()+'행 · 추가 '+ins.length.toLocaleString()+'행 · 규칙 '+rr.length+'개. 전 직원은 다음 접속 때(또는 새로고침 때) 자동으로 최신본을 받습니다.');
   }catch(e){ alert('저장 실패: '+e.message); }
   if(btn){btn.disabled=false;btn.textContent='💾 DB에 저장'}
 }
@@ -20031,12 +21023,12 @@ function pxEmptyNotice(){
   return '<div style="padding:26px;text-align:center;color:#6a7682;font-size:13px;line-height:1.9">'
    +'<div style="font-size:15px;font-weight:800;color:#334155;margin-bottom:8px">단가표가 아직 비어 있습니다</div>'
    +'위쪽 <b>📁 데이터 업데이트</b>에 원천 파일을 끌어다 놓으면 표가 채워집니다.<br>'
-   +'최종마스터_*.csv · 할인율_룩업_v4_9.xlsx · 피렐리 가격표 · SAILUN · WESTLAKE · 썬베이<br>'
+   +'최종마스터_*.csv · 할인율_룩업_v4_9.xlsx · 피렐리 가격표 · SAILUN · WESTLAKE · 선베이<br>'
    +'<span style="color:#b45309">채운 뒤 <b>💾 DB에 저장</b>을 누르면 전 직원이 같은 표를 봅니다.</span></div>';
 }
 /* ══ v88 거래처 표기 정리(호준님 08-10): 화면·엑셀·DB 전부 이 이름으로 ══ */
-var SUPREN={'넥센본사전산':'넥센','한국본사전산':'한국1','한타프로모션':'한국2'};
-function pxRenameSups(){
+var SUPREN={'썬베이':'선베이','넥센본사전산':'넥센','한국본사전산':'한국1','한타프로모션':'한국2'};
+function pxRenameSups(){ PDT.forEach(function(x){ if(x.s2&&x.s2[0]==='썬베이단가')x.s2[0]='선베이단가'; });
   PRULES.forEach(function(r){ if(SUPREN[r.sup]) r.sup=SUPREN[r.sup]; });
   PDT.forEach(function(x){ if(!x.rt)return;
     Object.keys(SUPREN).forEach(function(o){
@@ -20076,7 +21068,7 @@ function pxFromMockup(txt){
   PRULES.length=0; (d.RULES||[]).forEach(function(x){PRULES.push(x)});
   PRIX={}; PRULES.forEach(function(x){PRIX[x.id]=x});
   PSUPS.length=0; (d.SUPS||[]).forEach(function(s){PSUPS.push(s)});
-  ['하나타이어','그랜드타이어','아파치','썬베이','타이어왕도매'].forEach(function(s){if(PSUPS.indexOf(s)<0)PSUPS.push(s)});
+  ['하나타이어','그랜드타이어','아파치','선베이','타이어왕도매'].forEach(function(s){if(PSUPS.indexOf(s)<0)PSUPS.push(s)});
   DSUPS=['매일','극동'].concat(PSUPS.filter(function(s){return s!=='매일'&&s!=='극동'}));
   EGCOLS.disc=[{k:'b',d:1},{k:'p',d:1},{k:'no',d:1},{k:'sz',d:1},{k:'ply',d:1},{k:'ft',ro:1},
                {k:'dot',d:1},{k:'org',d:1},{k:'f',ov:1}].concat(DSUPS.map(function(s){return {k:'r:'+s,ov:1}}));
@@ -20151,6 +21143,49 @@ async function pxShSave(){
   try{renderSheet()}catch(e){}
 }
 
+
+/* ══════ v92 할인율 한 줄 수정 → 전 직원 공유 (호준님 08-11: "특정 거래처의 특정 패턴 할인율만 딱 바꾸고 싶다") ══════
+   지금까지 ⚙ 화면에서 고친 율(RGV)은 그 브라우저에만 남았다 → price_rules.rate를 직접 고치고 버전을 올려 전원에게 반영. */
+async function pxRuleSaveDB(id,rate,label){
+  if(typeof sb==='undefined'||!sb){alert('DB 연결이 준비되지 않았습니다');return false}
+  var r=await sb.from('price_rules').update({rate:rate}).eq('id',id);
+  if(r.error){alert('할인율 저장 실패: '+r.error.message);return false}
+  var nv=String(Date.now());
+  await pxSetDataVersion(nv);
+  try{ await pxIdbPut('price_v1',{ver:nv,rows:PDT.slice(),rules:PRULES.slice(),sups:PSUPS.slice(),at:new Date().toISOString()}); }catch(e){}
+  try{ if(typeof tgAudit==='function')tgAudit('단가표 할인율 수정',label+' → '+rate+'%'); }catch(e){}
+  return true;
+}
+/* 할인율 칩 클릭 처리 — 화면만/전직원 선택 */
+async function pxRuleEdit(id){
+  var x=PRIX[id]; if(!x)return;
+  var cur=(RGV[id]!=null)?RGV[id]:x.pub;
+  var label=x.sup+' · '+x.b+' · '+(x.code||x.pn)+(x.dt?' ['+x.dt+']':'');
+  var v=prompt(label+'\n원본 할인율%을 적어주세요. (비우면 원래대로 · 화면·계산에는 −'+(PSET.safe||0)+'%p 여유분이 적용됩니다)',cur);
+  if(v===null)return;
+  v=String(v).trim();
+  if(v===''){ delete RGV[id]; povSave(); pxAfterRuleChange(); return; }
+  var n=parseFloat(v.replace('%',''));
+  if(isNaN(n)||n<0||n>=100){ alert('0~99 사이 숫자로 적어주세요'); return; }
+  var share=confirm(label+'\n'+cur+'% → '+n+'%\n\n[확인] 전 직원에게 반영(DB 저장)\n[취소] 내 화면에서만 확인');
+  if(share){
+    var ok=await pxRuleSaveDB(id,n,label);
+    if(!ok)return;
+    x.pub=n; delete RGV[id];          /* 원본율 자체가 바뀐 것으로 처리 */
+    try{toast('할인율 반영 완료 — 전 직원은 다음 접속 때 자동으로 최신값을 봅니다')}catch(e){}
+  }else{
+    RGV[id]=n; povSave();
+    try{toast('내 화면에서만 적용됨(빨강) — 전 직원 반영은 다시 눌러 [확인]')}catch(e){}
+  }
+  pxAfterRuleChange();
+}
+function pxAfterRuleChange(){
+  try{renderRates()}catch(e){}
+  try{renderPrice()}catch(e){}
+  var dw=document.getElementById('discWrap');
+  if(dw&&dw.style.display!=='none'){try{renderDisc()}catch(e){}}
+}
+
 window.PX={init:async function(){
   if(PX_READY){ try{renderPrice();}catch(e){} return; }
   PX_READY=true;
@@ -20165,7 +21200,7 @@ window.PX={init:async function(){
 }};
 
 window.PX=window.PX||{};
-try{PX.loadDB=pxLoadDB;PX.saveDB=pxSaveDB;PX.fromMockup=pxFromMockup;PX.reload=async function(){var r=await pxLoadDB(true);if(r.err){alert("다시 받기 실패: "+r.err);return}try{refreshPlat();refreshVend();renderPrice()}catch(e){}try{toast("서버에서 다시 받음 — 단가표 "+r.rows.toLocaleString()+"행")}catch(e){}};PX.rows=function(){return PDT};PX.rules=function(){return PRULES};PX.sups=function(){return PSUPS};PX.shLoad=pxShLoad;PX.shSave=pxShSave;}catch(_e){}
+try{PX.loadDB=pxLoadDB;PX.saveDB=pxSaveDB;PX.fromMockup=pxFromMockup;PX.reload=async function(){var r=await pxLoadDB(true);if(r.err){alert("다시 받기 실패: "+r.err);return}try{refreshPlat();refreshVend();renderPrice()}catch(e){}try{toast("서버에서 다시 받음 — 단가표 "+r.rows.toLocaleString()+"행")}catch(e){}};PX.rows=function(){return PDT};PX.rules=function(){return PRULES};PX.sups=function(){return PSUPS};PX.shLoad=pxShLoad;PX.shSave=pxShSave;PX.ruleEdit=pxRuleEdit;}catch(_e){}
 try{PX.R=R}catch(_e){}
 try{PX.addPhoneRow=addPhoneRow}catch(_e){}
 try{PX.admToggle=admToggle}catch(_e){}
@@ -20266,6 +21301,14 @@ try{PX.vgAddStd=vgAddStd}catch(_e){}
 try{PX.vgDelKey=vgDelKey}catch(_e){}
 try{PX.vgDelStd=vgDelStd}catch(_e){}
 try{PX.vgSetGroup=vgSetGroup}catch(_e){}
+try{PX.excNew=excNew}catch(_e){}
+try{PX.excNewSave=excNewSave}catch(_e){}
+try{PX.excSelMode=excSelMode}catch(_e){}
+try{PX.excSelOne=excSelOne}catch(_e){}
+try{PX.excSelAll=excSelAll}catch(_e){}
+try{PX.excDelSel=excDelSel}catch(_e){}
+try{PX.pasteCommit=pasteCommit}catch(_e){}
+try{PX.pasteCancel=pasteCancel}catch(_e){}
 
 </script>
 </body>
