@@ -11920,7 +11920,7 @@ async function stkRtSaveFieldLight(pid,dot,field,nv,old,td){
         stkChk(await sb.from('stock_lots').update({qty:newQ,updated_at:new Date().toISOString()}).eq('id',lots[0].id),'재고표수정');
         lots[0].q=newQ;
       }
-      stkLog('✏️실사조정',p.br+' '+p.name+' '+p.size+' ('+(dot||'DOT누락')+') '+old+'→'+n+'개',{product_id:pid,dot:(dot==='DOT누락'?'':dot),qty:n});
+      stkLog('✏️실사조정',p.br+' '+p.name+' '+p.size+' ('+(dot||'DOT누락')+') '+old+'→'+n+'개',{product_id:pid,dot:(dot==='DOT누락'?'':dot),qty:n,ref_id:(lots&&lots[0]&&lots[0].id)||null,detail:JSON.stringify({field:'cur',old:parseInt(old||0),neu:n,lot_id:(lots&&lots[0]&&lots[0].id)||null,loc:(lots&&lots[0]&&lots[0].loc)||''})});
     }else if(field==='dot'){
       // ── DOT(연식) 수정 ──
       // 핵심: DOT은 표에서 '줄을 가르는 기준'이라, 재고 lot과 출고기록(로그)의 DOT을
@@ -11986,7 +11986,7 @@ async function stkRtSaveFieldLight(pid,dot,field,nv,old,td){
           if(!(_mr&&_mr.error)){ p.tmapRaw=(_tms==null?'':_tms); p._tmap=null; }
         }
       }catch(e){}
-      stkLog('✏️정보수정',p.br+' '+p.name+' '+p.size+' 연식 '+(oldDotVal||'DOT누락')+'→'+(newDot||'DOT누락')+' (출고기록 포함)',{product_id:pid});
+      stkLog('✏️정보수정',p.br+' '+p.name+' '+p.size+' 연식 '+(oldDotVal||'DOT누락')+'→'+(newDot||'DOT누락')+' (출고기록 포함)',{product_id:pid,ref_id:(lots2[0]&&lots2[0].id)||null,detail:JSON.stringify({field:'dot',old:oldDotVal||'',neu:newDot||'',lot_ids:(lots2||[]).map(function(l){return l.id})})});
     }else if(field==='qty'){
       // 수량(시작값) 편집 — lot 합을 새 값으로 맞춤
       // 빈 값으로 지우면 0으로 저장 (변동재고는 0-출고 = 음수가 될 수도 있음)
@@ -12106,7 +12106,7 @@ async function stkRtSaveFieldLight(pid,dot,field,nv,old,td){
           if(_rcTd2){ if(stkRCisManual(p)){_rcTd2.style.color='#dc2626';_rcTd2.style.fontWeight='700';}else{_rcTd2.style.color='';_rcTd2.style.fontWeight='';} }
         }catch(_e){}
       }
-      stkLog('✏️정보수정',p.br+' '+p.name+' '+p.size+' '+field+' '+old+'→'+nv,{product_id:pid});
+      stkLog('✏️정보수정',p.br+' '+p.name+' '+p.size+' '+field+' '+old+'→'+nv,{product_id:pid,detail:JSON.stringify({field:field,old:String(old==null?'':old),neu:String(nv==null?'':nv)})});
       // 정규화/저장된 값이 입력과 다르면 셀에 즉시 반영 (수정이 사라진 것처럼 보이지 않게)
       if(td&&String(v)!==String(nv))td.textContent=(v===null||v===undefined)?'':String(v);
     }
@@ -12169,13 +12169,13 @@ async function stkRtSaveField(pid,dot,field,nv,old){
       if(lots.length===0){stkChk(await sb.from('stock_lots').insert({product_id:pid,dot:(dot==='DOT누락'?'':dot),qty:n,loc:'U'}),'수량수정');}
       else if(lots.length===1){stkChk(await sb.from('stock_lots').update({qty:n,updated_at:new Date().toISOString()}).eq('id',lots[0].id),'필드저장');}
       else{var diff=n-parseInt(old||0);stkChk(await sb.from('stock_lots').update({qty:Math.max(0,lots[0].q+diff),updated_at:new Date().toISOString()}).eq('id',lots[0].id),'필드저장');}
-      stkLog('✏️실사조정',p.br+' '+p.name+' '+p.size+' ('+(dot||'DOT누락')+') '+old+'→'+n+'개',{product_id:pid,dot:(dot==='DOT누락'?'':dot),qty:n});
+      stkLog('✏️실사조정',p.br+' '+p.name+' '+p.size+' ('+(dot||'DOT누락')+') '+old+'→'+n+'개',{product_id:pid,dot:(dot==='DOT누락'?'':dot),qty:n,ref_id:(lots&&lots[0]&&lots[0].id)||null,detail:JSON.stringify({field:'cur',old:parseInt(old||0),neu:n,lot_id:(lots&&lots[0]&&lots[0].id)||null,loc:(lots&&lots[0]&&lots[0].loc)||''})});
     }else if(field==='dot'){
       // 연식 변경 — 해당 lot들의 dot 변경
       var lots2=(p.lots||[]).filter(function(l){return (l.dot||'DOT누락')===(old||'DOT누락')});
       var newDot=(nv==='DOT누락'||nv==='')?'':nv;
       for(var i=0;i<lots2.length;i++){stkChk(await sb.from('stock_lots').update({dot:newDot}).eq('id',lots2[i].id),'필드저장');}
-      stkLog('✏️정보수정',p.br+' '+p.name+' '+p.size+' 연식 '+old+'→'+(nv||'DOT누락'),{product_id:pid});
+      stkLog('✏️정보수정',p.br+' '+p.name+' '+p.size+' 연식 '+old+'→'+(nv||'DOT누락'),{product_id:pid,ref_id:(lots2[0]&&lots2[0].id)||null,detail:JSON.stringify({field:'dot',old:old||'',neu:nv||'',lot_ids:(lots2||[]).map(function(l){return l.id})})});
     }else{
       // 상품 필드 (cat/br/name/code/size)
       var col={cat:'category',br:'brand',name:'name',code:'code',size:'size',ply:'ply',spec:'spec',fprice:'factory_price',cost:'cost',qty:'__qty__'}[field];
@@ -12186,7 +12186,7 @@ async function stkRtSaveField(pid,dot,field,nv,old){
       var upd={};upd[col]=val;
       stkChk(await sb.from('stock_products').update(upd).eq('id',pid),'필드저장');
       var label={cat:'분류',br:'브랜드',name:'패턴',code:'코드',size:'사이즈'}[field];
-      stkLog('✏️정보수정',p.br+' '+p.name+' '+p.size+' '+label+' '+old+'→'+val,{product_id:pid});
+      stkLog('✏️정보수정',p.br+' '+p.name+' '+p.size+' '+label+' '+old+'→'+val,{product_id:pid,detail:JSON.stringify({field:field,old:String(old==null?'':old),neu:String(val==null?'':val)})});
     }
     stkToast('\u2713 수정됨 (기록 남음)');
     await stkLoad();await stkLoadLogTab();
