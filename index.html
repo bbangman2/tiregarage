@@ -10014,7 +10014,7 @@ async function stkLoad(){
     stkP=prods.map(function(p,_i){var o={id:p.id,br:p.brand,name:p.name,code:p.code||'',size:p.size,ply:p.ply||'',spec:p.spec||'',factory_price:p.factory_price||null,tmapRaw:(p.target_map==null?'':p.target_map),cost:p.cost||null,price:p.price,inst:p.inst_price,memo:p.memo||'',cat:p.category||'일반',source:p.source||'',real_cost:(p.real_cost==null?'':p.real_cost),discount_rate:(p.discount_rate==null?'':p.discount_rate),_ord:_i,lots:[]};byId[p.id]=o;return o});
     lots.forEach(function(l){var p=byId[l.product_id];if(p)p.lots.push({id:l.id,dot:l.dot||'',q:l.qty,loc:l.loc||'U',price:l.price,src_in:l.src_in||'',due_date:l.due_date||''})});
   }catch(e){stkToast('재고 불러오기 실패: '+e.message);return}
-  await stkConsolidate(); // 같은 상품+위치+연식 lot 합치기 (분리흔적 정리)
+  /* v117: 로드 시 자동 병합 제거 */
   await stkLoadLock();
   await stkLoadLogs();
   if(typeof stkLoadLogTab==='function')await stkLoadLogTab();
@@ -11874,10 +11874,18 @@ async function stkRtSplitRow(p,rowDot,field,nv){ // (v20) 이 연식 줄만 새 
     var ins=await sb.from('stock_products').insert(np).select();
     if(ins.error||!ins.data||!ins.data[0]){stkToast('⚠️ 분리 실패: '+((ins.error&&ins.error.message)||'생성 결과 없음'));return false;}
     var newId=ins.data[0].id;
-    var mv=await sb.from('stock_lots').update({product_id:newId}).eq('product_id',p.id).eq('dot',rowDot);
-    if(mv.error){ try{ await sb.from('stock_products').delete().eq('id',newId); }catch(_x){} stkToast('⚠️ 분리(재고 이동) 실패: '+mv.error.message); return false; } // 보상 회수
-    var moved=(p.lots||[]).filter(function(l){return String(l.dot==null?'':l.dot).trim()===rowDot;});
-    p.lots=(p.lots||[]).filter(function(l){return String(l.dot==null?'':l.dot).trim()!==rowDot;});
+    /* v116: DOT 정규화 + 이동 행수 검증 — 표기 불일치로 0행만 옮겨져 분리 줄이 0개로 보이던 사고 방지 */
+    var _rd=(rowDot==='DOT누락'||rowDot==null)?'':String(rowDot).trim();
+    var _locMoved=(p.lots||[]).filter(function(l){return String(l.dot==null?'':l.dot).trim()===_rd;});
+    var mv=await sb.from('stock_lots').update({product_id:newId}).eq('product_id',p.id).eq('dot',_rd).select();
+    if(mv.error||!mv.data||mv.data.length!==_locMoved.length){
+      try{ if(mv.data&&mv.data.length)await sb.from('stock_lots').update({product_id:p.id}).eq('product_id',newId); }catch(_x){}
+      try{ await sb.from('stock_products').delete().eq('id',newId); }catch(_x2){}
+      stkToast('⚠ 분리 중단 — 재고 이동 검증 실패(화면 '+_locMoved.length+'개 vs DB '+((mv.data&&mv.data.length)||0)+'개). 수량 보호를 위해 되돌렸습니다');
+      return false;
+    }
+    var moved=_locMoved;
+    p.lots=(p.lots||[]).filter(function(l){return String(l.dot==null?'':l.dot).trim()!==_rd;});
     var p2={}; for(var k2 in p){ if(k2==='lots')continue; p2[k2]=p[k2]; }
     p2.id=newId; p2.lots=moved;
     if(field==='cat')p2.cat=v; else if(field==='source')p2.source=v; else if(field==='br')p2.br=v; else if(field==='name')p2.name=v; else if(field==='code')p2.code=v; else if(field==='size')p2.size=v; else if(field==='ply')p2.ply=v; else if(field==='spec')p2.spec=v; else if(field==='fprice')p2.factory_price=v; else if(field==='cost')p2.cost=v; else if(field==='real_cost')p2.real_cost=v; else if(field==='discount_rate')p2.discount_rate=v; else if(field==='price')p2.price=v; else if(field==='inst')p2.inst=v;
@@ -12043,16 +12051,7 @@ async function stkRtSaveFieldLight(pid,dot,field,nv,old,td){
       var col={cat:'category',source:'source',br:'brand',name:'name',code:'code',size:'size',ply:'ply',spec:'spec',fprice:'factory_price',cost:'cost',real_cost:'real_cost',discount_rate:'discount_rate',price:'price',inst:'inst_price'}[field];
       if(!col){return}
       // ── (v20.1) 연식이 여러 줄이어도 수정은 그냥 수정 — 묻지 않고 그 줄만 저장 (다른 연식 줄 영향 없음) ──
-      var _dotsSet={}; (p.lots||[]).forEach(function(l){_dotsSet[String(l.dot==null?'':l.dot).trim()]=1;});
-      if(Object.keys(_dotsSet).length>1){
-        var _rowDot=String(dot==null?'':dot).trim();
-        if(!_rowDot&&td){ try{ var _tr=(td.closest?td.closest('tr[data-dot]'):null); _rowDot=((td.getAttribute&&td.getAttribute('data-dot'))||(_tr?_tr.getAttribute('data-dot'):'')||'').trim(); }catch(_e){} }
-        if(_rowDot==='DOT누락')_rowDot='';
-        var _sr=await stkRtSplitRow(p,_rowDot,field,nv);
-        if(_sr===false){ if(td)td.textContent=old; return false; }
-        if(typeof stkRenderTable==='function')stkRenderTable();
-        return true;
-      }
+      /* v117(08-13 호준님): 자동 상품분리 제거 — 연식 줄이 여러 개여도 그냥 값 수정(상품 공통). 나누기는 자동으로 하지 않는다 */
       if((field==='price'||field==='inst')&&!(typeof stkCanSeeRealcost==='function'&&stkCanSeeRealcost())){ if(td)td.textContent=old; stkToast('택배가·장착가 수정 권한이 없습니다'); return; }
       var v=nv;
       if(field==='fprice'||field==='cost'||field==='real_cost'||field==='price'||field==='inst')v=parseInt(String(nv).replace(/[^0-9]/g,''))||null;
@@ -12151,12 +12150,7 @@ async function stkRtSaveFieldLight(pid,dot,field,nv,old,td){
     }
     // 수정 후: 줄이 실제로 합쳐졌을 때만 표를 다시 그린다.
     // (값만 바뀐 경우엔 위에서 td.textContent로 이미 그 자리 반영됨 → 엑셀처럼 자연스럽게 유지)
-    if((field==='dot'||field==='cur'||field==='qty')&&typeof stkConsolidate==='function'){
-      try{
-        var merged=await stkConsolidate();
-        if(merged && typeof stkRenderTable==='function') stkRenderTable(); // 두 줄→한 줄 된 경우만 갱신
-      }catch(e){}
-    }
+    /* v117: 수정 직후 자동 병합 제거 — 줄은 사람이 만든 그대로 둔다 */
     return true; // (v17) 저장 성공 신호 — 일괄저장·Ctrl+Z가 실패를 감지할 수 있게
   }catch(e){
     stkToast('저장 실패: '+e.message);
@@ -13648,8 +13642,8 @@ async function _stkMoveLotCore(lotId,toLoc,n){
       }
     }
   }catch(e){stkToast('이동 실패: '+e.message);return}
-  await stkConsolidateCell(toLoc); // 도착칸에 같은 상품 있으면 즉시 합치기
-  if(from!==toLoc)await stkConsolidateCell(from);
+  /* v117: 이동 후 자동 합치기 제거 */
+  /* v117 */
   stkRefreshCell(from);stkRefreshCell(toLoc);stkRefreshStatAndUnassigned();stkRenderSearch();
   stkToast('이동 완료');
   var _det=(fp.br?fp.br+' ':'')+(fp.name||'')+(fp.code?' ['+fp.code+']':'')+(fp.size?' '+fp.size:'')+(found.dot&&found.dot!=='DOT누락'?' ('+found.dot+')':'')+' '+n+'개';
@@ -13677,7 +13671,7 @@ async function stkDrop(destCode){
       stkChk(await sb.from('stock_lots').update({loc:destCode,updated_at:new Date().toISOString()}).eq('id',items[i].l.id),'이동');
     }catch(e){stkToast('실패: '+e.message);stkDrag=null;return}
     items.forEach(function(it){it.l.loc=destCode;}); // 메모리 직접 수정
-    await stkConsolidateCell(destCode); // 도착칸 같은 상품 합치기
+    /* v117: 드래그 후 자동 합치기 제거 */
     stkRefreshCell(from);stkRefreshCell(destCode);stkRefreshStatAndUnassigned();stkRenderSearch();
     stkToast(from+' → '+destCode+(merge?' 합치기':' 이동'));
     stkLog('📍'+(from==='U'?'배치':(destCode==='U'?'내림':(merge?'합치기':'이동'))),_mvtxt+' · '+(from==='U'?'미배치':from)+'→'+(destCode==='U'?'미배치':destCode),{from_loc:from,to_loc:destCode,ref:_mv});
@@ -16824,13 +16818,13 @@ function pxRow(d,c){
   if(d==='스팜'){        /* 주문번호·상품주문번호·스토어·상태·판매방법·장착예약·거래처·O·상품명·옵션·수량·수취인·전화·우편·주소 */
     return mkRow({ch:'스팜',regDate:shDate,odate:'',ono:s(0),
       pname:s(8),sz:extractSize(s(8)+' '+s(9)),opt:s(9),qty:num(10),
-      recv:s(11),tel:s(12),addr:s(14),ship:s(4),note:s(5),inbVendor:s(6)});
+      recv:s(11),tel:s(12),addr:s(14),pay:num(15),ship:s(4),note:s(5),inbVendor:s(6)});   /* v105: 정산예정금액(16번째) — 마진 자동계산 재료 */
   }
   if(d==='핑'){          /* 기록일·주문번호·제품코드·출고일·판매방법·거래처·패턴·사이즈·규격·연식·브랜드·수량·우편·주소·상호·전화·비고 */
     return mkRow({ch:'핑',regDate:shDate,odate:s(3),ono:s(1),
       pname:(s(10)+' '+s(6)).trim(),sz:s(7).replace(/\s+/,'R'),
       spec:(s(8)+(s(9)?' · '+s(9)+'년':'')).trim(),qty:num(11),
-      recv:s(14),tel:s(15),addr:s(13),note:s(16),ship:s(4),inbVendor:s(5)});
+      recv:s(14),tel:s(15),addr:s(13),note:s(16),ship:s(4),inbVendor:s(5),pay:(c.length>=18?(num(c.length-1)||0):0)});   /* v107: 핑 정산예정금액 = 마지막 열(S) — 호준님 08-12 */
   }
   if(d==='11번가'){      /* 상태·(빈)·연도·주문일·스토어·주문번호·상품명·옵션·수량·수취인·전화·주소·판매가·정산예정·거래처·O·판매방법 */
     return mkRow({ch:'11번가',regDate:shDate,odate:s(3),ono:s(5),
@@ -18792,6 +18786,7 @@ function renderShFilter(){
     +['전체','택배','직배송','장착','미정'].map(function(t){
       return '<span class="chip '+(fShip===t?'on':'')+'" style="'+(fShip===t?'background:#0f766e;border-color:#0f766e':'')+'" onclick="fShip=\''+t+'\';selR=-1;PX.renderSheet()">'+(t==='전체'?'종류 전체':t)+'</span>';
     }).join('')
+    +'<span class="delmode-btn" style="background:#7c3aed;color:#fff;border-color:#7c3aed" onclick="PX.colCfg()">≡ 열 배치</span>'
     +'<span class="delmode-btn" id="pxShSaveBtn" style="background:#1d4ed8;color:#fff;border-color:#1d4ed8" onclick="PX.shSave()">💾 주문 저장</span>'
     +'<span class="delmode-btn" style="background:#475569;color:#fff;border-color:#475569" onclick="PX.shLoad()">⤓ 불러오기</span>'
     +'<span class="delmode-btn" style="background:#0f766e;color:#fff;border-color:#0f766e" onclick="PX.bulkInbRec()">📦 입고방 기록(선택/현재 행)</span>'
@@ -20486,20 +20481,34 @@ function pxAnalyze(txt){
     var _hm=pxHeaderMap(c);
     if(_hm){MAP=_hm;ch=shTab;return}
     if(isHeaderLine(c[0]))return;
+    /* '>> 부산 기장군 …' 처럼 탭 없이 >>로 시작하는 줄 = 앞 행의 주소/메모 이어짐(호준님 08-12) */
+    if(c.length<2&&/^[>》]/.test(String(c[0]||'').trim())){
+      for(var bi=out.length-1;bi>=0;bi--){if(!out[bi].skip){
+        var pr=out[bi].r,v=String(c[0]).trim().replace(/^[>》\s]+/,'');
+        if(!String(pr.addr||'').trim())pr.addr=v; else pr.note=(pr.note?pr.note+' · ':'')+v;
+        break}}
+      return;
+    }
     if(c.length<2)return;
     var d=MAP?shTab:pxDetect(c); if(!d)d='SMART';
     ch=d;
     var r=MAP?pxRowByMap(MAP,c,shTab):(d==='SMART'?pxRowSmart(c,shTab):pxRow(d,c));
     if(!r)return;
+    r.addr=String(r.addr||'').replace(/^\s*[>》]+\s*/,'');
     if(pxRowUseless(r)){skip++;out.push({r:r,skip:1});return}
     r.store=($('#pStore').value||'').trim();
     r.origin=($('#pOrigin').value||'').trim();
-    var m=pdOrderMatch(r.pname,r.sz);
+    /* v108(호준님 08-12): 상품명에 연식이 없고 출고지에 '24년 주문중'처럼 연식이 있으면 그 연식으로 매칭.
+       이월 상품이 신품(2026) 행에 붙어 원가가 틀어지던 것 방지. */
+    var nmM=r.pname;
+    if(!moYearOf(nmM)){var vy=moYearOf(r.inbVendor||'');if(vy)nmM=nmM+' '+String(vy).slice(2)+'년'}
+    var m=pdOrderMatch(nmM,r.sz);
     var rec={r:r};
     if(m&&m.i!=null){
       if(r.fp==='')r.fp=m.fp||'';
       if(m.rate!=null)r.dc=String(m.rate); else if(m.cost!=null)r.cost=m.cost;
       r.pdIdx=m.i;r.pdLabel=m.label;if(m.yfb)r.yfb=m.yfb;matched++;rec.ok=1;
+      if(r.fee===''||r.fee==null)r.fee=feeOf(PDT[m.i]);   /* 택배비 기준 자동(오프로드 +5,000 포함) */
     }else if(!pxTraySkip(r.pname,m)){rec.exc=(m&&m.why?m.why:'원가 매칭 실패');exc++}
     out.push(rec);
   });
@@ -20646,7 +20655,8 @@ if(typeof rsvPickChoose==='function'&&typeof rsvInbChoose==='function'){
     JHPICK=rowId; rsvPickCtx='jh'; if(typeof rsvPickMode!=='undefined')rsvPickMode='first';
     var show=function(){
       var q=document.getElementById('rsv-pick-q');
-      if(q)q.value=(String(r.sz||'')+' '+String(r.pname||'').split(/\s+/).slice(0,3).join(' ')).trim();
+      /* 호준님 08-12: 검색어는 사이즈만, 숫자+띄어쓰기로('175/60R13'→'175 60 13'). 패턴 포함은 보류 */
+      if(q)q.value=String(r.sz||'').replace(/[^0-9.]+/g,' ').replace(/\s+/g,' ').trim();
       rsvPickSrc='stock';
       var a=document.getElementById('rsv-src-stock'),b2=document.getElementById('rsv-src-inbound');
       if(a)a.style.cssText=rsvSrcBtnCss(true); if(b2)b2.style.cssText=rsvSrcBtnCss(false);
@@ -20733,8 +20743,191 @@ function pxRuleRelink(){
   try{console.log('[v99-C] 룩업 재연결: 행',rows,'· 연결',added,bySup)}catch(_e){}
   return {rows:rows,added:added,bySup:bySup};
 }
+/* ══════════ v102 (08-12) 한국 과년 = 한국이월 (호준님 확정) ══════════
+   ①한국1의 1년↑/1.5년↑/2년↑ 조건부 154개는 화면에서 제거("지워달라고 했는데 남아있네")
+   ②한국 브랜드 과년(DOT≤2024) 원가율 = 한국이월: 2024→68 · ≤2023→70 · 오프로드·LT→63 (티지 확정)
+     — 신품율(매일 등)은 과년 행에서 뗀다. ★2025 DOT는 호준님 보류("신품이라 칠 수도") → 신품 취급 유지
+   ③목표 택배가(네이버) = 원가 산식이 아니라 공장도 직접 할인: 2024=공장도×46%(54%할인) · ≤2023=×43%(57%할인) */
+function pxKoreaCarry(){
+  for(var k=PRULES.length-1;k>=0;k--){var r=PRULES[k];
+    if(r.sup==='한국1'&&/년↑/.test(r.dt||''))PRULES.splice(k,1)}
+  PRIX={};PRULES.forEach(function(r){PRIX[r.id]=r});
+  if(PSUPS.indexOf('한국이월')<0)PSUPS.push('한국이월');
+  DSUPS=['매일','극동'].concat(PSUPS.filter(function(s){return s!=='매일'&&s!=='극동'}));
+  EGCOLS.disc=[{k:'b',d:1},{k:'p',d:1},{k:'no',d:1},{k:'sz',d:1},{k:'ply',d:1},{k:'ft',ro:1},
+               {k:'dot',d:1},{k:'org',d:1},{k:'f',ov:1}].concat(DSUPS.map(function(s){return {k:'r:'+s,ov:1}}));
+  var n=0;
+  for(var i=0;i<PDT.length;i++){var x=PDT[i];
+    if(x.b!=='한국'||!x.dot)continue;
+    var y=parseInt(x.dot,10); if(!(y<=2024))continue;
+    var off=isOffPatInst(x.p)||/(^|[^A-Z])LT([^A-Z]|$)/.test(String(x.p).toUpperCase())||/플로테이션/.test(String(x.spec||''));
+    x.rt={'한국이월':[off?63:(y===2024?68:70),null]};n++;
+  }
+  try{console.log('[v102] 한국 과년→한국이월 '+n+'행')}catch(_e){}
+}
+/* ══ v103 (08-12) 통일 공임 — 호준님: 기존 장착비·협력비 설정은 지우지 않고 보존(참고용),
+   목표 장착가=목표 협력가는 스토어팜 기준 통일 공임으로 동일하게. 17″↓18,000·18~19″19,000·20~21″25,000·22″↑28,000 */
+if(PSET.u17==null)PSET.u17=18000;
+if(PSET.u19==null)PSET.u19=19000;
+if(PSET.u21==null)PSET.u21=25000;
+if(PSET.u22==null)PSET.u22=28000;
+if(typeof PSET_FIELDS!=='undefined'&&!PSET_FIELDS.some(function(f){return f[0]==='u17'})){
+  PSET_FIELDS.push(['u17','★통일공임 17″↓'],['u19','★통일공임 18~19″'],['u21','★통일공임 20~21″'],['u22','★통일공임 22″↑']);
+}
+function uInstOf(x){var i=x['in']||0;return i<=17?PSET.u17:(i<=19?PSET.u19:(i<=21?PSET.u21:PSET.u22))}
+function pxUnifiedT(i,ff){
+  var x=PDT[i],o=POV[i]||{};
+  var c=effC(i); if(c==null)return null;
+  if(o.c==null&&NOTGT[costSrc(i)])return null;
+  var U=uInstOf(x), _ff=(ff!=null?ff:curFF());
+  if(x.b==='한국'&&x.dot&&parseInt(x.dot,10)<=2024){var t1v=tgt(i,'t1',ff).v;return t1v==null?null:ceilTo(t1v+U,PSET.roundTo)}
+  if(x.ln==='피렐리')return ceilTo((c+U+PSET.pi마진)/_ff,PSET.roundTo);
+  if(x.ln==='웨스트레이크'){var S=x.msrp;return S==null?null:ceilTo(S+U,PSET.roundTo)}
+  var d=denomOf(x); if(d==null)return null;
+  return ceilTo((c+U)/_ff/d,PSET.roundTo);
+}
+var _tgt0v=null;
+function pxMountKoreaTgt(){
+  if(_tgt0v)return; _tgt0v=tgt;
+  tgt=function(i,kind,ff){
+    var x=PDT[i];
+    if((kind==='t2'||kind==='t3')&&!(POV[i]&&POV[i][kind]!=null)){
+      var uv=pxUnifiedT(i,ff);
+      if(uv!=null)return {v:uv};
+    }
+    if(x&&x.b==='한국'&&x.dot&&(kind==='t2'||kind==='t3')&&!(POV[i]&&POV[i][kind]!=null)){
+      var y2=parseInt(x.dot,10);
+      if(y2<=2024){var t1v=tgt(i,'t1',ff).v;
+        if(t1v!=null)return {v:ceilTo(t1v+uInstOf(x),PSET.roundTo)};   /* 장착=협력=택배+통일공임 */
+        }
+    }
+    if(x&&x.b==='한국'&&x.dot&&kind==='t1'&&!(POV[i]&&POV[i].t1!=null)){
+      var y=parseInt(x.dot,10);
+      if(y<=2024){var f=effF(i);
+        if(f){
+          /* 호준님 08-12: 네이버 택배가 = 공장도×(1-할인). 일반 24년 54%·≤23년 57% / 오프로드 24년 49%·≤23년 52%.
+             타 플랫폼 = 네이버가×0.94(6% 제거) ÷ (1-그 플랫폼 수수료). 장착·협력은 이 택배가에 가산(기존 산식). */
+          var off=isOffPatInst(x.p)||/(^|[^A-Z])LT([^A-Z]|$)/.test(String(x.p).toUpperCase())||/플로테이션/.test(String(x.spec||''));
+          var mul=off?(y===2024?0.51:0.48):(y===2024?0.46:0.43);
+          var _ff=(ff!=null?ff:curFF());
+          return {v:ceilTo(f*mul*0.94/_ff,PSET.roundTo)};
+        }}
+    }
+    return _tgt0v(i,kind,ff);
+  };
+}
+pxMountKoreaTgt();
+/* ══════════ v102-B 열 폭 JS 강제 고정 — CSS 지정이 안 먹어 창마다 폭이 흔들리던 것 ══════════ */
+var PXCOLW={pgrid:[56,158,72,80,34,64,46,56,70,84,70,118,66,54,72,72,72,80,80,80]};
+var PXCW={};try{PXCW=JSON.parse(localStorage.getItem('px_colw')||'{}')}catch(_e){PXCW={}}
+function pxLockCols(id){
+  var t=document.getElementById(id); if(!t||!t.rows.length)return;
+  var tr=t.rows[0];
+  var w=PXCOLW[id];
+  if(!w){w=[56,158,72,80,34,64,46,56,70];for(var q=9;q<tr.cells.length;q++)w.push(96)}
+  var sv=PXCW[id]||{};
+  var sum=0;
+  for(var c=0;c<tr.cells.length;c++){var px=sv[c]||w[c]||90;tr.cells[c].style.width=px+'px';sum+=px}
+  t.style.tableLayout='fixed'; t.style.width=sum+'px';
+  pxResizeInit(id);
+}
+/* v105: 열 폭을 마우스로 조절(호준님) — 헤더 오른쪽 가장자리 드래그, localStorage에 저장돼 유지 */
+function pxResizeInit(id){
+  var t=document.getElementById(id); if(!t||!t.rows.length)return;
+  var tr=t.rows[0];
+  var sv=PXCW[id]||{};
+  for(var c=0;c<tr.cells.length;c++)(function(th,ci){
+    if(sv[ci])th.style.width=sv[ci]+'px';
+    if(th._rz)return; th._rz=1;
+    if(!th.style.position)th.style.position='relative';
+    var h=document.createElement('div');
+    h.style.cssText='position:absolute;top:0;right:-4px;width:9px;height:100%;cursor:col-resize;z-index:6';
+    h.addEventListener('mousedown',function(e){
+      e.preventDefault();e.stopPropagation();
+      var sx=e.clientX,sw=th.getBoundingClientRect().width;
+      function mv(ev){th.style.width=Math.max(34,sw+ev.clientX-sx)+'px'}
+      function up(){document.removeEventListener('mousemove',mv);document.removeEventListener('mouseup',up);
+        (PXCW[id]=PXCW[id]||{})[ci]=Math.round(th.getBoundingClientRect().width);
+        try{localStorage.setItem('px_colw',JSON.stringify(PXCW))}catch(_e){}
+        if(id!=='grid')pxLockCols(id);}
+      document.addEventListener('mousemove',mv);
+      document.addEventListener('mouseup',up);
+    });
+    h.addEventListener('click',function(e){e.stopPropagation()});
+    th.appendChild(h);
+  })(tr.cells[c],c);
+  if(id==='grid')t.style.tableLayout='fixed';
+}
+var _rpL=renderPrice;renderPrice=function(){_rpL();pxLockCols('pgrid')};
+var _rdL=renderDisc;renderDisc=function(){_rdL();pxLockCols('dgrid')};
+/* ══════════ v113 (08-13) 넥센 과년 = 넥센이월 — 호준님 "이월 할인율이 제대로 안 들어갔다" ══════════
+   룩업에 넥센이월 규칙 113개(23년/24년/25년 연식 명시 x 패턴)가 있는데
+   ①행 연결이 안 됐고 ②기준거래처가 최저율 우선이라 신품율이 이월율을 이겨버렸다.
+   한국이월과 같은 원칙: 과년 행의 rt를 넥센이월 하나로 교체(연식 규칙 그대로). s2(이월원가 파일) 보유 행은 보호. */
+/* v113-B: 과년(dot) 행인데 이월 할인율 규칙이 없어 신품율로 계산 중인 행은 단가표 할인율 칸에 경고 배지.
+   호준님 08-13: "연도를 인지 못 하면 이월할인율·이월원가라도 적어두던가 — 전부 동일 적용이 말이 되냐" */
+var _rcW=rateCellHTML;
+rateCellHTML=function(tab,j,i,ci){
+  var h=_rcW(tab,j,i,ci);
+  try{
+    var x=PDT[i];
+    if(x&&x.dot&&x.dot!=='2026'&&!x.s2){
+      var bs=baseSup(i);
+      if(bs&&String(bs).indexOf('이월')<0){
+        h=h.replace('<div class="cv">','<div class="cv"><span style="font-size:8.5px;background:#fef3c7;color:#92400e;border:1px solid #fcd34d;border-radius:4px;padding:0 3px;margin-right:3px" title="이월 연식인데 이월 할인율 규칙이 없어 신품율로 계산 중 — 룩업에 율을 정해주면 반영됩니다">이월율없음</span>');
+      }
+    }
+  }catch(_e){}
+  return h;
+};
+function pxNexenCarry(){
+  var rules=PRULES.filter(function(r){return r.sup==='넥센이월'});   /* 연식 규칙 + '무조건 기본'(마일캡·SUR4G 50%) 둘 다 */
+  if(!rules.length)return;
+  var rtoks=rules.map(function(r){return {r:r,t:moToks(String(r.code||r.pn||''))}});
+  var hit=0,miss=0,missP={};
+  for(var i=0;i<PDT.length;i++){var x=PDT[i];
+    if(x.b!=='넥센'||!x.dot||x.dot==='2026')continue;
+    if(x.s2)continue;
+    var y=parseInt(x.dot,10); if(!(y>=2000&&y<=2025))continue;
+    var want=(y>=2025?'25년':(y===2024?'24년':'23년'));   /* 23년 이전은 전부 23년 규칙 */
+    var pt=pxPatToks(x.p);
+    var best=null;
+    for(var k=0;k<rtoks.length;k++){var rr=rtoks[k];
+      if(rr.r.dt&&rr.r.dt!==want)continue;   /* dt 없는 기본 규칙은 전 연식 */
+      if(!rr.t.length)continue;
+      var all=true;
+      for(var q=0;q<rr.t.length;q++)if(pt.indexOf(rr.t[q])<0){all=false;break}
+      if(!all){var rn=jsNorm(rr.r.code||rr.r.pn||'');
+        if(!(rn.length>=3&&jsNorm(x.p).indexOf(rn)>=0))continue}   /* 표기차(I.Q↔iQ) 보강 */
+      var sc=rr.t.length*10+(rr.r.dt?1:0);            /* 토큰 많은 것 > 연식 명시 규칙 우선 */
+      if(!best||sc>best._sc){rr._sc=sc;best=rr}
+    }
+    if(best){x.rt={'넥센이월':[best.r.pub,best.r.id]};hit++}
+    else{
+      /* 호준님 08-13 확정(2차 정정): 52%는 **LT(상용)** 13인치 이하만. 윈터 PC는 패턴별 율 —
+         스노우G2 25년 61% · 윈스파이크3 25년 54% (그 외 연식·패턴은 운영안 연식율) */
+      var _pu=String(x.p).toUpperCase();
+      var isLT=isOffPatInst(x.p)||/(^|[^A-Z])LT([^A-Z]|$)/.test(_pu)||((parseInt(x.ply,10)||0)>=6);
+      var inch=x['in']||0;
+      var rate=null;
+      if(isLT&&inch>0&&inch<=13)rate=52;
+      else if(y>=2025&&/SNOW\s*'?G|스노우\s*G|스노\s*G/i.test(String(x.p)))rate=61;   /* 단가표 표기: WINGUARD SNOW'G WH2 */
+      else if(y>=2025&&/WINSPIKE\s*3|윈스파이크\s*3/i.test(String(x.p)))rate=54;
+      else{
+        /* 운영안 연식 기본율 = 룩업 넥센이월 연식 규칙의 공통값(패턴 무관) */
+        var pool={};rules.forEach(function(r0){if(r0.dt===want)pool[r0.pub]=(pool[r0.pub]||0)+1});
+        var bestV=null,bc=0;for(var pv in pool)if(pool[pv]>bc){bc=pool[pv];bestV=parseFloat(pv)}
+        rate=bestV;
+      }
+      if(rate!=null){x.rt={'넥센이월':[rate,null]};hit++}
+      else{miss++;var kk=String(x.p).slice(0,20);missP[kk]=(missP[kk]||0)+1}
+    }
+  }
+  try{console.log('[v113] 넥센 과년: 이월율 연결 '+hit+'행 · 규칙 없음 '+miss+'행',missP)}catch(_e){}
+  return {hit:hit,miss:miss,missP:missP};
+}
 var _pxAD0=(typeof pxAfterData==='function')?pxAfterData:null;
-if(_pxAD0){pxAfterData=function(){_pxAD0();pxRuleRelink()}}
+if(_pxAD0){pxAfterData=function(){_pxAD0();pxRuleRelink();pxKoreaCarry();pxNexenCarry()}}
 
 /* ══════════ v100-B 할인율 탭 원가 폴백 (호준님 08-11: "율 없으면 원가, 그것조차 없으면 핑최저가") ══════════
    그랜드타이어는 피렐리 담당 거래처인데 개별 율 자료가 아직 없어(인수인계: "율 자료 오면 거래처 열로 이관")
@@ -20780,8 +20973,8 @@ renderSheet=function(){
   var box=document.querySelector('#sheetWrap .gridbox')||($('#grid')?$('#grid').parentElement:null);
   var cnt=box?Math.max(14,Math.ceil(box.clientHeight/PXSHV.h)+8):46;
   var start=PXSHV.start;
-  /* 커서가 창 밖이면 창을 커서 쪽으로 옮긴다(방향키로 끝까지 이동 가능) */
-  if(selR>=0){
+  /* 커서가 창 밖이면 창을 커서 쪽으로 옮긴다 — 단, 사용자가 스크롤로 이동 중일 땐 절대 되끌지 않는다(호준님 08-12) */
+  if(!PXSHV.noFollow&&selR>=0){
     if(selR<start+2)start=Math.max(0,selR-2);
     else if(selR>start+cnt-6)start=Math.max(0,selR-cnt+6);
   }
@@ -20798,7 +20991,7 @@ renderSheet=function(){
       var cls=(ri===selR&&ci===selC?'sel ':'');
       if(selR2>=0||selC2>=0){var bb=rngBounds();if(ri>=bb.r1&&ri<=bb.r2&&ci>=bb.c1&&ci<=bb.c2)cls+='rng ';}
       var v='';
-      if(c.k==='_st'){var st0=deriveStatus(r);cls+='calc stcell';v='<span class="pxstbadge st-c-'+st0+'">'+(st0==='cxl'?r.sale:stLabel(st0))+'</span>'+((!shQ()&&r.regDate<shDate)?' <span style="font-size:9px;font-weight:900;color:#b91c1c">⏱이월</span>':'')}
+      if(c.k==='_st'){var st0=deriveStatus(r);cls+='calc stcell';v='<span class="pxstbadge st-c-'+st0+'">'+(st0==='cxl'?r.sale:stLabel(st0))+'</span>'+((!shQ()&&(r.regDate<shDate||r.carriedFrom))?' <span style="font-size:9px;font-weight:900;color:#b91c1c">⏱이월'+(r.carriedFrom?'('+String(r.carriedFrom).slice(5)+')':'')+'</span>':'')}
       else if(c.k==='_mg'){cls+='calc '+(mg?(mg.margin<0?'mg-neg':'mg-pos'):'');v=mg?fmt(mg.margin):'<span class="need">원가 필요</span>'}
       else if(c.k==='_per'){cls+='calc';v=mg?fmt(mg.per):''}
       else if(c.k==='cost'){
@@ -20828,7 +21021,7 @@ renderSheet=function(){
   g.innerHTML=h+spTop+b+spBot;
   /* 실측 행 높이로 보정(첫 렌더 뒤 1회) */
   var tr1=g.querySelector('tr:not(.pxsp) td[data-r]');
-  if(tr1){var hh=tr1.parentElement.getBoundingClientRect().height;if(hh>10&&Math.abs(hh-PXSHV.h)>0.5)PXSHV.h=hh}
+  if(tr1&&!PXSHV.hset){var hh=tr1.parentElement.getBoundingClientRect().height;if(hh>10){PXSHV.h=hh;PXSHV.hset=1}}   /* v112: 1회만 — 창마다 재면 스크롤 길이가 출렁인다 */
   /* 클릭·더블클릭은 위임 1개 — 셀마다 안 붙인다 */
   if(!g._pxBound){g._pxBound=1;
     g.addEventListener('click',function(ev){
@@ -20846,18 +21039,299 @@ renderSheet=function(){
     box.addEventListener('scroll',function(){
       if(PXSHV.lock){PXSHV.lock=0;return}
       var st2=Math.max(0,Math.floor(box.scrollTop/PXSHV.h)-2);
-      if(Math.abs(st2-PXSHV.start)>=4){PXSHV.start=st2;requestAnimationFrame(function(){renderSheet()})}
+      if(Math.abs(st2-PXSHV.start)>=4){PXSHV.start=st2;PXSHV.noFollow=1;requestAnimationFrame(function(){renderSheet()})}
     });
   }
+  pxResizeInit('grid');
   renderExc();
   renderPanel();
   var selTd=g.querySelector('td.sel');
-  if(selTd&&selTd.scrollIntoView)selTd.scrollIntoView({block:'nearest',inline:'nearest'});
+  if(!PXSHV.noFollow&&selTd&&selTd.scrollIntoView)selTd.scrollIntoView({block:'nearest',inline:'nearest'});
+  PXSHV.noFollow=0;
   if(selC===0){var gb0=$('#sheetWrap .gridbox');if(gb0)gb0.scrollLeft=0;}
 };
 
+/* ══════════ v104 (08-12) 입고방 실등록 — 호준님 승인 (B 실연동 1조각) ══════════
+   [기록]·[입고방 기록(선택/현재 행)] → 기존 종합방 _jhSendInbound 와 같은 items 형식으로 실제 INSERT.
+   room_id=jhInboundRoomId() · 실패 시 화면 기록도 안 남김 · 중복 클릭 방지 · DB 삭제는 안 함(입고방에서 직접). */
+function pxInbItem(r,qty){
+  var who=(typeof me!=='undefined'&&me)?me.name:'종합방';
+  var model=(r.pdIdx!=null&&PDT[r.pdIdx])?(PDT[r.pdIdx].b+' '+PDT[r.pdIdx].p)
+    :((typeof jhNormModel==='function'&&jhNormModel(r.pname))||String(r.pname||'').slice(0,40));
+  var spec=(String(r.sz||'').replace(/[^0-9.]/g,' ').replace(/\s+/g,' ').trim()+' '+String(r.spec||'')).trim();
+  var det='📋 '+(r.ch||'')+(r.ono?' · 주문 '+r.ono:'')+(r.recv?' · 받는분 '+r.recv:'')+(r.addr?' · '+String(r.addr).slice(0,40):'');
+  return {room_id:null,date_str:getTodayISO(),src:vNorm(r.inbVendor||''),model:model,spec:spec,qty:qty,
+    use_note:({'택배':'택배','직배송':'직배송'})[r.ship]||'장착',cancel_qty:0,cancelled:false,
+    logs:[{type:'',text:'📥 종합방 시트에서 입고방 등록 — '+who+' ('+getTodayISO()+')'},{type:'',text:det}],user_name:who};
+}
+newInb=async function(id){
+  var r=R(id); if(!r)return;
+  if(!(r.inbVendor||'').trim()){toast('입고 거래처명을 먼저 적어주세요 — 입고방 분류에 그대로 쓰입니다');return}
+  var q=r._inbQtyTouched?(r.inbQty||1):Math.max(1,(r.qty||1)-linkedOf(r));
+  if(linkedOf(r)+q>r.qty){toast('주문 수량('+r.qty+') 초과 — 수량을 줄이세요');return}
+  if(r._inbBusy)return; r._inbBusy=1;
+  var rid=(typeof jhInboundRoomId==='function')?jhInboundRoomId():null;
+  if(!rid){alert('입고방을 찾을 수 없습니다');r._inbBusy=0;return}
+  var item=pxInbItem(r,q); item.room_id=rid;
+  var res;
+  try{res=await sb.from('items').insert(item).select();if(res.error)throw res.error}
+  catch(e){alert('입고방 등록 실패: '+e.message);r._inbBusy=0;return}
+  var iid=res.data&&res.data[0]&&res.data[0].id;
+  aBegin();
+  r.inbVendor=vNorm(r.inbVendor);
+  r.inbLots.push({vendor:r.inbVendor,qty:q,arrived:false,src:'new',pn:r.pname,sz:r.sz,itemId:iid});
+  aEnd('🧾입고방 실등록',r.inbVendor+' · '+item.model+' ×'+q);
+  r._inbBusy=0;
+  renderSheet();
+  toast('입고방에 등록됐습니다 — '+r.inbVendor+' · '+item.model+' '+item.spec+' ×'+q);
+};
+bulkInbRec=async function(){
+  var rows=shRows().filter(function(r){return SEL[r.id]});
+  if(!rows.length){var pr=panelRow();if(pr)rows=[pr]}
+  if(!rows.length){toast('행을 체크(선택)하거나 클릭한 뒤 누르세요');return}
+  var rid=(typeof jhInboundRoomId==='function')?jhInboundRoomId():null;
+  if(!rid){alert('입고방을 찾을 수 없습니다');return}
+  var todo=[],skipV=0,skipDone=0;
+  rows.forEach(function(r){
+    if(r.inbSent){skipDone++;return}
+    if(!(r.inbVendor||'').trim()){skipV++;return}
+    var q=r._inbQtyTouched?(r.inbQty||1):Math.max(1,(r.qty||1)-linkedOf(r));
+    var it=pxInbItem(r,q); it.room_id=rid;
+    todo.push({r:r,q:q,item:it});
+  });
+  if(!todo.length){toast('등록할 행이 없습니다'+(skipDone?' · 이미 등록 '+skipDone:'')+(skipV?' · 거래처 없음 '+skipV:''));return}
+  if(!confirm('입고방에 '+todo.length+'건을 실제로 등록합니다.\n(이미 등록 '+skipDone+' · 거래처 없음 '+skipV+' 건너뜀)'))return;
+  var res;
+  try{res=await sb.from('items').insert(todo.map(function(t){return t.item})).select();if(res.error)throw res.error}
+  catch(e){alert('입고방 등록 실패: '+e.message);return}
+  aBegin();
+  todo.forEach(function(t,ix){
+    var iid=res.data&&res.data[ix]&&res.data[ix].id;
+    t.r.inbRec={src:t.item.src,model:t.item.model,spec:t.item.spec,qty:t.q,itemId:iid};
+    t.r.inbSent=true;
+  });
+  aEnd('🧾입고방 실등록',todo.length+'건');
+  renderSheet();
+  toast('입고방에 '+todo.length+'건 등록 완료'+(skipV?' · 거래처 없는 '+skipV+'건 건너뜀':''));
+};
+/* ══════════ v106 (08-12) 시트 공유 저장(행 단위 자동) + 이월 — 호준님 확정 ══════════
+   단가표처럼 DB가 정본. 셀을 고치면 그 행만 1.2초 뒤 자동 upsert(담당 1인/탭 전제).
+   접속하면 오늘 날짜를 자동 로드하고, 직배송방 방식으로 미처리분을 오늘로 복제 이월.
+   ★안전: 이월 대상은 시트가 저장한 행(use_note가 JSON)만 — 구 종합방 데이터는 제외. 후보 300건 초과 시 중단. */
+var PXAS={dirty:{},del:{},sig:{},timer:null,on:true,booted:false};
+function pxShSig(r){var p=pxShPack(r);delete p.logs;return JSON.stringify(p)}
+function pxShSnap(){PXAS.sig={};ROWS.forEach(function(r){PXAS.sig[r.id]={sig:pxShSig(r),dbid:r.dbid}})}
+function pxShDiff(){
+  if(!PXAS.booted)return;
+  var cur={},q=0;
+  ROWS.forEach(function(r){cur[r.id]=1;var sg=pxShSig(r);var o=PXAS.sig[r.id];
+    if(!o||o.sig!==sg){PXAS.dirty[r.id]=1;q++}});
+  Object.keys(PXAS.sig).forEach(function(id){
+    if(!cur[id]){var o=PXAS.sig[id];if(o&&o.dbid)PXAS.del[o.dbid]=1;delete PXAS.sig[id];q++}});
+  if(q){clearTimeout(PXAS.timer);PXAS.timer=setTimeout(pxShFlush,1200)}
+}
+var _aEndAS=aEnd; aEnd=function(a,b){_aEndAS(a,b);try{pxShDiff()}catch(e){}};
+async function pxShFlush(){
+  if(!PXAS.on||typeof sb==='undefined'||!sb)return;
+  var ids=Object.keys(PXAS.dirty);PXAS.dirty={};
+  var dels=Object.keys(PXAS.del);PXAS.del={};
+  var neu=[],upd=[];
+  ids.forEach(function(id){var r=ROWS.find(function(x){return String(x.id)===id});
+    if(r){(r.dbid?upd:neu).push(r)}});
+  try{
+    for(var b0=0;b0<neu.length;b0+=200){
+      var part=neu.slice(b0,b0+200);
+      var ins=await sb.from('jonghap_orders').insert(part.map(pxShPack)).select();
+      if(ins.error)throw ins.error;
+      (ins.data||[]).forEach(function(d,i){if(part[i]){part[i].dbid=d.id;PXAS.sig[part[i].id]={sig:pxShSig(part[i]),dbid:d.id}}});
+    }
+    for(var k=0;k<upd.length;k++){
+      var u=await sb.from('jonghap_orders').update(pxShPack(upd[k])).eq('id',upd[k].dbid);
+      if(u.error)throw u.error;
+      PXAS.sig[upd[k].id]={sig:pxShSig(upd[k]),dbid:upd[k].dbid};
+    }
+    for(var k2=0;k2<dels.length;k2++)await sb.from('jonghap_orders').delete().eq('id',dels[k2]);
+  }catch(e){
+    ids.forEach(function(id){PXAS.dirty[id]=1});
+    try{toast('자동 저장 실패 — 잠시 후 재시도: '+e.message)}catch(_e){}
+    clearTimeout(PXAS.timer);PXAS.timer=setTimeout(pxShFlush,5000);
+  }
+}
+async function pxShRollover(){
+  var today=shDate;
+  var res=await sb.from('jonghap_orders').select('*').lt('date_str',today).neq('status','done').neq('status','cxl').like('use_note','{%');
+  if(res.error||!res.data||!res.data.length)return 0;
+  if(res.data.length>300){try{toast('⚠이월 후보 '+res.data.length+'건 — 300건 초과라 자동 이월을 멈췄습니다')}catch(_e){}return 0}
+  var todayOr={};
+  ROWS.forEach(function(r){if(r.regDate===today){var o=r.originId||r.dbid;if(o)todayOr[String(o)]=1}});
+  var latest={};
+  res.data.forEach(function(d){var e={};try{e=JSON.parse(d.use_note||'{}')}catch(_e){}
+    var org=String(e.originId||d.id);
+    if(!latest[org]||d.date_str>latest[org].d.date_str)latest[org]={d:d,e:e}});
+  var n=0;
+  for(var org in latest){
+    if(todayOr[org])continue;
+    var d=latest[org].d,e=latest[org].e;
+    if(e.sale&&e.sale!=='정상')continue;
+    if(e.done)continue;
+    var r=pxShUnpack(d);
+    r.dbid=null; r.regDate=today;
+    r.originId=org; r.carriedFrom=e.carriedFrom||d.date_str;
+    ROWS.unshift(r); n++;
+  }
+  if(n){pxShSnapMerge();pxShDiff2Insert();try{toast('미처리 '+n+'건이 오늘로 이월됐습니다(⏱) — 완료·취소·반품 처리해야 멈춥니다')}catch(_e){}}
+  return n;
+}
+function pxShSnapMerge(){ROWS.forEach(function(r){if(!PXAS.sig[r.id]&&r.dbid)PXAS.sig[r.id]={sig:pxShSig(r),dbid:r.dbid}})}
+function pxShDiff2Insert(){ROWS.forEach(function(r){if(!r.dbid)PXAS.dirty[r.id]=1});clearTimeout(PXAS.timer);PXAS.timer=setTimeout(pxShFlush,800)}
+async function pxShBoot(){
+  try{shDate=(typeof getTodayISO==='function')?getTodayISO():shDate}catch(e){}
+  try{if(typeof pxShLoad==='function')await pxShLoad(shDate)}catch(e){}
+  pxShSnap();
+  try{await pxShRollover()}catch(e){}
+  PXAS.booted=true;
+  try{renderSheet()}catch(e){}
+}
+
 /* excNew·excNewSave 는 아래 _expose 목록에 추가해 PX.* 로 노출한다.
    (여기서 window.PX 에 직접 넣으면 build_index 의 window.PX={...} 통째 대입에 덮인다) */
+
+
+
+/* ══════════ v109 (08-12) 시트 열 배치 — 호준님 "한눈에 안 들어옴" ══════════
+   ① 실무 순서로 재배치(뭘·얼마에·어디로 → 돈 → 부가정보)  ② 앞 열 왼쪽 고정(가로 스크롤해도 안 사라짐)
+   ③ 열 순서·표시 여부는 화면에서 바꿔 저장(localStorage) — 사람마다 보는 게 다르므로 */
+(function(){
+  var ORDER=['_st','ch','pname','sz','spec','qty','ship','recv','cost','_mg','pay','_per',
+             'rsvDate','addr','store','ono','origin','inbVendor','dlVendor',
+             'fp','dc','fee','instOut','siteFee','align','sale','note','regDate'];
+  var byK={}; COLS.forEach(function(c){byK[c.k]=c});
+  var neu=[]; ORDER.forEach(function(k){if(byK[k]){neu.push(byK[k]);delete byK[k]}});
+  COLS.forEach(function(c){if(byK[c.k])neu.push(c)});          /* 목록에 없던 열은 뒤에 그대로 */
+  COLS.length=0; neu.forEach(function(c){COLS.push(c)});
+  /* 저장된 사용자 순서가 있으면 그것을 우선 */
+  try{
+    var sv=JSON.parse(localStorage.getItem('px_sheet_order')||'null');
+    if(sv&&sv.length){
+      var m={}; COLS.forEach(function(c){m[c.k]=c});
+      var re=[]; sv.forEach(function(k){if(m[k]){re.push(m[k]);delete m[k]}});
+      COLS.forEach(function(c){if(m[c.k])re.push(c)});
+      COLS.length=0; re.forEach(function(c){COLS.push(c)});
+    }
+  }catch(_e){}
+})();
+/* 왼쪽 고정 — 체크박스 + 앞 3열(상태·채널·상품명). 폭이 바뀌어도 매 렌더 후 다시 계산 */
+var PXFREEZE=3;
+try{var _f=parseInt(localStorage.getItem('px_sheet_freeze'),10); if(!isNaN(_f))PXFREEZE=_f}catch(_e){}
+function pxFreezeSheet(){
+  var t=document.getElementById('grid'); if(!t||!t.rows.length)return;
+  var head=t.rows[0], n=Math.min(PXFREEZE+1,head.cells.length);
+  var left=0, pos=[];
+  for(var c=0;c<n;c++){pos.push(left); left+=head.cells[c].getBoundingClientRect().width}
+  for(var r=0;r<t.rows.length;r++){
+    var tr=t.rows[r];
+    for(var c2=0;c2<n;c2++){
+      var cell=tr.cells[c2]; if(!cell)continue;
+      cell.style.position='sticky'; cell.style.left=pos[c2]+'px';
+      cell.style.zIndex=(r===0?7:4);
+      if(r>0&&!cell.style.background)cell.style.background='#fff';
+      cell.style.boxShadow=(c2===n-1)?'2px 0 0 rgba(0,0,0,.10)':'';
+    }
+  }
+}
+/* 열 배치 바꾸기 — 툴바 버튼 */
+function pxColCfg(){
+  var cur=COLS.map(function(c){return c.k});
+  var names=COLS.map(function(c){return c.n});
+  var msg='시트 열 — 지금 순서: '+names.map(function(n,i){return (i+1)+'.'+n}).join(' ')+'  |  왼쪽에 고정할 열 개수를 적어주세요(0~6, 지금 '+PXFREEZE+'개)';
+  var v=prompt(msg,String(PXFREEZE));
+  if(v===null)return;
+  var n=parseInt(v,10);
+  if(!isNaN(n)&&n>=0&&n<=6){PXFREEZE=n;try{localStorage.setItem('px_sheet_freeze',String(n))}catch(_e){}}
+  var v2=prompt('열 순서를 바꾸려면 이름을 콤마로 적어주세요(비우면 그대로). 예: 상태,채널,상품명,사이즈,수량,원가,마진',''); 
+  if(v2&&v2.trim()){
+    var want=v2.split(/[,\s]+/).filter(Boolean);
+    var byN={}; COLS.forEach(function(c){byN[c.n]=c.k});
+    var ks=[]; want.forEach(function(w){if(byN[w])ks.push(byN[w])});
+    if(ks.length){
+      COLS.forEach(function(c){if(ks.indexOf(c.k)<0)ks.push(c.k)});
+      try{localStorage.setItem('px_sheet_order',JSON.stringify(ks))}catch(_e){}
+      alert('저장했습니다 — 새로고침하면 적용됩니다.');
+      return;
+    }
+  }
+  renderSheet();
+}
+(function(){
+  var _rs=renderSheet;
+  renderSheet=function(){_rs.apply(this,arguments); try{pxFreezeSheet()}catch(_e){}};
+})();
+
+
+
+/* ══════════ v110 (08-12) 시트 보기 개선 — 호준님 "스크롤 내릴 때마다 헤더 고정 좀" + "한 화면에 볼 방법" ══════════ */
+/* ① 헤더가 스크롤에 밀리던 원인: v105 열폭 리사이즈가 th에 position:relative를 덮어써서 CSS의 sticky가 죽었다.
+      sticky도 자식 absolute의 기준이 되므로 sticky로 두면 리사이즈 핸들도 그대로 동작한다. */
+(function(){
+  var _ri=pxResizeInit;
+  pxResizeInit=function(id){
+    _ri(id);
+    var t=document.getElementById(id); if(!t||!t.rows.length)return;
+    var head=t.rows[0];
+    for(var c=0;c<head.cells.length;c++){
+      var th=head.cells[c];
+      if(th.style.position==='relative')th.style.position='sticky';
+      if(!th.style.top)th.style.top='0px';
+      th.style.zIndex=(th.style.left?'8':'6');
+    }
+  };
+})();
+/* ② 열 묶음 — 한 화면에 필요한 것만. [핵심]이 기본, 필요할 때 펼친다 */
+var PXVIEW='all';   /* v112(08-13 호준님): 시작은 항상 전체 — 기존에 보이던 내용 다 보이게. 버튼은 임시 전환용 */
+try{localStorage.removeItem('px_sheet_view')}catch(_e){}
+var PXVIEWSET={
+  core:['_st','ch','pname','sz','spec','qty','ship','recv','cost','_mg'],
+  price:['_st','ch','pname','sz','spec','qty','ship','recv','cost','_mg','pay','_per','fp','dc','fee','instOut','siteFee','align'],
+  ship:['_st','ch','pname','sz','spec','qty','ship','recv','rsvDate','addr','origin','inbVendor','dlVendor','store','ono'],
+  all:null
+};
+function pxApplyView(){
+  var keep=PXVIEWSET[PXVIEW];
+  COLS.forEach(function(c){ c.hide = keep ? (keep.indexOf(c.k)<0) : false; });
+}
+function pxSetView(v){
+  PXVIEW=v; /* v112: 보기 선택은 저장하지 않는다 — 새로고침하면 항상 전체 */
+  pxApplyView(); renderSheet();
+  try{toast({core:'핵심 열만 — 한 화면에 들어옵니다',price:'가격·비용 열까지',ship:'배송·주문 열까지',all:'전체 열'}[v])}catch(_e){}
+}
+/* COLS를 실제로 걸러서 그리도록 renderSheet를 감싼다(원본 렌더 로직은 그대로 두고 앞뒤로 교체) */
+(function(){
+  var FULL=COLS.slice();
+  var _rs2=renderSheet;
+  renderSheet=function(){
+    pxApplyView();
+    var vis=FULL.filter(function(c){return !c.hide});
+    COLS.length=0; vis.forEach(function(c){COLS.push(c)});
+    var r=_rs2.apply(this,arguments);
+    COLS.length=0; FULL.forEach(function(c){COLS.push(c)});   /* 다른 코드가 전체 열을 기대하므로 되돌린다 */
+    try{pxViewBar()}catch(_e){}
+    return r;
+  };
+  window.__PXFULLCOLS=FULL;
+})();
+/* 보기 전환 버튼 — 필터 줄에 붙인다 */
+function pxViewBar(){
+  var host=document.getElementById('shfilter')||document.querySelector('#sheetWrap .jh-flt')||document.querySelector('#sheetWrap .toolbar');
+  if(!host)return;
+  var id='pxViewBar';
+  var el=document.getElementById(id);
+  if(!el){el=document.createElement('span');el.id=id;el.style.cssText='display:inline-flex;gap:4px;margin-left:6px';host.appendChild(el)}
+  var B=[['core','핵심'],['price','가격'],['ship','배송'],['all','전체']];
+  el.innerHTML=B.map(function(b){
+    var on=(PXVIEW===b[0]);
+    return '<span class="chip'+(on?' on':'')+'" style="'+(on?'background:#1d4ed8;border-color:#1d4ed8;color:#fff':'')+'" onclick="PX.setView2(&#39;'+b[0]+'&#39;)">'+b[1]+'</span>';
+  }).join('');
+}
 
 
 
@@ -21085,12 +21559,12 @@ function pxShPack(r){
              pay:r.pay,ship:r.ship,store:r.store,origin:r.origin,note:r.note,sale:r.sale,spec:r.spec,
              opt:r.opt,rsvDate:r.rsvDate,rsvTime:r.rsvTime,odate:r.odate,hold:r.hold,done:r.done,
              pdIdx:r.pdIdx,pdLabel:r.pdLabel,whLots:r.whLots,inbLots:r.inbLots,dl:r.dl,
-             dlVendor:r.dlVendor,inbVendor:r.inbVendor};
+             dlVendor:r.dlVendor,inbVendor:r.inbVendor,originId:r.originId,carriedFrom:r.carriedFrom};
   var me_name=(typeof me!=='undefined'&&me)?me.name:'?';
   return {date_str:r.regDate, platform:r.ch||'', dtype:r.ship||'', order_no:String(r.ono||''),
     brand:'', name:r.pname||'', code:'', size:r.sz||'', ply:String(r.spec||''), qty:parseInt(r.qty,10)||0,
     recv:r.recv||'', tel:r.tel||'', addr:r.addr||'', use_note:JSON.stringify(extra),
-    raw_line:r.raw_line||'', status:(r.done?'done':(r.hold?'hold':'wait')),
+    raw_line:r.raw_line||'', status:(r.done?'done':((r.sale&&r.sale!=='정상')?'cxl':(r.hold?'hold':'wait'))),
     reg_user:me_name, assignee:'미지정',
     logs:[{t:'종합방 시트 저장',by:me_name,at:new Date().toISOString()}]};
 }
@@ -21197,10 +21671,11 @@ window.PX={init:async function(){
   try{ renderPrice(); }catch(e){}
   try{ if(r.cached&&typeof toast==='function')toast('단가표 '+r.rows.toLocaleString()+'행 — 저장된 사본에서 불러옴(전송량 0). 새로 받으려면 🔄'); }catch(e){}
   if(!PDT.length){ var g=document.getElementById('pgrid'); if(g)g.innerHTML='<tr><td colspan="20">'+pxEmptyNotice()+'</td></tr>'; }
+  try{ if(typeof pxShBoot==='function')await pxShBoot(); }catch(e){}
 }};
 
 window.PX=window.PX||{};
-try{PX.loadDB=pxLoadDB;PX.saveDB=pxSaveDB;PX.fromMockup=pxFromMockup;PX.reload=async function(){var r=await pxLoadDB(true);if(r.err){alert("다시 받기 실패: "+r.err);return}try{refreshPlat();refreshVend();renderPrice()}catch(e){}try{toast("서버에서 다시 받음 — 단가표 "+r.rows.toLocaleString()+"행")}catch(e){}};PX.rows=function(){return PDT};PX.rules=function(){return PRULES};PX.sups=function(){return PSUPS};PX.shLoad=pxShLoad;PX.shSave=pxShSave;PX.ruleEdit=pxRuleEdit;}catch(_e){}
+try{PX.loadDB=pxLoadDB;PX.saveDB=pxSaveDB;PX.fromMockup=pxFromMockup;PX.reload=async function(){var r=await pxLoadDB(true);if(r.err){alert("다시 받기 실패: "+r.err);return}try{refreshPlat();refreshVend();renderPrice()}catch(e){}try{toast("서버에서 다시 받음 — 단가표 "+r.rows.toLocaleString()+"행")}catch(e){}};PX.rows=function(){return PDT};PX.rules=function(){return PRULES};PX.sups=function(){return PSUPS};PX.shLoad=pxShLoad;PX.shSave=pxShSave;PX.ruleEdit=pxRuleEdit;PX.colCfg=function(){return pxColCfg()};PX.setView2=function(v){return pxSetView(v)};}catch(_e){}
 try{PX.R=R}catch(_e){}
 try{PX.addPhoneRow=addPhoneRow}catch(_e){}
 try{PX.admToggle=admToggle}catch(_e){}
