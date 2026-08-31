@@ -1431,11 +1431,11 @@ body.rb-on #app{padding-top:58px}
 
 #jonghap-screen .srow .arr{font-size:10.5px;font-weight:800}
 
-#jonghap-screen #toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--navy);color:#fff;
+#toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--navy);color:#fff;
   font-size:12.5px;font-weight:600;padding:9px 16px;border-radius:11px;box-shadow:0 8px 24px rgba(0,0,0,.25);
-  opacity:0;pointer-events:none;transition:opacity .2s;z-index:99;max-width:90vw;text-align:center}
+  opacity:0;pointer-events:none;transition:opacity .2s;z-index:9500;max-width:90vw;text-align:center} /* 전 화면 공통 — 종합방에만 묶여 있어 주소록 저장 알림이 안 보이던 것 수리(호준님 8/31), 주소록 모달(z 9000) 위로 */
 
-#jonghap-screen #toast.show{opacity:1}
+#toast.show{opacity:1}
 
 #jonghap-screen .explain{margin:8px 12px 2px;padding:8px 11px;border:1px solid var(--border);border-radius:10px;background:#fff;font-size:11.5px;color:var(--text2);line-height:1.5}
 
@@ -6549,7 +6549,8 @@ async function dlvShopLoad(){
 }
 async function dlvShopSave(){
   if(!dlvShopIsAdmin()){ alert('장착점 주소록은 관리자만 고칠 수 있습니다'); return; }
-  try{ await sb.from('settings').upsert({key:'shop_book',value:DLV_SHOPBOOK},{onConflict:'key'});
+  try{ const res=await sb.from('settings').upsert({key:'shop_book',value:DLV_SHOPBOOK},{onConflict:'key'});
+    if(res&&res.error)throw res.error; // supabase-js는 오류를 throw하지 않으므로 직접 확인(호준님 8/31)
     if(typeof stkLog==='function')stkLog('📒장착점주소록','주소록 저장 · '+DLV_SHOPBOOK.length+'곳',{});
     toast('주소록을 저장했습니다 ('+DLV_SHOPBOOK.length+'곳)');
   }catch(e){ alert('저장 실패: '+e.message); }
