@@ -5119,7 +5119,9 @@ function dlvParcelRows(list){ // 행 생성(순수함수) — 택배사 바로 �
       if(bundle)bundle+=1000;
     }
     var nm=dlvParcelName(c);
-    function mk(f,box){return [c.recv||'',addr,c.recv||'','','',c.zipcode||'','',c.tel||'','','선불',nm,box,'나체',10,10,10,10,10,(f===''||f==null?'':f),100,'','','',''];} // 고객사주문번호는 비움(호준님 8/28)
+    var zip=c.zipcode||'';
+    if(!zip&&c.shop_name&&typeof dlvShopFind==='function'){ var _sb=dlvShopFind(c.shop_name); if(_sb&&_sb.zip)zip=_sb.zip; } // 협력점 건은 주소록 우편번호로 보충
+    function mk(f,box){return [c.recv||'',addr,c.recv||'','','',zip,'',c.tel||'','','선불',nm,box,'나체',10,10,10,10,10,(f===''||f==null?'':f),100,'','','',''];} // 고객사주문번호는 비움(호준님 8/28)
     var n=parseInt(c.qty,10)||1;
     if(bundle&&n>=2){
       var pairs=Math.floor(n/2),rem=n%2;
@@ -6510,7 +6512,7 @@ const DLV_FMT_DESC={
   ping:'<b>핑</b>(판매처=핑): 시트 그대로 복사해 붙여넣기 (주문일·주문번호·제품코드·확정·<b>배송방법</b>·출고지·품명·사이즈·세부·DOT·제조사·수량·우편·주소·받는분·연락처·메모). 여러 줄=여러 건.',
   online:'<b>온라인</b>(스팜/11번가/전화주문 자동인식): 시트에서 복사해 붙여넣기. 빈 칸도 탭 유지하면 정확.',
   trade:'<b>거래처</b>: <b>출고 거래처 브랜드/내용 사이즈 수량</b> 순서로 한 줄씩. 날짜·배송완료는 자동 기록. 예: <b>창고 황제 크루젠HP71 235 60 18 4</b> (한 줄=한 건, 엑셀 복사도 가능)',
-  st11:'<b>11번가</b> 정산서: <b>A열부터 Q열(배송방법/장착점)까지</b> 선택해 복사 → 붙여넣기. <b>제목 줄은 필요 없습니다.</b> 배송방법/장착점 칸으로 택배·직배송·장착을 자동 구분하고, 비어 있으면 옵션 글귀로 보완합니다.',
+  st11:'<b>11번가</b> 정산서: <b>A열부터 Q열(배송방법/장착점)까지</b> 선택해 복사 → 붙여넣기. <b>제목 줄은 필요 없습니다.</b> 배송방법/장착점 칸으로 택배·직배송·장착을 자동 구분하고, 비어 있으면 옵션 글귀로 보완합니다. <b>휴대폰열과 주소열 사이에 우편번호열이 있는 새 시트</b>는 A~R(18칸)로 복사하면 우편번호까지 저장됩니다(택배 등록에 필요) — 우편번호 없는 예전 시트(A~Q)도 그대로 됩니다.',
   spam:'<b>스토어팜</b> 정산서: <b>A열부터 O열(주소)까지</b> 선택해 복사 → 붙여넣기. 제목 줄 불필요. 배송방법/장착점(E열)으로 자동 구분합니다.',
   tel:'<b>전화주문</b> 정산서: <b>A열부터 M열(주소)까지</b> 선택해 복사 → 붙여넣기. 제목 줄 불필요. 배송방법/장착점(D열)으로 자동 구분합니다.',
   auto:'<b>온라인</b>: 11번가·스토어팜·전화주문 정산서를 <b>섞어서 한 번에</b> 붙여넣으세요. 각 시트에서 범위대로(<b>11번가 A~Q · 스토어팜 A~O · 전화주문 A~M</b>) 복사해 이어 붙여도 되고, <b>엑셀 한 시트에 모아뒀다가 한 번에 복사</b>해도 자동으로 구분합니다. 제목 줄 불필요. 단, 예전처럼 13칸으로 따로 정리한 옛 온라인 정리본은 넣지 마세요(전화주문으로 읽힘).'
@@ -6589,6 +6591,7 @@ function dlvShopRender(){
      +'<button onclick="dlvShopDel('+i+')" style="border:1px solid #dc2626;background:#fff;color:#dc2626;border-radius:6px;padding:3px 8px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">삭제</button></div>'
      +'<div style="display:flex;gap:6px;margin-top:5px;flex-wrap:wrap">'
      +'<input value="'+esc(s.addr||'')+'" onchange="dlvShopSet('+i+',\'addr\',this.value)" placeholder="주소" style="flex:1;min-width:220px;border:1px solid #e5e1d8;border-radius:6px;padding:4px 7px;font-size:12px;font-family:inherit">'
+     +'<input value="'+esc(s.zip||'')+'" onchange="dlvShopSet('+i+',\'zip\',this.value)" placeholder="우편번호" style="width:78px;border:1px solid #e5e1d8;border-radius:6px;padding:4px 7px;font-size:12px;font-family:inherit">'
      +'<input value="'+esc(s.tel||'')+'" onchange="dlvShopSet('+i+',\'tel\',this.value)" placeholder="연락처" style="width:150px;border:1px solid #e5e1d8;border-radius:6px;padding:4px 7px;font-size:12px;font-family:inherit"></div>'
      +'<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:5px;align-items:center">'
      +'<span style="font-size:10.5px;font-weight:800;color:#64748b">같이 쓰는 이름</span>'
@@ -6599,13 +6602,13 @@ function dlvShopRender(){
   h+='<div style="display:flex;gap:6px;margin-top:4px"><button onclick="dlvShopAdd()" style="border:1.5px dashed #1e3a5f;background:#fff;color:#1e3a5f;border-radius:9px;padding:7px 12px;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit">＋ 장착점 추가</button></div>';
   h+='<div style="margin-top:11px;border-top:1px solid #e5e1d8;padding-top:9px">'
    +'<div style="font-size:11.5px;font-weight:800;margin-bottom:4px">엑셀에서 한 번에 넣기</div>'
-   +'<div style="font-size:10.5px;color:#64748b;margin-bottom:5px">장착점정보 시트에서 <b>매장명·지역·주소·연락처</b> 순서로 복사해 붙여넣으세요(제목 줄은 빼고). 기존 목록은 지워지고 새로 채워집니다.</div>'
+   +'<div style="font-size:10.5px;color:#64748b;margin-bottom:5px">장착점정보 시트에서 <b>매장명·지역·주소·연락처·우편번호</b> 순서로 복사해 붙여넣으세요(우편번호는 없어도 됨, 제목 줄은 빼고). 기존 목록은 지워지고 새로 채워집니다.</div>'
    +'<textarea id="shopbook-paste" style="width:100%;min-height:70px;border:1.5px solid #e5e1d8;border-radius:9px;padding:8px;font-size:12px;font-family:inherit"></textarea>'
    +'<button onclick="dlvShopPaste()" style="margin-top:5px;border:1px solid #1e3a5f;background:#fff;color:#1e3a5f;border-radius:7px;padding:5px 11px;font-size:11.5px;font-weight:800;cursor:pointer;font-family:inherit">붙여넣은 것으로 교체</button></div>';
   b.innerHTML=h;
 }
 function dlvShopSet(i,k,v){ if(!DLV_SHOPBOOK[i])return; DLV_SHOPBOOK[i][k]=(k==='base')?v:String(v||'').trim(); if(k==='base')dlvShopRender(); }
-function dlvShopAdd(){ DLV_SHOPBOOK.push({name:'',area:'',addr:'',tel:'',base:0,aliases:[]}); dlvShopRender(); }
+function dlvShopAdd(){ DLV_SHOPBOOK.push({name:'',area:'',addr:'',zip:'',tel:'',base:0,aliases:[]}); dlvShopRender(); }
 function dlvShopDel(i){ if(!confirm('\''+(DLV_SHOPBOOK[i].name||'이 줄')+'\'을 목록에서 지울까요?'))return; DLV_SHOPBOOK.splice(i,1); dlvShopRender(); }
 function dlvShopAlAdd(i){ var e=document.getElementById('shopal'+i); var v=(e&&e.value||'').trim(); if(!v)return;
   DLV_SHOPBOOK[i].aliases=DLV_SHOPBOOK[i].aliases||[];
@@ -6622,6 +6625,7 @@ function dlvShopPaste(){
     var nm=(c[0]||'').trim(); if(!nm||/매장명|^NO$/.test(nm))return;
     var old=dlvShopFind(nm);
     arr.push({name:nm,area:(c[1]||'').trim(),addr:(c[2]||'').trim(),tel:(c[3]||'').trim().replace(/\n/g,' / '),
+      zip:((c[4]||'').trim().match(/\d{5}/)||[''])[0]||(old&&old.zip)||'',   // 5번째 칸 우편번호(없으면 기존 값 유지)
       base:(old&&old.base)?1:(/게러지모터스|본점/.test(nm)?1:0),
       aliases:(old&&old.aliases)?old.aliases.slice():[]});
   });
@@ -6671,7 +6675,7 @@ function dlvAddrOpen(id){
      +(now?'<span style="font-size:10.5px;font-weight:800;color:#15803d">지금 여기</span>':'')
      +'<span style="flex:1"></span>'
      +'<button onclick="dlvAddrApply('+i+')" style="border:1px solid #1e3a5f;background:'+(now?'#fff':'#1e3a5f')+';color:'+(now?'#1e3a5f':'#fff')+';border-radius:7px;padding:4px 10px;font-size:11.5px;font-weight:800;cursor:pointer;font-family:inherit">'+(now?'다시 적용':'이 주소로')+'</button></div>'
-     +'<div style="font-size:11.5px;color:#475569;margin-top:3px;line-height:1.5">'+esc(s.addr||'(주소 없음)')+(s.tel?' · '+esc(s.tel):'')+'</div></div>';
+     +'<div style="font-size:11.5px;color:#475569;margin-top:3px;line-height:1.5">'+esc(s.addr||'(주소 없음)')+(s.zip?' (우 '+esc(s.zip)+')':'')+(s.tel?' · '+esc(s.tel):'')+'</div></div>';
   }).join('');
   b.innerHTML=h;
 }
@@ -6691,7 +6695,7 @@ async function dlvAddrApply(idx){
     if(!c.cust_addr&&!c.cust_recv&&!c.shop_name){
       up.cust_addr=c.addr||''; up.cust_recv=c.recv||''; up.cust_tel=c.tel||''; up.cust_zip=c.zipcode||null;
     }
-    up.addr=s.addr; up.recv=s.name; up.tel=s.tel||''; up.zipcode=null; up.shop_name=s.name;
+    up.addr=s.addr; up.recv=s.name; up.tel=s.tel||''; up.zipcode=s.zip||null; up.shop_name=s.name;
     label=s.name;
   }
   var keys=Object.keys(up), ok=false;
@@ -6841,9 +6845,14 @@ function dlvPickPly(nm){
    스토어팜 A~O: 1상품주문번호 2주문번호 3주문사이트 4처리내역 5배송방법/장착점 6장착예약일 7출고지
                  8재고유무 9상품명 10옵션 11수량 12수취인명 13연락처 14우편번호 15주소
    전화주문 A~M: 1날짜 2주문사이트 3처리내역 4배송방법/장착점 5장착예약일 6출고지 7재고유무
-                 8상품명 9수량 10수취인명 11연락처 12우편번호 13주소 */
+                 8상품명 9수량 10수취인명 11연락처 12우편번호 13주소
+   ★11번가 새 양식(호준님 8/28 확정): 휴대폰열과 주소열 사이에 우편번호열 삽입 → A~R 18칸
+     = …10수취인 11휴대폰 12우편번호 13주소 14주문금액 15정산예정금액 16출고지 17재고유무 18배송방법/장착점.
+     칸 수로 자동 구분: 17칸=구양식(우편번호 없음, 종전 그대로) / 18칸=새 양식(st11z). */
 var DLV_SETTLE={
   st11:{need:17,ch:'st11',ship:17,name:7,opt:8,qty:9,recv:10,tel:11,addr:12,src:15,zip:0,ono:6,site:5},
+  st11z:{need:18,ch:'st11',ship:18,name:7,opt:8,qty:9,recv:10,tel:11,zip:12,addr:13,src:16,ono:6,site:5},
+  st11q:{need:17,ch:'st11',ship:0,name:7,opt:8,qty:9,recv:10,tel:11,zip:12,addr:13,src:16,ono:6,site:5}, // 새 시트를 A~Q까지만 복사한 줄(R열 배송방법 누락 — 옵션 글귀로 보완, 경고 표시)
   spam:{need:15,ch:'spam',ship:5,name:9,opt:10,qty:11,recv:12,tel:13,addr:15,src:7,zip:14,ono:1,site:3},
   tel:{need:13,ch:'tel',ship:4,name:8,opt:0,qty:9,recv:10,tel:11,addr:13,src:6,zip:12,ono:0,site:2}
 };
@@ -6869,7 +6878,7 @@ function dlvSettleRow(S,c){
   if(_sh&&!_sh.base){
     d.cust_recv=d.recv; d.cust_tel=d.tel; d.cust_addr=d.addr; d.cust_zip=d.zipcode;
     d.shop_name=_sh.name;
-    if(_sh.addr){ d.addr=_sh.addr; d.zipcode=''; d.recv=_sh.name; d.tel=_sh.tel||''; }
+    if(_sh.addr){ d.addr=_sh.addr; d.zipcode=_sh.zip||''; d.recv=_sh.name; d.tel=_sh.tel||''; }
     else d.shop_noaddr=1;   // 주소록에 주소가 아직 비어 있음
   }
   return d;
@@ -6878,7 +6887,7 @@ function dlvParseSettle(fmt,raw){
   var S=DLV_SETTLE[fmt]; if(!S)return [];
   var rows=dlvSettleRows(raw,S.need);
   var out=[];
-  rows.forEach(function(c){ var d=dlvSettleRow(S,c); if(d)out.push(d); });
+  rows.forEach(function(c){ var SS=(fmt==='st11'&&c.length>=18)?DLV_SETTLE.st11z:S; var d=dlvSettleRow(SS,c); if(d)out.push(d); }); // 18칸이면 우편번호 삽입된 새 11번가 양식
   return out;
 }
 /* ★자동인식(테스트): 11번가·스토어팜·전화주문을 섞어 붙여넣어도 줄마다 칸 수로 판정.
@@ -6896,12 +6905,14 @@ function dlvAutoJudge(c){
   var n=c.length;
   if(n===15)return 'spam';
   if(n===13)return 'tel';
-  if(n===17){
+  if(n===17||n===18){ // 18 = 11번가 새 양식(휴대폰·주소 사이 우편번호 삽입, 같은폭 복사 포함) — 신호 판정은 동일
+    var st=(n===18?'st11z':'st11');
+    if(n===17&&/^\d{5}$/.test(g(11))&&g(12)!=='')st='st11q'; // 12번째가 5자리 우편번호+13번째에 주소 = 새 시트를 Q까지만 복사한 것
     var is16=function(s){return /^\d{15,17}$/.test(s)||/^\d(\.\d+)?E\+1\d$/i.test(s);};
     if(is16(g(0))||is16(g(1)))return 'spam';
     if(/^\d{1,2}월\s*\d{1,2}일/.test(g(0))||/^\d{4}[-.\/]\d{1,2}[-.\/]\d{1,2}/.test(g(0))||/^\d{1,2}[\/.]\d{1,2}$/.test(g(0)))return 'tel';
-    if(/^\d{15,19}$/.test(g(5))||/^\d(\.\d+)?E\+1\d$/i.test(g(5)))return 'st11';
-    if(g(13)!==''||g(14)!==''||g(15)!==''||g(16)!=='')return 'st11';
+    if(/^\d{15,19}$/.test(g(5))||/^\d(\.\d+)?E\+1\d$/i.test(g(5)))return st;
+    if(g(13)!==''||g(14)!==''||g(15)!==''||g(16)!=='')return st;
     return null;
   }
   return null;
@@ -6917,7 +6928,7 @@ function dlvParseSettleAuto(raw){
       errs.push({cnt:c.length,txt:c.join(' ').replace(/\s+/g,' ').slice(0,70)}); return;
     }
     var d=dlvSettleRow(DLV_SETTLE[f],c);
-    if(d)out.push(d);
+    if(d){ if(f==='st11q')d._q17=1; out.push(d); }
   });
   return {items:out,errs:errs};
 }
@@ -7016,7 +7027,7 @@ function dlvRenderPreview(){
   const area=document.getElementById('dlv-pv-area');
   var _errH='';
   if(dlvAutoErrs.length){
-    _errH='<div style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;border-radius:8px;padding:7px 10px;font-size:11.5px;margin-bottom:7px"><b>⚠ 양식 판정 불가 '+dlvAutoErrs.length+'줄</b> — 칸 수·내용으로 양식을 알아볼 수 없어 등록에서 뺐어요. 복사 범위(11번가 A~Q / 스토어팜 A~O / 전화주문 A~M)를 확인해 주세요.'
+    _errH='<div style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;border-radius:8px;padding:7px 10px;font-size:11.5px;margin-bottom:7px"><b>⚠ 양식 판정 불가 '+dlvAutoErrs.length+'줄</b> — 칸 수·내용으로 양식을 알아볼 수 없어 등록에서 뺐어요. 복사 범위(11번가 A~R·구양식 A~Q / 스토어팜 A~O / 전화주문 A~M)를 확인해 주세요.'
       +dlvAutoErrs.slice(0,5).map(function(e){return '<div style="margin-top:3px;color:#7f1d1d">· '+e.cnt+'칸: '+esc(e.txt)+'…</div>';}).join('')
       +(dlvAutoErrs.length>5?'<div style="margin-top:3px;color:#7f1d1d">… 외 '+(dlvAutoErrs.length-5)+'줄</div>':'')+'</div>';
   }
@@ -7026,6 +7037,8 @@ function dlvRenderPreview(){
     var _fc={};
     dlvParsed.forEach(function(d){_fc[d.channel]=(_fc[d.channel]||0)+1;});
     h+='<div style="font-size:11px;color:var(--text2);margin:-2px 0 6px;font-weight:700">🔀 온라인 자동판정: '+['st11','spam','tel'].filter(function(k){return _fc[k];}).map(function(k){return (DCH_LABEL[k]||k)+' '+_fc[k]+'건';}).join(' · ')+'</div>';
+    var _q17=dlvParsed.filter(function(d){return d._q17;}).length;
+    if(_q17)h+='<div style="background:#fffbeb;border:1px solid #fde68a;color:#92400e;border-radius:8px;padding:6px 10px;font-size:11.5px;margin:0 0 6px"><b>⚠ 11번가 '+_q17+'줄이 Q열까지만 복사됐어요</b> — 새 시트는 <b>R열(배송방법/장착점)까지</b> 복사하세요. 이번 줄들은 우편번호·주소는 정확히 읽었지만 배송방법은 옵션 글귀로만 추정합니다.</div>';
   }
   if(dlvParsed.some(function(d){return d.ship_type;})){
     var _cnt={};
