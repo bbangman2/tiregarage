@@ -5905,8 +5905,8 @@ function dlvListOf(tab){
   if(realTab==='deliv'){
     // 꼭배송(메모) 최상단 > 정상 > 완료 > 취소. 같은 그룹 내 순서대로
     arr.sort(function(a,b){
-      const ra=a.cancelled?3:(a.done?2:(a.due_date?0:1));
-      const rb=b.cancelled?3:(b.done?2:(b.due_date?0:1));
+      const ra=a.cancelled?3:(a.done?2:1);   // 9/3 호준님: 꼭배송 강제 맨위 고정 해제 — 뱃지만 강조, 순서는 자유
+      const rb=b.cancelled?3:(b.done?2:1);
       if(ra!==rb)return ra-rb;
       return (a.sort_order||0)-(b.sort_order||0);
     });
@@ -6334,29 +6334,21 @@ async function dlvSaveDragOrder(el){
   const ids=Array.prototype.map.call(el.querySelectorAll('.dlv-drag'),function(d){return d.getAttribute('data-did');});
   if(!ids.length)return;
   const cards=ids.map(function(id){return deliveriesCache.find(function(x){return x.id===id;});}).filter(Boolean);
-  // ★9/3: 꼭배송(due_date) 카드는 항상 맨 위 고정(정렬 사양) — 일반 카드를 그 위로 끌어도 저장 후 되돌아간다.
-  //   그룹(꼭배송/일반)별로 자기 그룹 안에서만 재배정하고, 경계를 넘긴 드래그는 안내한다.
-  var crossed=false, seenNormal=false;
-  cards.forEach(function(c){ if(c.due_date){ if(seenNormal)crossed=true; } else seenNormal=true; });
+  const ords=cards.map(function(c){return c.sort_order||0;}).sort(function(a,b){return a-b;});
   var conflict=false;
   try{
-    for(var g=0;g<2;g++){
-      var sub=cards.filter(function(c){return (c.due_date?0:1)===g;});
-      var ords=sub.map(function(c){return c.sort_order||0;}).sort(function(a,b){return a-b;});
-      for(let i=0;i<sub.length;i++){
-        var before=sub[i].sort_order||0;
-        if(before!==ords[i]){
-          // ★동시 편집 보호(9/3: 여러 직원이 같이 드래그하면 서로 덮어쓰던 문제): 내 화면 기준 값(before)일 때만 저장
-          var r=await sb.from('deliveries').update({sort_order:ords[i]}).eq('id',sub[i].id).eq('sort_order',before).select('id');
-          if(r.error)throw r.error;
-          if(!(r.data&&r.data.length))conflict=true;
-        }
+    for(let i=0;i<cards.length;i++){
+      var before=cards[i].sort_order||0;
+      if(before!==ords[i]){
+        // ★동시 편집 보호(9/3: 여러 직원이 같이 드래그하면 서로 덮어쓰던 문제): 내 화면 기준 값(before)일 때만 저장
+        var r=await sb.from('deliveries').update({sort_order:ords[i]}).eq('id',cards[i].id).eq('sort_order',before).select('id');
+        if(r.error)throw r.error;
+        if(!(r.data&&r.data.length))conflict=true;
       }
     }
     await sb.from('delivery_logs').insert({room_id:curRoom.id,date_str:dlvDateStr(),text:(me?me.name:'?')+'님이 순서 변경(드래그)',user_name:me?me.name:''});
   }catch(e){alert('순서 저장 실패: '+e.message);}
   if(conflict&&typeof toast==='function')toast('⚠ 다른 직원이 방금 순서를 바꿔서 일부는 저장되지 않았습니다 — 최신 순서를 불러왔어요. 코스 짜는 동안은 한 사람만 옮기는 게 안전합니다.');
-  else if(crossed&&typeof toast==='function')toast('🚨 꼭배송 건은 항상 맨 위에 고정됩니다 — 나머지 카드끼리의 순서만 저장했어요.');
   await loadDeliveries();
 }
 async function dlvMove(id,dir){
@@ -6370,7 +6362,6 @@ async function dlvMove(id,dir){
   const swapPos=pos+dir;
   if(swapPos<0||swapPos>=live.length)return;
   const a=live[pos], b=live[swapPos];
-  if((!!a.due_date)!==(!!b.due_date)){ if(typeof toast==='function')toast('🚨 꼭배송 건은 항상 맨 위 고정 — 이 방향으로는 순서를 바꿀 수 없어요.'); return; } // 9/3: 고정 경계 넘는 스왑은 되돌아가므로 차단·안내
   const aBefore=a.sort_order, bBefore=b.sort_order;
   const tmp=a.sort_order;a.sort_order=b.sort_order;b.sort_order=tmp;
   try{
