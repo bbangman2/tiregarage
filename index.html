@@ -6333,17 +6333,30 @@ async function dlvSaveDragOrder(el){
   // 현재 DOM 순서대로 id 모으기
   const ids=Array.prototype.map.call(el.querySelectorAll('.dlv-drag'),function(d){return d.getAttribute('data-did');});
   if(!ids.length)return;
-  // 이 묶음(같은 차량 진행카드)의 기존 sort_order들을 순서대로 재배정
   const cards=ids.map(function(id){return deliveriesCache.find(function(x){return x.id===id;});}).filter(Boolean);
-  const orders=cards.map(function(c){return c.sort_order||0;}).sort(function(a,b){return a-b;});
+  // ★9/3: 꼭배송(due_date) 카드는 항상 맨 위 고정(정렬 사양) — 일반 카드를 그 위로 끌어도 저장 후 되돌아간다.
+  //   그룹(꼭배송/일반)별로 자기 그룹 안에서만 재배정하고, 경계를 넘긴 드래그는 안내한다.
+  var crossed=false, seenNormal=false;
+  cards.forEach(function(c){ if(c.due_date){ if(seenNormal)crossed=true; } else seenNormal=true; });
+  var conflict=false;
   try{
-    for(let i=0;i<cards.length;i++){
-      if(cards[i].sort_order!==orders[i]){
-        await sb.from('deliveries').update({sort_order:orders[i]}).eq('id',cards[i].id);
+    for(var g=0;g<2;g++){
+      var sub=cards.filter(function(c){return (c.due_date?0:1)===g;});
+      var ords=sub.map(function(c){return c.sort_order||0;}).sort(function(a,b){return a-b;});
+      for(let i=0;i<sub.length;i++){
+        var before=sub[i].sort_order||0;
+        if(before!==ords[i]){
+          // ★동시 편집 보호(9/3: 여러 직원이 같이 드래그하면 서로 덮어쓰던 문제): 내 화면 기준 값(before)일 때만 저장
+          var r=await sb.from('deliveries').update({sort_order:ords[i]}).eq('id',sub[i].id).eq('sort_order',before).select('id');
+          if(r.error)throw r.error;
+          if(!(r.data&&r.data.length))conflict=true;
+        }
       }
     }
     await sb.from('delivery_logs').insert({room_id:curRoom.id,date_str:dlvDateStr(),text:(me?me.name:'?')+'님이 순서 변경(드래그)',user_name:me?me.name:''});
   }catch(e){alert('순서 저장 실패: '+e.message);}
+  if(conflict&&typeof toast==='function')toast('⚠ 다른 직원이 방금 순서를 바꿔서 일부는 저장되지 않았습니다 — 최신 순서를 불러왔어요. 코스 짜는 동안은 한 사람만 옮기는 게 안전합니다.');
+  else if(crossed&&typeof toast==='function')toast('🚨 꼭배송 건은 항상 맨 위에 고정됩니다 — 나머지 카드끼리의 순서만 저장했어요.');
   await loadDeliveries();
 }
 async function dlvMove(id,dir){
@@ -6357,11 +6370,14 @@ async function dlvMove(id,dir){
   const swapPos=pos+dir;
   if(swapPos<0||swapPos>=live.length)return;
   const a=live[pos], b=live[swapPos];
+  if((!!a.due_date)!==(!!b.due_date)){ if(typeof toast==='function')toast('🚨 꼭배송 건은 항상 맨 위 고정 — 이 방향으로는 순서를 바꿀 수 없어요.'); return; } // 9/3: 고정 경계 넘는 스왑은 되돌아가므로 차단·안내
+  const aBefore=a.sort_order, bBefore=b.sort_order;
   const tmp=a.sort_order;a.sort_order=b.sort_order;b.sort_order=tmp;
   try{
-    await sb.from('deliveries').update({sort_order:a.sort_order}).eq('id',a.id);
-    await sb.from('deliveries').update({sort_order:b.sort_order}).eq('id',b.id);
-    await sb.from('delivery_logs').insert({room_id:curRoom.id,date_str:dlvDateStr(),text:(me?me.name:'?')+'님이 순서 변경 ('+(a.recv||a.tire||'')+')',user_name:me?me.name:''});
+    var r1=await sb.from('deliveries').update({sort_order:a.sort_order}).eq('id',a.id).eq('sort_order',aBefore).select('id');
+    var r2=await sb.from('deliveries').update({sort_order:b.sort_order}).eq('id',b.id).eq('sort_order',bBefore).select('id');
+    if(!(r1.data&&r1.data.length)||!(r2.data&&r2.data.length)){ if(typeof toast==='function')toast('⚠ 다른 직원이 방금 순서를 바꿨습니다 — 최신 순서를 불러왔어요.'); } // 동시 편집 보호(9/3)
+    else await sb.from('delivery_logs').insert({room_id:curRoom.id,date_str:dlvDateStr(),text:(me?me.name:'?')+'님이 순서 변경 ('+(a.recv||a.tire||'')+')',user_name:me?me.name:''});
   }catch(e){alert('순서 변경 실패: '+e.message);}
   await loadDeliveries();
 }
