@@ -1768,6 +1768,7 @@ body.rb-on #app{padding-top:58px}
     <div class="stk-tab" data-stab="1" onclick="stkTab(1)">🗺 창고지도</div>
     <div class="stk-tab" data-stab="2" onclick="stkTab(2)">📋 출고기록</div>
     <div class="stk-tab" data-stab="3" onclick="stkTab(3)">📊 재고표</div>
+    <div class="stk-tab" id="stk-tab-gear" style="flex:0 0 40px;display:none" onclick="stkTabsCfg()" title="탭 표시 설정(관리자)">⚙</div>
   </div>
   <div class="stk-pane on" id="stk-pane0">
     <div class="adminbar" id="stk-editbar" style="display:none">📦 재고 관리:
@@ -2494,12 +2495,18 @@ function tgInitClient(){ sb=createClient(SUPA_URL,SUPA_KEY); _origFrom=sb.from.b
 // ===== 감사로그 v2 + 휴지통 엔진: 실행 시점 후킹 — 237개 쓰기 지점과 미래 기능까지 자동 커버 =====
 // 삭제는 [대상 선조회 -> tg_trash 원본 보존 -> 실제 삭제 -> 감사기록] 순서. 보존 실패 시 삭제 자체를 차단.
 // 수정은 이전 값(before)을 실값으로 감사기록. 어떤 방/탭이든 예외 없음(audit_logs·tg_trash 자신만 제외).
+/* ══ 중고타이어방: 재고 화면 전체를 재사용하되 데이터만 used_* 테이블로 분리(호준님 9/2) ══ */
+var STK_STORE='main'; // 'used' = 중고타이어방에 있는 동안만 (방 전환 시 자동 설정/해제)
+var STK_TBL_MAP={stock_products:'used_products',stock_lots:'used_lots',stock_logs:'used_logs',stock_settings:'used_settings'}; // 설정·잠금·편집권한까지 완전 분리(호준님 9/2 "편집권한 별도 관리")
+function stkTbl(t){ return (STK_STORE==='used'&&STK_TBL_MAP[t])?STK_TBL_MAP[t]:t; }
+async function stkMapBypass(fn){ var s=STK_STORE; STK_STORE='main'; try{ return await fn(); } finally{ STK_STORE=s; } } // 백업·복구·전체삭제는 어느 방에서 실행해도 테이블명 그대로(매핑 우회)
 var TG_TRASH_TBL='tg_trash';
 var AUDIT_SKIP={audit_logs:1,tg_trash:1};
 function tgRowId(table,row){ if(row==null)return''; var v=row.id!=null?row.id:(row.key!=null?row.key:(row.name!=null?row.name:(row.endpoint!=null?row.endpoint:''))); return String(v).slice(0,120); }
 function wrapSbAudit(){
   try{
     sb.from=function(table){
+      table=stkTbl(table);   // 중고타이어방에서는 stock_* → used_* (한 관문에서 전 기능 데이터 분리)
       var qb=_origFrom(table);
       if(AUDIT_SKIP[table])return qb;
       ['insert','update','delete','upsert'].forEach(function(op){
@@ -3349,6 +3356,7 @@ const ROOM_META={
   '입고방':{icon:'📦',ai:true,mode:'items',desc:'받아오기 · 거래처 발주 · 물류차 입고'},
   '직배송방':{icon:'🚚',ai:false,mode:'delivery',desc:'직배송 · 미출고 · 택배전환'},
   '재고방':{icon:'🗺',ai:false,mode:'stock',desc:'재고 검색 · 창고지도'},
+  '중고타이어방':{icon:'♻️',ai:false,mode:'stock',desc:'중고 재고 검색 · 재고표 (데이터 분리)'},
   '거래처종합방':{icon:'💰',ai:false,mode:'trade',desc:'거래처 정산 · 가져오기 · 수정기록'},
   '예약장착방':{icon:'📅',ai:false,mode:'reserve',desc:'장착 예약 · 캘린더'},
   '종합방':{icon:'📋',ai:false,mode:'jonghap',desc:'핑·스팜·11번가·전화 통합 출고'},
@@ -3514,6 +3522,7 @@ async function bootApp(){
   if(me.name===ADMIN_NAME)document.getElementById('admin-sidebar-btn').style.display='block';
   const{data}=await sb.from('rooms').select('*').order('created_at');
   if(data&&!data.some(r=>r.name==='재고방'))data.splice(2,0,{id:'stock-virtual',name:'재고방'});
+  if(data&&!data.some(r=>r.name==='중고타이어방'))data.splice(3,0,{id:'stock-used-virtual',name:'중고타이어방'});
   if(data&&!data.some(r=>r.name==='예약장착방'))data.splice(3,0,{id:'reserve-virtual',name:'예약장착방'});
   if(data&&!data.some(r=>r.name==='종합방'))data.splice(4,0,{id:'jonghap-virtual',name:'종합방'});
   await tradeLoadViewers();
@@ -3558,6 +3567,7 @@ async function selectRoom(room){
   const isItems=(m.mode==='items');
   const isDelivery=(m.mode==='delivery');
   const isStock=(m.mode==='stock');
+  STK_STORE=(isStock&&room.name==='중고타이어방')?'used':'main';   // 중고방에서만 used_* 매핑, 그 외 방은 항상 본재고
   const isReserve=(m.mode==='reserve');
   const isJonghap=(m.mode==='jonghap');
   const isTrade=(m.mode==='trade');
@@ -3616,10 +3626,12 @@ async function selectRoom(room){
     if(typeof stkLoadFx==='function')await stkLoadFx();
     if(typeof stkLoadEmUsers==='function')await stkLoadEmUsers();
     if(typeof stkLoadLogTab==='function')stkLoadLogTab();
-    stockSub=sb.channel('stock-live')
-      .on('postgres_changes',{event:'*',schema:'public',table:'stock_lots'},()=>{stkLoad();})
-      .on('postgres_changes',{event:'*',schema:'public',table:'stock_products'},()=>{stkLoad();})
-      .on('postgres_changes',{event:'*',schema:'public',table:'stock_settings'},()=>{stkLoadLock();if(typeof stkLoadUpLock==='function')stkLoadUpLock();if(typeof stkLoadFx==='function')stkLoadFx();if(typeof stkLoadEditors==='function')stkLoadEditors();if(typeof stkLoadEmUsers==='function')stkLoadEmUsers();if(typeof stkLoadRealcostViewers==='function')stkLoadRealcostViewers();})   // ★ 편집모드·실원가 권한도 즉시 반영
+    if(typeof stkOutTypesRender==='function')stkOutTypesRender();   // 중고방 = 출고 채널 [장착/배송]만
+    if(typeof stkLoadHiddenTabs==='function')await stkLoadHiddenTabs(); // 탭 표시 설정(방마다 별도)
+    stockSub=sb.channel('stock-live-'+STK_STORE)
+      .on('postgres_changes',{event:'*',schema:'public',table:stkTbl('stock_lots')},()=>{stkLoad();})
+      .on('postgres_changes',{event:'*',schema:'public',table:stkTbl('stock_products')},()=>{stkLoad();})
+      .on('postgres_changes',{event:'*',schema:'public',table:stkTbl('stock_settings')},()=>{stkLoadLock();if(typeof stkLoadUpLock==='function')stkLoadUpLock();if(typeof stkLoadFx==='function')stkLoadFx();if(typeof stkLoadEditors==='function')stkLoadEditors();if(typeof stkLoadEmUsers==='function')stkLoadEmUsers();if(typeof stkLoadRealcostViewers==='function')stkLoadRealcostViewers();})   // ★ 편집모드·실원가 권한도 즉시 반영
       .subscribe();
     return;
   }
@@ -11120,10 +11132,10 @@ async function stkOpenCellHist(loc){
 
 
 /* ===== 전체 데이터 백업 / 삭제 / 복구 (대표 전용) ===== */
-var DB_TABLES=['rooms','users','settings','stock_settings','stock_products','stock_lots','stock_logs','reservations','items','deliveries','delivery_logs','jonghap_orders','messages']; // 복구=부모먼저, 삭제=역순
+var DB_TABLES=['rooms','users','settings','stock_settings','used_settings','stock_products','stock_lots','stock_logs','used_products','used_lots','used_logs','reservations','items','deliveries','delivery_logs','jonghap_orders','messages']; // 복구=부모먼저, 삭제=역순 (used_* = 중고타이어방, 테이블 미생성 시 자동 건너뜀)
 var DB_KEY={settings:'key',stock_settings:'key',users:'name'}; // 나머지는 id
-var DB_WIPE_SKIP=['users','rooms','settings','stock_settings']; // 보존: 계정·방(구조)·설정·권한 — 데이터만 비움
-var DB_RESTORE_SKIP=['users','rooms','settings','stock_settings']; // 복구에서 안 건드림: 계정·방·설정 — 데이터만 채움(room_id는 방 이름으로 재매핑)
+var DB_WIPE_SKIP=['users','rooms','settings','stock_settings','used_settings']; // 보존: 계정·방(구조)·설정·권한 — 데이터만 비움
+var DB_RESTORE_SKIP=['users','rooms','settings','stock_settings','used_settings']; // 복구에서 안 건드림: 계정·방·설정 — 데이터만 채움(room_id는 방 이름으로 재매핑)
 function dbKeyCol(t){ return DB_KEY[t]||'id'; }
 async function dbDeleteAll(t){
   var col=dbKeyCol(t);
@@ -11149,7 +11161,7 @@ async function dbExportAll(){
       var t=DB_TABLES[ti], rows=[], from=0, STEP=1000;
       while(true){
         var r=await sb.from(t).select('*').range(from,from+STEP-1);
-        if(r.error) throw new Error(t+': '+r.error.message);
+        if(r.error){ if(/does not exist|relation/i.test(r.error.message||'')){rows=[];break;} throw new Error(t+': '+r.error.message); }
         rows=rows.concat(r.data||[]);
         if(!r.data||r.data.length<STEP) break;
         from+=STEP;
@@ -11179,7 +11191,7 @@ async function dbExportXlsx(){
       var t=DB_TABLES[ti], rows=[], from=0, STEP=1000;
       while(true){
         var r=await sb.from(t).select('*').range(from,from+STEP-1);
-        if(r.error) throw new Error(t+': '+r.error.message);
+        if(r.error){ if(/does not exist|relation/i.test(r.error.message||'')){rows=[];break;} throw new Error(t+': '+r.error.message); }
         rows=rows.concat(r.data||[]);
         if(!r.data||r.data.length<STEP) break;
         from+=STEP;
@@ -11273,7 +11285,7 @@ async function dbWipeAll(){
   var order=DB_TABLES.slice().reverse().filter(function(t){return DB_WIPE_SKIP.indexOf(t)<0;});
   for(var i=0;i<order.length;i++){
     try{ var r=await dbDeleteAll(order[i]);
-      if(r.error){ alert(order[i]+' 삭제 실패: '+r.error.message); return; } }
+      if(r.error){ if(/does not exist|relation/i.test(r.error.message||''))continue; alert(order[i]+' 삭제 실패: '+r.error.message); return; } }
     catch(e){ alert(order[i]+' 삭제 오류: '+e.message); return; }
   }
   try{ if(typeof stkLog==='function') stkLog('🗑️전체삭제','모든 테이블 비움'); }catch(e){}
@@ -14852,6 +14864,48 @@ function stkSelType(b){stkCurType=b.textContent;
   //   살릴 때: '||b.textContent===\'당일배송\'' 를 다시 넣으면 됨.
   if(b.textContent==='장착'){stkDoOut();} // 장착 → 예약창 바로 열기(재고 안 빠짐)
 }
+/* ── 탭 표시 설정(관리자, 방마다 별도 저장 — 호준님 9/2 "숨기는 걸 기능으로") ── */
+var STK_HIDDEN_TABS=[];
+async function stkLoadHiddenTabs(){
+  try{ var r=await sb.from('stock_settings').select('value').eq('key','hidden_tabs').maybeSingle();
+    STK_HIDDEN_TABS=(r.data&&r.data.value)?JSON.parse(r.data.value):[];
+  }catch(e){ STK_HIDDEN_TABS=[]; }
+  stkApplyHiddenTabs();
+}
+function stkApplyHiddenTabs(){
+  document.querySelectorAll('.stk-tab[data-stab]').forEach(function(t){
+    var i=parseInt(t.getAttribute('data-stab'),10);
+    t.style.display=(STK_HIDDEN_TABS.indexOf(i)>=0)?'none':'';
+  });
+  var g=document.getElementById('stk-tab-gear');
+  if(g)g.style.display=(typeof stkIsAdmin==='function'&&stkIsAdmin())?'':'none';
+  var cur=window._stkTab128||0;
+  if(STK_HIDDEN_TABS.indexOf(cur)>=0){ for(var i=0;i<4;i++){ if(STK_HIDDEN_TABS.indexOf(i)<0){ stkTab(i); break; } } }
+}
+async function stkTabsCfg(){
+  if(!(typeof stkIsAdmin==='function'&&stkIsAdmin())){ stkToast('관리자 전용입니다'); return; }
+  var names=['1 검색','2 창고지도','3 출고기록','4 재고표'];
+  var cur=STK_HIDDEN_TABS.map(function(i){return i+1;}).join(',');
+  var v=prompt('숨길 탭 번호를 쉼표로 입력하세요 (지금 방에만 적용)\n'+names.join(' · ')+'\n비우면 전부 표시. 예) 2,3',cur);
+  if(v===null)return;
+  var arr=String(v).split(',').map(function(x){return parseInt(x.trim(),10)-1;}).filter(function(n){return n>=0&&n<=3;});
+  if(arr.length>=4){ stkToast('탭을 전부 숨길 수는 없어요'); return; }
+  try{ await sb.from('stock_settings').upsert({key:'hidden_tabs',value:JSON.stringify(arr)},{onConflict:'key'});
+    STK_HIDDEN_TABS=arr; stkApplyHiddenTabs(); stkToast('탭 표시 설정 저장 — 이 방에만 적용');
+  }catch(e){ alert('저장 실패: '+e.message); }
+}
+function stkOutTypesRender(){ // 출고 채널 버튼: 본재고 4개 / 중고방은 [장착·배송] 2개(호준님 9/2)
+  var el=document.getElementById('stk-outTypes'); if(!el)return;
+  if(STK_STORE==='used'){
+    el.innerHTML='<button class="stk-chb" data-grp="jang" onclick="stkSelType(this)">장착</button>'
+      +'<button class="stk-chb" data-grp="dae" onclick="stkSelType(this)">배송</button>';
+  }else{
+    el.innerHTML='<button class="stk-chb" data-grp="jang" onclick="stkSelType(this)">장착</button>'
+      +'<button class="stk-chb" data-grp="dae" onclick="stkSelType(this)">당일배송</button>'
+      +'<button class="stk-chb" data-grp="ping" onclick="stkSelType(this)">핑배송</button>'
+      +'<button class="stk-chb" data-grp="on" onclick="stkSelType(this)">온라인</button>';
+  }
+}
 var stkOutBusy=false;
 async function stkDoOut(){
   if(stkOutBusy)return; // 중복 출고 방지 (빠른 더블클릭/처리중 재클릭)
@@ -14872,6 +14926,10 @@ async function stkDoOut(){
   // }
   if(stkCurType==='장착' && typeof rsvOpenAdd==='function'){
     stkCloseDlg();
+    if(STK_STORE==='used'){ // 중고: 예약등록방에 등록만(스펙·수량 프리필). 재고 연결·자동차감은 v2 — 차감은 중고방 [배송] 출고로
+      rsvOpenAdd(null,{spec:'[중고] '+fp.br+' '+fp.name+' '+fp.size+(found.dot?' '+found.dot:'')+(fp.ply?' '+fp.ply:''),qty:n,channel:'장착'});
+      return;
+    }
     rsvOpenAdd(null,{spec:fp.br+' '+fp.name+' '+fp.size+(found.dot?' '+found.dot:'')+(fp.ply?' '+fp.ply:''),qty:n,kind:'lot',product_id:fp.id,dot:found.dot||'',lot_id:stkCurOut,loc:found.loc,channel:'장착'});
     return;
   }
@@ -17606,12 +17664,12 @@ async function rsvDelete(id){
   <div style="background:#fff;max-width:440px;margin:8vh auto;border-radius:14px;padding:18px;font-size:13px;box-shadow:0 10px 40px rgba(0,0,0,.3)">
     <div style="font-weight:900;font-size:15px;margin-bottom:2px">💾 전체 데이터 백업 / 복구</div>
     <div style="color:#64748b;margin-bottom:14px;font-size:12px">모든 방·모든 기록을 한 파일로. 대표 전용.</div>
-    <button onclick="dbExportAll()" style="width:100%;padding:11px;border:0;border-radius:9px;background:#1d4ed8;color:#fff;font-weight:800;font-size:13px;cursor:pointer;margin-bottom:12px">① 전체 백업 다운로드</button>
-    <button onclick="dbExportXlsx()" style="width:100%;padding:10px;border:1px solid #16a34a;border-radius:9px;background:#f0fdf4;color:#15803d;font-weight:800;font-size:12px;cursor:pointer;margin-bottom:12px">📊 보기용 엑셀 받기 (읽기 전용 · 방마다 시트)</button>
+    <button onclick="stkMapBypass(dbExportAll)" style="width:100%;padding:11px;border:0;border-radius:9px;background:#1d4ed8;color:#fff;font-weight:800;font-size:13px;cursor:pointer;margin-bottom:12px">① 전체 백업 다운로드</button>
+    <button onclick="stkMapBypass(dbExportXlsx)" style="width:100%;padding:10px;border:1px solid #16a34a;border-radius:9px;background:#f0fdf4;color:#15803d;font-weight:800;font-size:12px;cursor:pointer;margin-bottom:12px">📊 보기용 엑셀 받기 (읽기 전용 · 방마다 시트)</button>
     <div style="font-weight:800;margin-bottom:5px">② 복구 (백업 파일 업로드)</div>
-    <input type="file" id="db-bk-file" accept="application/json,.json" onchange="dbRestoreFile(this.files[0]);this.value='';" style="width:100%;font-size:12px;margin-bottom:14px;padding:8px;border:1px solid #cbd5e1;border-radius:8px;box-sizing:border-box">
+    <input type="file" id="db-bk-file" accept="application/json,.json" onchange="(function(f){stkMapBypass(function(){return dbRestoreFile(f);});})(this.files[0]);this.value='';" style="width:100%;font-size:12px;margin-bottom:14px;padding:8px;border:1px solid #cbd5e1;border-radius:8px;box-sizing:border-box">
     <div style="border-top:1px dashed #e2e8f0;padding-top:12px">
-      <button onclick="dbWipeAll()" style="width:100%;padding:10px;border:1px solid #fca5a5;border-radius:9px;background:#fef2f2;color:#dc2626;font-weight:800;font-size:12px;cursor:pointer;margin-bottom:10px">③ 전부 삭제 (위험 · 비번+확인 필요)</button>
+      <button onclick="stkMapBypass(dbWipeAll)" style="width:100%;padding:10px;border:1px solid #fca5a5;border-radius:9px;background:#fef2f2;color:#dc2626;font-weight:800;font-size:12px;cursor:pointer;margin-bottom:10px">③ 전부 삭제 (위험 · 비번+확인 필요)</button>
     </div>
     <button onclick="dbCleanDupRooms()" style="width:100%;padding:10px;border:1px solid #f59e0b;border-radius:9px;background:#fffbeb;color:#b45309;font-weight:800;font-size:12px;cursor:pointer;margin-bottom:10px">🧹 중복 방 정리 (이름 같은 방 합치기)</button>
     <button onclick="dbBackupClose()" style="width:100%;padding:9px;border:1px solid #cbd5e1;border-radius:9px;background:#fff;color:#334155;font-weight:700;font-size:12px;cursor:pointer">닫기</button>
