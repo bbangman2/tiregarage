@@ -568,6 +568,10 @@ body.rb-on #app{padding-top:58px}
 .dlv-rcard .badge{font-size:9px;font-weight:800;padding:1px 6px;border-radius:8px;flex-shrink:0}
 .dlv-rcard .b-done{background:#dcfce7;color:var(--green)}
 .dlv-rcard .b-cancel{background:#fee2e2;color:var(--red)}
+/* 전체 날짜 검색 카드(9/4 호준님 "가독성"): 탭·이동 버튼을 카드 한 줄 안으로, 완료건은 취소선 대신 흐림+배지 */
+.dlv-gtab{font-size:9.5px;font-weight:800;padding:1px 6px;border-radius:8px;background:#eef1f6;color:#475569;flex-shrink:0;white-space:nowrap}
+.dlv-gjump{border:1px solid #cbd5e1;background:#fff;color:#334155;border-radius:7px;padding:2px 7px;font-size:10px;font-weight:800;cursor:pointer;font-family:inherit;flex-shrink:0}
+.dlv-gdim{opacity:.6}
 .dlv-drag.sortable-chosen{opacity:.9;box-shadow:0 4px 16px rgba(0,0,0,.18);border-radius:8px}
 .dlv-drag.sortable-ghost{opacity:.35}
 .dlv-drag.sortable-drag{cursor:grabbing}
@@ -4798,24 +4802,27 @@ function dlvRangeCard(c){
   h+='<span class="dtag '+(c.channel||'spam')+'">'+(DCH_LABEL[c.channel]||'스팜')+'</span>';
   h+='<span class="dlv-rsum">'+sumLine+'</span>'+badge;
   h+='<span class="dlv-rexp">'+(op?'▲':'▼')+'</span></div>';
-  if(op){
-    h+='<div class="dlv-rdetail">';
-    if(c.channel==='trade'){
-      h+='<div class="dsd-line">🏭 출고: <b>'+esc(c.src||'-')+'</b> · 거래처: <b>'+esc(c.trade_client||'-')+'</b></div>';
-      h+='<div class="dsd-line">🛞 '+esc(c.tire||'')+(c.spec?' · '+esc(c.spec):'')+' · '+esc(c.qty||'?')+'개'+(c.unit_price?' · 개당 '+esc(c.unit_price)+'원':'')+'</div>';
-      if(c.trade_memo)h+='<div class="dsd-line">📝 '+esc(c.trade_memo)+'</div>';
-      if(c.done_at)h+='<div class="dsd-line">✅ 배송완료 '+esc(String(c.done_at).slice(0,10))+(c.done_by?' · '+esc(c.done_by)+'님':'')+'</div>';
-      if(c.tire&&/\n/.test(c.tire||''))h+='<div class="dsd-line dc-trade">'+esc(c.tire||'').replace(/\n/g,'<br>')+'</div>';
-    }
-    else{
-      h+='<div class="dsd-line">🚗 '+(c.code?'['+esc(c.code)+'] ':'')+esc(c.tire||'')+' · '+esc(c.brand||'')+' · '+esc(c.qty||'')+'개 (입고: '+esc(c.src||'-')+')</div>';
-      if(c.addr)h+='<div class="dsd-line">📍 '+esc(c.addr)+'</div>';
-      h+='<div class="dsd-line">👤 '+esc(c.recv||'')+(c.tel?' · 📞 '+esc(c.tel):'')+'</div>';
-    }
-    if(c.note)h+='<div class="dsd-line">📝 '+esc(c.note)+'</div>';
-    h+='<div class="dsd-line" style="color:var(--text3)">'+esc(c.user_name||'')+' · '+esc(c.date_str||'')+'</div>';
-    h+='</div>';
+  if(op)h+=dlvRCardDetail(c);
+  h+='</div>';
+  return h;
+}
+// 카드 펼침 상세 — 범위 보기·전체 검색 공용(9/4 분리)
+function dlvRCardDetail(c){
+  var h='<div class="dlv-rdetail">';
+  if(c.channel==='trade'){
+    h+='<div class="dsd-line">🏭 출고: <b>'+esc(c.src||'-')+'</b> · 거래처: <b>'+esc(c.trade_client||'-')+'</b></div>';
+    h+='<div class="dsd-line">🛞 '+esc(c.tire||'')+(c.spec?' · '+esc(c.spec):'')+' · '+esc(c.qty||'?')+'개'+(c.unit_price?' · 개당 '+esc(c.unit_price)+'원':'')+'</div>';
+    if(c.trade_memo)h+='<div class="dsd-line">📝 '+esc(c.trade_memo)+'</div>';
+    if(c.done_at)h+='<div class="dsd-line">✅ 배송완료 '+esc(String(c.done_at).slice(0,10))+(c.done_by?' · '+esc(c.done_by)+'님':'')+'</div>';
+    if(c.tire&&/\n/.test(c.tire||''))h+='<div class="dsd-line dc-trade">'+esc(c.tire||'').replace(/\n/g,'<br>')+'</div>';
   }
+  else{
+    h+='<div class="dsd-line">🚗 '+(c.code?'['+esc(c.code)+'] ':'')+esc(c.tire||'')+' · '+esc(c.brand||'')+' · '+esc(c.qty||'')+'개 (입고: '+esc(c.src||'-')+')</div>';
+    if(c.addr)h+='<div class="dsd-line">📍 '+esc(c.addr)+'</div>';
+    h+='<div class="dsd-line">👤 '+esc(c.recv||'')+(c.tel?' · 📞 '+esc(c.tel):'')+'</div>';
+  }
+  if(c.note)h+='<div class="dsd-line">📝 '+esc(c.note)+'</div>';
+  h+='<div class="dsd-line" style="color:var(--text3)">'+esc(c.user_name||'')+' · '+esc(c.date_str||'')+'</div>';
   h+='</div>';
   return h;
 }
@@ -7296,11 +7303,22 @@ function dlvGlobalTabName(c){
   if(car===11)return '⏳ 1호차 대기'; if(car===12)return '⏳ 2호차 대기';
   return '직배송 대기';
 }
-function dlvGlobalCard(c){
-  var meta='<div style="display:flex;gap:6px;align-items:center;margin:7px 0 3px;font-size:11px">'
-    +'<span class="jh-chip on" style="cursor:default">'+dlvGlobalTabName(c)+'</span>'
-    +'<button class="jh-chip" style="cursor:pointer;font-family:inherit" onclick="dlvJumpTo(\''+c.id+'\',\''+esc(c.date_str||'')+'\')">📅 이 날짜로 이동</button></div>';
-  return meta+dlvRangeCard(c);
+function dlvGlobalCard(c){ // 한 줄 카드(9/4 호준님 "가독성") — 채널·탭·요약·상태·이동을 카드 안에
+  var op=(dlvRangeOpenCard[c.id]);
+  var badge=c.cancelled?'<span class="badge b-cancel">취소</span>':(c.done?'<span class="badge b-done">완료</span>':'');
+  var sumLine;
+  if(c.channel==='trade'){sumLine=(c.trade_client?'<b>'+esc(c.trade_client)+'</b> · ':'')+esc(c.tire||'')+(c.spec?' '+esc(c.spec):'')+' · '+esc(c.qty||'')+'개';}
+  else{sumLine='<b>'+esc(c.recv||'')+'</b> · '+esc(c.tire||'')+' '+esc(c.qty||'')+'개';}
+  var h='<div class="dlv-rcard'+((c.done||c.cancelled)?' dlv-gdim':'')+'">';
+  h+='<div class="dlv-rrow" onclick="dlvRangeOpenCard[\''+c.id+'\']=!dlvRangeOpenCard[\''+c.id+'\'];renderDelivery()">';
+  h+='<span class="dtag '+(c.channel||'spam')+'">'+(DCH_LABEL[c.channel]||'스팜')+'</span>';
+  h+='<span class="dlv-gtab">'+dlvGlobalTabName(c)+'</span>';
+  h+='<span class="dlv-rsum">'+sumLine+'</span>'+badge;
+  h+='<button class="dlv-gjump" onclick="event.stopPropagation();dlvJumpTo(\''+c.id+'\',\''+esc(c.date_str||'')+'\')" title="그 날짜 화면으로 이동해 이 카드를 보여줍니다">📅 이동</button>';
+  h+='<span class="dlv-rexp">'+(op?'▲':'▼')+'</span></div>';
+  if(op)h+=dlvRCardDetail(c);
+  h+='</div>';
+  return h;
 }
 function _dlvSpanChip(sp,label){ return '<button class="jh-chip'+(dlvSearchSpan===sp?' on':'')+'" style="cursor:pointer;font-family:inherit" onclick="dlvSetSpan(\''+sp+'\')">'+label+'</button>'; }
 // 기간 칩 + 오늘 버튼 바 — 검색창 아래 상시 고정(호준님 9/4 "기간·오늘이 다 안 보인다 / 오늘 버튼 반드시")
@@ -7328,14 +7346,16 @@ function dlvRenderGlobalSearch(body){
   var total=arr.length;
   arr.sort(function(a,b){ var d=(b.date_str||'').localeCompare(a.date_str||''); if(d)return d; return (a.sort_order||0)-(b.sort_order||0); });
   var CAP=300, over=total>CAP; if(over)arr=arr.slice(0,CAP);
-  var h='<div class="dlv-guide">🔍 <b>'+(DLV_SPAN_LABEL[dlvSearchSpan]||'전체')+' 검색</b> — 결과 <b>'+total+'건</b>'+(over?' (최근 '+CAP+'건만 표시 — 검색어를 좁혀주세요)':'')+' · 카드를 누르면 상세, [📅 이 날짜로 이동]을 누르면 그 날짜 화면으로 갑니다.</div>';
+  var h='<div class="dlv-guide">🔍 <b>'+(DLV_SPAN_LABEL[dlvSearchSpan]||'전체')+' 검색</b> — 결과 <b>'+total+'건</b>'+(over?' (최근 '+CAP+'건만 표시 — 검색어를 좁혀주세요)':'')+' · 카드 누르면 상세 · [📅 이동] = 그 날짜 화면</div>';
   if(!total){ body.innerHTML=h+'<div class="dlv-empty">검색 결과 없음 — "'+esc(dlvSearchQuery)+'"'+(dlvSearchSpan!=='all'?'<br><small>이 기간에 없는 걸 수 있어요 — 위 [전체]로 넓혀보세요</small>':'')+'</div>'; return; }
-  var lastDay=null;
+  var lastDay=null, _yNow=String(new Date().getFullYear());
   arr.forEach(function(c){
     if(c.date_str!==lastDay){
       lastDay=c.date_str;
       var n=arr.filter(function(x){return x.date_str===lastDay;}).length;
-      h+='<div class="dlv-dayhead" style="margin-top:10px;cursor:default"><span>📅 '+esc(c.date_str||'?')+' '+(c.date_str?fmtDateLabel(c.date_str):'')+(c.date_str===getTodayISO()?' <b>(오늘)</b>':'')+'</span><span class="dlv-daycnt">'+n+'건</span></div>';
+      // 날짜 헤더 간소화(9/4): '9/4(금) 오늘' — 연도는 올해가 아닐 때만
+      var dl=c.date_str?((c.date_str.slice(0,4)!==_yNow?c.date_str.slice(0,4)+'년 ':'')+fmtDateLabel(c.date_str)):'날짜 없음';
+      h+='<div class="dlv-dayhead" style="margin-top:10px;cursor:default;border-radius:7px"><span>📅 '+dl+(c.date_str===getTodayISO()?' <b style="color:#b45309">오늘</b>':'')+'</span><span class="dlv-daycnt">'+n+'건</span></div>';
     }
     h+=dlvGlobalCard(c);
   });
