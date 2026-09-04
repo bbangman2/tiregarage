@@ -1837,7 +1837,7 @@ body.rb-on #app{padding-top:58px}
       <span style="font-size:12px;color:#888">📅 상단 날짜의 출고 표시</span>
       <button id="stk-logall-btn" onclick="stkToggleLogAll()" style="height:34px;padding:0 12px;border:1px solid rgba(0,0,0,.12);background:#fff;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap">전체 날짜 보기</button>
     </div>
-    <input id="stk-logq" placeholder="🔍 상품·주문번호·담당자·판매처 검색" oninput="stkRenderLogTab()" style="width:100%;height:40px;border:1.5px solid rgba(0,0,0,.12);border-radius:10px;padding:0 12px;font-size:16px;background:#fff;margin-bottom:8px">
+    <input id="stk-logq" placeholder="🔍 사이즈·패턴·주문번호·담당자·판매처 — 붙이면(2454519) 정확, 띄우면 자유" oninput="stkRenderLogTab()" style="width:100%;height:40px;border:1.5px solid rgba(0,0,0,.12);border-radius:10px;padding:0 12px;font-size:16px;background:#fff;margin-bottom:8px">
     <div id="stk-logtab"><div class="stk-empty">불러오는 중…</div></div>
   </div>
   <div class="stk-pane" id="stk-pane3">
@@ -5958,6 +5958,8 @@ function dlvSummaryCard(c,idx,list){
   }
   h+='<span class="dstext">';
   h+='<span class="dsnum">'+(c.cancelled?'✕':(idx+1))+'</span><span class="dtag '+(c.channel||'spam')+'">'+(DCH_LABEL[c.channel]||'스팜')+'</span> ';
+  // 꼭배송 칸의 실제 문구("반품회수" 등)를 접힌 줄에서도 그대로 — 1·2호차 카드와 동일 표시(9/4 호준님 "옮기면 꼭배송으로 바뀌는 것 같다" = 라벨만 달랐던 것)
+  if(c.due_date&&!c.done&&!c.cancelled)h+='<span class="ddue-badge urgent" style="margin-right:4px">⚠️ '+esc(String(c.due_date).slice(0,14))+'</span> ';
   h+='<span class="dsaddr">'+_addrMain+'</span>';
   h+='<span class="dssub">'+_subHtml+'</span>';
   h+='</span></span></div>';
@@ -5967,7 +5969,7 @@ function dlvSummaryCard(c,idx,list){
   if(c.cancelled)_bdg+='<span class="dcancel-badge">취소</span>';
   else if(c.need_done&&!c.done)_bdg+='<span class="dneed-badge">완료필요</span>';
   if(!c.done&&!c.cancelled){var sdold=dlvDaysOld(c);if(sdold>=2)_bdg+='<span class="dold-badge'+(sdold>=3?' hot':'')+'">'+sdold+'일째</span>';}
-  if(c.due_date&&!c.done&&!c.cancelled)_bdg+='<span class="ddue-badge urgent">⚠️ 꼭배송</span>';
+  if(c.due_date&&!c.done&&!c.cancelled)_bdg+='<span class="ddue-badge urgent">⚠️ '+esc(String(c.due_date).slice(0,20))+'</span>'; // 고정 라벨 '꼭배송' 대신 실제 문구(9/4)
   if(_bdg)h+='<div class="dsbadges">'+_bdg+'</div>';
   if(c.channel==='trade'){
     h+='<div class="dsd-line">🏭 출고: <b>'+esc(c.src||'-')+'</b> · 거래처: <b>'+esc(c.trade_client||'-')+'</b></div>';
@@ -6300,12 +6302,18 @@ async function dlvSetDue(id){
   if(!dlvGuardEdit())return;
   const c=deliveriesCache.find(function(x){return x.id===id;});if(!c)return;
   const cur=c.due_date||'';
-  const v=prompt('⚠️ 꼭 배송 메모 (자유롭게)\n예: 오늘 오전까지 / 내일 꼭 / 급함\n\n비우고 확인하면 해제됩니다.',cur);
+  const v=prompt('⚠️ 꼭 배송 메모 (자유롭게)\n예: 오늘 오전까지 / 내일 꼭 / 급함 / 반품회수\n\n비우고 확인하면 해제됩니다.'+(cur?'\n\n※ 지금 표시: "'+cur+'" — 바꾸면 기록에 남습니다.':''),cur);
   if(v===null)return; // 취소
   const val=v.trim();
+  if(val===cur)return; // 변경 없음
+  // ★이미 붙은 표시(반품회수 등)를 바꾸거나 지우는 건 반드시 확인 + 전후값 기록(9/4 호준님 "임의로 바꾸지 않는 이상 절대 안 바뀌고, 바꾸면 무조건 로그")
+  if(cur&&!confirm('지금 표시 "'+cur+'"를 '+(val?('"'+val+'"로 바꿉니다.'):'지웁니다(해제).')+'\n\n이 변경은 '+(me?me.name:'?')+' 이름으로 기록에 남습니다. 진행할까요?'))return;
   try{
     await sb.from('deliveries').update({due_date:val||null}).eq('id',id);
-    await sb.from('delivery_logs').insert({room_id:curRoom.id,date_str:dlvDateStr(),text:(me?me.name:'?')+'님이 '+(val?('꼭배송 표시: '+val):'꼭배송 해제')+' ('+(c.recv||c.tire||'')+')',user_name:me?me.name:''});
+    var _lbl=(c.trade_client||c.recv||c.tire||'');
+    var _txt=cur?(val?('꼭배송 표시 변경: "'+cur+'" → "'+val+'"'):('꼭배송 해제 (이전: "'+cur+'")')):('꼭배송 표시: '+val);
+    await sb.from('delivery_logs').insert({room_id:curRoom.id,date_str:dlvDateStr(),text:(me?me.name:'?')+'님이 '+_txt+' ('+_lbl+')',user_name:me?me.name:''});
+    try{ logAudit('⚠️꼭배송 변경', _lbl, cur||'(없음)', val||'(해제)'); }catch(_e){}
   }catch(e){alert('실패: '+e.message);}
   await loadDeliveries();
 }
@@ -7261,6 +7269,51 @@ function clearItemSearch(){
 }
 // 직배송 검색 매칭
 // ★사이즈 표기 통일(호준님 9/2 "185 65 15 = 185/65R15 = 185/65 15 전부 동일"): 문자열 속 사이즈 표기를 공백형으로 정규화한 사본
+// ★공통 텍스트 검색 판정(9/4 호준님 "붙여쓰면 딱 그것만, 띄어쓰면 자유롭게, 특수문자·x는 띄어쓰기와 같게"):
+//   출고기록탭·입고방·직배송방이 같이 쓴다. 검색어·대상 양쪽을 같은 규칙으로 정규화한다.
+//   35X12.50R17 = 35 12 50 17 / 245/45R19 = 245 45 19 / 5.00 12 = 500 12 / [RA58C] = ra58c
+function tgSearchCanon(s){
+  var u=String(s||'').toLowerCase();
+  u=u.replace(/(^|[^\dx.])(\d)\.(\d{2})(?=[^0-9]|$)/g,function(m,pf,a,b){return pf+a+b;}); // 5.00 → 500 (소수형 상용)
+  u=u.replace(/(\d)\s*[x×*]\s*(\d)/g,'$1 $2');   // 35x12 → 35 12
+  u=u.replace(/(\d)\.(\d)/g,'$1 $2');            // 12.50 → 12 50
+  u=u.replace(/(\d)\s*[\/\-]\s*(\d)/g,'$1 $2');  // 245/45 → 245 45, 500-12 → 500 12
+  u=u.replace(/(\d)\s*z?r\s*(\d)/g,'$1 $2');     // 45r19 → 45 19 (zr 포함)
+  u=u.replace(/[^0-9a-z가-힣]+/g,' ');            // 나머지 기호 → 공백
+  return u.replace(/\s+/g,' ').trim();
+}
+function tgSizeKeys(canon){ // 정규화 문장 속 숫자 연속 토막에서 사이즈 통짜 키(2~4토막 결합, P수 결합, 편평비80 생략 변형)
+  var toks=canon.split(' '), keys={}, plys=[];
+  toks.forEach(function(t){ var m=t.match(/^(\d{1,2})pr?$/); if(m)plys.push(m[1]); });
+  var run=[];
+  // 키는 숫자 연속의 '처음'에서 시작하는 3·4토막(245 45 19 / 35 12 50 17)만, 2토막은 연속이 딱 2개일 때(145 13 = 편평비 생략)만 — '19570' 같은 앞부분 조각으로는 안 걸리게(호준님 "붙여쓰면 딱 그것만")
+  function flush(){ if(run.length>=2){ for(var n=2;n<=4&&n<=run.length;n++){ if(n===2&&run.length!==2)continue; var w=run.slice(0,n), k=w.join(''); keys[k]=1; plys.forEach(function(p){keys[k+p]=1;});
+    if(n===2&&parseInt(w[0],10)>=100){ var k2=w[0]+'80'+w[1]; keys[k2]=1; plys.forEach(function(p){keys[k2+p]=1;}); } } } run=[]; }
+  toks.forEach(function(t){ if(/^\d+$/.test(t))run.push(t); else flush(); }); flush();
+  return keys;
+}
+function tgSearchHit(hay,q){
+  var Q=String(q||''); if(!Q.trim())return true;
+  var h=tgSearchCanon(hay);
+  function _bd(t){ return new RegExp('(^| )'+t.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'( |$)').test(h); }
+  if(!/\s/.test(Q.trim())){ // 붙여쓴 검색어
+    var qc=tgSearchCanon(Q), qd=qc.replace(/[^0-9]/g,'');
+    if(/^[\d ]+(pr?)?$/.test(qc)){ // 숫자(+P)만 = 사이즈 통짜 → 정확히 그 사이즈만
+      if(qd.length>=5)return !!tgSizeKeys(h)[qd];
+      return _bd(qd); // 짧은 숫자(연식·인치·P수)는 토막 일치
+    }
+    if(qc.indexOf(' ')>=0){ // 35x1250r17 처럼 기호 섞인 통짜 → 숫자만 떼어 사이즈 키 대조, 아니면 토막 AND
+      if(qd.length>=5&&tgSizeKeys(h)[qd])return true;
+      return qc.split(' ').every(function(t){ return /^\d+$/.test(t)?_bd(t):h.indexOf(t)>=0; });
+    }
+    return h.indexOf(qc)>=0||h.replace(/ /g,'').indexOf(qc.replace(/ /g,''))>=0; // 문자 검색어(패턴명·이름·코드) = 부분 일치 (z007 ↔ Z-007 처럼 기호 빠진 표기도)
+  }
+  // 띄어쓴 검색어: 토막마다 AND — 숫자 토막은 경계 일치(245가 1245에 안 걸리게, 5자리↑는 통짜 키도 허용), 문자 토막은 부분 일치
+  return tgSearchCanon(Q).split(' ').filter(Boolean).every(function(t){
+    if(/^\d+$/.test(t)){ if(_bd(t))return true; return t.length>=5?!!tgSizeKeys(h)[t]:false; }
+    return h.indexOf(t)>=0;
+  });
+}
 function tgSizeCanon(s){
   return String(s||'').replace(/(^|[^\dxX.])(\d)\.(\d{2})(?=[^0-9]|$)/g,function(m,pf,a,b){return pf+a+b;})   // 5.00 12 = 500 12
                       .replace(/(\d{3})\s*[\/]\s*(\d{2,3})\s*[Rr]?\s*(\d{2})/g,function(_,a,b,c){return a+' '+b+' '+c;})
@@ -7271,9 +7324,7 @@ function dlvMatchSearch(c){
   // 협력점으로 주소가 바뀐 건도 고객 이름·연락처·원래 주소로 찾을 수 있어야 한다(2026-08-05)
   const hay=tgSizeCanon((c.recv||'')+' '+(c.tire||'')+' '+(c.src||'')+' '+(c.addr||'')+' '+(c.tel||'')+' '+(c.code||'')+' '+(c.brand||'')+' '+(c.trade_client||'')+' '+(c.spec||'')+' '+(c.unit_price||'')+' '+(c.trade_memo||'')
    +' '+(c.shop_name||'')+' '+(c.cust_recv||'')+' '+(c.cust_tel||'')+' '+(c.cust_addr||'')+' '+(c.cust_zip||'')).toLowerCase();
-  // 띄어쓰기 = AND (입고방·마감시트와 동일 규칙, 9/4)
-  var toks=tgSizeCanon(dlvSearchQuery).toLowerCase().split(/\s+/).filter(Boolean);
-  return toks.every(function(t){return hay.indexOf(t)>=0;});
+  return tgSearchHit(hay,dlvSearchQuery); // 공통 판정(9/4): 붙이면 통짜 정확, 띄우면 토막 AND, x·기호=공백
 }
 // ★전체 날짜 검색 (호준님 9/4): 검색어가 있으면 선택 날짜와 무관하게 방 전체 기록에서 찾는다.
 //   전체 기록은 첫 검색 때 1번 내려받아 60초 캐시. 오늘 화면 데이터(deliveriesCache)가 더 최신이므로 id 기준으로 덮어쓴다.
@@ -7403,8 +7454,7 @@ function matchSearch(it){
   var logTxt=Array.isArray(it.logs)?it.logs.map(function(l){return l.text||'';}).join(' '):'';
   var dlabel=it.date_str?fmtDateLabel(it.date_str):'';
   const hay=tgSizeCanon((it.src||'')+' '+(it.model||'')+' '+(it.spec||'')+' '+(it.use_note||'')+' '+(it.user_name||'')+' '+(it.date_str||'')+' '+dlabel+' '+logTxt).toLowerCase();
-  var toks=tgSizeCanon(itemSearchQuery).split(/\s+/).filter(Boolean);
-  return toks.every(function(t){return hay.indexOf(t)>=0;});
+  return tgSearchHit(hay,itemSearchQuery); // 공통 판정(9/4): 붙이면 통짜 정확, 띄우면 토막 AND, x·기호=공백
 }
 function searchedItems(){return itemSearchQuery?itemsCache.filter(matchSearch):itemsCache;}
 function searchedItemsAll(){var all=itemsCache.concat(returnsCache);return itemSearchQuery?all.filter(matchSearch):all;}
@@ -12475,8 +12525,8 @@ function stkRenderLogTab(){
     if(stkLogFilter==='이동'&&!(a.indexOf('이동')>=0||a.indexOf('합치기')>=0||a.indexOf('분리')>=0))return false;
     if(stkLogFilter==='실사조정'&&a.indexOf('실사')<0)return false;
     if(stkLogFilter==='잠금'&&!(a.indexOf('잠금')>=0||a.indexOf('해제')>=0))return false;
-    if(q.trim()){var hay=((g.note||'')+' '+(g.user_name||'')+' '+(g.channel||'')+' '+(g.ref||'')).toLowerCase();
-      if(hay.indexOf(q.toLowerCase())<0)return false;}
+    if(q.trim()){var hay=((g.note||'')+' '+(g.user_name||'')+' '+(g.channel||'')+' '+(g.ref||'')+' '+(g.detail||''));
+      if(!tgSearchHit(hay,q))return false;} // 검색탭처럼 사이즈·패턴으로도(9/4 호준님) — 붙이면 통짜 정확, 띄우면 토막 AND
     return true;
   });
   // 같은 출고 건은 뿌리 줄 하나로 (자식 기록은 이력으로만 표시)
