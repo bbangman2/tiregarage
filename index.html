@@ -7712,9 +7712,21 @@ function rzPatOk(a,b){
   if(A.length&&!B.length)wA=_rzXp(A,wA);
   if(B.length&&!A.length)wB=_rzXp(B,wB);
   if(!wA.length||!wB.length)return true; // 한쪽 미기재는 허용(기록에 패턴 안 적힌 행)
-  return wA.some(function(x){return wB.some(function(y){ if(x===y)return true;
-    return x.length>=3&&y.length>=3&&(x.indexOf(y)===0||y.indexOf(x)===0); });}); // 접두 3자↑만 — 'AN'⊂ROADIAN류 부분포함 오매칭 금지(9/2)
+  function _wm(wa,wb){ return wa.some(function(x){return wb.some(function(y){ if(x===y)return true;
+    return x.length>=3&&y.length>=3&&(x.indexOf(y)===0||y.indexOf(x)===0); });}); } // 접두 3자↑만 — 'AN'⊂ROADIAN류 부분포함 오매칭 금지(9/2)
+  if(_wm(wA,wB))return true;
+  // ★사이즈 뒤 패턴명 폴백(9/4 출고대조용 스팜 실측: "쏘렌토 싼타페 OE 255 45 20 콘티넨탈 크로스콘택트 LX SPORT…" — 패턴명이 사이즈 뒤에 옴):
+  //   사이즈 뒤 꼬리에 브랜드명이 있으면 상호·메모가 아니라 상품 설명이므로 그 단어도 비교에 넣는다(브랜드명 없는 꼬리는 종전대로 제외)
+  var aA=rzPatWordsAfter(a), aB=rzPatWordsAfter(b);
+  if(!aA.length&&!aB.length)return false;
+  return _wm(wA.concat(aA),wB.concat(aB));
 }
+function rzPatWordsAfter(s){ var u=String(s||'').toUpperCase().replace(/[.']/g,'');
+  var m=u.match(/\d{2,3}\s*[\/]\s*\d{2,3}|\b\d{2,3}\s+\d{2,3}\s+\d{2}(?!\d)|\b\d{2,3}Z?R\d{2}(?!\d)/);
+  if(!m)return [];
+  var tail=u.slice(m.index+m[0].length);
+  if(!rzBrandName(tail))return [];   // 꼬리에 브랜드명이 없으면 상호·메모로 보고 제외(9/2 규칙 유지)
+  return (_rzPatClean(tail).match(/[A-Z]{2,}[A-Z0-9']*|[가-힣]{2,}/g)||[]).filter(function(w){return !_RZ_STOPW[w]&&!/^\d+$/.test(w);}).map(_rzWN).filter(Boolean); }
 function rzHintRel(a,b){ /* 힌트 후보 게이트(9/2 호준님 "브랜드도 패턴도 안 보고 사이즈만 본다") — 코드 계열이 같을 때만(공통 접두 2자↑: KC53↔KC55, TA21↔TA51) 힌트 허용. 무관 코드(RA58C↔KC53)는 비교 자체를 안 함 */
   var A=rzCodeToks(a),B=rzCodeToks(b);
   if(!A.length||!B.length)return true;
@@ -7762,7 +7774,10 @@ function rzBrandOkTx(a,b){ var ba=rzBrandOf(a), bb=rzBrandOf(b); return !ba||!bb
 /* ★제품번호 대조(9/3 호준님 "피렐리는 제품번호가 반드시 있어야 — 시트에 항상 적는데 안 가져온다"):
    시트 제품코드 칸의 번호(4013100·17142NXK 등)와 기록/주문 텍스트의 [번호]가 둘 다 있으면 반드시 일치해야 함. */
 function rzPnoList(s){ var u=String(s||'').toUpperCase(); var out=[];
-  var m=u.match(/\[([A-Z0-9]{4,10})\]/g); if(m)m.forEach(function(x){out.push(x.slice(1,-1));});
+  // ★대괄호 안이 패턴코드([RA33]·[RA58C])일 수 있다 — 제품번호 형태(숫자 6~9자리 / 숫자4~6+영문)만 제품번호로 인정.
+  //   9/4 실측(호준님 제공 핑9월 시트 66행): [RA33] 등을 제품번호로 오인해 시트 M코드와 불일치 판정 → 정상 출고기록 매칭을 6건 차단하던 오경보 수리
+  var m=u.match(/\[([A-Z0-9]{4,10})\]/g); if(m)m.forEach(function(x){ var t=x.slice(1,-1);
+    if((/^\d{6,9}$/.test(t)||/^\d{4,6}[A-Z]{2,4}\d?$/.test(t))&&out.indexOf(t)<0)out.push(t); });
   var u2=_rzPatClean(u); (u2.match(/\b\d{6,9}\b|\b\d{4,6}[A-Z]{2,4}\d?\b/g)||[]).forEach(function(x){ if(out.indexOf(x)<0)out.push(x); });
   return out; }
 function rzPnoOk(code,text){ if(!code)return true; var c=String(code).toUpperCase().trim();
@@ -7814,23 +7829,29 @@ function rzParseSettleRow(c){ // 정산서 한 행(직배송방 행 파서가 �
   if(n<13)return {err:'칸수 '+n,raw:line.slice(0,50)};
   var f=(typeof dlvAutoJudge==='function')?dlvAutoJudge(c):null;
   if(!f){ /* 9/2 호준님 "붙여넣는 것부터 인지가 안 된다" — 정산서 원본 시트(11번가·스토어팜·전화주문) 통째 복사도 인식 */
-    function _sz9(nm){ var t=stkParseSize(_rzStripYr(nm)); if(t&&!_rzSane(t))t=null;
+    function _sz9(nm){ // ★사이즈 구간을 먼저 찾아 그 부분만 파싱(재고기록과 동일 방식) — '… 500 12 10P'의 10P가 인치로 읽히던 오파싱 수리(9/4 출고대조용 11번가 실측)
+      var _s0=_rzStripYr(nm); var _b9=(typeof _dlvFindSize==='function')?_dlvFindSize(_s0):null;
+      var t=_b9?stkParseSize(_s0.slice(_b9.st,_b9.en)):null;
+      if(!t)t=stkParseSize(_s0.replace(/\b\d{1,2}\s*P(?:R)?(?![A-Za-z가-힣])/gi,' '));
+      if(!t)t=stkParseSize(_s0);
+      if(t&&!_rzSane(t))t=null;
       if(!t){ var m9=String(nm).match(/\b([12]\d{2})(\d{2})(\d{2})\b/); if(m9){ var t2=[parseInt(m9[1],10),parseInt(m9[2],10),parseInt(m9[3],10)]; if(_rzSane(t2))t=t2; } } /* 통짜 2156517=215/65R17 */
       return t; }
-    function _row9(fmt,src,nm,qty,recv,ship,cxl){ var sz9=_sz9(nm); var q9=Math.round(parseFloat(String(qty).replace(/[^0-9.]/g,'')))||1; /* 엑셀 float '2.0'→2 (20 오독 방지) */
+    function _ret9(s){ var m=String(s||'').match(/(반품|교환)\S*/); return m?m[0]:''; } // 처리내역의 반품/교환 표시(9/4 호준님 "반품요청 체크된 것까지 같이 표시")
+    function _row9(fmt,src,nm,qty,recv,ship,cxl,ret){ var sz9=_sz9(nm); var q9=Math.round(parseFloat(String(qty).replace(/[^0-9.]/g,'')))||1; /* 엑셀 float '2.0'→2 (20 오독 방지) */
       var cd9=(String(nm).toUpperCase().match(/\[([A-Z0-9]{4,10})\]/)||[])[1]||'';
       if(q9>60)return {err:'열 배치 불일치 의심(수량 '+q9+')',raw:line.slice(0,60)};
-      return {day:'',fmt:fmt,code:cd9,src:src,name:nm,size:sz9,qty:q9,year:(rzYearTxt(nm)||2026),ply:rzPly(nm),ship:ship||'',shipCls:(typeof dlvShipClass==='function'?dlvShipClass(ship||'',''):''),recv:recv||'',cxl:!!cxl}; }
+      return {day:'',fmt:fmt,code:cd9,src:src,name:nm,size:sz9,qty:q9,year:(rzYearTxt(nm)||2026),ply:rzPly(nm),ship:ship||'',shipCls:(typeof dlvShipClass==='function'?dlvShipClass(ship||'',''):''),recv:recv||'',cxl:!!cxl,ret:(ret||'')}; }
     if(n>=16&&(/11번가/.test(g(4))||/^\d{15,19}$/.test(g(5))))  /* 11번가 시트(2026: 사이트 칸이 '타이어시티'뿐이어도 주문번호 형태로 판정): 3날짜 4사이트 5주문 6상품명 8수량 9수취인 15출고지 17배송방법 */
-      return _row9('[11]',g(15),g(6),g(8),g(9),g(17),/취소/.test(g(0)+g(1)+g(2)));
+      return _row9('[11]',g(15),g(6),g(8),g(9),g(17),/취소/.test(g(0)+g(1)+g(2)),_ret9(g(0)+' '+g(1)+' '+g(2)));
     if(n>=6&&/11번가/.test(g(1))&&/^\d{13,19}$/.test(g(3)))      /* 타이어시티 구양식: 0날짜 1사이트 2출고지 3주문번호 4상품명 5수량 */
       return _row9('[11]',g(2),g(4),g(5),'','',false);
     if(n>=6&&/^\d{15,19}$/.test(g(2))&&g(3)&&!/^\d{15,19}$/.test(g(0))&&!/^\d{8}/.test(g(0)))  /* 스토어팜 구양식: 0주문일 2주문번호 3상품명 5수량 13출고지 */
       return _row9('[스팜]',g(13),g(3),g(5),'','',false);
     if(n>=16&&/^\d{10,}$/.test(g(0))&&g(8))              /* 스토어팜 시트: 0상품주문번호 4배송방법 6출고지 8상품명 10수량 11수취인 */
-      return _row9('[스팜]',g(6),g(8),g(10),g(11),g(4),/취소/.test(g(3)));
+      return _row9('[스팜]',g(6),g(8),g(10),g(11),g(4),/취소/.test(g(3)),_ret9(g(3)));
     if(n>=15&&/전화|핸드폰|사무실/.test(g(1)))              /* 전화주문 시트: 1주문사이트 3배송방법 5출고지 7상품명 8수량 9수취인 */
-      return _row9('[전화]',g(5),g(7),g(8),g(9),g(3),/취소/.test(g(2)));
+      return _row9('[전화]',g(5),g(7),g(8),g(9),g(3),/취소/.test(g(2)),_ret9(g(2)));
     return {err:'양식판정불가('+n+'칸)',raw:line.slice(0,50)};
   }
   var d=dlvSettleRow(DLV_SETTLE[f],c); if(!d)return null;
@@ -7932,15 +7953,15 @@ function rzTrcFilter(mode,btn){ RZ.trcMode=mode; // 필터 상태 기억(9/3 호
 function rzTrcXlsx(){ var T=RZ._trc||[]; if(!T.length){alert('먼저 마감 대조를 실행해 주세요');return;}
   function strip(s){ return String(s==null?'':s).replace(/<[^>]+>/g,''); }
   var LAB={1:'일치',0:'',2:'대조 제외'};
-  var rows=[['브랜드','패턴·품명','사이즈','P수','연식','수량','출고지','배송','판정','어디','매칭 상대','상대 연식','상대 수량·소진','출고기록 타임라인','택배 짝','사유']];
+  var rows=[['주문일','브랜드','패턴·품명','사이즈','P수','연식','수량','출고지','배송','판정','어디','매칭 상대','상대 연식','상대 수량·소진','출고기록 타임라인','택배 짝','사유']];
   T.forEach(function(x){ var r=x.r,it=x.it;
-    rows.push([r.brand||'',r.name||'',_rzKey(r.size),r.ply||'',(r.year%100)+'년',(x.sq!=null&&x.sq!==r.qty)?(x.sq+'/'+r.qty):r.qty,r.src||'',x.sk||'',
+    rows.push([r.day||'',r.brand||'',r.name||'',_rzKey(r.size),r.ply||'',(r.year%100)+'년',(x.sq!=null&&x.sq!==r.qty)?(x.sq+'/'+r.qty):r.qty,r.src||'',x.sk||'',
       x.manual?'수동 확인':(x.ok===0?('⚠ '+(x.lab||'불일치')):LAB[x.ok]||''),
       x.zone||'', it?(((it.date_str||'').slice(5))+' '+(it.src||'')+' '+(it.model||'')+' '+(it.spec||'')):strip(x.mate||''),
       it?((rzItemYear(it)%100)+'년'):'', it?('출고 '+((parseInt(it.out_qty,10)||0))+'/'+it.qty+'본·남음 '+rcnRemain(it)):(x.mq!=null?x.mq+'본':''),
       strip(x.tl||''), x.pf?(x.pf.ok?('짝 있음 '+strip((x.pf.recv||'')+' '+(x.pf.raw||'')).slice(0,40)):'파일에 없음'):'', strip(x.why||'')]);
   });
-  var ws=XLSX.utils.aoa_to_sheet(rows); ws['!cols']=[{wch:7},{wch:24},{wch:13},{wch:5},{wch:6},{wch:7},{wch:14},{wch:8},{wch:12},{wch:10},{wch:34},{wch:8},{wch:14},{wch:50},{wch:24},{wch:46}];
+  var ws=XLSX.utils.aoa_to_sheet(rows); ws['!cols']=[{wch:11},{wch:7},{wch:24},{wch:13},{wch:5},{wch:6},{wch:7},{wch:14},{wch:8},{wch:12},{wch:10},{wch:34},{wch:8},{wch:14},{wch:50},{wch:24},{wch:46}];
   var wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'마감대조');
   XLSX.writeFile(wb,'마감대조_'+(RZ._base||RZ.date||getTodayISO())+'.xlsx');
 }
@@ -7963,11 +7984,13 @@ async function _rzBuild(){
   var cxl=ok.filter(function(r){return r.cxl;});
   var act=ok.filter(function(r){return !r.cxl;});
   // 복수 출처('창고1, 매일타이어'·'창고2/극동2') 분해: 창고 조각→재고 대조, 핑 조각(회수·주문중)→대조 제외 별도표시, 거래처 조각→입고표 대조 (조각 뒤 숫자=그 출처 수량)
-  var wh=[],tr=[],pingL=[],TRC=[]; // TRC = 전건 대조표(9/2 호준님 "어떤 거랑 어떤 거랑 매칭했는지 표로")
+  var wh=[],tr=[],pingL=[],TRC=[],srcBlank=[]; // TRC = 전건 대조표(9/2 호준님 "어떤 거랑 어떤 거랑 매칭했는지 표로") · srcBlank = 출고지 미기재(9/4)
   function _trcF(r,it,segs){ return { src:(segs?segs.some(function(sg){return rzSrcEq2(sg,it.src);}):null),
     pat:rzPatOk(r.name,String(it.model||'')+' '+String(it.spec||'')), ply:rzPlyOk(r.ply,rcnItemPly(it)), yr:rzItemYear(it)===(r.year||2026),
     qty:((parseInt(it.out_qty,10)||0)>=r.qty) }; }
   act.forEach(function(r){
+    // 출고지 칸이 비어 있으면 어디서 나갔는지 알 수 없다 — '입고등록 누락'으로 몰지 말고 '출고지 미기재'로 안내(9/4 호준님 "그 말이 맞다")
+    if(!String(r.src||'').trim()){ srcBlank.push(r); TRC.push({r:r,zone:'-',ok:0,lab:'출고지 미기재',why:'시트 출고지 칸이 비어 있음 — 창고/거래처 중 어디서 나갔는지 적어야 대조할 수 있음'}); return; }
     var segs=rzSegs(r.src); if(!segs.length)segs=[''];
     var whS=[],pgS=[],trS=[];
     segs.forEach(function(s){ var a=_dlvSrcAbbr1(s).charAt(0);
@@ -7995,6 +8018,15 @@ async function _rzBuild(){
   var logs=(lr.data||[]).filter(function(g){var a=String(g.action||'');return a.indexOf('출고')>=0&&a.indexOf('취소')<0&&!g.reverted;});
   // 배송방법 3분류(호준님 9/2: 핑 5칸 = 직접출고/직배송/택배 — 직접출고는 거래처 발송이라 출고요청만, 직배송·택배가 우리 관리분)
   function _rzShipKind(r){ var s=String(r.ship||''); if(/직접출고/.test(s))return '직접출고'; if(/직배송/.test(s))return '직배송'; if(/택배/.test(s)||r.shipCls==='tb')return '택배'; if(/장착|점$|지점/.test(s))return '장착'; return s?s.slice(0,6):'-'; }
+  // ★채널 축(9/4 호준님 "차감이 장착인지 택배인지 직배송인지 반영 — 입고방·시트·예약연결 전부 구분될 것"):
+  //   시트 = 출처(핑/온라인/전화) + 배송(직배송/택배/장착). 재고기록 note("핑배송"·"온라인 · 스팜 택배"·"직배송 […]"·"예약 […]")와
+  //   입고표 용도("핑택배"·"스팜 직배송"·"남양주장착"…)에서 같은 두 축을 읽어, 같은 채널 기록을 먼저 매칭하고 다르면 표에 알린다(차단은 안 함 — 담당자가 다른 경로로 뺐을 수 있음)
+  function _rzChanOf(txt){ var s=String(txt||''); var src=/핑/.test(s)?'핑':(/스팜|스토어팜|11번가|온라인/.test(s)?'온라인':(/전화|핸드폰|사무실/.test(s)?'전화':''));
+    var ship=/직배송|당일배송/.test(s)?'직배송':(/택배/.test(s)?'택배':(/예약|장착/.test(s)?'장착':'')); return {src:src,ship:ship}; }
+  function _rzSheetChan(r){ var f=String(r.fmt||'핑'); var src=(f==='핑')?'핑':(/11|스팜/.test(f)?'온라인':(/전화/.test(f)?'전화':'')); var k=_rzShipKind(r); return {src:src,ship:(k==='직배송'||k==='택배'||k==='장착')?k:''}; }
+  function _rzChanTxt(c){ if(!c)return ''; return ((c.src||'')+' '+(c.ship||'')).trim(); }
+  function _rzChanScore(a,b){ if(!a||!b)return 0; var s=0; if(a.src&&b.src)s+=(a.src===b.src)?2:-2; if(a.ship&&b.ship)s+=(a.ship===b.ship)?1:-1; return s; }
+  function _rzChanNote(a,b){ return (a&&b&&_rzChanScore(a,b)<0)?('채널 다름(기록 '+_rzChanTxt(b)+' ↔ 시트 '+_rzChanTxt(a)+')'):''; }
   // 직배송 건 ↔ 직배송방 카드 등록 여부(기준일 ±1일, 취소 제외) — 사이즈+수량+받는분
   var dvCards=[];
   try{ var _d0=new Date(base+'T00:00:00'); var _dm=new Date(_d0.getTime()-86400000).toISOString().slice(0,10); var _dp=new Date(_d0.getTime()+86400000).toISOString().slice(0,10);
@@ -8015,7 +8047,7 @@ async function _rzBuild(){
   function _rzKP(t,ply){ return _rzKey(t)+(ply?' '+ply+'P':''); }
   var logPool=logs.map(function(g){ var nt=String(g.note||''); var ntS=_rzStripYr(nt); var b=(typeof _dlvFindSize==='function')?_dlvFindSize(ntS):null; var t=b?stkParseSize(ntS.slice(b.st,b.en)):stkParseSize(ntS);
     var q0=Math.abs(parseInt(g.qty,10)||0);
-    return {nt:nt,size:t,ply:rzPly(nt),left:q0,orig:q0,tm:g.ts,who:String(g.user_name||''),prev:(new Date(g.ts).getTime()<_baseStartMs)}; }).filter(function(L){return !!L.size;});
+    return {nt:nt,size:t,ply:rzPly(nt),left:q0,orig:q0,tm:g.ts,who:String(g.user_name||''),prev:(new Date(g.ts).getTime()<_baseStartMs),ch:_rzChanOf(nt)}; }).filter(function(L){return !!L.size;});
   function _rzHM(ts){ var d=new Date(ts); return ('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2); }
   function _rzTl(list){ return list.slice().sort(function(a,b){return String(a.tm).localeCompare(String(b.tm));})
     .map(function(L){ var d=new Date(L.tm); var ds=d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);
@@ -8031,10 +8063,10 @@ async function _rzBuild(){
       if(L.prev)return false;                            // 인정은 당일 기록만(9/2 호준님 "출고는 보통 당일") — 전날 기록은 타임라인에만
       if(!rzPnoOk(r.code,L.nt))return false;             // 제품번호 다르면 다른 상품(피렐리 4013100≠4471000)
       return rzPatOk(r.name,L.nt);                       // 솔루스 TA21 = TA21 / KC53 ≠ KC55
-    }).sort(function(a,b){ function s9(L){ return rzPatScore(r.name,L.nt)+((r.code&&rzPnoList(L.nt).indexOf(String(r.code).toUpperCase())>=0)?5:0); } return s9(b)-s9(a); });
+    }).sort(function(a,b){ function s9(L){ return rzPatScore(r.name,L.nt)+((r.code&&rzPnoList(L.nt).indexOf(String(r.code).toUpperCase())>=0)?5:0)+_rzChanScore(_rzSheetChan(r),L.ch); } return s9(b)-s9(a); }); // 같은 채널 기록 우선(9/4)
     var tlAll=logPool.filter(function(L){ return L.size[0]===r.size[0]&&L.size[1]===r.size[1]&&L.size[2]===r.size[2]&&rzPlyOk(r.ply,L.ply)&&rzPnoOk(r.code,L.nt)&&rzPatOk(r.name,L.nt); });
     for(var i=0;i<candsL.length&&needQ>0;i++){ var take=Math.min(needQ,candsL[i].left); candsL[i].left-=take; needQ-=take; }
-    if(needQ<=0)TRC.push({r:r,zone:'재고 출고기록',ok:1,mate:(candsL[0]?candsL[0].nt:''),tl:_rzTl(tlAll),mq:w.qty,sq:w.qty});
+    if(needQ<=0)TRC.push({r:r,zone:'재고 출고기록',ok:1,mate:(candsL[0]?candsL[0].nt:''),tl:_rzTl(tlAll),mq:w.qty,sq:w.qty,chn:(candsL[0]?_rzChanTxt(candsL[0].ch):''),why:(candsL[0]?_rzChanNote(_rzSheetChan(r),candsL[0].ch):'')});
     if(needQ>0){
       // ★실패 사유 힌트(9/2): 같은 사이즈인데 패턴·P수가 달라 인정 못 한 기록을 보여줘 원인을 바로 알게
       var nearL=logs.map(function(g){var nt=String(g.note||'');var ntS=_rzStripYr(nt);var b=(typeof _dlvFindSize==='function')?_dlvFindSize(ntS):null;var t=b?stkParseSize(ntS.slice(b.st,b.en)):stkParseSize(ntS);return {nt:nt,size:t,ply:rzPly(nt),q:Math.abs(parseInt(g.qty,10)||0)};})
@@ -8044,12 +8076,13 @@ async function _rzBuild(){
         var why0=!rzPatOk(r.name,L0.nt)?('패턴 다름: '+(rzCodeToks(L0.nt)[0]||'')):('P수 다름 '+L0.ply+'P');
         hint='비슷한 코드 기록 있음('+why0+'): '+L0.nt.slice(0,58)+' · '+L0.q+'본 — 시트·재고 표기 확인'; }
       var todayRec=tlAll.reduce(function(a,L){return a+(L.prev?0:L.orig);},0), prevRec=tlAll.reduce(function(a,L){return a+(L.prev?L.orig:0);},0);
-      var whyW='출고 누락(당일 기록 '+(w.qty-needQ)+'/'+w.qty+'본)'
+      var whyW='재고방 출고누락(당일 기록 '+(w.qty-needQ)+'/'+w.qty+'본)'
         +(todayRec>w.qty-needQ?' · 당일 기록 총 '+todayRec+'본 — 같은 품목의 다른 시트 행이 먼저 사용':'')
         +(prevRec?' · 전날('+(function(){var d=new Date(_baseStartMs-86400000);return ('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);})()+') 기록 '+prevRec+'본 있음(전날분일 수 있음 — 타임라인 확인)':'')
         +(nearL.length&&!candsL.length&&!tlAll.length?(!rzPatOk(r.name,nearL[0].nt)?' · 패턴 다름':' · P수 다름'):'');
       whBad.push({r:r,need:w.qty,got:w.qty-needQ,hint:hint||(todayRec>w.qty-needQ?('당일 기록 총 '+todayRec+'본 — 같은 품목의 다른 시트 행이 먼저 사용했는지 확인'):(prevRec?('전날 기록 '+prevRec+'본 있음 — 전날분인지 확인'):''))});
-      TRC.push({r:r,zone:'재고 출고기록',ok:0,lab:'출고 누락',mate:(candsL[0]?candsL[0].nt:(tlAll[0]?tlAll[0].nt:(nearL.length?nearL[0].nt:''))),tl:_rzTl(tlAll),mq:w.qty-needQ,sq:w.qty,why:whyW});
+      var _chL0=candsL[0]?candsL[0].ch:(tlAll[0]?tlAll[0].ch:null);
+      TRC.push({r:r,zone:'재고 출고기록',ok:0,lab:'재고방 출고누락',mate:(candsL[0]?candsL[0].nt:(tlAll[0]?tlAll[0].nt:(nearL.length?nearL[0].nt:''))),tl:_rzTl(tlAll),mq:w.qty-needQ,sq:w.qty,chn:_rzChanTxt(_chL0),why:whyW+(_rzChanNote(_rzSheetChan(r),_chL0)?' · '+_rzChanNote(_rzSheetChan(r),_chL0):'')});
     }
   });
   // 기록에만 남은 것(시트가 안 쓴 출고): 사이즈+P수로 묶어 정보 표시
@@ -8083,7 +8116,7 @@ async function _rzBuild(){
       if(wlogs.length){ var needS=e.qty;
         for(var wi=0;wi<wlogs.length&&needS>0;wi++){ var tk=Math.min(needS,wlogs[wi].left); wlogs[wi].left-=tk; needS-=tk; }
         trStock.push({r:r,qty:e.qty,nt:wlogs[0].nt,part:needS>0?needS:0});
-        TRC.push({r:r,zone:'재고 출고기록',ok:1,mate:wlogs[0].nt,tl:_rzTl(wlogs),mq:e.qty-(needS>0?needS:0),sq:e.qty,why:needS>0?('기록 '+(e.qty-needS)+'/'+e.qty+'본'):''}); return;
+        TRC.push({r:r,zone:'재고 출고기록',ok:1,mate:wlogs[0].nt,tl:_rzTl(wlogs),mq:e.qty-(needS>0?needS:0),sq:e.qty,chn:_rzChanTxt(wlogs[0].ch),why:(needS>0?('기록 '+(e.qty-needS)+'/'+e.qty+'본'):'')+(_rzChanNote(_rzSheetChan(r),wlogs[0].ch)?' · '+_rzChanNote(_rzSheetChan(r),wlogs[0].ch):'')}); return;
       }
       var altAll=items.filter(function(it){ if(!rzPlyOk(r.ply,rcnItemPly(it)))return false; if(!rzPatOk(r.name,String(it.model||'')+' '+String(it.spec||'')))return false; var t=rzItemSize2(it); return !!t&&t[0]===r.size[0]&&t[1]===r.size[1]&&t[2]===r.size[2]; })
         .sort(function(a,b){return String(b.date_str||'').localeCompare(String(a.date_str||''));});
@@ -8106,12 +8139,17 @@ async function _rzBuild(){
     // 연식 일치 후보가 있으면 그 안에서만 판단(26년 소진이 24년 이월 미처리를 가리지 않게), 없으면 전체로 폴백
     var same=cands.filter(function(c){return rzItemYear(c)===yS;});
     var pool=same.length?same:cands;
+    // ★입고표 용도에 '직접출고/직송'이 적힌 주문은 거래처가 고객에게 바로 보내는 분 — 우리 출고 대조에서 제외(9/4 호준님 "입고방 용도의 직접출고도 반영")
+    var _dIt=pool.filter(function(c){return /직접출고|직송/.test(String(c.use_note||''));})[0];
+    if(_dIt){ trDirect.push({r:r,qty:e.qty}); TRC.push({r:r,zone:'직송',ok:2,it:_dIt,f:_trcF(r,_dIt,e.segs),sq:e.qty,why:'입고표 용도 "'+String(_dIt.use_note||'')+'" → 거래처 직송분(대조 제외)'+(rcnRemain(_dIt)>0?' · 입고표 잔량 '+rcnRemain(_dIt)+'본 남음':'')}); return; }
     // 완전 소진된 후보가 있거나 소진 합계가 본수를 채우면 = 처리 완료(옛 부분잔량 주문이 억울한 경고를 내지 않게)
     var outSum=pool.reduce(function(a,c){return a+(parseInt(c.out_qty,10)||0);},0);
     if(pool.some(function(c){return rcnRemain(c)<=0;})||outSum>=e.qty){ okTr++; var doneIt=pool.filter(function(c){return rcnRemain(c)<=0;})[0]||pool[0]; TRC.push({r:r,zone:'입고표',ok:1,it:doneIt,f:_trcF(r,doneIt,e.segs),sq:e.qty}); return; }
-    pool.sort(function(a,b){ var d=rcnScore(r.name||'',b)-rcnScore(r.name||'',a); return d!==0?d:String(b.date_str||'').localeCompare(String(a.date_str||'')); });
+    pool.sort(function(a,b){ var d=rcnScore(r.name||'',b)-rcnScore(r.name||'',a); if(d!==0)return d;
+      var c=_rzChanScore(_rzSheetChan(r),_rzChanOf(b.use_note))-_rzChanScore(_rzSheetChan(r),_rzChanOf(a.use_note)); if(c!==0)return c; // 용도(채널)가 시트와 같은 주문 우선(9/4)
+      return String(b.date_str||'').localeCompare(String(a.date_str||'')); });
     var it=pool[0];
-    if(rcnRemain(it)>0&&(parseInt(it.out_qty,10)||0)<e.qty){ trNotOut.push({r:r,qty:e.qty,it:it}); TRC.push({r:r,zone:'입고표',ok:0,lab:'출고처리 누락',it:it,f:_trcF(r,it,e.segs),sq:e.qty,cands:pool.filter(function(c){return rcnRemain(c)>0;}).slice(0,3),why:'출고처리 누락 — 주문 '+it.qty+'본 중 '+((parseInt(it.out_qty,10)||0))+'본만 출고 처리됨(남은 '+rcnRemain(it)+'본을 빼야 함)'}); }
+    if(rcnRemain(it)>0&&(parseInt(it.out_qty,10)||0)<e.qty){ trNotOut.push({r:r,qty:e.qty,it:it}); TRC.push({r:r,zone:'입고표',ok:0,lab:'입고방 출고누락',it:it,f:_trcF(r,it,e.segs),sq:e.qty,cands:pool.filter(function(c){return rcnRemain(c)>0;}).slice(0,3),why:'입고방 출고누락 — 주문 '+it.qty+'본 중 '+((parseInt(it.out_qty,10)||0))+'본만 출고 처리됨(남은 '+rcnRemain(it)+'본을 빼야 함)'}); }
     else { okTr++; TRC.push({r:r,zone:'입고표',ok:1,it:it,f:_trcF(r,it,e.segs),sq:e.qty}); }
   });
   // C. 택배분 ↔ 택배업로드파일 + 취소인데 발송된 것
@@ -8167,11 +8205,11 @@ async function _rzBuild(){
   var _dayCnt={}; ok.forEach(function(r){ if(r.day)_dayCnt[r.day]=(_dayCnt[r.day]||0)+1; });
   var _topDay=Object.keys(_dayCnt).sort(function(a,b){return _dayCnt[b]-_dayCnt[a];})[0];
   if(_topDay&&_topDay!==base)h+='<div style="background:#fdf1e3;border:1.5px solid #f2c58a;color:#92400e;border-radius:9px;padding:8px 11px;font-size:12px;margin-top:8px"><b>⚠ 시트 주문일은 '+_topDay.slice(5)+'인데 기준 날짜는 '+base.slice(5)+'입니다</b> — 그날 재고 출고기록을 안 보게 되어 "기록 0본" 오경보가 나옵니다. <button onclick="RZ.date=\''+_topDay+'\';rzRun()" style="border:none;background:#92400e;color:#fff;border-radius:7px;padding:5px 10px;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit">기준 날짜를 '+_topDay.slice(5)+'로 바꿔 다시 대조</button></div>';
-  var badN=whBad.length+trNoOrder.length+trNotOut.length+tbMiss.length+cxlShipped.length;
+  var badN=whBad.length+trNoOrder.length+trNotOut.length+tbMiss.length+cxlShipped.length+srcBlank.length;
   h+='<div style="font-size:13px;font-weight:800;margin-top:8px;color:'+(badN===0?'#0a7d43':'#b91c1c')+'">'+(badN===0?'✅ 불일치 없음 — 전부 맞습니다':'⚠ 확인 필요 '+badN+'건')+'</div>';
   // ══ 📋 전건 대조표(9/2 호준님 "어떤 거랑 어떤 거랑 매칭했는지 항목별로 표로") ══
   if(TRC.length){
-    var _td='padding:4px 6px;border-bottom:1px solid #eef1f5;white-space:nowrap;';
+    var _td='padding:4px 6px;border-bottom:1px solid #eef1f5;white-space:nowrap;vertical-align:top;'; // top 정렬 — 여러 줄 행에서도 열이 나란히(9/4 호준님 "줄이 안 맞는다")
     var _bad='background:#fdecec;color:#b91c1c;font-weight:800;border-radius:4px;padding:0 4px;';
     function _cell(v,ok){ return '<td style="'+_td+(ok===false?'color:#b91c1c;font-weight:800;background:#fff5f5':'')+'">'+(ok===false?'✗ ':'')+v+'</td>'; }
     var rowsH=TRC.map(function(x){ var r=x.r,f=x.f||{};
@@ -8186,17 +8224,27 @@ async function _rzBuild(){
                 : '<span style="color:#8b98a7">'+esc(sk)+'</span>';
       if(sk==='직배송'){ var dvc=dvFind(r);
         shipH+=dvc?' <span style="color:#0a7d43;font-size:10px;font-weight:800" title="직배송방에 같은 건 등록됨">방✓</span>':' <span style="color:#b91c1c;font-size:10px;font-weight:800" title="직배송방에서 같은 건을 못 찾음 — 등록 확인">방?</span>'; }
+      if(r.ret)shipH+=' <span style="background:#fef3c7;color:#92400e;border-radius:5px;padding:1px 6px;font-weight:800;font-size:10px" title="정산서 처리내역">↩ '+esc(r.ret)+'</span>'; // 반품·교환 표시(9/4)
       var mateH='';
       if(x.it){ var it=x.it;
         // ★'입고등록 누락'의 상대는 매칭된 게 아니라 가장 비슷한 다른 주문(참고용) — 매칭 결과로 오해하지 않게 표시(9/4 호준님)
         var _ref=(x.ok===0&&x.lab==='입고등록 누락')?'<span title="매칭된 상대가 아니라, 입고표에서 가장 비슷한 다른 주문입니다(✗=다른 부분)" style="background:#fef3c7;color:#92400e;border-radius:4px;padding:0 4px;font-weight:800;font-size:10px">참고</span> ':'';
-        mateH=_cell(_ref+'입고표 '+(it.date_str||'').slice(5),null)
+        mateH=_cell(_ref+'입고표 '+(it.date_str||'').slice(5)+(it.use_note?' <span style="color:#64748b;font-size:10px">'+esc(String(it.use_note).slice(0,12))+'</span>':''),null)
           +_cell(esc(it.src||'-'),f.src)
           +_cell(esc(((it.model||'')+' '+(it.spec||'')).slice(0,26)),f.pat===false?false:(f.ply===false?false:null))
           +_cell((rzItemYear(it)%100)+'년',f.yr)
           +_cell('출고 '+((parseInt(it.out_qty,10)||0))+'/'+it.qty+'본 · 남음 '+rcnRemain(it),f.qty===false&&x.ok===0?false:null);
+      } else if(x.zone==='재고 출고기록'&&x.mate){
+        // ★줄 맞춤(9/4 호준님): 재고기록 상대도 입고표 상대와 같은 5칸 구조 — 긴 기록문·타임라인은 자기 칸 안에서 줄바꿈(옆 칸 안 밀림)
+        var _nt=String(x.mate||''); var _yr9=rzYearTxt(_nt);
+        mateH=_cell('재고 출고기록'+(x.chn?' <span style="color:#64748b;font-size:10px">'+esc(x.chn)+'</span>':''),null)
+          +_cell('창고 차감',null)
+          +'<td style="'+_td+'white-space:normal;min-width:220px;max-width:360px">'+esc(_nt.slice(0,90))
+            +(x.tl?'<div style="font-size:10.5px;color:#64748b;margin-top:1px">⏱ '+x.tl+'</div>':'')+'</td>'
+          +_cell(_yr9?((_yr9%100)+'년'):'-',null)
+          +_cell((x.mq!=null?('기록 '+x.mq+((x.sq!=null&&x.sq!==x.mq)?'/'+x.sq:'')+'본'):'-'),null);
       } else {
-        mateH='<td style="'+_td+'" colspan="5">'+esc(String(x.mate||x.why||'-').slice(0,60))+(x.mq!=null?' · '+x.mq+'본':'')
+        mateH='<td style="'+_td+'white-space:normal;min-width:220px;max-width:420px" colspan="5">'+esc(String(x.mate||x.why||'-').slice(0,60))+(x.mq!=null?' · '+x.mq+'본':'')
           +(x.tl?'<div style="font-size:10.5px;color:#64748b;margin-top:1px">⏱ '+x.tl+'</div>':'')+'</td>';
       }
       var pfH;
@@ -8211,8 +8259,12 @@ async function _rzBuild(){
         +'<div style="margin-top:2px"><button onclick="rzManOk('+x.i+')" title="따로 이미 출고 처리한 건이 맞으면 눌러서 완료로 표시" style="border:1px solid #0a7d43;background:#fff;color:#0a7d43;border-radius:6px;padding:1px 7px;font-size:10.5px;font-weight:800;cursor:pointer;font-family:inherit">✔ 확인완료</button>'
         +' <button onclick="rzLinkOpen('+x.i+')" title="출고 처리를 빠트린 건이면 재고·입고에서 찾아 여기서 빼기" style="border:1px solid #0c447c;background:#fff;color:#0c447c;border-radius:6px;padding:1px 7px;font-size:10.5px;font-weight:800;cursor:pointer;font-family:inherit">🔗 재고·입고 검색 연결</button>'
         +'<div style="font-size:9.5px;color:#8b98a7;margin-top:1px">이미 출고했으면 ✔ · 출고를 빠트렸으면 [이걸로 반영]이나 🔗로 빼기</div></div>'):'';
-      var whyH=x.ok===0?('<td style="'+_td+'color:#b91c1c">'+esc(String(x.why||''))+btns+'</td>'):('<td style="'+_td+'color:#8b98a7">'+esc(String(x.why||''))+'</td>');
+      // 사유 칸은 줄바꿈 허용 — 긴 사유가 표를 옆으로 끝없이 늘리지 않게(9/4)
+      var whyH=x.ok===0?('<td style="'+_td+'white-space:normal;min-width:280px;max-width:460px;color:#b91c1c">'+esc(String(x.why||''))+btns+'</td>'):('<td style="'+_td+'white-space:normal;min-width:200px;max-width:460px;color:#8b98a7">'+esc(String(x.why||''))+'</td>');
+      // 주문일(시트 첫 칸 — 주문 들어온 날짜, 호준님 9/4 "반영이 안 된 건가"): 기준 날짜와 다르면 주황 강조
+      var _dayH=r.day?(r.day===base?esc(r.day.slice(5)):'<span style="color:#b45309;font-weight:800">'+esc(r.day.slice(5))+'</span>'):'-';
       return '<tr data-st="'+x.ok+'">'
+        +_cell(_dayH,null)
         +_cell(esc(r.brand||'-'),null)
         +'<td style="'+_td+'font-weight:800">'+esc((r.name||'').slice(0,22))+(r.code?' <span style="font-size:10px;color:#7c3aed;background:#f3e8ff;border-radius:4px;padding:0 4px">'+esc(r.code)+'</span>':'')+'</td>'
         +_cell(_rzKey(r.size)+(r.ply?' '+r.ply+'P':''),null)
@@ -8231,10 +8283,10 @@ async function _rzBuild(){
       +'<button onclick="rzTrcFilter(\'ok\',this)" class="rz-chip" style="border:1.5px solid #b7e2c4;background:#fff;color:#0a7d43;border-radius:14px;padding:3px 11px;font-size:11px;font-weight:800;cursor:pointer;font-family:inherit">✅ 일치만</button>'
       +'<button onclick="rzTrcXlsx()" style="border:1.5px solid #6d28d9;background:#fff;color:#6d28d9;border-radius:14px;padding:3px 11px;font-size:11px;font-weight:800;cursor:pointer;font-family:inherit">📥 파일로 받기</button>'
       +'</div>'
-      +'<div style="padding:0 11px 7px;font-size:10.5px;color:#64748b;line-height:1.6">판정 뜻: <b style="color:#b91c1c">출고 누락</b>=창고분인데 재고 차감 기록이 모자람 · <b style="color:#b91c1c">출고처리 누락</b>=입고표 주문이 아직 출고 처리 전 · <b style="color:#b91c1c">입고등록 누락</b>=입고표에 그 주문이 아예 없음 — <b>이미 출고한 건이면 [✔ 확인완료]</b>, <b>빠트린 건이면 [이걸로 반영] 또는 [🔗 연결]로 재고·입고에서 빼기</b></div>'
+      +'<div style="padding:0 11px 7px;font-size:10.5px;color:#64748b;line-height:1.6">판정 뜻: <b style="color:#b91c1c">재고방 출고누락</b>=창고분인데 재고 차감 기록이 모자람 · <b style="color:#b91c1c">입고방 출고누락</b>=입고표 주문이 아직 출고 처리 전 · <b style="color:#b91c1c">입고등록 누락</b>=입고표에 그 주문이 아예 없음 — <b>이미 출고한 건이면 [✔ 확인완료]</b>, <b>빠트린 건이면 [이걸로 반영] 또는 [🔗 연결]로 재고·입고에서 빼기</b></div>'
       +'<div id="rz-trc" style="overflow:auto;max-height:430px;border-top:1px solid #eef1f5"><table style="border-collapse:collapse;font-size:11px;min-width:980px;width:100%">'
-      +'<tr style="background:#f7f9fc;position:sticky;top:0"><th colspan="7" style="padding:5px;border-bottom:1.5px solid #dbe3ee;color:#0c447c">시트(입력한 것)</th><th style="padding:5px;border-bottom:1.5px solid #dbe3ee">판정</th><th colspan="5" style="padding:5px;border-bottom:1.5px solid #dbe3ee;color:#7c3aed">매칭 상대(주문·기록)</th><th style="padding:5px;border-bottom:1.5px solid #dbe3ee;color:#0369a1">택배파일</th><th style="border-bottom:1.5px solid #dbe3ee"></th></tr>'
-      +'<tr style="background:#f7f9fc"><th style="padding:4px 6px">브랜드</th><th style="padding:4px 6px">패턴·품명</th><th style="padding:4px 6px">사이즈</th><th style="padding:4px 6px">연식</th><th style="padding:4px 6px">수량</th><th style="padding:4px 6px">출고지</th><th style="padding:4px 6px">배송</th><th></th><th style="padding:4px 6px">어디</th><th style="padding:4px 6px">출처</th><th style="padding:4px 6px">패턴·규격</th><th style="padding:4px 6px">연식</th><th style="padding:4px 6px">출고/주문</th><th style="padding:4px 6px">택배 짝</th><th style="padding:4px 6px">사유</th></tr>'
+      +'<tr style="background:#f7f9fc;position:sticky;top:0"><th colspan="8" style="padding:5px;border-bottom:1.5px solid #dbe3ee;color:#0c447c">시트(입력한 것)</th><th style="padding:5px;border-bottom:1.5px solid #dbe3ee">판정</th><th colspan="5" style="padding:5px;border-bottom:1.5px solid #dbe3ee;color:#7c3aed">매칭 상대(주문·기록)</th><th style="padding:5px;border-bottom:1.5px solid #dbe3ee;color:#0369a1">택배파일</th><th style="border-bottom:1.5px solid #dbe3ee"></th></tr>'
+      +'<tr style="background:#f7f9fc"><th style="padding:4px 6px">주문일</th><th style="padding:4px 6px">브랜드</th><th style="padding:4px 6px">패턴·품명</th><th style="padding:4px 6px">사이즈</th><th style="padding:4px 6px">연식</th><th style="padding:4px 6px">수량</th><th style="padding:4px 6px">출고지</th><th style="padding:4px 6px">배송</th><th></th><th style="padding:4px 6px">어디</th><th style="padding:4px 6px">출처</th><th style="padding:4px 6px">패턴·규격</th><th style="padding:4px 6px">연식</th><th style="padding:4px 6px">출고/주문</th><th style="padding:4px 6px">택배 짝</th><th style="padding:4px 6px">사유</th></tr>'
       +rowsH+'</table></div></div>';
   }
   var _pingish=(RZ.parcel||'').trim()?String(RZ.parcel||'').split(/\r?\n/).filter(function(l){var cc=l.split('\t');return cc.length>=15&&/^\d{8}$/.test((cc[0]||'').trim());}).length:0;
@@ -8243,10 +8295,13 @@ async function _rzBuild(){
   else if(!hasPf)h+='<div style="font-size:11.5px;color:#8b98a7;margin-top:6px">택배파일 탭이 비어 있어 <b>택배 누락 대조는 건너뜀</b> — 나머지 대조는 그대로 됩니다.</div>';
   else if(pfBadN)h+='<div style="font-size:11.5px;color:#b45309;margin-top:6px">⚠ 택배파일 중 '+pfBadN+'행은 품목명·사이즈를 못 읽어 대조에서 뺐습니다(양식 확인).</div>';
   if(cxlShipped.length)h+=sec('#b91c1c','🚨 취소 주문인데 택배파일에 있음 '+cxlShipped.length+'건',cxlShipped.map(function(r){return li('['+r.fmt+'] '+esc(r.recv||'')+' '+esc((r.name||'').slice(0,30))+' '+_rzKey(r.size)+' '+r.qty+'본');}).join(''));
+  if(srcBlank.length)h+=sec('#b45309','✍ 출고지 미기재 '+srcBlank.length+'건 — 시트 출고지 칸이 비어 대조 불가(창고/거래처를 적어주세요)',srcBlank.map(function(r){return li('['+(r.fmt||'핑')+'] '+esc(r.recv||'')+' '+esc((r.name||'').slice(0,30))+' '+_rzKey(r.size)+' '+r.qty+'본');}).join(''));
+  var _retRows=act.filter(function(r){return r.ret;});
+  if(_retRows.length)h+=sec('#92400e','↩ 반품·교환 표시 행 '+_retRows.length+'건 — 대조엔 그대로 포함(이미 나간 건), 표의 배송 칸에 표시됨',_retRows.map(function(r){return li('['+r.fmt+'] '+esc(r.ret)+' · '+esc(r.recv||'')+' '+esc((r.name||'').slice(0,30))+' '+_rzKey(r.size)+' '+r.qty+'본');}).join(''));
   if(tbMiss.length)h+=sec('#b91c1c','📦 택배 누락 의심 — 시트엔 택배인데 택배파일에 없음 '+tbMiss.length+'건',tbMiss.map(function(r){return li('['+r.fmt+'] '+esc(r.recv||'')+' '+esc((r.name||'').slice(0,30))+' '+_rzKey(r.size)+' '+r.qty+'본 ('+esc(r.src||'')+')');}).join(''));
-  if(whBad.length)h+=sec('#b45309','🏠 출고 누락 — 창고분인데 같은 패턴·사이즈의 재고 차감 기록이 모자람 '+whBad.length+'건',whBad.map(function(x){var r=x.r;return li('<b>'+esc((r.name||'').slice(0,26))+' '+_rzKey(r.size)+(r.ply?' '+r.ply+'P':'')+'</b> 시트 '+x.need+'본 vs 기록 '+x.got+'본 — '+esc((r.recv||'').slice(0,14))+(x.hint?'<br><span style="color:#0e7490">↳ '+esc(x.hint)+'</span>':''));}).join(''));
+  if(whBad.length)h+=sec('#b45309','🏠 재고방 출고누락 — 창고분인데 같은 패턴·사이즈의 재고 차감 기록이 모자람 '+whBad.length+'건',whBad.map(function(x){var r=x.r;return li('<b>'+esc((r.name||'').slice(0,26))+' '+_rzKey(r.size)+(r.ply?' '+r.ply+'P':'')+'</b> 시트 '+x.need+'본 vs 기록 '+x.got+'본 — '+esc((r.recv||'').slice(0,14))+(x.hint?'<br><span style="color:#0e7490">↳ '+esc(x.hint)+'</span>':''));}).join(''));
   if(trNoOrder.length)h+=sec('#b45309','📑 입고표에 주문 없음 '+trNoOrder.length+'건 (주문 누락 또는 30일 초과)',trNoOrder.map(function(x){return li('['+x.r.fmt+'] '+esc(x.r.src||'')+' '+esc((x.r.name||'').slice(0,28))+' '+_rzKey(x.r.size)+' '+x.qty+'본 — '+x.why);}).join(''));
-  if(trNotOut.length)h+=sec('#b45309','📥 입고표 잔량 안 줄음 '+trNotOut.length+'건 — 입고표 주문이 아직 출고 처리 전(위 ①택배양식 [반영] 또는 표의 [이걸로 반영]으로 빼기)',trNotOut.map(function(x){return li('['+x.r.fmt+'] '+esc(x.r.src||'')+' '+_rzKey(x.r.size)+' '+(x.r.year?(x.r.year%100)+'년 ':'')+x.qty+'본 ↔ 입고표 '+esc((x.it.date_str||'').slice(5))+' '+esc(x.it.model||'')+' '+(rzItemYear(x.it)%100)+'년 잔 '+rcnRemain(x.it));}).join(''));
+  if(trNotOut.length)h+=sec('#b45309','📥 입고방 출고누락 '+trNotOut.length+'건 — 입고표 주문이 아직 출고 처리 전, 잔량 안 줄음(위 ①택배양식 [반영] 또는 표의 [이걸로 반영]으로 빼기)',trNotOut.map(function(x){return li('['+x.r.fmt+'] '+esc(x.r.src||'')+' '+_rzKey(x.r.size)+' '+(x.r.year?(x.r.year%100)+'년 ':'')+x.qty+'본 ↔ 입고표 '+esc((x.it.date_str||'').slice(5))+' '+esc(x.it.model||'')+' '+(rzItemYear(x.it)%100)+'년 잔 '+rcnRemain(x.it));}).join(''));
   if(trSrcDiff.length)h+=sec('#0e7490','📎 출처 표기 불일치 추정 '+trSrcDiff.length+'건 — 같은 사이즈가 다른 출처 주문에서 소진됨(시트 출고지와 입고표 발주처의 이름만 다를 가능성)',trSrcDiff.map(function(x){return li('['+x.r.fmt+'] 시트: '+esc(x.r.src||'')+' '+esc((x.r.name||'').slice(0,24))+' '+_rzKey(x.r.size)+' '+x.qty+'본 ↔ 입고표: '+esc(x.it.src||'')+'('+esc((x.it.date_str||'').slice(5))+') '+esc(x.it.model||'')+' '+(rzItemYear(x.it)%100)+'년 소진 '+((parseInt(x.it.out_qty,10)||0))+'/'+x.it.qty);}).join(''));
   if(pfOnly.length)h+=sec('#6d28d9','↔ 택배파일에만 있음 '+pfOnly.length+'건 (시트에 없는 발송 — 다른 날 주문이면 정상)',pfOnly.map(function(p){return li(esc(p.recv||'')+' '+esc(p.raw.slice(0,36)));}).join(''));
   if(whOverOnly.length)h+=sec('#6d28d9','↔ 출고기록에만 있는 사이즈 '+whOverOnly.length+'건 (매장판매·타채널이면 정상)',whOverOnly.slice(0,10).map(function(x){return li('<b>'+x.k+'</b> 기록 '+x.have+'본');}).join('')+(whOverOnly.length>10?li('… 외 '+(whOverOnly.length-10)+'사이즈'):''));
