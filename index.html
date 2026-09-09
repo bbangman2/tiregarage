@@ -1873,11 +1873,33 @@ body.rb-on #app{padding-top:58px}
       <span id="stk-rateCnt" style="font-size:12px;color:#666"></span>
       <button id="stk-rateLyNew" onclick="stkRateLayer('new')" class="stk-ratebtn on">신품</button>
       <button id="stk-rateLyOld" onclick="stkRateLayer('old')" class="stk-ratebtn">이월</button>
+      <button id="stk-rateLyCost" onclick="stkRateLayer('cost')" class="stk-ratebtn" title="아파치 등 원가형 거래처: 율 대신 매입가">원가형</button>
       <button onclick="stkRateLoad(true)" class="stk-ratebtn" title="종합방 단가표(price_rules)에서 다시 읽기">↻</button>
       <button onclick="stkRateDownload()" class="stk-ratebtn" title="지금 보이는 격자 + 전체(신품·이월·모든 브랜드)를 같은 순서로 엑셀로">⬇ 엑셀</button>
+      <button onclick="stkRateAddToggle()" class="stk-ratebtn" style="background:#eaf7ef;border-color:#b9e0c9;color:#15803d" title="새 브랜드·거래처·패턴 규칙을 직접 넣기">➕ 규칙 추가</button>
+    </div>
+    <div id="stk-rateAdd" style="display:none;background:#f8fafc;border:1px solid #e2e8f0;border-radius:9px;padding:8px 10px;margin-bottom:8px;font-size:12px">
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+        <input id="stk-ra-brand" list="stk-ra-brands" placeholder="브랜드(새 이름 가능)" style="width:120px;height:30px"><datalist id="stk-ra-brands"></datalist>
+        <input id="stk-ra-sup" list="stk-ra-sups" placeholder="거래처(새 이름 가능)" style="width:130px;height:30px"><datalist id="stk-ra-sups"></datalist>
+        <input id="stk-ra-code" placeholder="패턴코드 (예: K127 · 피렐리는 제품번호)" style="width:200px;height:30px">
+        <input id="stk-ra-name" placeholder="패턴명 (선택)" style="width:150px;height:30px">
+        <input id="stk-ra-rate" placeholder="할인율 %" style="width:70px;height:30px;text-align:center">
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:6px">
+        <span style="color:#666">조건(선택):</span>
+        <input id="stk-ra-inch" placeholder="인치 (예: 18이상 / 17이하)" style="width:150px;height:30px">
+        <input id="stk-ra-size" placeholder="사이즈 (예: 235 55 18)" style="width:150px;height:30px">
+        <input id="stk-ra-org" placeholder="원산지 (예: 중국)" style="width:110px;height:30px">
+        <input id="stk-ra-dot" placeholder="연식 (예: 24년 DOT) → 이월 탭" style="width:170px;height:30px">
+        <input id="stk-ra-sub" placeholder="메모·세부분류 (선택)" style="width:160px;height:30px">
+        <button onclick="stkRateAddSave()" class="stk-ratebtn on">저장</button>
+        <button onclick="stkRateAddToggle()" class="stk-ratebtn">닫기</button>
+      </div>
+      <div style="color:#888;margin-top:4px">저장하면 종합방 단가표 규칙에 바로 들어가고, 이 탭·재고표 말풍선에 즉시 보입니다. 연식을 적으면 이월 탭으로 갑니다. 지우려면 칸에 0을 넣지 말고 저에게 말씀하세요.</div>
     </div>
     <div id="stk-rateBrands" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px"></div>
-    <div style="font-size:11px;color:#666;margin-bottom:6px">칸을 고치면 바로 저장(종합방 단가표와 같은 값) · <span style="background:#dcfce7;padding:0 6px;border-radius:4px">초록</span> = 그 줄에서 가장 낮은 율 · 값 뒤 괄호 = 같은 칸에 규칙이 여러 개(가장 낮은 것 표시)</div>
+    <div style="font-size:11px;color:#666;margin-bottom:6px">칸을 고치면 바로 저장(종합방 단가표와 같은 값) · <span style="background:#dcfce7;padding:0 6px;border-radius:4px">초록</span> = 그 줄에서 가장 낮은 율 · 값 뒤 괄호 = 같은 칸에 규칙이 여러 개 · 한국본사 칸의 <b style="color:#c2410c">P</b> = 이번 달 프로모션 값(없으면 전산 기본), 마우스 올리면 둘 다</div>
     <div class="stk-rtwrap" style="max-height:calc(100vh - 300px)"><table class="stk-rt" id="stk-rateTable"></table></div>
   </div>
 </div>
@@ -5085,7 +5107,7 @@ function _dlvSrcAbbr1(seg){ // 출처 한 조각 → 약어(+숫자 = 그 출처
   if(seg.indexOf('미치다')>=0)base='미';
   else if(seg.indexOf('매일')>=0)base=seg.indexOf('오후')>=0?'매후':(seg.indexOf('오전')>=0?'매오':'매');
   else if(seg.indexOf('퇴계원')>=0)base='퇴';
-  else if(seg.indexOf('한국')>=0||seg.indexOf('한타')>=0)base='한국';
+  else if(seg.indexOf('한국')>=0||seg.indexOf('한타')>=0||seg.toUpperCase().indexOf('SFP')>=0)base='한';   // 9/8 호준님: 한타주문중·한국타이어·양주/인천SFP(한국타이어 물류) 전부 '한'
   else if(seg.indexOf('넥센')>=0)base='넥';
   else if(seg.indexOf('극동')>=0)base='극';
   else if(seg.indexOf('황제')>=0)base='황';
@@ -5132,24 +5154,67 @@ function _dlvYearTxt(c,tire,spec){ // 연식: 올해는 '2026', 과년은 '[2024
   if(!y)return '';
   return y===String(new Date().getFullYear())?y:'['+y+']';
 }
-function dlvParcelName(c){
-  var tire=String(c.tire||'').trim(), spec=String(c.spec||'').trim();
-  var bt=_dlvFindSize(tire), head, tail='';
-  if(bt){ head=(tire.slice(0,bt.st)+_dlvFmtSize(tire.slice(bt.st,bt.en))).trim(); tail=tire.slice(bt.en); }
-  else{ var bs=_dlvFindSize(spec);
-    if(bs){ head=((tire+' '+spec.slice(0,bs.st)).replace(/\s+/g,' ').trim()+' '+_dlvFmtSize(spec.slice(bs.st,bs.en))).trim(); tail=spec.slice(bs.en); }
-    else{ head=(tire+' '+spec).trim(); }
+/* ★택배 품명 (호준님 9/8 확정) — "약어 [이월/행사] 패턴코드 사이즈 [P수] [연식] 수량"
+   예) 창 이월 RH17 245 45 20 1 · 창 HP71 235 55 19 4 · 한 RF12 265 50 20 4 · 창 PS71EV 235 55 19 24년 10 · 창 RA58 195 70 15 8P 2
+   종전 방식(사이즈 앞부분을 통째로 사용)은 ①사이즈가 상품명 중간에 오면 뒤에 있는 진짜 패턴이 잘리고(금호타이어 235 55 19 크루젠 HP71 → 패턴 없음)
+   ②브랜드·이월·차종·'매장장착/장착비별도'·'택배전용상품'이 모두 붙어 40자를 넘었다. 그래서 조각을 뽑아 다시 조립한다. */
+var _DLV_TOKNOISE={'EV':1,'XL':1,'OE':1,'AS':1,'MT':1,'RF':1,'TL':1,'PR':1,'NCS':1,'GOE':1,'MOE':1,'KS':1,'DOT':1};
+function _dlvCodeTok(txt){   // 텍스트에서 패턴코드 후보 뽑기 (영문+숫자, 3자 이상) — '엑스타PS71EV'처럼 한글에 붙어 있어도 잡는다
+  var out=[], re=/[A-Za-z]{1,5}\d{1,4}[A-Za-z0-9+]*/g, m;
+  while((m=re.exec(String(txt||'')))){
+    var t=m[0].toUpperCase();
+    if(t.length<3)continue;
+    if(/^\d/.test(t))continue;
+    if(_DLV_TOKNOISE[t])continue;
+    if(/^\d+P(R)?$/.test(t))continue;
+    out.push(t);
   }
+  return out;
+}
+/* 패턴 뽑기 — ①단가표에 등록된 코드 ②연결 상품 코드(숫자만인 피렐리 제품번호는 제외) ③사이즈 앞 이름
+   ★차종 글자(G80·GN7·EV6·PZ4)를 코드로 쓰면 안 된다(9/8 실측: 피렐리 'P ZERO A/S … 그랜저 GN7' → 품명이 'GN7'로 나가던 것).
+     피렐리처럼 코드가 7자리 숫자인 브랜드는 이름을 쓴다 — 택배업로드파일 (9)의 'SCORPION ZERO AS'·'CINTURATO P9 AS'와 같은 형태. */
+function _dlvPatCode(c,tire,spec){
+  var pb=(typeof RZ!=='undefined'&&RZ&&RZ._pb)||null;
+  var toks=_dlvCodeTok(tire).concat(_dlvCodeTok(spec));
+  toks=toks.filter(function(t){ return !_DLV_CARS.test(t); });   // 차종 글자(G80·GN7·EV6…)는 코드가 아니다
+  if(pb){ for(var i=toks.length-1;i>=0;i--){ if(pb[toks[i]])return toks[i]; } }
+  try{ if(c&&c.src_product_id&&typeof stkP!=='undefined'&&stkP&&stkP.length){
+    for(var j=0;j<stkP.length;j++){ if(String(stkP[j].id)===String(c.src_product_id)){ var pc=String(stkP[j].code||'').toUpperCase(); if(pc&&!/^\d+$/.test(pc))return pc; break; } } } }catch(_e){}
+  return toks.length?toks[toks.length-1]:'';   // 단가표에 없어도 코드 꼴이면 씀(PS71EV·RA58 등 약칭)
+}
+var _DLV_CARS=/^(G70|G80|G90|GV60|GV70|GV80|GN7|EV3|EV4|EV5|EV6|EV9|K3|K5|K7|K8|K9|QM6|XM3|SM6|MX5|X3|X5|X6|X7|T1|NQ5|MQ4|SX2|CN7|DN8|JW1|LX3|IONIQ\d|MODEL[3SXY]|Q[3578]|ID\d|EQ[A-Z]\d*|CE4|OS4|PE2|SP2|CV1|ME1|NE1|MV1)$/;   // 9/8 IONIQ6 등 차종 보강
+function _dlvPatName(c,tire,spec){   // 사이즈 앞 이름 — 브랜드·이월·옵션·차종을 걷고 최대 4단어
+  var t=String(tire||'');
+  var bt=_dlvFindSize(t); var head=bt?t.slice(0,bt.st):t;
+  if(!head.replace(/\s/g,'')){ var s2=String(spec||''); var bs=_dlvFindSize(s2); head=bs?s2.slice(0,bs.st):s2; }
+  head=head.replace(/한국타이어|금호타이어|넥센타이어|한국|금호|넥센|피렐리|라우펜|타이어/g,' ')
+           .replace(/매장장착\s*\/?\s*장착비별도|택배전용상품|택배전용|전국택배|공임별도|이월|\(?행사\)?|오프로드|OE공급용/g,' ')
+           .replace(/\d{2}\s*년|\d{1,2}\s*P(R)?\b/gi,' ')
+           .replace(/[>·,]/g,' ').replace(/\s+/g,' ').trim();
+  var ws=head.split(' ').filter(function(w){ return w&&!_DLV_CARS.test(w.toUpperCase())&&!/^(벤츠|BMW|아우디|제네시스|현대|기아|신형|구형|OE|XL|EV)$/i.test(w); });
+  return ws.slice(0,4).join(' ');
+}
+function dlvParcelName(c){
+  var tire=String(c.tire||'').replace(/\s+/g,' ').trim(), spec=String(c.spec||'').replace(/\s+/g,' ').trim();
+  // 사이즈 — 공백 표기(245 45 20). tire에 없으면 spec에서.
+  var size='';
+  var bt=_dlvFindSize(tire); var raw=bt?tire.slice(bt.st,bt.en):'';
+  if(!raw){ var bs=_dlvFindSize(spec); if(bs)raw=spec.slice(bs.st,bs.en); }
+  if(raw){ var t3=(typeof stkParseSize==='function')?stkParseSize(raw):null;
+    size=(t3&&t3[0]>=100)?(t3[0]+' '+t3[1]+' '+t3[2]):raw.replace(/[\/Rr]/g,' ').replace(/\s+/g,' ').trim(); }
+  var code=_dlvPatCode(c,tire,spec) || _dlvPatName(c,tire,spec);
   var _pn=_dlvPlyNum(c,tire,spec);
   var ply=(_pn&&_pn!==4)?(_pn+'P'):'';
-  if(ply&&new RegExp('(^|[^0-9])'+_pn+'\\s*P','i').test(head))ply='';   // head에 이미 들어있으면 중복 방지
-  var yy=_dlvYearTxt(c,tire,spec);
-  var origin=''; for(var i=0;i<DLV_ORIGINS.length;i++){ if(tail.indexOf(DLV_ORIGINS[i])>=0){origin=DLV_ORIGINS[i];break;} }
-  if(origin==='한국')origin='';   // 국산은 원산지 생략(수입산만 표기)
+  // 연식 — 26년(올해)은 생략, 과년만 '24년'
+  var yy=''; var ys=String((c.brand||'')+' '+tire+' '+spec);
+  var my=ys.match(/20(\d{2})/)||ys.match(/(\d{2})\s*년/);
+  if(my){ var y4='20'+my[1]; if(y4!==String(new Date().getFullYear()))yy=my[1]+'년'; }
+  var tag=/이월/.test(tire+' '+spec)?'이월':(/행사/.test(tire+' '+spec)?'행사':'');
   var total=String(c.qty||'').trim();
   var ab=dlvSrcAbbr(c.src);
-  // 표기 순서·간격은 호준님 업로드 관례 그대로: 약어 패턴 사이즈 P수 총본수 연식 원산지 (P수 없으면 두 칸 공백)
-  return ((ab?ab+' ':'')+head+' '+ply+' '+total+(yy?' '+yy:'')+(origin?' '+origin:'')).replace(/\s+$/,'');
+  var pno=String(c.code||'').replace(/\s+/g,'').trim();   // 9/8 호준님: 제품번호(카드 코드 칸 — 피렐리 4013100·금호 2206152·넥센 17142NXK)는 품명 맨 끝에
+  return [ab,tag,code,size,ply,yy,total,pno].filter(function(x){return x!==''&&x!=null;}).join(' ').replace(/\s+/g,' ').trim();
 }
 function dlvParcelRows(list){ // 행 생성(순수함수) — 택배사 바로 업로드 양식(호준님 8/28 확정: 택배업로드파일과 동일)
   var rows=[];
@@ -5181,6 +5246,7 @@ function dlvParcelRows(list){ // 행 생성(순수함수) — 택배사 바로 �
 }
 async function dlvParcelXlsx(){
   try{await stkLoadXLSX();}catch(e){alert(e.message);return;}
+  try{ if(typeof rzLoadPatBrand==='function')await rzLoadPatBrand(); }catch(_e){}   // 단가표 코드 사전 — 품명의 패턴코드 판정용(9/8)
   var list=dlvListOf('parcel').filter(function(c){return !c.cancelled;});
   if(!list.length){alert('택배전환 탭에 내보낼 카드가 없습니다.');return;}
   var HDR=['받는분','주소','상세주소','운송장번호','고객사주문번호','우편번호','도착영업소','전화번호','기타전화번호','선불후불','품목명','수량','포장상태','가로','세로','높이','무게','개별단가','배송운임','기타운임','별도운임','할증운임','도서운임','메모'];
@@ -12181,8 +12247,11 @@ function stkMatch(p,q){
 }
 // ── 탭/검색 렌더 ──
 // ===== (9/7) 할인율 탭 — 종합방 단가표(price_rules)를 패턴 × 거래처 격자로 보고 바로 고친다 + 재고표 할인율 칸 말풍선 =====
-var STK_RATE_TAB_ON=false;   // 할인율 탭·말풍선 노출 (호준님 9/7: 정리 끝나기 전엔 실사용에 안 보이게 — 정본 false / 테스트 true)
+var STK_RATE_TAB_ON=true;   // 할인율 탭·말풍선 노출 (호준님 9/7: 정리 끝나기 전엔 실사용에 안 보이게 — 정본 false / 테스트 true)
 var STK_RATE_HIDE_SUPS=['강남'];   // 격자에서 빼는 거래처 (호준님 9/7: 강남 필요 없음)
+// (9/7) 거래처 표시 합치기: 한국1(본사 전산 기본 DC)·한국2(본사 월간 프로모션 이미지)는 둘 다 '한국본사' — 한 열로, 프로모션이 있으면 그 값(전산 기본은 제목에)
+var STK_RATE_SUP_MERGE={'한국1':'한국본사','한국2':'한국본사','한국본사전산':'한국본사','한타프로모션':'한국본사'}; var STK_RATE_SUP_PRIO={'한국2':2,'한타프로모션':2,'한국1':1,'한국본사전산':1};
+function stkRateSupName(s){ return STK_RATE_SUP_MERGE[s]||s; }
 var STK_RATE={rules:null,ts:0,brand:'전체',layer:'new',loading:false,lastOrder:[],lastSups:[]};
 async function stkRateLoad(force){
   if(STK_RATE.loading)return;
@@ -12194,7 +12263,30 @@ async function stkRateLoad(force){
 }
 function stkRateCond(r){ var p=[]; if(r.inch_cond)p.push(String(r.inch_cond)); if(r.size_cond)p.push(String(r.size_cond)); if(r.org_cond)p.push(String(r.org_cond)); return p.join(' · '); }
 function stkRateIsOld(r){ return !!(r.dot_cond)||String(r.apply_kind||'').indexOf('연식')>=0; }
-function stkRateLayer(l){ STK_RATE.layer=l; document.getElementById('stk-rateLyNew').classList.toggle('on',l==='new'); document.getElementById('stk-rateLyOld').classList.toggle('on',l==='old'); stkRateRender(); }
+function stkRateLayer(l){ STK_RATE.layer=l; document.getElementById('stk-rateLyNew').classList.toggle('on',l==='new'); document.getElementById('stk-rateLyOld').classList.toggle('on',l==='old'); var cb=document.getElementById('stk-rateLyCost'); if(cb)cb.classList.toggle('on',l==='cost'); if(l==='cost'){ stkRateCostRender(); return; } stkRateRender(); }
+// (9/7) 원가형: 단가표(price_rows)에서 sup_price(매입가)가 있는 행 — 사일룬(SAILUN단가)·웨스트레이크(웨스트레이크단가) 등. 율이 아니라 금액이라 별도 화면(읽기 전용)
+var STK_RATE_COST={rows:null,ts:0,loading:false};
+async function stkRateCostLoad(){
+  if(STK_RATE_COST.rows&&Date.now()-STK_RATE_COST.ts<5*60*1000)return STK_RATE_COST.rows;
+  STK_RATE_COST.loading=true; var out=[]; var frm=0;
+  try{ while(true){ var r=await sb.from('price_rows').select('id,brand,pattern,code,size,size_digits,ply,dot,sup_src,sup_price,factory,msrp,ping_low').not('sup_price','is',null).range(frm,frm+999); if(r.error)throw r.error; out=out.concat(r.data||[]); if((r.data||[]).length<1000)break; frm+=1000; } }
+  catch(e){ stkToast('원가형 단가를 못 읽었습니다: '+(e.message||e)); }
+  STK_RATE_COST.rows=out; STK_RATE_COST.ts=Date.now(); STK_RATE_COST.loading=false; return out;
+}
+async function stkRateCostRender(){
+  var el=document.getElementById('stk-rateTable'); if(!el)return;
+  var rows=await stkRateCostLoad(); var q=((document.getElementById('stk-rateq')||{}).value||'').trim().toLowerCase();
+  var brands=['전체']; rows.forEach(function(r){ if(r.brand&&brands.indexOf(r.brand)<0)brands.push(r.brand); });
+  var bb=document.getElementById('stk-rateBrands'); if(bb)bb.innerHTML=brands.map(function(b){return '<button class="stk-ratebtn'+(STK_RATE.brand===b?' on':'')+'" onclick="STK_RATE.brand=\''+stkEsc(b)+'\';stkRateCostRender()">'+stkEsc(b)+'</button>'}).join('');
+  var list=rows.filter(function(r){ if(STK_RATE.brand!=='전체'&&r.brand!==STK_RATE.brand)return false; if(q){ var hay=[r.brand,r.pattern,r.code,r.size,r.sup_src].join(' ').toLowerCase(); if(hay.indexOf(q)<0)return false; } return true; });
+  list.sort(function(a,b){ return (a.brand+a.pattern+String(a.size_digits||'')).localeCompare(b.brand+b.pattern+String(b.size_digits||''),'ko'); });
+  var fmt=function(v){ return (v==null||v==='')?'—':Number(v).toLocaleString(); };
+  var th='<thead><tr><th>브랜드</th><th>패턴</th><th>코드</th><th>사이즈</th><th>P수</th><th>거래처(단가표)</th><th>매입가(우리가 받는 금액)</th><th>판매 기준가</th><th>핑 최저</th></tr></thead>';
+  var body=list.slice(0,1500).map(function(r){ var base=(r.brand==='웨스트레이크')?r.msrp:r.factory; return '<tr><td>'+stkEsc(r.brand)+'</td><td style="text-align:left">'+stkEsc(r.pattern||'')+'</td><td>'+stkEsc(r.code||'')+'</td><td>'+stkEsc(r.size||'')+'</td><td>'+stkEsc(r.ply||'')+'</td><td>'+stkEsc(r.sup_src||'')+'</td><td class="rate-min" style="font-weight:800">'+fmt(r.sup_price)+'</td><td>'+fmt(base)+'</td><td>'+fmt(r.ping_low)+'</td></tr>'; }).join('');
+  el.innerHTML=th+'<tbody>'+body+'</tbody>'; el.style.tableLayout=''; el.style.width='';
+  var cnt=document.getElementById('stk-rateCnt'); if(cnt)cnt.innerHTML=list.length+'행 · 원가형(매입가 있는 단가표 행)'+(list.length>1500?' · 1,500행까지만 표시':'')+' · <span style="font-size:10px;color:#666">읽기 전용 — 값은 단가표 파일(아파치 단가)에서 옴</span>';
+  STK_RATE.lastOrder=[]; STK_RATE.lastSups=[];
+}
 function stkRateRender(){
   var el=document.getElementById('stk-rateTable'); if(!el)return;
   var rules=STK_RATE.rules||[]; var q=((document.getElementById('stk-rateq')||{}).value||'').trim().toLowerCase();
@@ -12203,24 +12295,33 @@ function stkRateRender(){
   var bb=document.getElementById('stk-rateBrands');
   if(bb)bb.innerHTML=brands.map(function(b){return '<button class="stk-ratebtn'+(STK_RATE.brand===b?' on':'')+'" onclick="STK_RATE.brand=\''+stkEsc(b)+'\';stkRateRender()">'+stkEsc(b)+'</button>'}).join('');
   var lay=STK_RATE.layer;
-  var list=rules.filter(function(r){ if(STK_RATE_HIDE_SUPS.indexOf(r.sup)>=0)return false; if(STK_RATE.brand!=='전체'&&r.brand!==STK_RATE.brand)return false; if((lay==='old')!==stkRateIsOld(r))return false;
-    if(q){ var hay=[r.brand,r.sup,r.sub,r.code,r.pattern_name,stkRateCond(r),r.dot_cond,r.apply_kind].join(' ').toLowerCase(); if(hay.indexOf(q)<0)return false; } return true; });
+  function _hit(r){ if(!q)return true; var hay=[r.brand,r.sup,r.sub,r.code,r.pattern_name,stkRateCond(r),r.dot_cond,r.apply_kind].join(' ').toLowerCase(); return hay.indexOf(q)>=0; }
+  var list=rules.filter(function(r){ if(STK_RATE_HIDE_SUPS.indexOf(r.sup)>=0)return false; if(STK_RATE.brand!=='전체'&&r.brand!==STK_RATE.brand)return false; if((lay==='old')!==stkRateIsOld(r))return false; return _hit(r); });
+  // (9/7) 검색어가 있으면 전체(모든 브랜드·신품/이월)를 기준으로 세어, 지금 보이는 탭 밖에 있는 것을 작게 알려 준다
+  var elsewhere='';
+  if(q){ var other={}; rules.forEach(function(r){ if(STK_RATE_HIDE_SUPS.indexOf(r.sup)>=0||!_hit(r))return; var l=stkRateIsOld(r)?'old':'new'; var inView=(STK_RATE.brand==='전체'||r.brand===STK_RATE.brand)&&(l===lay); if(inView)return; var k=r.brand+(l===lay?'':(l==='old'?' 이월':' 신품')); other[k]=(other[k]||0)+1; });
+    var ks=Object.keys(other); if(ks.length)elsewhere=' · <span style="font-size:10px;color:#9a3412">다른 탭에 '+ks.map(function(k){return k+' '+other[k]}).join(', ')+'</span>'; }
   // 행 키 = 브랜드|패턴(코드 우선)|조건 · 열 = 거래처
   var rows={}, order=[], sups=[];
   list.forEach(function(r){ var pat=(r.code||r.pattern_name||'').toString(); var cond=stkRateCond(r)+(r.dot_cond?(' · '+r.dot_cond):''); var k=r.brand+'|'+pat+'|'+cond;
     if(!rows[k]){ rows[k]={brand:r.brand,pat:pat,name:r.pattern_name||'',cond:cond,cells:{}}; order.push(k); }
     var rate=parseFloat(r.rate); if(isNaN(rate))return;
-    var c=rows[k].cells[r.sup]; if(!c||rate<c.rate){ rows[k].cells[r.sup]={rate:rate,id:r.id,n:(c?c.n+1:1),kind:r.apply_kind||''}; } else c.n++;
-    if(sups.indexOf(r.sup)<0)sups.push(r.sup); });
+    var sn=stkRateSupName(r.sup), pr=STK_RATE_SUP_PRIO[r.sup]||0;
+    var c=rows[k].cells[sn];
+    if(!c){ rows[k].cells[sn]={rate:rate,id:r.id,n:1,kind:r.apply_kind||'',prio:pr,src:r.sup,alt:[]}; }
+    else if(pr>(c.prio||0)){ c.alt.push(c.src+' '+c.rate); c.rate=rate; c.id=r.id; c.kind=r.apply_kind||''; c.prio=pr; c.src=r.sup; c.n++; }   // 프로모션이 전산 기본을 덮음
+    else if(pr<(c.prio||0)){ c.alt.push(r.sup+' '+rate); c.n++; }
+    else if(rate<c.rate){ c.alt.push(c.src+' '+c.rate); c.rate=rate; c.id=r.id; c.kind=r.apply_kind||''; c.n++; } else { c.alt.push(r.sup+' '+rate); c.n++; }
+    if(sups.indexOf(sn)<0)sups.push(sn); });
   order.sort(function(a,b){ var A=rows[a],B=rows[b]; return (A.brand+A.pat+(A.cond?'1':'0')+A.cond).localeCompare(B.brand+B.pat+(B.cond?'1':'0')+B.cond,'ko'); });
   var th='<thead><tr><th>브랜드</th><th>패턴</th><th>조건</th>'+sups.map(function(s){return '<th>'+stkEsc(s)+'</th>'}).join('')+'</tr></thead>';
   var body=order.map(function(k){ var R=rows[k]; var vals=Object.keys(R.cells).map(function(s){return R.cells[s].rate}); var mn=vals.length?Math.min.apply(null,vals):null;
     var _isCode=/^[A-Za-z0-9\-\/+]+$/.test(R.pat);
     return '<tr><td>'+stkEsc(R.brand)+'</td><td style="text-align:left;white-space:normal;max-width:360px">'+(_isCode?('<b>'+stkEsc(R.pat)+'</b>'+(R.name&&R.name!==R.pat?' <span style="color:#666">'+stkEsc(R.name)+'</span>':'')):('<span style="color:#7c2d12;font-weight:800">'+stkEsc(R.pat)+'</span>'+(R.name&&R.name!==R.pat?' <span style="color:#666">'+stkEsc(R.name)+'</span>':'')))+'</td><td style="'+(R.cond?'color:#1d4ed8':'color:#aaa')+'">'+stkEsc(R.cond||'기본')+'</td>'+
-      sups.map(function(s){ var c=R.cells[s]; if(!c)return '<td style="color:#ccc">—</td>'; return '<td class="'+(c.rate===mn?'rate-min':'')+'" title="'+stkEsc(c.kind)+'"><input class="rate-in" value="'+c.rate+'" data-rid="'+c.id+'" data-old="'+c.rate+'" onchange="stkRateSave(this)">'+(c.n>1?'<span style="color:#888;font-size:10px"> ('+c.n+')</span>':'')+'</td>'; }).join('')+'</tr>'; }).join('');
+      sups.map(function(s){ var c=R.cells[s]; if(!c)return '<td style="color:#ccc">—</td>'; var ttl=(c.src&&STK_RATE_SUP_MERGE[c.src]?(c.src==='한국2'?'프로모션':'전산 기본')+' · ':'')+stkEsc(c.kind)+((c.alt&&c.alt.length)?' · 다른 값: '+stkEsc(c.alt.join(', ')):''); return '<td class="'+(c.rate===mn?'rate-min':'')+'" title="'+ttl+'"><input class="rate-in" value="'+c.rate+'" data-rid="'+c.id+'" data-old="'+c.rate+'" onchange="stkRateSave(this)">'+(c.src==='한국2'?'<span style="color:#c2410c;font-size:9px;font-weight:800" title="프로모션 값">P</span>':'')+(c.n>1?'<span style="color:#888;font-size:10px"> ('+c.n+')</span>':'')+'</td>'; }).join('')+'</tr>'; }).join('');
   el.innerHTML=th+'<tbody>'+body+'</tbody>'; el.style.tableLayout=''; el.style.width='';
   STK_RATE.lastOrder=order.map(function(k){return rows[k]}); STK_RATE.lastSups=sups;
-  var cnt=document.getElementById('stk-rateCnt'); if(cnt)cnt.textContent=order.length+'행 · 규칙 '+list.length+'개 · '+(lay==='new'?'신품':'이월')+(STK_RATE.rules?'':' (읽는 중)');
+  var cnt=document.getElementById('stk-rateCnt'); if(cnt)cnt.innerHTML=order.length+'행 · 규칙 '+list.length+'개 · '+(lay==='new'?'신품':'이월')+(STK_RATE.rules?'':' (읽는 중)')+elsewhere;
 }
 async function stkRateDownload(){
   try{ await stkLoadXLSX(); }catch(e){ stkToast(e.message); return; }
@@ -12239,6 +12340,35 @@ async function stkRateDownload(){
   ['new','old'].forEach(function(l){ STK_RATE.brand='전체'; STK_RATE.layer=l; stkRateRender(); sheetOf(STK_RATE.lastOrder,STK_RATE.lastSups,l==='new'?'전체 신품':'전체 이월'); });
   STK_RATE.brand=keep.brand; STK_RATE.layer=keep.layer; if(qEl)qEl.value=keep.q; stkRateLayer(keep.layer);
   var fn='할인율격자_'+new Date(Date.now()+9*3600*1000).toISOString().slice(0,10)+'.xlsx'; XLSX.writeFile(wb,fn); stkToast('다운로드: '+fn);
+}
+function stkRateAddToggle(){
+  var box=document.getElementById('stk-rateAdd'); if(!box)return; var open=box.style.display==='none';
+  box.style.display=open?'':'none';
+  if(open){ var rules=STK_RATE.rules||[]; var bs=[],ss=[]; rules.forEach(function(r){ if(r.brand&&bs.indexOf(r.brand)<0)bs.push(r.brand); if(r.sup&&ss.indexOf(r.sup)<0)ss.push(r.sup); });
+    document.getElementById('stk-ra-brands').innerHTML=bs.sort().map(function(b){return '<option value="'+stkEsc(b)+'">'}).join('');
+    document.getElementById('stk-ra-sups').innerHTML=ss.sort().map(function(b){return '<option value="'+stkEsc(b)+'">'}).join('');
+    if(STK_RATE.brand!=='전체')document.getElementById('stk-ra-brand').value=STK_RATE.brand; }
+}
+async function stkRateAddSave(){
+  if(!(typeof stkCanSeeRealcost==='function'&&stkCanSeeRealcost())){ stkToast('권한이 없습니다'); return; }
+  var g=function(id){ return (document.getElementById(id).value||'').trim(); };
+  var brand=g('stk-ra-brand'), sup=g('stk-ra-sup'), code=g('stk-ra-code').toUpperCase(), name=g('stk-ra-name'), rate=parseFloat(g('stk-ra-rate').replace(/[^0-9.]/g,''));
+  if(!brand||!sup){ stkToast('브랜드와 거래처는 꼭 적어 주세요'); return; }
+  if(!code&&!name){ stkToast('패턴코드나 패턴명 중 하나는 적어 주세요'); return; }
+  if(isNaN(rate)||rate<0||rate>100){ stkToast('할인율은 0~100 숫자'); return; }
+  var dot=g('stk-ra-dot');
+  var row={brand:brand,sup:sup,sub:g('stk-ra-sub'),code:code,pattern_name:name,size_cond:g('stk-ra-size'),org_cond:g('stk-ra-org'),inch_cond:g('stk-ra-inch'),dot_cond:dot,rate:rate,apply_kind:dot?'조건부(연식)':'기본'};
+  try{
+    // id는 앱이 부여(기본값 없음) → 현재 최대 id + 1
+    var mx=await sb.from('price_rules').select('id').order('id',{ascending:false}).limit(1); var nid=((mx.data&&mx.data[0]&&parseInt(mx.data[0].id))||0)+1; row.id=nid;
+    var r=await sb.from('price_rules').insert(row).select(); if(r.error)throw r.error;
+    (STK_RATE.rules=STK_RATE.rules||[]).push(r.data[0]);
+    try{ await stkLog('%할인율추가',brand+' '+sup+' '+(code||name)+' '+rate+'%'+(dot?' ('+dot+')':''),{detail:JSON.stringify(row)},true); }catch(_e){}
+    stkToast('규칙 추가: '+brand+' '+sup+' '+(code||name)+' '+rate+'%');
+    ['stk-ra-code','stk-ra-name','stk-ra-rate','stk-ra-inch','stk-ra-size','stk-ra-org','stk-ra-dot','stk-ra-sub'].forEach(function(id){document.getElementById(id).value='';});
+    if(STK_RATE.brand!=='전체'&&STK_RATE.brand!==brand)STK_RATE.brand='전체';
+    stkRateLayer(dot?'old':'new');
+  }catch(e){ stkToast('추가 실패: '+(e.message||e)); }
 }
 async function stkRateSave(inp){
   var id=inp.getAttribute('data-rid'), old=parseFloat(inp.getAttribute('data-old')); var v=parseFloat(String(inp.value).replace(/[^0-9.]/g,''));
@@ -12265,7 +12395,8 @@ function stkRateTipHtml(p){
   var h='<div style="font-weight:800;margin-bottom:3px">'+stkEsc(p.br+' '+(p.code||'')+' '+(p.name||''))+'</div><table>';
   var lastOld=false; rs.slice(0,14).forEach(function(r){ var old=stkRateIsOld(r); if(old&&!lastOld){ h+='<tr><td colspan="3" style="color:#888;padding-top:3px">— 이월 —</td></tr>'; lastOld=true; }
     var cond=[stkRateCond(r),r.dot_cond||''].filter(Boolean).join(' · ');
-    h+='<tr><td>'+stkEsc(r.sup)+'</td><td style="font-weight:800;'+(cur!=null&&parseFloat(r.rate)===cur?'color:#15803d':'')+'">'+stkEsc(r.rate)+'</td><td style="color:#666">'+stkEsc(cond||(r.apply_kind||''))+'</td></tr>'; });
+    var supLab=(r.sup==='한국1')?'한국본사(전산)':(r.sup==='한국2'?'한국본사(프로모션)':r.sup);
+    h+='<tr><td>'+stkEsc(supLab)+'</td><td style="font-weight:800;'+(cur!=null&&parseFloat(r.rate)===cur?'color:#15803d':'')+'">'+stkEsc(r.rate)+'</td><td style="color:#666">'+stkEsc(cond||(r.apply_kind||''))+'</td></tr>'; });
   if(rs.length>14)h+='<tr><td colspan="3" style="color:#888">… 외 '+(rs.length-14)+'개</td></tr>';
   h+='</table>'+(cur!=null?'<div style="color:#666;margin-top:3px">재고표 값 '+cur+' · 원가 = 공장도 × (100−('+cur+'−'+stkFxN('drDown')+'))/100</div>':'<div style="color:#b45309;margin-top:3px">재고표 할인율 빈칸</div>');
   return h;
