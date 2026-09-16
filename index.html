@@ -2230,6 +2230,7 @@ body.rb-on #app{padding-top:58px}
         <span class="jh-chip" id="dlvch-ping" onclick="dlvSetChip('ping')">핑</span>
         <span class="jh-chip" id="dlvch-online" onclick="dlvSetChip('online')">온라인</span>
         <span class="jh-chip" id="dlvch-trade" onclick="dlvSetChip('trade')">거래처</span>
+        <span class="jh-chip" id="dlvch-bunjang" onclick="dlvSetChip('bunjang')">⚡ 번개</span>
         <span class="jh-chip" id="dlvch-linked" onclick="dlvSetChip('linked')">🔗 연결</span>
         <span class="jh-chip" id="dlvch-unlinked" onclick="dlvSetChip('unlinked')">미연결</span>
       </div>
@@ -5087,7 +5088,7 @@ function switchDlvTab(tab){
 var DLV_CH='all';
 function dlvSetChip(v){
   DLV_CH=(DLV_CH===v&&v!=='all')?'all':v;
-  ['all','ping','online','trade','linked','unlinked'].forEach(function(k){ var el=document.getElementById('dlvch-'+k); if(el)el.classList.toggle('on',k===DLV_CH); });
+  ['all','ping','online','trade','bunjang','linked','unlinked'].forEach(function(k){ var el=document.getElementById('dlvch-'+k); if(el)el.classList.toggle('on',k===DLV_CH); });
   renderDelivery();
 }
 function dlvChipPass(d){
@@ -5097,7 +5098,8 @@ function dlvChipPass(d){
   if(DLV_CH==='unlinked')return !(d.src_kind&&(d.src_product_id||d.src_item_id));
   if(DLV_CH==='trade')return c==='trade';
   if(DLV_CH==='ping')return c==='ping';
-  if(DLV_CH==='online')return c!=='ping'&&c!=='trade';
+  if(DLV_CH==='bunjang')return c==='bunjang';
+  if(DLV_CH==='online')return c!=='ping'&&c!=='trade'&&c!=='bunjang';
   return true;
 }
 function openDlvSheet(){
@@ -5306,7 +5308,7 @@ function dlvBjParse(txt){
 async function dlvParcelXlsx(){
   try{await stkLoadXLSX();}catch(e){alert(e.message);return;}
   try{ if(typeof rzLoadPatBrand==='function')await rzLoadPatBrand(); }catch(_e){}   // 단가표 코드 사전 — 품명의 패턴코드 판정용(9/8)
-  var list=dlvListOf('parcel').filter(function(c){return !c.cancelled;});
+  var list=dlvListOf('parcel').filter(function(c){return !c.cancelled&&!c.confirmed;});   // 9/16 호준님: 확인됨은 택배양식에서 제외
   if(!list.length){alert('택배전환 탭에 내보낼 카드가 없습니다.');return;}
   var HDR=['받는분','주소','상세주소','운송장번호','고객사주문번호','우편번호','도착영업소','전화번호','기타전화번호','선불후불','품목명','수량','포장상태','가로','세로','높이','무게','개별단가','배송운임','기타운임','별도운임','할증운임','도서운임','메모'];
   var rows=dlvParcelRows(list);
@@ -6363,7 +6365,7 @@ function renderDelivery(){
     if(!dlvWaitOnly)html+=dlvRenderList(list,'deliv',dlvCardHtml);
     html+=dlvWaitSections();
   }else{
-    html+=dlvRenderList(list,'deliv',dlvCardHtml);
+    html+=dlvRenderList(list,curDlvTab,dlvCardHtml);   // 9/16: 택배전환 탭은 'parcel'로 넘겨야 확인됨 묶음이 접힘(전엔 'deliv' 고정이라 안 접혔음)
   }
   if(curDlvTab==='deliv'){
     html+='<div class="dlog-area"><div class="dlog-title"><span>📝 순서 변경 기록</span><button class="dlog-clear" onclick="clearDlvLogs()">전체 지우기</button></div>';
@@ -6715,7 +6717,7 @@ var dlvPasteFmt='ping';
 var dlvParsed=[];
 var dlvAutoErrs=[];   // 자동인식에서 칸 수 판정이 안 된 줄(등록 제외, 미리보기에 안내)
 const DLV_FMT_DESC={
-  bunjang:'<b>번개장터</b>: 주문 글을 <b>통째로</b> 붙여넣으세요(이름 · (우편번호) 주소 · 전화 · 상품 줄이 자동으로 갈라집니다). 주소만 복사됐으면 마지막 줄에 상품을 직접 적으세요(예: 한국타이어 Dynapro HP3 (RA55) 245/65R17). 주문 여러 건은 빈 줄로 띄우면 각각 한 건.',
+  bunjang:'<b>번개장터</b>: 구매 화면에서 복사한 글을 그대로 붙여넣으세요. 줄마다 내용으로 알아보기 때문에 <b>줄 순서·빈 줄은 상관없습니다</b>. 한 건은 이렇게 네 줄이면 됩니다:<br><b>유현상</b> (이름 2~4글자)<br><b>(02246) 서울특별시 중랑구 면목로21길 43 (면목동), 1층</b> (괄호 우편번호+주소)<br><b>010-7290-0545</b> (전화)<br><b>한국타이어 Dynapro HP3 (RA55) 245/65R17</b> (상품 — 사이즈가 꼭 들어가야 함, 수량은 뒤에 "2개")<br>주소만 복사됐으면 상품 줄을 직접 이어 적으세요. 여러 건은 <b>빈 줄 + 다음 사람 이름</b>으로 시작하면 각각 한 건.',
   ping:'<b>핑</b>(판매처=핑): 시트 그대로 복사해 붙여넣기 (주문일·주문번호·제품코드·확정·<b>배송방법</b>·출고지·품명·사이즈·세부·DOT·제조사·수량·우편·주소·받는분·연락처·메모). 여러 줄=여러 건.',
   online:'<b>온라인</b>(스팜/11번가/전화주문 자동인식): 시트에서 복사해 붙여넣기. 빈 칸도 탭 유지하면 정확.',
   trade:'<b>거래처</b>: <b>출고 거래처 브랜드/내용 사이즈 수량</b> 순서로 한 줄씩. 날짜·배송완료는 자동 기록. 예: <b>창고 황제 크루젠HP71 235 60 18 4</b> (한 줄=한 건, 엑셀 복사도 가능)',
@@ -12624,7 +12626,9 @@ async function stkRateSave(inp){
 function stkRateRulesFor(p){
   var rules=STK_RATE.rules||[]; var code=(p.code||'').toString().toUpperCase(), name=(p.name||'').toString().toUpperCase();
   return rules.filter(function(r){ if(r.brand!==p.br)return false; var rc=(r.code||'').toString().toUpperCase(), rn=(r.pattern_name||'').toString().toUpperCase();
-    if(rc&&code&&rc===code)return true; if(!rc&&rn&&name&&(name.indexOf(rn)>=0||rn.indexOf(name)>=0))return true; return false; });
+    if(rc&&code&&rc===code)return true; if(!rc&&rn&&name&&(name.indexOf(rn)>=0||rn.indexOf(name)>=0))return true;
+    if(rc&&!code&&name&&/[가-힣]/.test(rc)&&(rc.indexOf(name)>=0||name.indexOf(rc)>=0))return true;   // 9/16 넥센처럼 규칙 코드 칸에 패턴명('로디안 541')이 있고 상품 코드가 빈 경우 → 상품명으로
+    return false; });
 }
 function stkRateTipHtml(p){
   var rsAll=stkRateRulesFor(p), rs=rsAll.filter(function(r){return !stkRateQtyIsBonus(r);}); if(!rs.length)return '<div style="color:#666">'+stkEsc(p.br+' '+(p.code||p.name))+' — 단가표에 규칙 없음</div>';
