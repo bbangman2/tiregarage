@@ -11716,41 +11716,80 @@ async function dbExportAll(){
   alert('백업 완료 (총 '+total+'행)\n'+DB_TABLES.map(function(t){return t+': '+out.meta.tables[t];}).join('\n'));
 }
 
+// ── 보기용 엑셀: 사람이 읽는 용도(관리자 전용). 열 이름은 "한글 (영문)", 값은 한글, 시각은 한국시간. 복구는 ① JSON 백업으로.
+var XLSX_TABLES=DB_TABLES.concat(['reservation_links','staff_schedules','trade_settle','trade_logs','price_rules','price_rows','tg_trash','audit_logs']);
+var XLSX_LABEL={rooms:'방목록',users:'직원',settings:'설정',stock_settings:'재고설정',used_settings:'중고설정',stock_products:'재고상품',stock_lots:'재고로트',stock_logs:'재고기록',used_products:'중고상품',used_lots:'중고로트',used_logs:'중고기록',reservations:'예약',reservation_links:'예약 추가연결',staff_schedules:'휴무연차',items:'입고표',deliveries:'직배송',delivery_logs:'직배송기록',jonghap_orders:'종합방주문',messages:'메시지',trade_settle:'거래처정산',trade_logs:'거래처정산기록',price_rules:'할인율규칙',price_rows:'단가표',tg_trash:'휴지통',audit_logs:'작업기록(전체)'};
+var XLSX_KO={id:'번호',name:'이름',description:'설명',created_at:'등록시각',updated_at:'수정시각',password:'비밀번호',key:'항목',value:'값',room_id:'방',user_id:'직원',user_name:'작성자',content:'내용',
+ brand:'브랜드',code:'패턴코드',size:'사이즈',ply:'P수',spec:'재원',category:'분류',source:'출처',factory_price:'공장도가',discount_rate:'할인율',real_cost:'실원가',cost:'직접입력원가',price:'판매가',inst_price:'장착가',memo:'메모',target_qty:'목표수량',target_map:'목표수량(사이즈별)',
+ product_id:'상품',dot:'연식',qty:'수량',loc:'위치',src_in:'입고출처',due_date:'예정일',
+ ts:'시각',action:'동작',note:'내용',from_loc:'이전위치',to_loc:'이후위치',channel:'채널',ref:'참조',item_id:'입고분',reverted:'되돌림',detail:'상세',ref_id:'참조번호',parent_id:'상위기록',
+ date_str:'날짜',time_slot:'시간',duration_min:'작업시간(분)',status:'상태',phone:'전화번호',car_no:'차량번호',car_name:'차량명',tire_spec:'타이어',tire_pattern:'패턴',src_kind:'출고 출처',src_product_id:'출고 상품',src_item_id:'출고 입고분',src_dot:'출고 연식',src_qty:'출고 수량',src_lot_id:'출고 로트',src_label:'출고 위치표시',stock_done:'재고 차감됨',src_user:'출고 처리자',
+ align_state:'얼라이먼트',align_amount:'얼라이 금액',chk_align:'작업체크 얼라인',chk_balance:'작업체크 밸런스',chk_air:'작업체크 공기압',chk_tpms:'작업체크 TPMS',work_note:'작업메모',pay_unit:'현장결제 단가',pay_qty:'현장결제 개수',pay_amount:'현장결제 금액',pay_method:'현장결제 수단',pay_method_first:'처음 결제수단',deposit:'예약금(선입금)',pay_type:'결제구분(옛)',done_by:'완료 처리자',done_log:'완료 기록',notice:'안내(옛)',review_notice:'리뷰안내(옛)',alignment:'얼라인(옛)',customer_name:'고객명(옛)',customer_tel:'고객전화(옛)',car_model:'차종(옛)',tire_loc:'타이어위치(옛)',edited_by:'수정자',edited_at:'수정시각',
+ reservation_id:'예약',kind:'종류',lot_id:'로트',staff_name:'직원',created_by:'등록자',logs:'기록',
+ src:'출처',model:'모델',use_note:'용도',cancel_qty:'취소수량',cancelled:'취소',return_done:'반품완료',return_done_date:'반품완료일',is_return:'반품',return_date:'반품일',out_qty:'출고수량',out_at:'출고시각',out_to:'출고처',out_user:'출고자',out_done:'출고완료',cancelled_at:'취소시각',arrived:'실물입고',arrived_at:'실물입고시각',arrived_by:'실물입고 확인자',recv_done:'받기완료',recv_done_by:'받기완료자',recv_done_at:'받기완료시각',
+ tab:'탭',tire:'타이어',addr:'주소',recv:'받는분',tel:'전화',sort_order:'순서',done:'완료',need_done:'완료필요',confirmed:'확인됨',confirmed_by:'확인자',confirmed_at:'확인시각',car:'호차',rolled:'이월됨',done_at:'완료시각',origin_id:'원본카드',first_date:'처음날짜',trade_client:'거래처',unit_price:'출고가',trade_memo:'거래메모',wave_no:'배송묶음',carry_from:'이월출발일',zipcode:'우편번호',ship_type:'배송종류',shop_name:'장착점',cust_recv:'고객 받는분',cust_tel:'고객 전화',cust_addr:'고객 주소',cust_zip:'고객 우편번호',raw_line:'원문',text:'내용',
+ platform:'플랫폼',dtype:'배송구분',order_no:'주문번호',out_target:'출고처',case_kind:'처리유형',matched_id:'연결된 것',matched_kind:'연결 종류',reg_user:'등록자',assignee:'담당',raw_cols:'원문(열)',inbound_item_id:'입고분',
+ out_src:'출고출처',client:'거래처',in_date:'입고일',pattern:'패턴',deliv_date:'배송일',bill_date:'청구일',pay_date:'입금일',out_price:'출고가',sale_price:'판매가',total_cost:'총원가',net_profit:'순이익',net_margin:'순이익률',tax:'세금',payer:'입금자',stmt_amount:'명세금액',src_deliv_id:'직배송카드',deleted:'삭제됨',row_id:'행번호',field:'항목',before_val:'이전값',after_val:'이후값',who:'누가',at:'시각',room:'방',target:'대상',
+ sup:'거래처(율)',sub:'묶음',pattern_name:'패턴명',size_cond:'사이즈조건',org_cond:'원산지조건',inch_cond:'인치조건',dot_cond:'연식조건',apply_kind:'적용종류',rate:'할인율',factory:'공장도가',feat:'특징',inch:'인치',line:'라인',msrp:'소비자가',oe:'OE',org:'원산지',ping_low:'핑최저가',rates:'거래처별 율',size_digits:'사이즈숫자',sup_price:'매입가',sup_src:'매입가 출처',
+ deleted_at:'삭제시각',deleted_by:'삭제자',row_json:'삭제된 내용',table_name:'표 이름','reservations.line':'줄(옛)',align_amt:'얼라이 금액(옛)',align_take:'얼라이 받기(옛)',align_pay:'얼라이 결제(옛)'};
+var XLSX_VAL={tab:{deliv:'직배송',hold:'미출고',parcel:'택배전환',summary:'1호차',car2:'2호차'},channel:{ping:'핑',spam:'스팜',online:'온라인',st11:'11번가',tel:'전화주문',trade:'거래처',bunjang:'번개'},src_kind:{rt:'재고',lot:'재고(로트)',inbound:'입고분'},kind:{rt:'재고',lot:'재고(로트)',inbound:'입고분'},align_state:{none:'없음',inform:'안내함',take:'받기로함'},chk_align:{done:'했음',skip:'안 함'},chk_balance:{done:'했음',skip:'안 함'},chk_air:{done:'했음',skip:'안 함'},chk_tpms:{done:'했음',skip:'안 함'},status:{prog:'진행중',ready:'연결완료',wait:'입고대기',done:'완료',hold:'보류',cxl:'취소'},car:{'1':'대기(미배정)','2':'2호차','3':'1호차','11':'대기1','12':'대기2'},case_kind:{install:'장착',stock:'재고',ledger:'입고분',pending:'미정'},matched_kind:{stock:'재고',ledger:'입고분',item:'입고분'},dtype:{direct:'직배송',parcel:'택배',install:'장착'},ship_type:{dv:'직배송',nn:'일반택배'}};
+function xlsxKst(v){ var d=new Date(v); if(isNaN(d.getTime()))return v; var k=new Date(d.getTime()+9*3600*1000); return k.toISOString().replace('T',' ').slice(0,16); }
 async function dbExportXlsx(){
   if(!dbIsAdmin()){alert('대표 전용입니다');return;}
   try{ await stkLoadXLSX(); }catch(e){ alert('엑셀 라이브러리 로드 실패'); return; }
   var XLSX=window.XLSX; if(!XLSX){ alert('엑셀 모듈을 불러오지 못했어요'); return; }
-  var LABEL={rooms:'방목록',users:'직원',settings:'설정',stock_settings:'재고설정',stock_products:'재고상품',stock_lots:'재고로트',stock_logs:'재고로그',reservations:'예약',items:'입고표',deliveries:'배송',delivery_logs:'배송로그',jonghap_orders:'종합주문',messages:'메시지'};
-  var wb=XLSX.utils.book_new(), total=0;
+  var wb=XLSX.utils.book_new(), total=0, data={}, desc=[['시트','열(한글)','열(영문)','뜻']];
   try{
-    for(var ti=0;ti<DB_TABLES.length;ti++){
-      var t=DB_TABLES[ti], rows=[], from=0, STEP=1000;
+    for(var ti=0;ti<XLSX_TABLES.length;ti++){
+      var t=XLSX_TABLES[ti], rows=[], from=0, STEP=1000;
       while(true){
         var r=await sb.from(t).select('*').range(from,from+STEP-1);
-        if(r.error){ if(/does not exist|relation/i.test(r.error.message||'')){rows=[];break;} throw new Error(t+': '+r.error.message); }
+        if(r.error){ if(/does not exist|relation|schema cache/i.test(r.error.message||'')){rows=[];break;} throw new Error(t+': '+r.error.message); }
         rows=rows.concat(r.data||[]);
         if(!r.data||r.data.length<STEP) break;
         from+=STEP;
       }
-      total+=rows.length;
-      var cols=[]; rows.forEach(function(row){ Object.keys(row||{}).forEach(function(k){ if(cols.indexOf(k)<0)cols.push(k); }); });
-      if(!cols.length)cols=['(빈 테이블)'];
-      var aoa=[cols];
-      rows.forEach(function(row){
-        aoa.push(cols.map(function(k){
-          var v=row?row[k]:'';
-          if(v===null||v===undefined)return '';
-          if(typeof v==='object')v=JSON.stringify(v);
-          v=String(v);
-          if(v.length>32000)v=v.slice(0,32000)+'…(생략)';
-          return v;
-        }));
-      });
-      var ws=XLSX.utils.aoa_to_sheet(aoa);
-      XLSX.utils.book_append_sheet(wb, ws, (LABEL[t]||t).slice(0,31));
+      data[t]=rows;
     }
+    // 번호(UUID) → 사람이 알아볼 이름
+    var LBL={};
+    (data.rooms||[]).forEach(function(x){ LBL[x.id]=x.name||''; });
+    (data.users||[]).forEach(function(x){ LBL[x.id]=x.name||''; });
+    (data.stock_products||[]).forEach(function(x){ LBL[x.id]=[x.brand,x.name,x.size,x.ply].filter(Boolean).join(' '); });
+    (data.items||[]).forEach(function(x){ LBL[x.id]='입고분 '+[x.model,x.spec].filter(Boolean).join(' ')+(x.src?' ['+x.src+']':''); });
+    (data.deliveries||[]).forEach(function(x){ LBL[x.id]='직배송 '+(x.date_str||'')+' '+(x.trade_client||x.recv||'')+' '+String(x.tire||x.spec||'').split('\n')[0].slice(0,30); });
+    (data.reservations||[]).forEach(function(x){ LBL[x.id]='예약 '+(x.date_str||'')+' '+(x.time_slot||'')+' '+(x.car_name||'')+' '+String(x.tire_spec||'').slice(0,30); });
+    (data.jonghap_orders||[]).forEach(function(x){ LBL[x.id]='종합방 '+[x.brand,x.name,x.size].filter(Boolean).join(' ').slice(0,40); });
+    function ko(t,k){ return (XLSX_KO[t+'.'+k]||XLSX_KO[k]||k)+' ('+k+')'; }
+    function val(t,k,v){
+      if(v===null||v===undefined)return '';
+      if(t==='users'&&k==='password')return '(비공개)';
+      if(v===true)return 'O'; if(v===false)return '';
+      if(typeof v==='object'){ v=JSON.stringify(v); }
+      v=String(v);
+      if((t==='audit_logs'||t==='trade_logs')&&(k==='before_val'||k==='after_val')&&/^\{/.test(v.trim())){ try{ var o=JSON.parse(v); var parts=[]; Object.keys(o).forEach(function(kk){ var vv=o[kk]; if(vv===null||vv===undefined||vv==='')return; if(typeof vv==='object')vv=JSON.stringify(vv); vv=String(vv); if(vv==='true')vv='O'; else if(vv==='false')vv='아니오'; else if(XLSX_VAL[kk]&&XLSX_VAL[kk][vv]!==undefined)vv=XLSX_VAL[kk][vv]; else if(/^\d{4}-\d\d-\d\dT\d\d:\d\d/.test(vv))vv=xlsxKst(vv); else if(kk!=='id'&&/_id$/.test(kk)&&LBL[vv])vv=LBL[vv]; parts.push((XLSX_KO[kk]||kk)+': '+vv.slice(0,80)); }); if(parts.length)return parts.join(' · ').slice(0,32000); }catch(_e){} }
+      if(v==='true')return 'O'; if(v==='false')return '';
+      if(XLSX_VAL[k]&&XLSX_VAL[k][v]!==undefined)return XLSX_VAL[k][v];
+      if(/^\d{4}-\d\d-\d\dT\d\d:\d\d/.test(v))return xlsxKst(v);
+      if(k!=='id'&&/(_id|_by_id)$/.test(k)&&LBL[v])return LBL[v]+' ['+v.slice(0,8)+']';
+      if(k==='target'&&t==='audit_logs'){ var m=v.match(/^(\w+)#([0-9a-f-]{36})$/); if(m&&LBL[m[2]])return (XLSX_LABEL[m[1]]||m[1])+' · '+LBL[m[2]]+' ['+m[2].slice(0,8)+']'; }
+      if(v.length>32000)v=v.slice(0,32000)+'…(생략)';
+      return v;
+    }
+    for(var ti2=0;ti2<XLSX_TABLES.length;ti2++){
+      var t2=XLSX_TABLES[ti2], rows2=data[t2]||[]; total+=rows2.length;
+      var cols=[]; rows2.forEach(function(row){ Object.keys(row||{}).forEach(function(k){ if(cols.indexOf(k)<0)cols.push(k); }); });
+      if(!cols.length)continue;   // 빈 표는 시트 안 만듦
+      cols.forEach(function(k){ desc.push([XLSX_LABEL[t2]||t2,(XLSX_KO[t2+'.'+k]||XLSX_KO[k]||''),k,(XLSX_VAL[k]?'값: '+Object.keys(XLSX_VAL[k]).map(function(x){return x+'='+XLSX_VAL[k][x];}).join(', '):'')+((k!=='id'&&/_id$/.test(k))?' 번호 대신 이름으로 표시(뒤 [ ]는 번호 앞 8자리)':'')]); });
+      var aoa=[cols.map(function(k){return ko(t2,k);})];
+      rows2.forEach(function(row){ aoa.push(cols.map(function(k){ return val(t2,k,row?row[k]:''); })); });
+      var ws=XLSX.utils.aoa_to_sheet(aoa); ws['!freeze']={xSplit:0,ySplit:1}; ws['!cols']=cols.map(function(k){ return {wch:Math.min(40,Math.max(8,(XLSX_KO[k]||k).length*2+4))}; });
+      XLSX.utils.book_append_sheet(wb, ws, (XLSX_LABEL[t2]||t2).slice(0,31));
+    }
+    var wsD=XLSX.utils.aoa_to_sheet([['보기용 엑셀 — 눈으로 보는 용도. 복구는 ① JSON 백업으로.'],['열 이름은 "한글 (영문)" — 영문은 프로그램이 쓰는 이름. O=예, 빈칸=아니오. 시각은 한국시간. 번호(긴 영문숫자)는 이름으로 바꿔 표시.'],[]].concat(desc)); wsD['!cols']=[{wch:14},{wch:18},{wch:18},{wch:70}];
+    XLSX.utils.book_append_sheet(wb, wsD, '열 설명'); wb.SheetNames.unshift(wb.SheetNames.pop());
   }catch(e){ alert('엑셀 만드는 중 오류: '+e.message); return; }
-  XLSX.writeFile(wb, '티지_보기용_'+new Date().toISOString().slice(0,10)+'_'+total+'행.xlsx');
+  XLSX.writeFile(wb, '티지_보기용_'+new Date(Date.now()+9*3600*1000).toISOString().slice(0,10)+'_'+total+'행.xlsx');
   try{ if(typeof stkLog==='function') stkLog('📊보기용엑셀','전체 테이블 엑셀 내보내기·총 '+total+'행'); }catch(e){}
   alert('보기용 엑셀 받기 완료 (총 '+total+'행)\n※ 이건 눈으로 보는 용도예요. 복구는 ① JSON 백업으로 하세요.');
 }
