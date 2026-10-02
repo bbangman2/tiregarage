@@ -801,6 +801,12 @@ body.rb-on #app{padding-top:58px}
 #dlv-tseg-row .ts-qty{flex:0 0 40%}
 #dlv-tseg-row .ts-price{flex:0 0 50%}
 #dlv-tseg-row .ts-memo{flex:0 0 50%}
+/* (10/2) 거래처 양식 중 입고방에도 기록되는 칸(출고·패턴·사이즈·수량) 강조 */
+#dlv-tseg-row .seg.inb-link{border:2px solid #7c3aed;background:#f5f3ff}
+#dlv-tseg-row .seg.inb-link .seg-label{color:#6d28d9;font-weight:800}
+.dlv-inb-note{font-size:10.5px;color:#6d28d9;margin:4px 2px 2px;font-weight:700;line-height:1.5}
+.dlv-pv-inb{display:inline-block;font-size:10px;font-weight:800;padding:1px 7px;border-radius:8px;margin-left:4px;white-space:nowrap}
+.dlv-pv-inb.ok{background:#ede9fe;color:#6d28d9}.dlv-pv-inb.no{background:#f1f5f9;color:#64748b}
 #dlv-tseg-row .seg input.ghosted{color:#bbb;font-style:italic}
 /* 출처 드롭다운 */
 .src-dropdown{display:flex;flex-wrap:wrap;gap:5px;padding:8px;background:#f0efec;border-radius:10px;margin-bottom:6px;max-height:130px;overflow-y:auto}
@@ -2249,14 +2255,15 @@ body.rb-on #app{padding-top:58px}
         <div class="dlv-fmt-desc" id="dlv-fmt-desc"></div>
         <div id="dlv-trade-form" style="display:none">
           <div class="seg-row" id="dlv-tseg-row">
-            <div class="seg ts-out"><span class="seg-label">출고</span><input id="t-out" placeholder="창고"></div>
+            <div class="seg ts-out inb-link"><span class="seg-label">출고</span><input id="t-out" placeholder="창고"></div>
             <div class="seg ts-client"><span class="seg-label">거래처</span><input id="t-client" placeholder="황제"></div>
-            <div class="seg ts-pat"><span class="seg-label">패턴</span><input id="t-pat" placeholder="크루젠HP71"></div>
-            <div class="seg f-spec ts-size"><span class="seg-label">사이즈</span><input id="t-size" placeholder="235 60 18 8P"></div>
-            <div class="seg ts-qty"><span class="seg-label">수량</span><input id="t-qty" placeholder="4" inputmode="numeric"></div>
+            <div class="seg ts-pat inb-link"><span class="seg-label">패턴</span><input id="t-pat" placeholder="크루젠HP71"></div>
+            <div class="seg f-spec ts-size inb-link"><span class="seg-label">사이즈</span><input id="t-size" placeholder="235 60 18 8P"></div>
+            <div class="seg ts-qty inb-link"><span class="seg-label">수량</span><input id="t-qty" placeholder="4" inputmode="numeric"></div>
             <div class="seg ts-price"><span class="seg-label">출고가</span><input id="t-price" placeholder="개당" inputmode="numeric"></div>
             <div class="seg ts-memo"><span class="seg-label">메모</span><input id="t-memo" placeholder="(선택)"></div>
           </div>
+          <div class="dlv-inb-note">📦 보라 테두리 칸(출고·패턴·사이즈·수량)은 등록하는 순간 <b>입고방에도 기록</b>됩니다. 출고처가 창고·빈칸·여러 곳이면 입고방엔 안 들어갑니다. 연식은 사이즈 뒤에 "26년"처럼 적으면 같이 넘어갑니다.</div>
           <div class="item-add-row">
             <button class="item-add-btn ghost" onclick="dlvTradeClear()">지우기</button>
             <button class="item-add-btn" onclick="dlvTradeAddPreview()">＋ 미리보기 추가</button>
@@ -6668,6 +6675,7 @@ async function dlvCancel(id){
     tabLogAppend('dlv', String(root), ((c.trade_client||c.recv||c.tire||'')+'').slice(0,40)||'(제목없음)', (me?me.name:'?')+'(취소 '+_tlNow()+')', c.date_str||dlvDateStr());
     await sb.from('delivery_logs').insert({room_id:curRoom.id,date_str:dlvDateStr(),text:(me?me.name:'?')+'님이 취소함 ('+(c.recv||c.tire||'')+') [#'+_dlvId8(c)+']',user_name:me?me.name:''});
     logAudit('직배송 취소', (c.trade_client||c.recv||c.tire||''));
+    if(c.channel==='trade'){ try{ var _ic=await dlvInbCancelFor(c); if(_ic.done||_ic.blocked){ dlvLog('입고방 연동: 취소 '+_ic.done+'건'+(_ic.blocked?' · 이미 처리돼 못 취소 '+_ic.blocked+'건':''),c); if(_ic.blocked)alert('입고방에서 이미 실물입고·출고 처리된 줄 '+_ic.blocked+'건은 취소하지 않았어요 — 입고방에서 확인해주세요'); } }catch(_e){} }
   }catch(e){alert('취소 실패: '+e.message);}
   await loadDeliveries();
 }
@@ -6680,6 +6688,7 @@ async function dlvUncancel(id){
     tabLogAppend('dlv', String(c.origin_id||c.id), ((c.trade_client||c.recv||c.tire||'')+'').slice(0,40)||'(제목없음)', (me?me.name:'?')+'(취소되돌리기 '+_tlNow()+')', c.date_str||dlvDateStr());
     await sb.from('delivery_logs').insert({room_id:curRoom.id,date_str:dlvDateStr(),text:(me?me.name:'?')+'님이 취소 되돌림 ('+(c.recv||c.tire||'')+') [#'+_dlvId8(c)+']',user_name:me?me.name:''});
     logAudit('직배송 취소 되돌림', (c.trade_client||c.recv||c.tire||''));
+    if(c.channel==='trade'){ try{ var _iu=await dlvInbUncancelFor(c); if(_iu)dlvLog('입고방 연동: 복구 '+_iu+'건',c); }catch(_e){} }
   }catch(e){alert('실패: '+e.message);}
   await loadDeliveries();
 }
@@ -7338,7 +7347,7 @@ function dlvRenderPreview(){
     if(d.channel==='trade'){
       h+='<div class="dlv-pv-card trade">';
       h+='<div class="dlv-pv-card trade"'.slice(0,0);
-      h+='<div class="dlv-pv-top"><span class="dtag trade">거래처</span>'+(d._edited?'<span style="background:#fef3c7;color:#b45309;font-size:10px;font-weight:800;padding:1px 7px;border-radius:8px;margin-left:4px">수정됨</span>':'')+'<span class="dc-src">출고: '+esc(d.src||'-')+' · 거래처: '+esc(d.trade_client||'-')+'</span><span style="margin-left:auto;display:inline-flex;gap:4px"><button onclick="dlvPvEdit('+idx+')" style="border:1px solid #0d9488;background:#fff;color:#0d9488;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:700;cursor:pointer">✏️ 수정</button><button onclick="dlvPvDel('+idx+')" style="border:1px solid #dc2626;background:#fff;color:#dc2626;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:700;cursor:pointer">✕</button></span></div>';
+      h+='<div class="dlv-pv-top"><span class="dtag trade">거래처</span>'+dlvInbBadge(d)+(d._edited?'<span style="background:#fef3c7;color:#b45309;font-size:10px;font-weight:800;padding:1px 7px;border-radius:8px;margin-left:4px">수정됨</span>':'')+'<span class="dc-src">출고: '+esc(d.src||'-')+' · 거래처: '+esc(d.trade_client||'-')+'</span><span style="margin-left:auto;display:inline-flex;gap:4px"><button onclick="dlvPvEdit('+idx+')" style="border:1px solid #0d9488;background:#fff;color:#0d9488;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:700;cursor:pointer">✏️ 수정</button><button onclick="dlvPvDel('+idx+')" style="border:1px solid #dc2626;background:#fff;color:#dc2626;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:700;cursor:pointer">✕</button></span></div>';
       h+='<div class="dlv-pv-tire">'+esc(d.tire||'')+'<span class="sz">'+esc(d.spec||'')+'</span><span class="br">'+esc(d.qty||'?')+'개'+(d.unit_price?' · '+esc(d.unit_price)+'원':'')+'</span></div>';
       if(d.trade_memo)h+='<div class="dlv-pv-line">📝 '+esc(d.trade_memo)+'</div>';
       h+='</div>';
@@ -7403,6 +7412,7 @@ async function dlvPasteRegister(){
       }else{alert('수정 실패: '+e.message);return;}
     }
     dlvLog('내용 수정 — '+(fields.recv||fields.trade_client||'')+' · '+(fields.tire||''),{id:dlvEditId});
+    if(d.channel==='trade'){ try{ var _ec=deliveriesCache.find(function(x){return x.id===dlvEditId;})||{id:dlvEditId}; var _es=await dlvInbSyncEdit(_ec,d); if(_es){ dlvLog('입고방 연동: '+_es,{id:dlvEditId}); } }catch(_e){} }
     dlvEditId=null;
     document.getElementById('dlv-paste').value='';
     dlvClearPreview();
@@ -7422,7 +7432,7 @@ async function dlvPasteRegister(){
       cust_recv:(d.cust_recv||undefined),cust_tel:(d.cust_tel||undefined),cust_addr:(d.cust_addr||undefined),cust_zip:(d.cust_zip||undefined)};
   });
   var _insRows=[];
-  async function _ins(rs){ const _r=await sb.from('deliveries').insert(rs).select('id,recv,tire,channel,trade_client,tab'); if(_r.error)throw _r.error; _insRows=(_r.data||[]); }
+  async function _ins(rs){ const _r=await sb.from('deliveries').insert(rs).select('id,recv,tire,channel,trade_client,tab,origin_id,src,spec,qty'); if(_r.error)throw _r.error; _insRows=(_r.data||[]); }
   /* ★단일 등록 경로 — 여기서 insert는 성공 시 딱 한 번만 실행된다.
      칼럼이 아직 없는 환경(SQL 미실행)이면 그 칸만 떼고 다시 시도하되, 성공하면 즉시 끝낸다.
      (2026-08-05: 폴백 블록이 두 벌 남아 카드가 2개씩 등록되던 버그 수정) */
@@ -7439,6 +7449,11 @@ async function dlvPasteRegister(){
   }
   if(!_done){ alert('등록 실패: '+_lastErr); return; }
   try{ if(_insRows.length){ await sb.from('delivery_logs').insert(_insRows.map(function(r){ return {room_id:curRoom.id,date_str:ds,text:(me?me.name:'?')+'님이 등록 ('+(DCH_LABEL[r.channel]||r.channel||'')+' · '+(r.recv||r.trade_client||'')+' · '+(r.tire||'')+') [#'+_dlvId8(r)+']',user_name:me?me.name:''}; })); } }catch(_e){}
+  // (10/2) 거래처 양식은 등록하는 순간 입고방에도 기록 — 처음 입력 때 한 번만(이월 카드는 안 탐)
+  try{ if(dlvParsed.some(function(d){return d&&d.channel==='trade';})){ var _ir=await dlvInbRegister(dlvParsed,_insRows);
+    var _msg=''; if(_ir.ok)_msg+='📦 입고방에도 기록: '+_ir.ok+'건'; if(_ir.skip&&_ir.skip.length)_msg+=(_msg?'\n':'')+'입고방 제외: '+_ir.skip.join(', '); if(_ir.fail)_msg+=(_msg?'\n':'')+'입고방 실패: '+_ir.fail+'건';
+    if(_msg){ try{ await sb.from('delivery_logs').insert({room_id:curRoom.id,date_str:ds,text:(me?me.name:'?')+'님 등록 → '+_msg.replace(/\n/g,' / '),user_name:me?me.name:''}); }catch(_e2){} if(_ir.ok||_ir.fail)alert(_msg); }
+  } }catch(_e){}
   document.getElementById('dlv-paste').value='';
   dlvClearPreview();
   closeDlvSheet();
@@ -11288,6 +11303,74 @@ function fmtTel(raw){
   if(d.length===9&&d.slice(0,2)==='02')return '02-'+d.slice(2,5)+'-'+d.slice(5);  // 02-XXX-XXXX
   if(d.length===8)return d.slice(0,4)+'-'+d.slice(4);                            // 1588-1234
   return d;
+}
+// ═══ (10/2) 거래처 양식 → 입고방 자동 등록 ═══
+var DLV_INB_ALIAS={'미치다':'타이어에미치다','타이어에미치다':'타이어에미치다','하나':'하나타이어','한타':'한타주문'};
+function dlvInbJudge(d){ // 거래처 카드 하나를 입고방에 넣을지 판정
+  var src=String(d&&d.src||'').trim();
+  if(!src)return {ok:false,why:'출고처 빈칸'};
+  if(/창고|재고|회수|택배|핑/.test(src))return {ok:false,why:src};
+  if(/[,，\/+&]|\d/.test(src))return {ok:false,why:'여러 곳('+src+')'};
+  var al=DLV_INB_ALIAS[src.replace(/\s+/g,'')]; if(al)src=al;
+  var qty=parseInt(String(d.qty||'').replace(/[^0-9]/g,''),10);
+  if(!qty)return {ok:false,why:'수량 없음'};
+  if(!String(d.tire||'').trim()&&!String(d.spec||'').trim())return {ok:false,why:'패턴·사이즈 없음'};
+  return {ok:true,src:src,qty:qty};
+}
+function dlvInbItemOf(d,card){ // 입고방 items 행 만들기 (못 넣는 카드는 null)
+  var j=dlvInbJudge(d); if(!j.ok)return null;
+  var who=(typeof me!=='undefined'&&me&&me.name)||'?';
+  var pat=String(d.tire||'').replace(/\s+/g,' ').trim();
+  var model=(typeof jhNormModel==='function'&&jhNormModel(pat))||pat.toUpperCase()||'(패턴없음)';
+  var spec=String(d.spec||'').replace(/(\d{1,2})\s*p(r)?\b/gi,'$1P').replace(/\s+/g,' ').trim();
+  var yr=((d.spec||'')+' '+(d.tire||'')+' '+(d.trade_memo||'')).match(/(\d{2})\s*년|\b20(\d{2})\b/);
+  if(yr&&!/년/.test(spec))spec=(spec+' '+(yr[1]||yr[2])+'년').trim();
+  if(!yr)spec=(spec+' 연식확인').trim();
+  var client=String(d.trade_client||'').trim();
+  var root=card?(card.origin_id||card.id):null;
+  return {room_id:jhInboundRoomId(),date_str:getTodayISO(),src:j.src,model:model,spec:spec,qty:j.qty,use_note:'거래처 직배송 → '+(client||'(거래처 미기입)'),cancel_qty:0,cancelled:false,
+    logs:[{type:'',text:'🚚 직배송방 거래처양식 자동등록 — '+who+' ('+getTodayISO()+')'+(card?' [#'+_dlvId8(card)+']':''),dlv_root:root,dlv_id:(card?card.id:null),at:Date.now()},
+          {type:'',text:'📋 출고 '+(d.src||'')+' · 거래처 '+client+(d.unit_price?' · 출고가 '+d.unit_price:'')+(d.trade_memo?' · '+String(d.trade_memo).slice(0,60):'')}],
+    user_name:who};
+}
+function dlvInbBadge(d){ var j=dlvInbJudge(d); return j.ok?'<span class="dlv-pv-inb ok" title="등록하면 입고방에도 기록됩니다">📦 입고방 ✓ '+esc(j.src)+'</span>':'<span class="dlv-pv-inb no" title="입고방에는 안 들어갑니다">입고방 ✗ '+esc(j.why)+'</span>'; }
+async function dlvInbRegister(parsed,inserted){ // 등록 직후: 미리보기 줄과 DB 행을 순서로 짝지어 입고방에 넣는다
+  var items=[],skip=[];
+  for(var i=0;i<parsed.length;i++){ var d=parsed[i]; if(!d||d.channel!=='trade')continue; var c=inserted[i]||null; var it=dlvInbItemOf(d,c); if(it)items.push(it); else skip.push(dlvInbJudge(d).why); }
+  if(!items.length)return {ok:0,skip:skip,fail:0};
+  var rid=jhInboundRoomId(); if(!rid){ alert('입고방을 찾을 수 없어 입고 기록은 못 했어요'); return {ok:0,skip:skip,fail:items.length}; }
+  try{ var r=await sb.from('items').insert(items).select('id'); if(r.error)throw r.error;
+    try{ logAudit('직배송 거래처양식→입고방 자동등록', (r.data||[]).length+'건'); }catch(_e){}
+    return {ok:(r.data||[]).length,skip:skip,fail:0};
+  }catch(e){ alert('입고방 자동 등록 실패: '+e.message+'\n(직배송방 등록은 됐습니다 — 입고방에 직접 적어주세요)'); return {ok:0,skip:skip,fail:items.length}; }
+}
+async function dlvInbLinked(card){ // 카드(뿌리 id) ↔ 입고방 줄 찾기 — logs 안의 dlv_root로
+  var root=card?(card.origin_id||card.id):null; if(!root)return [];
+  try{ var r=await sb.from('items').select('*').contains('logs',JSON.stringify([{dlv_root:root}])); return (r.data||[]); }catch(e){ return []; }   // jsonb 배열 포함 검색은 문자열(JSON)로 넘겨야 함(배열로 넘기면 PG 배열 문법으로 바뀌어 오류)
+}
+function dlvInbProcessed(it){ return !!(it.arrived||(parseInt(it.out_qty,10)||0)>0||it.recv_done||it.out_done||it.return_done); }
+async function dlvInbCancelFor(card){ // 카드 취소 → 처리 전 입고방 줄 취소
+  var its=await dlvInbLinked(card); var done=0,blocked=0;
+  for(var i=0;i<its.length;i++){ var it=its[i]; if(it.cancelled)continue; if(dlvInbProcessed(it)){blocked++;continue;}
+    var lg=Array.isArray(it.logs)?it.logs.slice():[]; lg.push({type:'cancel',text:'✕ 직배송 카드 취소에 따라 취소 — '+((me&&me.name)||'?'),dlv_cancel:1,at:Date.now()});
+    try{ var r=await sb.from('items').update({cancelled:true,cancelled_at:new Date().toISOString(),logs:lg}).eq('id',it.id); if(!r.error)done++; }catch(e){} }
+  return {done:done,blocked:blocked};
+}
+async function dlvInbUncancelFor(card){ // 취소 되돌림 → 카드 취소로 취소됐던 줄만 복구
+  var its=await dlvInbLinked(card); var done=0;
+  for(var i=0;i<its.length;i++){ var it=its[i]; if(!it.cancelled)continue; var lg=Array.isArray(it.logs)?it.logs:[]; if(!lg.some(function(l){return l&&l.dlv_cancel;}))continue;
+    lg=lg.filter(function(l){return !(l&&l.dlv_cancel);}); lg.push({type:'',text:'↩️ 직배송 취소 되돌림에 따라 복구 — '+((me&&me.name)||'?'),at:Date.now()});
+    try{ var r=await sb.from('items').update({cancelled:false,cancelled_at:null,logs:lg}).eq('id',it.id); if(!r.error)done++; }catch(e){} }
+  return done;
+}
+async function dlvInbSyncEdit(card,d){ // 카드 수정 → 처리 전 줄 갱신 (출고처가 창고로 바뀌면 취소, 줄이 없었는데 이제 되면 등록)
+  var its=(await dlvInbLinked(card)).filter(function(it){return !it.cancelled;});
+  var it=dlvInbItemOf(d,card);
+  if(!its.length){ if(it){ try{ var r0=await sb.from('items').insert(it); return r0.error?'등록실패':'등록'; }catch(e){ return '등록실패'; } } return ''; }
+  var tgt=its[0]; if(dlvInbProcessed(tgt))return '입고방에서 이미 처리돼 안 고침';
+  if(!it){ await dlvInbCancelFor(card); return '취소(출고처가 창고·빈칸으로 바뀜)'; }
+  var lg=Array.isArray(tgt.logs)?tgt.logs.slice():[]; lg.push({type:'edit',text:'✏️ 직배송 카드 수정 반영 — '+((me&&me.name)||'?')+' ('+tgt.model+' '+tgt.spec+' ×'+tgt.qty+' → '+it.model+' '+it.spec+' ×'+it.qty+')',at:Date.now()});
+  try{ var r=await sb.from('items').update({src:it.src,model:it.model,spec:it.spec,qty:it.qty,use_note:it.use_note,logs:lg}).eq('id',tgt.id); return r.error?'수정실패':'수정'; }catch(e){ return '수정실패'; }
 }
 function dlvTradeAddPreview(){
   function gv(id){var e=document.getElementById(id);return e?(e.value||'').trim():'';}
