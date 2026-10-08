@@ -801,6 +801,7 @@ body.rb-on #app{padding-top:58px}
 #dlv-tseg-row .ts-qty{flex:0 0 40%}
 #dlv-tseg-row .ts-price{flex:0 0 50%}
 #dlv-tseg-row .ts-memo{flex:0 0 50%}
+#dlv-tseg-row .ts-recv{flex:0 0 50%}#dlv-tseg-row .ts-tel{flex:0 0 35%}#dlv-tseg-row .ts-addr{flex:0 0 65%;min-width:0}#dlv-tseg-row .ts-memo{flex:0 0 100%}
 /* (10/2) 거래처 양식 중 입고방에도 기록되는 칸(출고·패턴·사이즈·수량) 강조 */
 #dlv-tseg-row .seg.inb-link{border:2px solid #7c3aed;background:#f5f3ff}
 #dlv-tseg-row .seg.inb-link .seg-label{color:#6d28d9;font-weight:800}
@@ -894,6 +895,7 @@ body.rb-on #app{padding-top:58px}
 #qt-modal .paste-modal:fullscreen{max-width:none;max-height:none;width:100%;height:100%;border-radius:0;overflow:auto;background:#fff}
 .qt-rotbar{display:flex;align-items:center;gap:8px;background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:9px;padding:7px 10px;margin-bottom:8px;font-size:12px;color:#1e40af;font-weight:700}
 .qt-rotbar button{border:none;background:#2563eb;color:#fff;border-radius:7px;padding:7px 12px;font-size:12.5px;font-weight:800;cursor:pointer;white-space:nowrap}
+@media(max-width:900px){ .modal-bg#qt-modal{padding:0} #qt-modal .paste-modal{padding:10px 8px 16px;max-width:none;border-radius:0} }   /* 폰 가로: 여백 줄여 9칸 표(760px)가 들어가게 */
 #qt-print{display:none}
 /* 인쇄: 견적서만 A4 한 장으로 */
 @media print{
@@ -2219,8 +2221,7 @@ body.rb-on #app{padding-top:58px}
       </div>
       <input type="hidden" id="rsv-dt12">
       <div id="rsv-dt12out" style="font-size:12px;color:#185fa5;margin:-1px 0 6px"></div>
-      <div id="rsv-chipday" class="rsv-chiprow"></div>
-      <div id="rsv-chiptime" class="rsv-chiprow" style="margin-bottom:9px"></div>
+      <!-- (10/8) 오늘/내일/모레·시간 칩 제거 — 일시 칸으로만 입력 -->
       <label>전화번호<input id="rsv-phone" inputmode="tel" placeholder="010-1234-5678"></label><label>차량번호<input id="rsv-carno" placeholder="12가 3456"></label><label>차량명<input id="rsv-carname" placeholder="그랜저 IG"></label><label>특이사항<input id="rsv-memo" placeholder="예: 앞쪽 편마모 / 휠보관 1짝"></label>
       <div id="rsv-tireline" style="font-size:12px;color:#666;background:#f3f3f0;border-radius:7px;padding:7px 9px;margin:6px 0;display:none"></div>
       <div id="rsv-outqtyrow" style="display:none;align-items:center;gap:7px;margin:6px 0">
@@ -2377,9 +2378,12 @@ body.rb-on #app{padding-top:58px}
             <div class="seg f-spec ts-size inb-link"><span class="seg-label">사이즈</span><input id="t-size" placeholder="235 60 18 8P"></div>
             <div class="seg ts-qty inb-link"><span class="seg-label">수량</span><input id="t-qty" placeholder="4" inputmode="numeric"></div>
             <div class="seg ts-price"><span class="seg-label">출고가</span><input id="t-price" placeholder="개당" inputmode="numeric"></div>
+            <div class="seg ts-recv"><span class="seg-label">받는분</span><input id="t-recv" placeholder="(선택)"></div>
+            <div class="seg ts-tel"><span class="seg-label">전화</span><input id="t-tel" placeholder="(선택)" inputmode="tel"></div>
+            <div class="seg f-spec ts-addr"><span class="seg-label">주소</span><input id="t-addr" placeholder="(선택 · 띄어쓰기 자유)"></div>
             <div class="seg ts-memo"><span class="seg-label">메모</span><input id="t-memo" placeholder="(선택)"></div>
           </div>
-          <div class="dlv-inb-note">📦 보라 테두리 칸(출고·패턴·사이즈·수량)은 등록하는 순간 <b>입고방에도 기록</b>됩니다. 출고처가 창고·빈칸·여러 곳이면 입고방엔 안 들어갑니다. 연식은 사이즈 뒤에 "26년"처럼 적으면 같이 넘어갑니다.</div>
+          <div class="dlv-inb-note">📦 보라 테두리 칸(출고·패턴·사이즈·수량)은 등록하는 순간 <b>입고방에도 기록</b>됩니다. 출고처가 창고·빈칸이면 입고방엔 안 들어갑니다. 출고를 <b>매일2창고2</b>처럼 적으면 창고 몫은 빼고 "매일 2개"만 입고방에 들어갑니다(여러 거래처면 줄이 여러 개). 연식은 사이즈 뒤에 "26년"처럼 적으면 같이 넘어갑니다.</div>
           <div class="item-add-row">
             <button class="item-add-btn ghost" onclick="dlvTradeClear()">지우기</button>
             <button class="item-add-btn" onclick="dlvTradeAddPreview()">＋ 미리보기 추가</button>
@@ -6334,7 +6338,7 @@ function dlvSummaryCard(c,idx,list){
     h+='<div class="dsd-line">🏭 출고: <b>'+esc(c.src||'-')+'</b> · 거래처: <b>'+esc(c.trade_client||'-')+'</b></div>';
     h+='<div class="dsd-line">🛞 '+esc(c.tire||'')+(c.spec?' · '+esc(c.spec):'')+' · '+esc(c.qty||'?')+'개'+(c.unit_price?' · 개당 '+esc(c.unit_price)+'원':'')+'</div>';
     if(c.trade_memo)h+='<div class="dsd-line">📝 '+esc(c.trade_memo)+'</div>';
-    if(!c.trade_client&&!c.spec&&!c.unit_price&&!c.trade_memo){ // 옛 자유입력분: 남은 정보 전부 표시
+    if(c.addr||c.recv||c.tel){ // 받는분·전화·주소가 있으면 표시 (옛 자유입력분 포함)
       if(c.addr)h+='<div class="dsd-line">📍 '+dlvZipTag(c)+'<a href="'+dlvMapLink(c.addr)+'" target="_blank" rel="noopener">'+esc(c.addr)+'</a></div>';
       if(c.recv||c.tel)h+='<div class="dsd-line">👤 '+esc(c.recv||'')+(c.tel?' · 📞 <a href="tel:'+dlvTelLink(c.tel)+'">'+esc(c.tel)+'</a>':'')+'</div>';
     }
@@ -6406,7 +6410,7 @@ function dlvCardHtml(c,idx,list){
   }else{
     h+='<div class="dc-tire">'+(c.code?'<span class="dc-code">['+esc(c.code)+']</span> ':'')+esc(c.tire||'')+'<span class="brand">'+esc(c.brand||'')+'</span><span class="qty">'+esc(c.qty||'')+'개</span></div>';
   }
-  if(c.channel!=='trade'||(!c.trade_client&&!c.spec&&!c.unit_price&&!c.trade_memo&&(c.addr||c.recv||c.tel))){
+  if(c.channel!=='trade'||(c.addr||c.recv||c.tel)){   // 거래처 카드도 받는분·전화·주소가 있으면 표시 (10/8)
     if(c.addr)h+='<div class="dc-addr">📍 '+dlvZipTag(c)+'<a href="'+dlvMapLink(c.addr)+'" target="_blank" rel="noopener" onclick="event.stopPropagation()">'+esc(c.addr)+'</a></div>';
     if(c.recv||c.tel)h+='<div class="dc-recv"><span class="name">'+esc(c.recv||'')+'</span>'+(c.tel?' · <a class="tel" href="tel:'+dlvTelLink(c.tel)+'" onclick="event.stopPropagation()">'+esc(c.tel)+'</a>':'')+'</div>';
   }
@@ -6906,9 +6910,9 @@ function dlvEdit(id){
   document.getElementById('dlv-paste').value=dlvCardToText(c);
   if(c.channel==='trade'){
     // 거래처: 칸 폼에 각 값 복원 + 미리보기(새 필드)
-    var _fill=function(){ var set=function(id,v){var e=document.getElementById(id);if(e){e.value=(v==null?'':String(v));e.classList.remove('ghosted');}}; set('t-out',c.src);set('t-client',c.trade_client);set('t-pat',c.tire);set('t-size',c.spec);set('t-qty',c.qty);set('t-price',c.unit_price);set('t-memo',c.trade_memo); };
+    var _fill=function(){ var set=function(id,v){var e=document.getElementById(id);if(e){e.value=(v==null?'':String(v));e.classList.remove('ghosted');}}; set('t-out',c.src);set('t-client',c.trade_client);set('t-pat',c.tire);set('t-size',c.spec);set('t-qty',c.qty);set('t-price',c.unit_price);set('t-memo',c.trade_memo);set('t-recv',c.recv);set('t-tel',c.tel);set('t-addr',c.addr); };
     _fill(); setTimeout(_fill,60);
-    dlvParsed=[{channel:'trade',code:'',src:c.src||'',trade_client:c.trade_client||'',tire:c.tire||'',spec:c.spec||'',year:'',brand:'',qty:c.qty||'',unit_price:c.unit_price||'',trade_memo:c.trade_memo||'',addr:'',recv:'',tel:'',multiline:false}];
+    dlvParsed=[{channel:'trade',code:'',src:c.src||'',trade_client:c.trade_client||'',tire:c.tire||'',spec:c.spec||'',year:'',brand:'',qty:c.qty||'',unit_price:c.unit_price||'',trade_memo:c.trade_memo||'',addr:c.addr||'',recv:c.recv||'',tel:c.tel||'',multiline:false}];
   }else{
     dlvParsed=[{channel:c.channel,code:c.code||'',src:c.src||'',tire:c.tire||'',spec:'',year:'',brand:c.brand||'',qty:c.qty||'',zipcode:dlvZip5(c.zipcode||''),addr:c.addr||'',recv:c.recv||'',tel:c.tel||''}];
   }
@@ -7531,6 +7535,7 @@ function dlvRenderPreview(){
       h+='<div class="dlv-pv-card trade"'.slice(0,0);
       h+='<div class="dlv-pv-top"><span class="dtag trade">거래처</span>'+dlvInbBadge(d)+(d._edited?'<span style="background:#fef3c7;color:#b45309;font-size:10px;font-weight:800;padding:1px 7px;border-radius:8px;margin-left:4px">수정됨</span>':'')+'<span class="dc-src">출고: '+esc(d.src||'-')+' · 거래처: '+esc(d.trade_client||'-')+'</span><span style="margin-left:auto;display:inline-flex;gap:4px"><button onclick="dlvPvEdit('+idx+')" style="border:1px solid #0d9488;background:#fff;color:#0d9488;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:700;cursor:pointer">✏️ 수정</button><button onclick="dlvPvDel('+idx+')" style="border:1px solid #dc2626;background:#fff;color:#dc2626;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:700;cursor:pointer">✕</button></span></div>';
       h+='<div class="dlv-pv-tire">'+esc(d.tire||'')+'<span class="sz">'+esc(d.spec||'')+'</span><span class="br">'+esc(d.qty||'?')+'개'+(d.unit_price?' · '+esc(d.unit_price)+'원':'')+'</span></div>';
+      if(d.recv||d.tel||d.addr)h+='<div class="dlv-pv-line">👤 '+esc(d.recv||'')+(d.tel?' · '+esc(d.tel):'')+(d.addr?' · 📍 '+esc(d.addr):'')+'</div>';
       if(d.trade_memo)h+='<div class="dlv-pv-line">📝 '+esc(d.trade_memo)+'</div>';
       h+='</div>';
       return;
@@ -7561,7 +7566,7 @@ function dlvClearPreview(){dlvParsed=[];dlvAutoErrs=[];const a=document.getEleme
 async function dlvPasteRegister(){
   if(SDV&&SDV.mode==='new'){   // 재고표 → 당일배송 새 카드
     if(dlvPasteFmt==='trade'){
-      var _tf2=['t-out','t-client','t-pat','t-size','t-qty','t-price','t-memo'];
+      var _tf2=['t-out','t-client','t-pat','t-size','t-qty','t-price','t-recv','t-tel','t-addr','t-memo'];
       var _ty2=_tf2.some(function(id){ var e=document.getElementById(id); return !!(e&&(e.value||'').trim()&&!e.classList.contains('ghosted')); });
       if(_ty2&&typeof dlvTradeAddPreview==='function')dlvTradeAddPreview();
     }
@@ -7575,7 +7580,7 @@ async function dlvPasteRegister(){
   }
   if(!dlvGuardEdit())return;
   if(!dlvEditId&&dlvPasteFmt==='trade'){   // 미리보기 추가를 안 눌렀어도 새로 입력한 값은 등록에 포함(수정 모드 제외)
-    var _tf=['t-out','t-client','t-pat','t-size','t-qty','t-price','t-memo'];
+    var _tf=['t-out','t-client','t-pat','t-size','t-qty','t-price','t-recv','t-tel','t-addr','t-memo'];
     var _typed=_tf.some(function(id){ var e=document.getElementById(id); return !!(e&&(e.value||'').trim()&&!e.classList.contains('ghosted')); });
     if(_typed&&typeof dlvTradeAddPreview==='function')dlvTradeAddPreview();
   }
@@ -11452,10 +11457,10 @@ function segPrev(ids,pos){if(pos>0){const p=document.getElementById(ids[pos-1]);
 function updateFilled(){['i-src','i-model','i-spec','i-qty','i-use','i-chg'].forEach(function(id){const el=document.getElementById(id);if(el)el.classList.toggle('filled',el.value.trim().length>0);});}
 // ===== 거래처 칸 입력 (띄어쓰기 칸이동: 사이즈만 2번, 메모는 이동없음) =====
 (function initTradeSegs(){
-  var TIDS=['t-out','t-client','t-pat','t-size','t-qty','t-price','t-memo'];
+  var TIDS=['t-out','t-client','t-pat','t-size','t-qty','t-price','t-recv','t-tel','t-addr','t-memo'];
   TIDS.forEach(function(id,pos){
     var input=document.getElementById(id); if(!input)return;
-    var isDbl=(id==='t-size'); var isMemo=(id==='t-memo'); var isTel=(id==='t-tel');
+    var isDbl=(id==='t-size'); var isMemo=(id==='t-memo'||id==='t-addr'); var isTel=(id==='t-tel');   // 주소·메모는 띄어쓰기 자유(칸 이동 없음)
     input.addEventListener('keydown',function(e){
       // 불투명 값이 있는 칸에서 문자 입력 시작 → 원래값 기억해두고 공란
       if(input.classList.contains('ghosted')&&e.key===' '){ e.preventDefault(); segNext(TIDS,pos); return; }   // 흐릿 값 그대로 두고 다음 칸
@@ -11486,7 +11491,7 @@ function updateFilled(){['i-src','i-model','i-spec','i-qty','i-use','i-chg'].for
     });
   });
 })();
-function dlvTradeClearInputs(){['t-out','t-client','t-pat','t-size','t-qty','t-price','t-memo'].forEach(function(id){var e=document.getElementById(id);if(e){e.value='';e.classList.remove('ghosted');e.dataset.ghostVal='';}});}
+function dlvTradeClearInputs(){['t-out','t-client','t-pat','t-size','t-qty','t-price','t-recv','t-tel','t-addr','t-memo'].forEach(function(id){var e=document.getElementById(id);if(e){e.value='';e.classList.remove('ghosted');e.dataset.ghostVal='';}});}
 function dlvTradeClear(){ dlvTradeClearInputs(); var e=document.getElementById('t-out'); if(e)e.focus(); }
 function fmtTel(raw){
   var d=(raw||'').replace(/\D/g,''); if(!d)return '';
@@ -11498,20 +11503,31 @@ function fmtTel(raw){
 }
 // ═══ (10/2) 거래처 양식 → 입고방 자동 등록 ═══
 var DLV_INB_ALIAS={'미치다':'타이어에미치다','타이어에미치다':'타이어에미치다','하나':'하나타이어','한타':'한타주문'};
-function dlvInbJudge(d){ // 거래처 카드 하나를 입고방에 넣을지 판정
-  var src=String(d&&d.src||'').trim();
-  if(!src)return {ok:false,why:'출고처 빈칸'};
-  if(/창고|재고|회수|택배|핑/.test(src))return {ok:false,why:src};
-  if(/[,，\/+&]|\d/.test(src))return {ok:false,why:'여러 곳('+src+')'};
-  var al=DLV_INB_ALIAS[src.replace(/\s+/g,'')]; if(al)src=al;
-  try{ if(typeof srcCanon==='function')src=srcCanon(src); }catch(_e){}   // 출처 관리의 별칭(10/8)
-  var qty=parseInt(String(d.qty||'').replace(/[^0-9]/g,''),10);
-  if(!qty)return {ok:false,why:'수량 없음'};
-  if(!String(d.tire||'').trim()&&!String(d.spec||'').trim())return {ok:false,why:'패턴·사이즈 없음'};
-  return {ok:true,src:src,qty:qty};
+function dlvInbParseOut(srcRaw,cardQty){ // 출고 칸 해석 (10/8): '매일2창고2' → [{src:'매일',qty:2}] — 창고·재고·회수·택배·핑 몫은 제외, 숫자 없는 한 곳이면 카드 수량
+  var s=String(srcRaw||'').trim(); if(!s)return {segs:[],why:'출고처 빈칸'};
+  var re=/([^\d,，\/+&\s]+)\s*(\d+)?/g, m, segs=[], wh=[];
+  while((m=re.exec(s))){ var nm=m[1].trim(), q=(m[2]!=null)?parseInt(m[2],10):null; if(!nm)continue; if(/창고|재고|회수|택배|핑/.test(nm))wh.push(nm+(q!=null?q:'')); else segs.push({name:nm,qty:q}); }
+  if(!segs.length)return {segs:[],why:(wh.length?wh.join(' '):s)};
+  if(segs.length===1&&segs[0].qty==null)segs[0].qty=cardQty||null;
+  var noQ=segs.filter(function(x){return !x.qty;});
+  if(noQ.length)return {segs:[],why:'수량 없는 곳('+noQ.map(function(x){return x.name;}).join(',')+')'};
+  segs.forEach(function(x){ var n=x.name; var al=DLV_INB_ALIAS[n.replace(/\s+/g,'')]; if(al)n=al; try{ if(typeof srcCanon==='function')n=srcCanon(n); }catch(_e){} x.src=n; });
+  return {segs:segs,why:''};
 }
-function dlvInbItemOf(d,card){ // 입고방 items 행 만들기 (못 넣는 카드는 null)
-  var j=dlvInbJudge(d); if(!j.ok)return null;
+function dlvInbJudge(d){ // 거래처 카드 하나를 입고방에 넣을지 판정
+  var cardQty=parseInt(String(d&&d.qty||'').replace(/[^0-9]/g,''),10)||0;
+  var p=dlvInbParseOut(d&&d.src,cardQty);
+  if(!p.segs.length)return {ok:false,why:p.why};
+  if(!String(d.tire||'').trim()&&!String(d.spec||'').trim())return {ok:false,why:'패턴·사이즈 없음'};
+  var sum=p.segs.reduce(function(a,x){return a+x.qty;},0);
+  return {ok:true,segs:p.segs,src:p.segs.map(function(x){return x.src+' '+x.qty;}).join(' · '),qty:sum,over:(cardQty&&sum>cardQty)?(sum-cardQty):0};
+}
+function dlvInbItemsOf(d,card){ // 입고방 items 행들 (출고처마다 한 줄, 못 넣는 카드는 [])
+  var j=dlvInbJudge(d); if(!j.ok)return [];
+  return j.segs.map(function(seg){ return dlvInbItemOf(d,card,seg); });
+}
+function dlvInbItemOf(d,card,seg){ // 입고방 items 행 하나 (seg 없으면 첫 출고처)
+  var j=dlvInbJudge(d); if(!j.ok)return null; if(!seg)seg=j.segs[0];
   var who=(typeof me!=='undefined'&&me&&me.name)||'?';
   var pat=String(d.tire||'').replace(/\s+/g,' ').trim();
   var model=(typeof jhNormModel==='function'&&jhNormModel(pat))||pat.toUpperCase()||'(패턴없음)';
@@ -11521,15 +11537,15 @@ function dlvInbItemOf(d,card){ // 입고방 items 행 만들기 (못 넣는 카�
   if(!yr)spec=(spec+' 연식확인').trim();
   var client=String(d.trade_client||'').trim();
   var root=card?(card.origin_id||card.id):null;
-  return {room_id:jhInboundRoomId(),date_str:getTodayISO(),src:j.src,model:model,spec:spec,qty:j.qty,use_note:'거래처 직배송 → '+(client||'(거래처 미기입)'),cancel_qty:0,cancelled:false,
+  return {room_id:jhInboundRoomId(),date_str:getTodayISO(),src:seg.src,model:model,spec:spec,qty:seg.qty,use_note:'거래처 직배송 → '+(client||'(거래처 미기입)'),cancel_qty:0,cancelled:false,
     logs:[{type:'',text:'🚚 직배송방 거래처양식 자동등록 — '+who+' ('+getTodayISO()+')'+(card?' [#'+_dlvId8(card)+']':''),dlv_root:root,dlv_id:(card?card.id:null),at:Date.now()},
           {type:'',text:'📋 출고 '+(d.src||'')+' · 거래처 '+client+(d.unit_price?' · 출고가 '+d.unit_price:'')+(d.trade_memo?' · '+String(d.trade_memo).slice(0,60):'')}],
     user_name:who};
 }
-function dlvInbBadge(d){ var j=dlvInbJudge(d); return j.ok?'<span class="dlv-pv-inb ok" title="등록하면 입고방에도 기록됩니다">📦 입고방 ✓ '+esc(j.src)+'</span>':'<span class="dlv-pv-inb no" title="입고방에는 안 들어갑니다">입고방 ✗ '+esc(j.why)+'</span>'; }
+function dlvInbBadge(d){ var j=dlvInbJudge(d); return j.ok?'<span class="dlv-pv-inb ok" title="등록하면 입고방에도 기록됩니다">📦 입고방 ✓ '+esc(j.src)+(j.over?' <b style="color:#b91c1c">(카드 수량보다 '+j.over+' 많음)</b>':'')+'</span>':'<span class="dlv-pv-inb no" title="입고방에는 안 들어갑니다">입고방 ✗ '+esc(j.why)+'</span>'; }
 async function dlvInbRegister(parsed,inserted){ // 등록 직후: 미리보기 줄과 DB 행을 순서로 짝지어 입고방에 넣는다
   var items=[],skip=[];
-  for(var i=0;i<parsed.length;i++){ var d=parsed[i]; if(!d||d.channel!=='trade')continue; var c=inserted[i]||null; var it=dlvInbItemOf(d,c); if(it)items.push(it); else skip.push(dlvInbJudge(d).why); }
+  for(var i=0;i<parsed.length;i++){ var d=parsed[i]; if(!d||d.channel!=='trade')continue; var c=inserted[i]||null; var its=dlvInbItemsOf(d,c); if(its.length)items=items.concat(its); else skip.push(dlvInbJudge(d).why); }
   if(!items.length)return {ok:0,skip:skip,fail:0};
   var rid=jhInboundRoomId(); if(!rid){ alert('입고방을 찾을 수 없어 입고 기록은 못 했어요'); return {ok:0,skip:skip,fail:items.length}; }
   try{ var r=await sb.from('items').insert(items).select('id'); if(r.error)throw r.error;
@@ -11558,23 +11574,27 @@ async function dlvInbUncancelFor(card){ // 취소 되돌림 → 카드 취소로
 }
 async function dlvInbSyncEdit(card,d){ // 카드 수정 → 처리 전 줄 갱신 (출고처가 창고로 바뀌면 취소, 줄이 없었는데 이제 되면 등록)
   var its=(await dlvInbLinked(card)).filter(function(it){return !it.cancelled;});
-  var it=dlvInbItemOf(d,card);
-  if(!its.length){ if(it){ try{ var r0=await sb.from('items').insert(it); return r0.error?'등록실패':'등록'; }catch(e){ return '등록실패'; } } return ''; }
-  var tgt=its[0]; if(dlvInbProcessed(tgt))return '입고방에서 이미 처리돼 안 고침';
-  if(!it){ await dlvInbCancelFor(card); return '취소(출고처가 창고·빈칸으로 바뀜)'; }
-  var lg=Array.isArray(tgt.logs)?tgt.logs.slice():[]; lg.push({type:'edit',text:'✏️ 직배송 카드 수정 반영 — '+((me&&me.name)||'?')+' ('+tgt.model+' '+tgt.spec+' ×'+tgt.qty+' → '+it.model+' '+it.spec+' ×'+it.qty+')',at:Date.now()});
-  try{ var r=await sb.from('items').update({src:it.src,model:it.model,spec:it.spec,qty:it.qty,use_note:it.use_note,logs:lg}).eq('id',tgt.id); return r.error?'수정실패':'수정'; }catch(e){ return '수정실패'; }
+  var news=dlvInbItemsOf(d,card);
+  if(!its.length){ if(news.length){ try{ var r0=await sb.from('items').insert(news); return r0.error?'등록실패':'등록 '+news.length+'줄'; }catch(e){ return '등록실패'; } } return ''; }
+  if(its.some(dlvInbProcessed))return '입고방에서 이미 처리돼 안 고침';
+  if(!news.length){ await dlvInbCancelFor(card); return '취소(출고처가 창고·빈칸으로 바뀜)'; }
+  if(news.length!==its.length){ await dlvInbCancelFor(card); try{ var r1=await sb.from('items').insert(news); return r1.error?'재등록실패':'줄 수 변경 → 취소 후 '+news.length+'줄 재등록'; }catch(e){ return '재등록실패'; } }
+  var okN=0;
+  for(var k=0;k<its.length;k++){ var tgt=its[k], it=news[k];
+    var lg=Array.isArray(tgt.logs)?tgt.logs.slice():[]; lg.push({type:'edit',text:'✏️ 직배송 카드 수정 반영 — '+((me&&me.name)||'?')+' ('+tgt.src+' '+tgt.model+' '+tgt.spec+' ×'+tgt.qty+' → '+it.src+' '+it.model+' '+it.spec+' ×'+it.qty+')',at:Date.now()});
+    try{ var r=await sb.from('items').update({src:it.src,model:it.model,spec:it.spec,qty:it.qty,use_note:it.use_note,logs:lg}).eq('id',tgt.id); if(!r.error)okN++; }catch(e){} }
+  return okN===its.length?('수정'+(its.length>1?' '+its.length+'줄':'')):'수정 일부 실패';
 }
 function dlvTradeAddPreview(){
   function gv(id){var e=document.getElementById(id);return e?(e.value||'').trim():'';}
-  var out=gv('t-out'),client=gv('t-client'),pat=gv('t-pat'),size=gv('t-size'),qty=gv('t-qty'),price=gv('t-price'),memo=gv('t-memo');
-  if(!out&&!client&&!pat&&!size&&!qty&&!price&&!memo)return; // 완전히 빈 건 무시
+  var out=gv('t-out'),client=gv('t-client'),pat=gv('t-pat'),size=gv('t-size'),qty=gv('t-qty'),price=gv('t-price'),memo=gv('t-memo'),recv=gv('t-recv'),tel=gv('t-tel'),addr=gv('t-addr');
+  if(!out&&!client&&!pat&&!size&&!qty&&!price&&!memo&&!recv&&!tel&&!addr)return; // 완전히 빈 건 무시
   if(!Array.isArray(dlvParsed))dlvParsed=[];
-  var _row={channel:'trade',code:'',src:out,trade_client:client,tire:pat,spec:size,brand:'',qty:qty,unit_price:price,tel:'',addr:'',trade_memo:memo,recv:'',multiline:false};
+  var _row={channel:'trade',code:'',src:out,trade_client:client,tire:pat,spec:size,brand:'',qty:qty,unit_price:price,tel:tel?fmtTel(tel):'',addr:addr,trade_memo:memo,recv:recv,multiline:false};
   if(window._dlvEditingBack){ _row._edited=true; dlvParsed.unshift(_row); window._dlvEditingBack=false; } // 수정분: 맨 위 + 수정됨
   else{ dlvParsed.push(_row); }
   // (가)방식: 출고·거래처·전화·우편·주소는 유지(불투명), 타이어칸만 비움
-  var GHOST=['t-out','t-client','t-pat','t-size','t-qty','t-price','t-memo'];   // 직전 값 전부 흐릿하게 유지
+  var GHOST=['t-out','t-client','t-pat','t-size','t-qty','t-price','t-recv','t-tel','t-addr','t-memo'];   // 직전 값 전부 흐릿하게 유지
   var CLEARF=[];
   CLEARF.forEach(function(id){var e=document.getElementById(id);if(e){e.value='';e.classList.remove('ghosted');e.dataset.ghostVal='';}});
   GHOST.forEach(function(id){var e=document.getElementById(id);if(e){e.classList.add('ghosted'); e.dataset.ghostVal=e.value;}});
@@ -19320,8 +19340,8 @@ var QT_SUP={biz:'743-87-01655',reg:'01-4120-000478',name:'(주) 티지코퍼레�
 var QT_COLS=[['part','부품',9],['pat','패턴',21],['out','부품출고',9],['work','작업내용',14],['qty','수량',5],['unit','단가',9],['pamt','부품가',11],['labor','기술료',10],['sum','합계',12]];
 var qtCur=null, _qtSign=null;
 function qtBlankRow(){return {part:'',pat:'',out:'',work:'',qty:'',unit:'',labor:''};}
-function qtMobile(){return window.innerWidth<=640&&!qtRotated();}
-function qtRotated(){var m=document.getElementById('qt-modal');return !!(m&&(m.classList.contains('qt-rot')||(document.fullscreenElement&&window._qtLocked)));}
+function qtMobile(){return window.innerWidth<=640;}
+function qtRotated(){return false;}   // (10/8) 전체화면·눕히기 방식 폐기 — 폰은 실제로 돌려서 봄
 async function qtLandscape(){   // 1) 안드로이드 크롬: 전체화면 + 가로 고정  2) 안 되면 CSS로 눕힘
   var m=document.getElementById('qt-modal'), pm=m.querySelector('.paste-modal');
   try{
@@ -19365,7 +19385,7 @@ function qtOpen(rsvId){
   qtRender(); document.getElementById('qt-modal').classList.add('on');
 }
 function qtLoad(no){var all=qtAllSaved().filter(function(d){return d.no===no;});if(!all.length)return;qtCur=all[0];qtRender();}
-function qtClose(){document.getElementById('qt-modal').classList.remove('on');try{qtPortrait();}catch(e){}}
+function qtClose(){var m=document.getElementById('qt-modal');m.classList.remove('on');m.classList.remove('qt-rot');try{if(document.fullscreenElement)document.exitFullscreen();}catch(e){}}
 function qtSet(k,v){if(!qtCur)return;qtCur[k]=v;}
 function qtSetRow(i,k,v){if(!qtCur||!qtCur.rows[i])return;qtCur.rows[i][k]=v;if(k==='qty'||k==='unit'||k==='labor')qtRecalc();}
 function qtRecalc(){
@@ -19427,8 +19447,7 @@ function qtRender(){
   var t=qtTotals(d);
   var all=qtAllSaved();
   var h='<div class="qt-mock">🧪 <b>목업(시험용)</b> — 저장은 이 브라우저 안에만 됩니다(다른 폰·컴퓨터에는 안 보임). 모양·흐름을 보시는 단계이며, 정식은 DB에 저장되어 예약과 같이 묶입니다.</div>';
-  if(qtRotated())h+='<div class="qt-rotbar"><span style="flex:1">가로 보기 중</span><button onclick="qtPortrait()">⤴ 세로로</button></div>';
-  else if(qtMobile())h+='<div class="qt-rotbar"><span style="flex:1">📱 표가 옆으로 길어요. 폰을 돌리거나 →</span><button onclick="qtLandscape()">🔄 가로로 보기</button></div>';
+  if(qtMobile())h+='<div class="qt-rotbar"><span style="flex:1">📱 표가 옆으로 길어요 — <b>폰을 옆으로 돌리면</b> 표가 한 화면에 다 보입니다 (자동 회전 켜기)</span></div>';
   if(all.length)h+='<div class="qt-list">📂 이 브라우저에 저장된 견적서: '+all.slice(0,8).map(function(q){return '<button onclick="qtLoad(\''+esc(q.no)+'\')"'+(q.no===d.no?' style="background:#f0fdfa;border-color:#0f766e;color:#0f766e"':'')+'>'+esc(q.no)+(q.name?' '+esc(q.name):'')+(q.car_no?' '+esc(q.car_no):'')+'</button>';}).join('')+'</div>';
   h+='<div class="qt-sheet">';
   h+='<div class="qt-top"><span class="qt-no">견적번호 '+esc(d.no)+'</span><div class="qt-title">견 적 서</div><span class="qt-vat">금액은 부가세 포함</span></div>';
@@ -19448,7 +19467,8 @@ function qtRender(){
   qtSignInit();
 }
 /* 서명 패드 */
-window.addEventListener('resize',function(){clearTimeout(window._qtRz);window._qtRz=setTimeout(function(){try{ if(qtCur&&document.getElementById('qt-modal').classList.contains('on'))qtRender(); }catch(e){}},250);});
+function _qtOnResize(){clearTimeout(window._qtRz);window._qtRz=setTimeout(function(){try{ if(qtCur&&document.getElementById('qt-modal').classList.contains('on'))qtRender(); }catch(e){}},250);}
+window.addEventListener('resize',_qtOnResize); window.addEventListener('orientationchange',_qtOnResize);
 function qtSignInit(){
   var cv=document.getElementById('qt-sign-cv'); if(!cv)return;
   var ctx=cv.getContext('2d'); ctx.lineWidth=3; ctx.lineCap='round'; ctx.lineJoin='round'; ctx.strokeStyle='#111';
