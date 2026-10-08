@@ -12705,6 +12705,11 @@ function stkMatch(p,q){
       // 편평비 80 생략 통짜: '145 80 13' 저장분도 '14513'·'145138'로 찾음 (호준님 9/2)
       var sdAlt=(sizeNums.length>=3&&sizeNums[1]==='80')?(sizeNums[0]+sizeNums[2]):'';
       if(sdAlt&&(td===sdAlt||(plyD&&td===sdAlt+plyD)))return true;
+      // (10/8) 숫자만인 패턴코드(피렐리 4470900 등)·숫자 토막이 든 패턴/출처/분류/재원/메모: 토막이 정확히 같으면 통과, 코드는 4자리 이상 일부도 통과
+      var cd=String(p.code||'').replace(/[^0-9]/g,'');
+      if(cd&&cd.length>=4&&td.length>=4&&cd.indexOf(td)>=0)return true;
+      var numToks=((p.code||'')+' '+p.name+' '+(p.source||'')+' '+(p.cat||'')+' '+(p.spec||'')+' '+(p.memo||'')).split(/[^0-9]+/).filter(Boolean);
+      if(numToks.indexOf(td)>=0)return true;
       return false;
     }
     // 1-보강) 문자 섞인 통짜(35x1250r17 등): 숫자만 떼어 사이즈 통째·P수 통짜와 대조 (호준님 9/2)
