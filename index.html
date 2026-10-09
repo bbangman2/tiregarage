@@ -891,6 +891,8 @@ body.rb-on #app{padding-top:58px}
 @media(max-width:640px){ #qt-modal .paste-modal{max-height:100dvh;height:100dvh;border-radius:0;width:100%} }
 /* 폰 가로 보기: 실제 회전이 안 되는 폰은 견적서를 90도 눕힘 */
 #qt-modal.qt-rot{padding:0;overflow:hidden}
+#qt-rotback{position:fixed;right:10px;bottom:10px;z-index:120;display:flex;gap:6px}
+#qt-rotback button{height:40px;padding:0 14px;border:none;border-radius:10px;background:#2563eb;color:#fff;font-size:13.5px;font-weight:800;cursor:pointer;box-shadow:0 3px 10px rgba(0,0,0,.25)}
 #qt-modal.qt-rot .paste-modal{position:fixed;top:0;left:0;width:100dvh;height:100dvw;max-width:none;max-height:none;margin:0;border-radius:0;transform:rotate(90deg) translateY(-100%);transform-origin:top left;overflow:auto;padding:10px 12px}
 #qt-modal .paste-modal:fullscreen{max-width:none;max-height:none;width:100%;height:100%;border-radius:0;overflow:auto;background:#fff}
 .qt-rotbar{display:flex;align-items:center;gap:8px;background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:9px;padding:7px 10px;margin-bottom:8px;font-size:12px;color:#1e40af;font-weight:700}
@@ -19345,23 +19347,14 @@ var QT_SUP={biz:'743-87-01655',reg:'01-4120-000478',name:'(주) 티지코퍼레�
 var QT_COLS=[['part','부품',9],['pat','패턴',21],['out','부품출고',9],['work','작업내용',14],['qty','수량',5],['unit','단가',9],['pamt','부품가',11],['labor','기술료',10],['sum','합계',12]];
 var qtCur=null, _qtSign=null;
 function qtBlankRow(){return {part:'',pat:'',out:'',work:'',qty:'',unit:'',labor:''};}
-function qtMobile(){return window.innerWidth<=640;}
-function qtRotated(){return false;}   // (10/8) 전체화면·눕히기 방식 폐기 — 폰은 실제로 돌려서 봄
-async function qtLandscape(){   // 1) 안드로이드 크롬: 전체화면 + 가로 고정  2) 안 되면 CSS로 눕힘
-  var m=document.getElementById('qt-modal'), pm=m.querySelector('.paste-modal');
-  try{
-    if(document.fullscreenEnabled&&pm.requestFullscreen&&screen.orientation&&screen.orientation.lock){
-      await pm.requestFullscreen(); await screen.orientation.lock('landscape'); window._qtLocked=true; setTimeout(qtRender,350); return;
-    }
-  }catch(e){ try{ if(document.fullscreenElement)await document.exitFullscreen(); }catch(_e){} }
-  m.classList.add('qt-rot'); qtRender();
+function qtMobile(){return window.innerWidth<=640&&!qtRotated();}
+function qtRotated(){var m=document.getElementById('qt-modal');return !!(m&&m.classList.contains('qt-rot'));}
+function qtLandscape(){   // (10/9) 눕혀 보기만 — 전체화면·가로 고정은 폰마다 달라 안 씀. 돌아오는 버튼은 눕힌 창 밖 모서리에 고정
+  var m=document.getElementById('qt-modal'); m.classList.add('qt-rot');
+  var b=document.getElementById('qt-rotback'); if(!b){ b=document.createElement('div'); b.id='qt-rotback'; b.innerHTML='<button onclick="qtPortrait()">⤴ 세로로</button><button onclick="qtClose()" style="background:#fff;color:#334155;border:1.5px solid #cbd5e1">✕ 닫기</button>'; m.appendChild(b); }
+  qtRender();
 }
-async function qtPortrait(){
-  var m=document.getElementById('qt-modal'); m.classList.remove('qt-rot');
-  try{ if(window._qtLocked&&screen.orientation&&screen.orientation.unlock)screen.orientation.unlock(); }catch(e){}
-  try{ if(document.fullscreenElement)await document.exitFullscreen(); }catch(e){}
-  window._qtLocked=false; setTimeout(qtRender,250);
-}
+function qtPortrait(){ var m=document.getElementById('qt-modal'); m.classList.remove('qt-rot'); var b=document.getElementById('qt-rotback'); if(b)b.remove(); if(qtCur&&m.classList.contains('on'))qtRender(); }
 function qtNum(v){v=String(v==null?'':v).replace(/[^0-9.-]/g,'');var n=parseFloat(v);return isFinite(n)?n:0;}
 function qtFmt(n){n=Math.round(n||0);return n?n.toLocaleString():'';}
 function qtRowCalc(row){var q=qtNum(row.qty),u=qtNum(row.unit),l=qtNum(row.labor);var p=q&&u?q*u:0;return {pamt:p,labor:l,sum:p+l};}
@@ -19390,7 +19383,7 @@ function qtOpen(rsvId){
   qtRender(); document.getElementById('qt-modal').classList.add('on');
 }
 function qtLoad(no){var all=qtAllSaved().filter(function(d){return d.no===no;});if(!all.length)return;qtCur=all[0];qtRender();}
-function qtClose(){var m=document.getElementById('qt-modal');m.classList.remove('on');m.classList.remove('qt-rot');try{if(document.fullscreenElement)document.exitFullscreen();}catch(e){}}
+function qtClose(){var m=document.getElementById('qt-modal');m.classList.remove('on');m.classList.remove('qt-rot');var b=document.getElementById('qt-rotback');if(b)b.remove();}
 function qtSet(k,v){if(!qtCur)return;qtCur[k]=v;}
 function qtSetRow(i,k,v){if(!qtCur||!qtCur.rows[i])return;qtCur.rows[i][k]=v;if(k==='qty'||k==='unit'||k==='labor')qtRecalc();}
 function qtRecalc(){
@@ -19452,7 +19445,7 @@ function qtRender(){
   var t=qtTotals(d);
   var all=qtAllSaved();
   var h='<div class="qt-mock">🧪 <b>목업(시험용)</b> — 저장은 이 브라우저 안에만 됩니다(다른 폰·컴퓨터에는 안 보임). 모양·흐름을 보시는 단계이며, 정식은 DB에 저장되어 예약과 같이 묶입니다.</div>';
-  if(qtMobile())h+='<div class="qt-rotbar"><span style="flex:1">📱 표가 옆으로 길어요 — <b>폰을 옆으로 돌리면</b> 표가 한 화면에 다 보입니다 (자동 회전 켜기)</span></div>';
+  if(!qtRotated()&&qtMobile())h+='<div class="qt-rotbar"><span style="flex:1">📱 표가 옆으로 길어요 — 폰을 옆으로 돌리거나 →</span><button onclick="qtLandscape()">🔄 가로로 보기</button></div>';
   if(all.length)h+='<div class="qt-list">📂 이 브라우저에 저장된 견적서: '+all.slice(0,8).map(function(q){return '<button onclick="qtLoad(\''+esc(q.no)+'\')"'+(q.no===d.no?' style="background:#f0fdfa;border-color:#0f766e;color:#0f766e"':'')+'>'+esc(q.no)+(q.name?' '+esc(q.name):'')+(q.car_no?' '+esc(q.car_no):'')+'</button>';}).join('')+'</div>';
   h+='<div class="qt-sheet">';
   h+='<div class="qt-top"><span class="qt-no">견적번호 '+esc(d.no)+'</span><div class="qt-title">견 적 서</div><span class="qt-vat">금액은 부가세 포함</span></div>';
