@@ -891,7 +891,11 @@ body.rb-on #app{padding-top:58px}
 @media(max-width:640px){ #qt-modal .paste-modal{max-height:100dvh;height:100dvh;border-radius:0;width:100%} }
 /* 폰 가로 보기: 실제 회전이 안 되는 폰은 견적서를 90도 눕힘 */
 #qt-modal.qt-rot{padding:0;overflow:hidden}
-#qt-rotback{position:fixed;right:10px;bottom:10px;z-index:120;display:flex;gap:6px}
+#qt-land{position:fixed;left:0;top:0;z-index:150;background:#fff;overflow:hidden}
+#qt-land-sheet{position:absolute;left:0;top:0;transform:rotate(90deg) translateY(-100%);transform-origin:top left;overflow:auto;padding:10px 12px;box-sizing:border-box;background:#fff;-webkit-overflow-scrolling:touch}
+#qt-land-sheet .qt-mock{display:none}
+#qt-land-diag{font-size:10px;color:#64748b;background:rgba(255,255,255,.9);border-radius:6px;padding:4px 6px;align-self:center}
+#qt-rotback{position:fixed;right:10px;bottom:10px;z-index:160;display:flex;gap:6px;align-items:center}
 #qt-rotback button{height:40px;padding:0 14px;border:none;border-radius:10px;background:#2563eb;color:#fff;font-size:13.5px;font-weight:800;cursor:pointer;box-shadow:0 3px 10px rgba(0,0,0,.25)}
 #qt-modal.qt-rot .paste-modal{position:fixed;top:0;left:0;width:100vh;height:100vw;max-width:none;max-height:none;margin:0;border-radius:0;transform:rotate(90deg) translateY(-100%);transform-origin:top left;overflow:auto;padding:10px 12px;box-sizing:border-box}   /* 실제 크기는 qtRotSize()가 픽셀로 덮어씀 */
 #qt-modal .paste-modal:fullscreen{max-width:none;max-height:none;width:100%;height:100%;border-radius:0;overflow:auto;background:#fff}
@@ -19348,19 +19352,23 @@ var QT_COLS=[['part','부품',9],['pat','패턴',21],['out','부품출고',9],['
 var qtCur=null, _qtSign=null;
 function qtBlankRow(){return {part:'',pat:'',out:'',work:'',qty:'',unit:'',labor:''};}
 function qtMobile(){return window.innerWidth<=640&&!qtRotated();}
-function qtRotated(){var m=document.getElementById('qt-modal');return !!(m&&m.classList.contains('qt-rot'));}
-function qtRotSize(){   // (10/10) 눕힌 창 크기를 화면 픽셀로 직접 — dvh 같은 단위를 모르는 폰 브라우저에서 반만 그려지던 문제
-  var m=document.getElementById('qt-modal'); if(!m||!m.classList.contains('qt-rot'))return;
-  var pm=m.querySelector('.paste-modal'); if(!pm)return;
-  var W=window.innerWidth, H=window.innerHeight;
-  pm.style.width=H+'px'; pm.style.height=W+'px'; pm.style.maxWidth='none'; pm.style.maxHeight='none';
+function qtRotated(){return !!document.getElementById('qt-land');}
+function qtViewSize(){ var d=document.documentElement; var W=Math.max(window.innerWidth||0,d.clientWidth||0), H=Math.max(window.innerHeight||0,d.clientHeight||0); try{ if(window.visualViewport){ W=Math.max(W,Math.round(visualViewport.width||0)); H=Math.max(H,Math.round(visualViewport.height||0)); } }catch(e){} return {W:W,H:H}; }
+function qtRotSize(){   // (10/11) 독립 층의 시트 크기를 화면 픽셀로 직접 (여러 값 중 큰 쪽)
+  var land=document.getElementById('qt-land'), sh=document.getElementById('qt-land-sheet'); if(!land||!sh)return;
+  var v=qtViewSize(); land.style.width=v.W+'px'; land.style.height=v.H+'px';
+  sh.style.width=v.H+'px'; sh.style.height=v.W+'px';
+  var dg=document.getElementById('qt-land-diag'); if(dg){ var r=sh.getBoundingClientRect(); dg.textContent='화면 '+window.innerWidth+'×'+window.innerHeight+' / 문서 '+document.documentElement.clientWidth+'×'+document.documentElement.clientHeight+' / 시트 '+Math.round(r.width)+'×'+Math.round(r.height); }
 }
-function qtLandscape(){   // (10/9) 눕혀 보기만 — 전체화면·가로 고정은 폰마다 달라 안 씀. 돌아오는 버튼은 눕힌 창 밖 모서리에 고정
-  var m=document.getElementById('qt-modal'); m.classList.add('qt-rot'); qtRotSize();
-  var b=document.getElementById('qt-rotback'); if(!b){ b=document.createElement('div'); b.id='qt-rotback'; b.innerHTML='<button onclick="qtPortrait()">⤴ 세로로</button><button onclick="qtClose()" style="background:#fff;color:#334155;border:1.5px solid #cbd5e1">✕ 닫기</button>'; m.appendChild(b); }
-  qtRender();
+function qtLandscape(){   // (10/11) 눕힘 = 견적서 창·앱과 분리된 독립 층(#qt-land). 내용(#qt-body 안)을 그대로 옮겨 그림
+  if(document.getElementById('qt-land'))return;
+  var land=document.createElement('div'); land.id='qt-land';
+  land.innerHTML='<div id="qt-land-sheet"></div><div id="qt-rotback"><span id="qt-land-diag"></span><button onclick="qtPortrait()">⤴ 세로로</button><button onclick="qtClose()" style="background:#fff;color:#334155;border:1.5px solid #cbd5e1">✕ 닫기</button></div>';
+  document.body.appendChild(land);
+  document.getElementById('qt-modal').classList.remove('on');
+  qtRender(); qtRotSize(); setTimeout(qtRotSize,300);
 }
-function qtPortrait(){ var m=document.getElementById('qt-modal'); m.classList.remove('qt-rot'); var pm=m.querySelector('.paste-modal'); if(pm){pm.style.width='';pm.style.height='';pm.style.maxWidth='';pm.style.maxHeight='';} var b=document.getElementById('qt-rotback'); if(b)b.remove(); if(qtCur&&m.classList.contains('on'))qtRender(); }
+function qtPortrait(){ var land=document.getElementById('qt-land'); if(land)land.remove(); if(qtCur){ document.getElementById('qt-modal').classList.add('on'); qtRender(); } }
 function qtNum(v){v=String(v==null?'':v).replace(/[^0-9.-]/g,'');var n=parseFloat(v);return isFinite(n)?n:0;}
 function qtFmt(n){n=Math.round(n||0);return n?n.toLocaleString():'';}
 function qtRowCalc(row){var q=qtNum(row.qty),u=qtNum(row.unit),l=qtNum(row.labor);var p=q&&u?q*u:0;return {pamt:p,labor:l,sum:p+l};}
@@ -19389,7 +19397,7 @@ function qtOpen(rsvId){
   qtRender(); document.getElementById('qt-modal').classList.add('on');
 }
 function qtLoad(no){var all=qtAllSaved().filter(function(d){return d.no===no;});if(!all.length)return;qtCur=all[0];qtRender();}
-function qtClose(){var m=document.getElementById('qt-modal');m.classList.remove('on');m.classList.remove('qt-rot');var pm=m.querySelector('.paste-modal');if(pm){pm.style.width='';pm.style.height='';pm.style.maxWidth='';pm.style.maxHeight='';}var b=document.getElementById('qt-rotback');if(b)b.remove();}
+function qtClose(){var m=document.getElementById('qt-modal');m.classList.remove('on');m.classList.remove('qt-rot');var land=document.getElementById('qt-land');if(land)land.remove();}
 function qtSet(k,v){if(!qtCur)return;qtCur[k]=v;}
 function qtSetRow(i,k,v){if(!qtCur||!qtCur.rows[i])return;qtCur.rows[i][k]=v;if(k==='qty'||k==='unit'||k==='labor')qtRecalc();}
 function qtRecalc(){
@@ -19467,7 +19475,7 @@ function qtRender(){
   h+='<div style="font-size:11px;color:#94a3b8;margin-top:6px">작성자 '+esc(d.writer||'')+(d.saved_at?' · 저장 '+esc(d.saved_at):' · 저장 안 됨')+'</div>';
   h+='</div>';
   h+='<div class="qt-acts"><button class="qt-save" onclick="qtSave()">💾 저장</button><button class="qt-print" onclick="qtPrint()">🖨 인쇄 / PDF</button><button onclick="qtXlsx()">📥 엑셀 (양식 그대로)</button>'+(d.saved_at?'<button onclick="qtDelete()" style="color:#b91c1c;border-color:#fca5a5;flex:0 0 auto;min-width:80px">🗑 삭제</button>':'')+'<button onclick="qtClose()">닫기</button></div>';
-  document.getElementById('qt-body').innerHTML=h;
+  (qtRotated()?document.getElementById('qt-land-sheet'):document.getElementById('qt-body')).innerHTML=h;   // 눕힘 중이면 독립 층에 그림
   qtSignInit();
 }
 /* 서명 패드 */
