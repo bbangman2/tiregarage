@@ -893,7 +893,7 @@ body.rb-on #app{padding-top:58px}
 #qt-modal.qt-rot{padding:0;overflow:hidden}
 #qt-rotback{position:fixed;right:10px;bottom:10px;z-index:120;display:flex;gap:6px}
 #qt-rotback button{height:40px;padding:0 14px;border:none;border-radius:10px;background:#2563eb;color:#fff;font-size:13.5px;font-weight:800;cursor:pointer;box-shadow:0 3px 10px rgba(0,0,0,.25)}
-#qt-modal.qt-rot .paste-modal{position:fixed;top:0;left:0;width:100dvh;height:100dvw;max-width:none;max-height:none;margin:0;border-radius:0;transform:rotate(90deg) translateY(-100%);transform-origin:top left;overflow:auto;padding:10px 12px}
+#qt-modal.qt-rot .paste-modal{position:fixed;top:0;left:0;width:100vh;height:100vw;max-width:none;max-height:none;margin:0;border-radius:0;transform:rotate(90deg) translateY(-100%);transform-origin:top left;overflow:auto;padding:10px 12px;box-sizing:border-box}   /* 실제 크기는 qtRotSize()가 픽셀로 덮어씀 */
 #qt-modal .paste-modal:fullscreen{max-width:none;max-height:none;width:100%;height:100%;border-radius:0;overflow:auto;background:#fff}
 .qt-rotbar{display:flex;align-items:center;gap:8px;background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:9px;padding:7px 10px;margin-bottom:8px;font-size:12px;color:#1e40af;font-weight:700}
 .qt-rotbar button{border:none;background:#2563eb;color:#fff;border-radius:7px;padding:7px 12px;font-size:12.5px;font-weight:800;cursor:pointer;white-space:nowrap}
@@ -19349,12 +19349,18 @@ var qtCur=null, _qtSign=null;
 function qtBlankRow(){return {part:'',pat:'',out:'',work:'',qty:'',unit:'',labor:''};}
 function qtMobile(){return window.innerWidth<=640&&!qtRotated();}
 function qtRotated(){var m=document.getElementById('qt-modal');return !!(m&&m.classList.contains('qt-rot'));}
+function qtRotSize(){   // (10/10) 눕힌 창 크기를 화면 픽셀로 직접 — dvh 같은 단위를 모르는 폰 브라우저에서 반만 그려지던 문제
+  var m=document.getElementById('qt-modal'); if(!m||!m.classList.contains('qt-rot'))return;
+  var pm=m.querySelector('.paste-modal'); if(!pm)return;
+  var W=window.innerWidth, H=window.innerHeight;
+  pm.style.width=H+'px'; pm.style.height=W+'px'; pm.style.maxWidth='none'; pm.style.maxHeight='none';
+}
 function qtLandscape(){   // (10/9) 눕혀 보기만 — 전체화면·가로 고정은 폰마다 달라 안 씀. 돌아오는 버튼은 눕힌 창 밖 모서리에 고정
-  var m=document.getElementById('qt-modal'); m.classList.add('qt-rot');
+  var m=document.getElementById('qt-modal'); m.classList.add('qt-rot'); qtRotSize();
   var b=document.getElementById('qt-rotback'); if(!b){ b=document.createElement('div'); b.id='qt-rotback'; b.innerHTML='<button onclick="qtPortrait()">⤴ 세로로</button><button onclick="qtClose()" style="background:#fff;color:#334155;border:1.5px solid #cbd5e1">✕ 닫기</button>'; m.appendChild(b); }
   qtRender();
 }
-function qtPortrait(){ var m=document.getElementById('qt-modal'); m.classList.remove('qt-rot'); var b=document.getElementById('qt-rotback'); if(b)b.remove(); if(qtCur&&m.classList.contains('on'))qtRender(); }
+function qtPortrait(){ var m=document.getElementById('qt-modal'); m.classList.remove('qt-rot'); var pm=m.querySelector('.paste-modal'); if(pm){pm.style.width='';pm.style.height='';pm.style.maxWidth='';pm.style.maxHeight='';} var b=document.getElementById('qt-rotback'); if(b)b.remove(); if(qtCur&&m.classList.contains('on'))qtRender(); }
 function qtNum(v){v=String(v==null?'':v).replace(/[^0-9.-]/g,'');var n=parseFloat(v);return isFinite(n)?n:0;}
 function qtFmt(n){n=Math.round(n||0);return n?n.toLocaleString():'';}
 function qtRowCalc(row){var q=qtNum(row.qty),u=qtNum(row.unit),l=qtNum(row.labor);var p=q&&u?q*u:0;return {pamt:p,labor:l,sum:p+l};}
@@ -19383,7 +19389,7 @@ function qtOpen(rsvId){
   qtRender(); document.getElementById('qt-modal').classList.add('on');
 }
 function qtLoad(no){var all=qtAllSaved().filter(function(d){return d.no===no;});if(!all.length)return;qtCur=all[0];qtRender();}
-function qtClose(){var m=document.getElementById('qt-modal');m.classList.remove('on');m.classList.remove('qt-rot');var b=document.getElementById('qt-rotback');if(b)b.remove();}
+function qtClose(){var m=document.getElementById('qt-modal');m.classList.remove('on');m.classList.remove('qt-rot');var pm=m.querySelector('.paste-modal');if(pm){pm.style.width='';pm.style.height='';pm.style.maxWidth='';pm.style.maxHeight='';}var b=document.getElementById('qt-rotback');if(b)b.remove();}
 function qtSet(k,v){if(!qtCur)return;qtCur[k]=v;}
 function qtSetRow(i,k,v){if(!qtCur||!qtCur.rows[i])return;qtCur.rows[i][k]=v;if(k==='qty'||k==='unit'||k==='labor')qtRecalc();}
 function qtRecalc(){
@@ -19465,7 +19471,7 @@ function qtRender(){
   qtSignInit();
 }
 /* 서명 패드 */
-function _qtOnResize(){clearTimeout(window._qtRz);window._qtRz=setTimeout(function(){try{ if(qtCur&&document.getElementById('qt-modal').classList.contains('on'))qtRender(); }catch(e){}},250);}
+function _qtOnResize(){clearTimeout(window._qtRz);window._qtRz=setTimeout(function(){try{ qtRotSize(); if(qtCur&&document.getElementById('qt-modal').classList.contains('on'))qtRender(); }catch(e){}},250);}
 window.addEventListener('resize',_qtOnResize); window.addEventListener('orientationchange',_qtOnResize);
 function qtSignInit(){
   var cv=document.getElementById('qt-sign-cv'); if(!cv)return;
