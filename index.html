@@ -892,9 +892,16 @@ body.rb-on #app{padding-top:58px}
 /* 폰 가로 보기: 실제 회전이 안 되는 폰은 견적서를 90도 눕힘 */
 #qt-modal.qt-rot{padding:0;overflow:hidden}
 #qt-land{position:fixed;left:0;top:0;z-index:150;background:#fff;overflow:hidden}
-#qt-land-sheet{position:absolute;left:0;top:0;transform:rotate(90deg) translateY(-100%);transform-origin:top left;overflow:auto;padding:10px 12px;box-sizing:border-box;background:#fff;-webkit-overflow-scrolling:touch}
+#qt-land-sheet{position:absolute;left:0;top:0;overflow:auto;padding:10px 12px 72px;box-sizing:border-box;background:#fff;-webkit-overflow-scrolling:touch}
+#qt-land.css #qt-land-sheet{transform:rotate(90deg) translateY(-100%);transform-origin:top left}   /* 폰이 세로일 때만 그림을 눕힘 */
+#qt-land.real{right:0;bottom:0}
+#qt-land.real #qt-land-sheet{right:0;bottom:0;width:auto;height:auto;transform:none}   /* 폰 화면 자체가 가로 → 그냥 그림(키보드도 가로) */
+#qt-land .qt-tbl{min-width:0}
+#qt-land .qt-tbl th{font-size:11px;padding:6px 2px}
+#qt-land .qt-tbl td input{font-size:12.5px;padding:0 4px}
+#qt-land .qt-info{grid-template-columns:1fr 1fr}
 #qt-land-sheet .qt-mock{display:none}
-#qt-land-diag{font-size:10px;color:#64748b;background:rgba(255,255,255,.9);border-radius:6px;padding:4px 6px;align-self:center}
+#qt-land-toast{display:none;position:fixed;left:10px;right:10px;top:10px;z-index:170;background:#1e2a4a;color:#fff;font-size:13px;font-weight:700;border-radius:10px;padding:10px 12px;line-height:1.5;box-shadow:0 4px 14px rgba(0,0,0,.3)}
 #qt-rotback{position:fixed;right:10px;bottom:10px;z-index:160;display:flex;gap:6px;align-items:center}
 #qt-rotback button{height:40px;padding:0 14px;border:none;border-radius:10px;background:#2563eb;color:#fff;font-size:13.5px;font-weight:800;cursor:pointer;box-shadow:0 3px 10px rgba(0,0,0,.25)}
 #qt-modal.qt-rot .paste-modal{position:fixed;top:0;left:0;width:100vh;height:100vw;max-width:none;max-height:none;margin:0;border-radius:0;transform:rotate(90deg) translateY(-100%);transform-origin:top left;overflow:auto;padding:10px 12px;box-sizing:border-box}   /* 실제 크기는 qtRotSize()가 픽셀로 덮어씀 */
@@ -19354,21 +19361,51 @@ function qtBlankRow(){return {part:'',pat:'',out:'',work:'',qty:'',unit:'',labor
 function qtMobile(){return window.innerWidth<=640&&!qtRotated();}
 function qtRotated(){return !!document.getElementById('qt-land');}
 function qtViewSize(){ var d=document.documentElement; var W=Math.max(window.innerWidth||0,d.clientWidth||0), H=Math.max(window.innerHeight||0,d.clientHeight||0); try{ if(window.visualViewport){ W=Math.max(W,Math.round(visualViewport.width||0)); H=Math.max(H,Math.round(visualViewport.height||0)); } }catch(e){} return {W:W,H:H}; }
-function qtRotSize(){   // (10/11) 독립 층의 시트 크기를 화면 픽셀로 직접 (여러 값 중 큰 쪽)
+var _qtLandW=0, _qtLandFs=false;
+function qtRotSize(force){   // (10/12) 폰 화면이 가로면 그냥 그림(real), 세로면 그림을 눕힘(css). 높이만 바뀌는 건(키보드) 무시 — 폭이 바뀔 때(회전)만 다시 판단(스타일만 바꿈 → 입력 중에도 커서 유지)
   var land=document.getElementById('qt-land'), sh=document.getElementById('qt-land-sheet'); if(!land||!sh)return;
-  var v=qtViewSize(); land.style.width=v.W+'px'; land.style.height=v.H+'px';
-  sh.style.width=v.H+'px'; sh.style.height=v.W+'px';
-  var dg=document.getElementById('qt-land-diag'); if(dg){ var r=sh.getBoundingClientRect(); dg.textContent='화면 '+window.innerWidth+'×'+window.innerHeight+' / 문서 '+document.documentElement.clientWidth+'×'+document.documentElement.clientHeight+' / 시트 '+Math.round(r.width)+'×'+Math.round(r.height); }
+  var v=qtViewSize();
+  if(!force&&v.W===_qtLandW)return;
+  _qtLandW=v.W;
+  var portrait=v.H>v.W;
+  land.classList.toggle('css',portrait); land.classList.toggle('real',!portrait);
+  if(portrait){ land.style.width=v.W+'px'; land.style.height=v.H+'px'; sh.style.width=v.H+'px'; sh.style.height=v.W+'px'; }
+  else{ land.style.width=''; land.style.height=''; sh.style.width=''; sh.style.height=''; }
 }
-function qtLandscape(){   // (10/11) 눕힘 = 견적서 창·앱과 분리된 독립 층(#qt-land). 내용(#qt-body 안)을 그대로 옮겨 그림
+function qtLandHint(){   // 그림만 눕힌 상태(폰은 세로)에서 칸을 누르면: 키보드는 폰 방향을 따른다고 한 번 알려 줌
+  var land=document.getElementById('qt-land'); if(!land||!land.classList.contains('css')||land._hinted)return; land._hinted=1;
+  var t=document.getElementById('qt-land-toast'); if(!t)return;
+  t.textContent='키보드는 폰 방향을 따라 세로로 나와요. 폰을 옆으로 돌리면(자동 회전 켜기) 화면과 키보드가 같이 가로가 됩니다.';
+  t.style.display='block'; clearTimeout(window._qtLandT); window._qtLandT=setTimeout(function(){ t.style.display='none'; },5000);
+}
+function qtLandscape(){   // (10/12) ① 폰 화면 자체를 가로로(전체화면 + 가로 고정 — 되면 키보드도 가로) ② 안 되면 그림만 눕힘. 세로로·닫기는 늘 오른쪽 아래
   if(document.getElementById('qt-land'))return;
   var land=document.createElement('div'); land.id='qt-land';
-  land.innerHTML='<div id="qt-land-sheet"></div><div id="qt-rotback"><span id="qt-land-diag"></span><button onclick="qtPortrait()">⤴ 세로로</button><button onclick="qtClose()" style="background:#fff;color:#334155;border:1.5px solid #cbd5e1">✕ 닫기</button></div>';
+  land.innerHTML='<div id="qt-land-sheet"></div><div id="qt-rotback"><button onclick="qtPortrait()">⤴ 세로로</button><button onclick="qtClose()" style="background:#fff;color:#334155;border:1.5px solid #cbd5e1">✕ 닫기</button></div><div id="qt-land-toast"></div>';
   document.body.appendChild(land);
+  land.addEventListener('focusin',qtLandHint);
   document.getElementById('qt-modal').classList.remove('on');
-  qtRender(); qtRotSize(); setTimeout(qtRotSize,300);
+  var qb=document.getElementById('qt-body'); if(qb)qb.innerHTML='';   // 같은 칸이 두 군데 생기지 않게(합계가 숨은 쪽에서 계산되던 문제)
+  qtRotSize(true); qtRender();
+  var after=function(){ setTimeout(function(){ if(document.getElementById('qt-land')&&!qtTypingNow())qtRotSize(true); },350); };
+  try{
+    var p=land.requestFullscreen?land.requestFullscreen({navigationUI:'hide'}):(land.webkitRequestFullscreen?land.webkitRequestFullscreen():null);
+    if(p&&typeof p.then==='function'){
+      p.then(function(){ _qtLandFs=true; qtRotSize(true);
+        if(screen.orientation&&screen.orientation.lock)return screen.orientation.lock('landscape').catch(function(){});
+      }).then(after,after);
+    }else after();
+  }catch(e){ after(); }
 }
-function qtPortrait(){ var land=document.getElementById('qt-land'); if(land)land.remove(); if(qtCur){ document.getElementById('qt-modal').classList.add('on'); qtRender(); } }
+function qtLandExitFs(){   // 가로 고정 풀고 전체화면 끝내기
+  _qtLandFs=false;
+  try{ if(screen.orientation&&screen.orientation.unlock)screen.orientation.unlock(); }catch(e){}
+  try{ if(document.fullscreenElement&&document.exitFullscreen){ var q=document.exitFullscreen(); if(q&&q.catch)q.catch(function(){}); } }catch(e){}
+}
+function qtPortrait(){ var land=document.getElementById('qt-land'); qtLandExitFs(); if(land)land.remove();
+  if(qtCur){ document.getElementById('qt-modal').classList.add('on'); qtRender();
+    setTimeout(function(){ if(!qtTypingNow()&&!document.getElementById('qt-land')&&document.getElementById('qt-modal').classList.contains('on'))qtRender(); },450); } }
+document.addEventListener('fullscreenchange',function(){ if(!document.fullscreenElement&&_qtLandFs&&document.getElementById('qt-land'))qtPortrait(); });   // 폰 뒤로가기·위에서 끌어내리기로 전체화면이 풀려도 세로 견적서로
 function qtNum(v){v=String(v==null?'':v).replace(/[^0-9.-]/g,'');var n=parseFloat(v);return isFinite(n)?n:0;}
 function qtFmt(n){n=Math.round(n||0);return n?n.toLocaleString():'';}
 function qtRowCalc(row){var q=qtNum(row.qty),u=qtNum(row.unit),l=qtNum(row.labor);var p=q&&u?q*u:0;return {pamt:p,labor:l,sum:p+l};}
@@ -19397,7 +19434,7 @@ function qtOpen(rsvId){
   qtRender(); document.getElementById('qt-modal').classList.add('on');
 }
 function qtLoad(no){var all=qtAllSaved().filter(function(d){return d.no===no;});if(!all.length)return;qtCur=all[0];qtRender();}
-function qtClose(){var m=document.getElementById('qt-modal');m.classList.remove('on');m.classList.remove('qt-rot');var land=document.getElementById('qt-land');if(land)land.remove();}
+function qtClose(){var m=document.getElementById('qt-modal');m.classList.remove('on');m.classList.remove('qt-rot');var land=document.getElementById('qt-land');if(land){qtLandExitFs();land.remove();}}
 function qtSet(k,v){if(!qtCur)return;qtCur[k]=v;}
 function qtSetRow(i,k,v){if(!qtCur||!qtCur.rows[i])return;qtCur.rows[i][k]=v;if(k==='qty'||k==='unit'||k==='labor')qtRecalc();}
 function qtRecalc(){
@@ -19479,14 +19516,18 @@ function qtRender(){
   qtSignInit();
 }
 /* 서명 패드 */
-function _qtOnResize(){clearTimeout(window._qtRz);window._qtRz=setTimeout(function(){try{ qtRotSize(); if(qtCur&&document.getElementById('qt-modal').classList.contains('on'))qtRender(); }catch(e){}},250);}
+var _qtLastW=window.innerWidth;
+function qtTypingNow(){ var a=document.activeElement; return !!(a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)); }   // 폰 키보드로 입력 중이면 화면을 다시 그리지 않음 (10/11)
+function _qtOnResize(){clearTimeout(window._qtRz);window._qtRz=setTimeout(function(){try{ qtRotSize(); if(qtTypingNow())return; var w=window.innerWidth; if(w===_qtLastW)return; _qtLastW=w; if(qtCur&&document.getElementById('qt-modal').classList.contains('on'))qtRender(); }catch(e){}},250);}   // 다시 그리기는 가로 폭이 바뀐 회전 때만
 window.addEventListener('resize',_qtOnResize); window.addEventListener('orientationchange',_qtOnResize);
 function qtSignInit(){
   var cv=document.getElementById('qt-sign-cv'); if(!cv)return;
   var ctx=cv.getContext('2d'); ctx.lineWidth=3; ctx.lineCap='round'; ctx.lineJoin='round'; ctx.strokeStyle='#111';
   if(qtCur&&qtCur.sign){var im=new Image();im.onload=function(){ctx.drawImage(im,0,0,cv.width,cv.height);};im.src=qtCur.sign;}
   var drawing=false;
-  function pos(e){var r=cv.getBoundingClientRect();return [(e.clientX-r.left)*cv.width/r.width,(e.clientY-r.top)*cv.height/r.height];}
+  function pos(e){var r=cv.getBoundingClientRect(); var ld=document.getElementById('qt-land');
+    if(ld&&ld.classList.contains('css')&&ld.contains(cv))return [(e.clientY-r.top)*cv.width/r.height,(r.right-e.clientX)*cv.height/r.width];   // 그림만 눕힌 상태
+    return [(e.clientX-r.left)*cv.width/r.width,(e.clientY-r.top)*cv.height/r.height];}
   cv.onpointerdown=function(e){drawing=true;var p=pos(e);ctx.beginPath();ctx.moveTo(p[0],p[1]);cv.setPointerCapture(e.pointerId);e.preventDefault();};
   cv.onpointermove=function(e){if(!drawing)return;var p=pos(e);ctx.lineTo(p[0],p[1]);ctx.stroke();e.preventDefault();};
   cv.onpointerup=cv.onpointercancel=function(e){if(!drawing)return;drawing=false;if(qtCur)qtCur.sign=cv.toDataURL('image/png');};
