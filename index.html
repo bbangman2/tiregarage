@@ -961,6 +961,8 @@ tr.qr-align.off td input{color:#94a3b8}
 .qr-bar .save{height:44px;border:none;border-radius:10px;background:#1d9e75;color:#fff;font-size:14.5px;font-weight:800;padding:0 18px;cursor:pointer;min-width:120px}
 .qr-bar .save:disabled{opacity:.6}
 #qt-land.real #qt-rotback{top:10px;bottom:auto}
+.qt-tbl td.calc.ed{padding:0}.qt-tbl td.calc.ed input{color:#0c447c;font-weight:800;text-align:right;background:transparent}.qt-tbl td.calc.ed input::placeholder{color:#b6c0cc;font-weight:600}
+.qr-dep-hint{flex-basis:100%;font-size:11px;color:#64748b;font-weight:600;line-height:1.4}
 #qt-modal .paste-modal{padding-bottom:0}#qt-body::after{content:'';display:block;height:16px}
 #qt-modal .paste-modal{max-height:88vh;max-height:88dvh}   /* dvh를 모르는 브라우저도 창 안에서 스크롤 → 바닥 저장 줄이 붙어 있게 */
 @media(max-width:640px){ #qt-modal .paste-modal{height:100vh;max-height:100vh;height:100dvh;max-height:100dvh} }
@@ -19482,7 +19484,9 @@ function qtPortrait(){ var land=document.getElementById('qt-land'); qtLandExitFs
 document.addEventListener('fullscreenchange',function(){ if(!document.fullscreenElement&&_qtLandFs&&document.getElementById('qt-land'))qtPortrait(); });   // 폰 뒤로가기·위에서 끌어내리기로 전체화면이 풀려도 세로 견적서로
 function qtNum(v){v=String(v==null?'':v).replace(/[^0-9.-]/g,'');var n=parseFloat(v);return isFinite(n)?n:0;}
 function qtFmt(n){n=Math.round(n||0);return n?n.toLocaleString():'';}
-function qtRowCalc(row){var q=qtNum(row.qty),u=qtNum(row.unit),l=qtNum(row.labor);var p=q&&u?q*u:0;return {pamt:p,labor:l,sum:p+l};}
+function qtRowCalc(row){var q=qtNum(row.qty),u=qtNum(row.unit),l=qtNum(row.labor),pm=(row.last==='pamt'),p;   // (10/12) 부품가를 먼저 적었으면(last='pamt') 단가 = 부품가 ÷ 수량
+  if(pm){p=qtNum(row.pamt);u=(q>0&&p)?Math.round(p/q):0;}else{p=(q&&u)?q*u:0;}
+  return {pamt:p,labor:l,sum:p+l,unit:u,pm:pm};}
 function qtRowIncluded(r,d){ if(!r||r.kind!=='align')return true; var chk=(d&&d.rsv&&d.rsv.r)?(d.rsv.r.chk_align||''):''; return (r.state==='take'&&chk!=='skip')||(r.state==='inform'&&chk==='done'); }   // 받기로함=당일 안 함만 빠짐 / 안내만=당일 했음일 때만 들어감 (지금 예약과 같은 규칙)
 function qtTotals(d){var t={pamt:0,labor:0,sum:0};(d.rows||[]).forEach(function(r){if(!qtRowIncluded(r,d))return;var c=qtRowCalc(r);t.pamt+=c.pamt;t.labor+=c.labor;t.sum+=c.sum;});return t;}
 function qtKey(d){return 'tg_quote_'+(d.rsv_id||('no_'+d.no));}
@@ -19511,12 +19515,15 @@ function qtOpen(rsvId){
 function qtLoad(no){var all=qtAllSaved().filter(function(d){return d.no===no;});if(!all.length)return;qtCur=all[0];qtRender();}
 function qtClose(){var m=document.getElementById('qt-modal');m.classList.remove('on');m.classList.remove('qt-rot');var land=document.getElementById('qt-land');if(land){qtLandExitFs();land.remove();}}
 function qtSet(k,v){if(!qtCur)return;qtCur[k]=v;}
-function qtSetRow(i,k,v){if(!qtCur||!qtCur.rows[i])return;qtCur.rows[i][k]=v;if(k==='qty'||k==='unit'||k==='labor')qtRecalc();}
+function qtSetRow(i,k,v){if(!qtCur||!qtCur.rows[i])return;var row=qtCur.rows[i];row[k]=v;if(k==='unit')row.last='unit';if(k==='pamt')row.last='pamt';if(k==='qty'||k==='unit'||k==='labor'||k==='pamt')qtRecalc();}
 function qtRecalc(){
   if(!qtCur)return;
   qtCur.rows.forEach(function(row,i){var c=qtRowCalc(row);var a=document.getElementById('qt-pamt-'+i),b=document.getElementById('qt-sum-'+i);
     if(row.kind==='align'){ if(b)b.innerHTML=qtRowIncluded(row,qtCur)?qtFmt(c.sum):((c.sum&&row.state!=='none')?'<span class="qr-opt">선택</span>':''); return; }
-    if(a)a.textContent=qtFmt(c.pamt);if(b)b.textContent=qtFmt(c.sum);});
+    var un=document.getElementById('qt-unit-'+i), ae=document.activeElement;
+    if(a){ if(a.tagName==='INPUT'){ if(ae!==a)a.value=c.pamt?qtFmt(c.pamt):''; } else a.textContent=qtFmt(c.pamt); }
+    if(un&&un.tagName==='INPUT'&&ae!==un)un.value=c.unit?qtFmt(c.unit):'';   // 부품가를 적는 중이면 단가가 나눠져 채워짐
+    if(b)b.textContent=qtFmt(c.sum);});
   if(qtCur.rsv)setTimeout(function(){ try{ qrRecalcPay(qtTotals(qtCur)); }catch(e){} },0);
   var t=qtTotals(qtCur);
   var e1=document.getElementById('qt-tp'),e2=document.getElementById('qt-tl'),e3=document.getElementById('qt-ts'),e4=document.getElementById('qt-grand');
@@ -19558,7 +19565,8 @@ function qtTableHtml(d,edit){
       var k=col[0];
       if(edit&&d.rsv&&i===0&&k==='out'){h+='<td class="qr-out">'+qrOutCell(d)+'</td>';return;}   // 부품출고 = 재고·입고분 연결
       if(edit&&d.rsv&&i===0&&(((d.rsv.linked||d.rsv.fromStock)&&k==='pat')||(d.rsv.linked&&k==='qty'))){h+='<td style="padding:0 6px;background:#f0fdfa;font-weight:700'+(k==='qty'?';text-align:right':'')+'">'+esc(row[k]==null?'':String(row[k]))+'</td>';return;}   // 연결된 타이어는 재고 값 그대로
-      if(k==='pamt'){h+='<td class="calc" id="qt-pamt-'+i+'">'+qtFmt(c.pamt)+'</td>';return;}
+      if(k==='pamt'){ if(edit)h+='<td class="calc ed"><input id="qt-pamt-'+i+'" value="'+(c.pamt?qtFmt(c.pamt):'')+'" inputmode="numeric" placeholder="부품가" title="부품가를 먼저 적고 수량을 적으면 단가가 나눠집니다" oninput="qtSetRow('+i+',\'pamt\',this.value)" onblur="this.value=this.value?qtFmt(qtNum(this.value)):\'\'"></td>'; else h+='<td class="calc" id="qt-pamt-'+i+'">'+qtFmt(c.pamt)+'</td>'; return; }
+      if(k==='unit'){ var uv=c.unit?qtFmt(c.unit):''; if(edit)h+='<td class="num"><input id="qt-unit-'+i+'" value="'+uv+'" inputmode="numeric" oninput="qtSetRow('+i+',\'unit\',this.value)" onblur="this.value=this.value?qtFmt(qtNum(this.value)):\'\'"></td>'; else h+='<td style="text-align:right">'+uv+'</td>'; return; }
       if(k==='sum'){h+='<td class="calc" id="qt-sum-'+i+'">'+qtFmt(c.sum)+'</td>';return;}
       var num=(k==='qty'||k==='unit'||k==='labor');
       var v=row[k]==null?'':String(row[k]);
@@ -19669,12 +19677,13 @@ function qrNoMap(){   // 견적번호 = 예약 등록 날짜 + 그날 등록 순
 function qrNo(r){ if(!r)return '등록 시 자동'; return qrNoMap()[r.id]||qtNewNo(r); }
 function qrTireText(r){ var t=''; try{ t=rsvTiresLabel(r,true)||''; }catch(e){} t=t.replace(/\s*×\s*\d+/g,'').replace(/\s*\[[^\]]*\]/g,'').split(' · ').filter(function(p){return p&&!/^(재고|입고분|출처|창고)/.test(p.trim());}).join(' · ').trim(); return t||noPP(r.tire_spec||''); }
 function qrRsvTotal(r){ return (parseInt(String(r.pay_amount||'').replace(/[^0-9]/g,''),10)||0)+(parseInt(r.deposit||0,10)||0); }   // 총액(얼라이 제외) = 현장 결제 + 예약금
-function qrRowsFromRsv(r){   // 예약 결제 칸(한 줄·두 줄) → 견적서 줄
-  var tot=qrRsvTotal(r), q0=parseInt(r.src_qty||r.qty||0,10)||0;
+function qrRowsFromRsv(r,depMode){   // 예약 결제 칸(한 줄·두 줄) → 견적서 줄 (더하기면 결제 칸 안의 예약금을 덜어냄)
+  var dep=parseInt(r.deposit||0,10)||0, add=(depMode==='add'), tot=qrRsvTotal(r)-(add?dep:0), q0=parseInt(r.src_qty||r.qty||0,10)||0;
   var pu=String(r.pay_unit||'').split('|'), pq=String(r.pay_qty||'').split('|');
   function ln(u,q){ var uu=rsvParseWon(u||''), qq=parseInt(String(q||'').replace(/[^0-9]/g,''),10)||0; return {u:uu,q:qq,v:qq>1?uu*qq:uu}; }
   function put(row,l){ if(l.q>1){ row.qty=String(l.q); row.unit=String(l.u); } else { row.qty='1'; row.unit=String(l.v); } }
   var a=ln(pu[0],pq[0]), b=ln(pu[1],pq[1]);
+  if(add&&dep){ if(b.v>=dep){ b.v-=dep; if(b.v){b.q=0;b.u=b.v;} else b={u:0,q:0,v:0}; } else if(a.v>=dep){ a.v-=dep; a.q=0; a.u=a.v; } }   // 저장 때 예약금을 둘째(또는 첫) 줄에 얹었으므로 되돌림
   var tire={part:'타이어',pat:(r.tire_spec||r.src_product_id||r.src_item_id)?qrTireText(r):'',out:'',work:'타이어 장착',qty:'',unit:'',labor:''}, rows=[tire];
   if(tot>0&&a.v+b.v===tot){ if(a.v&&b.v){ put(tire,a); var r2=qtBlankRow(); put(r2,b); rows.push(r2); } else put(tire,a.v?a:b); }   // 예약 폼에 적은 줄 그대로
   else if(tot>0){ if(q0>1&&tot%q0===0){ tire.qty=String(q0); tire.unit=String(tot/q0); } else { tire.qty='1'; tire.unit=String(tot); } }   // 옛 건: 개당으로 나눠 떨어지면 개당, 아니면 통금액
@@ -19687,7 +19696,7 @@ function qrFromRsv(r,ds,out,x){
   var fromStock=!r&&!!(out&&(out.product_id||out.item_id)), imp=false;
   if(r&&!x.rows&&!x.no){ var old=(typeof qtSaved==='function')?qtSaved(r.id):null;   // 이 기기에 남은 예전 견적서(예약에 연결해 둔 것) → 처음 한 번 가져옴
     if(old&&old.no){ x={no:old.no,name:old.name||'',km:old.km||'',note:old.note||'',sign:old.sign||'',rows:(old.rows||[]).filter(function(z){return z&&(z.part||z.pat||z.out||z.work||z.qty||z.unit||z.labor);})}; imp=true; } }
-  var d={rsv:{id:r?r.id:null,r:r,time:r?(r.time_slot||''):'',dur:(r&&parseInt(r.duration_min,10))||60,pay:(r&&r.pay_method)||'현/카 동일',deposit:(r&&r.deposit>0)?String(r.deposit):'',memo:r?(r.memo||''):'',linked:linked,fromStock:fromStock,out:out||null,imported:imp,mismatch:null,pat0:''},
+  var d={rsv:{id:r?r.id:null,r:r,time:r?(r.time_slot||''):'',dur:(r&&parseInt(r.duration_min,10))||60,pay:(r&&r.pay_method)||'현/카 동일',deposit:(r&&r.deposit>0)?String(r.deposit):'',memo:r?(r.memo||''):'',linked:linked,fromStock:fromStock,out:out||null,imported:imp,mismatch:null,pat0:'',depMode:(x.dep_mode==='add')?'add':'sub'},
     no:x.no||(r?qrNo(r):'등록 시 자동'),date:r?(r.date_str||''):(ds||''),name:x.name||(r&&r.customer_name)||'',car_no:r?(r.car_no||''):'',car_name:r?(r.car_name||''):'',km:x.km||'',tel:r?(r.phone||''):'',
     rows:[],note:x.note||'',sign:x.sign||'',writer:r?(r.user_name||''):((typeof me!=='undefined'&&me&&me.name)||''),saved:!imp&&!!(x.rows||x.no),saved_at:imp?'':(x.saved_at||''),saved_by:imp?'':(x.saved_by||'')};
   var st=r?(r.align_state||(r.alignment?'take':'none')):'inform'; if(st!=='take'&&st!=='inform')st='none';
@@ -19696,8 +19705,8 @@ function qrFromRsv(r,ds,out,x){
     d.rows=x.rows.filter(function(z){return z&&z.kind!=='align';}).map(function(z){return Object.assign({},z);});
     if(!d.rows.length)d.rows=[qtBlankRow()];
     if(linked&&d.rows[0]){ d.rows[0].pat=qrTireText(r); d.rows[0].qty=String(r.src_qty||r.qty||d.rows[0].qty||''); }
-    if(r){ var T=0; d.rows.forEach(function(z){ T+=qtRowCalc(z).sum; }); var tot=qrRsvTotal(r); if(tot>0&&T!==tot)d.rsv.mismatch={rows:T,rsv:tot}; }
-  }else if(r)d.rows=qrRowsFromRsv(r);
+    if(r){ var T=0; d.rows.forEach(function(z){ T+=qtRowCalc(z).sum; }); var tot=qrRsvTotal(r), expect=(d.rsv.depMode==='add')?(tot-(parseInt(r.deposit||0,10)||0)):tot; if(expect>0&&T!==expect)d.rsv.mismatch={rows:T,rsv:expect}; }   // 더하기면 줄 합계 = 현장 금액
+  }else if(r)d.rows=qrRowsFromRsv(r,d.rsv.depMode);
   else{ var tire={part:'타이어',pat:'',out:'',work:'타이어 장착',qty:'',unit:'',labor:''}; if(out&&out.spec){ tire.pat=noPP(out.spec); tire.qty=out.qty?String(out.qty):''; } d.rows=[tire,qtBlankRow()]; }
   d.rows.splice(1,0,al);   // 얼라인 줄은 늘 둘째 줄 (없음·안내함·받기로함)
   d.rsv.pat0=(d.rows[0]&&d.rows[0].kind!=='align')?(d.rows[0].pat||''):'';
@@ -19754,7 +19763,8 @@ function qrSetR(k,v){ if(!qtCur||!qtCur.rsv)return; qtCur.rsv[k]=v; if(k==='time
 function qrDateRowHtml(d){
   var R=d.rsv, opts=[]; for(var mm=8*60;mm<=20*60;mm+=30)opts.push(_rsvHM(mm)); if(R.time&&opts.indexOf(R.time)<0)opts.push(R.time);
   var to='<option value="">시간</option>'+opts.map(function(v){return '<option'+(v===R.time?' selected':'')+'>'+v+'</option>';}).join('');
-  var du=[30,60,90,120,150,180,240].map(function(m){return '<option value="'+m+'"'+((R.dur||60)===m?' selected':'')+'>'+(m<60?m+'분':Math.floor(m/60)+'시간'+(m%60?' 반':''))+'</option>';}).join('');
+  var DUR=[30,60,90,120,150,180,210,240,300,360,420,480,540], cur=R.dur||60; if(DUR.indexOf(cur)<0)DUR.push(cur); DUR.sort(function(a,b){return a-b;});   // 최대 9시간 (10/12)
+  var du=DUR.map(function(m){var hh=Math.floor(m/60),mm=m%60; return '<option value="'+m+'"'+(cur===m?' selected':'')+'>'+(m<60?m+'분':hh+'시간'+(mm===30?' 반':(mm?' '+mm+'분':'')))+'</option>';}).join('');
   return '<div class="qt-row"><div class="k">날짜</div><div class="v qr-dt"><input type="date" value="'+esc(d.date||'')+'" onchange="qtSet(\'date\',this.value)"><select onchange="qrSetR(\'time\',this.value)" title="시작 시간">'+to+'</select><select onchange="qrSetR(\'dur\',parseInt(this.value,10))" title="소요시간">'+du+'</select><span class="qr-end" id="qr-end">'+qrEndTxt(R)+'</span></div></div>';
 }
 function qrOutCell(d){   // 표 첫 줄 '부품출고' = 재고·입고분 연결
@@ -19778,17 +19788,22 @@ function qrAlignRowHtml(row,i,edit,d){   // 얼라인 줄 = 기존 예약 폼과
   return h+'</tr>';
 }
 function qrSetAlign(i,st){ if(!qtCur||!qtCur.rows[i])return; qtCur.rows[i].state=st; qtRender(); }   // 금액은 남겨 둠(없음이면 안 씀)
+function qrSite(d,t){ var dep=qtNum(d.rsv.deposit); return (d.rsv.depMode==='add')?t.sum:Math.max(0,t.sum-dep); }   // 현장에서 받을 돈: 빼기 = 합계 − 예약금 / 더하기 = 합계 그대로(예약금은 따로 받은 돈)
 function qrPayHtml(d,t){
-  var dep=qtNum(d.rsv.deposit), site=Math.max(0,t.sum-dep);
-  var h='<div class="qt-box qr-pay"><div class="qr-pr"><span class="k">예약금 · 미리 받음</span><input class="qr-money" inputmode="numeric" value="'+(dep?qtFmt(dep):'')+'" placeholder="0" oninput="qrSetR(\'deposit\',this.value);qtRecalc()" onblur="this.value=this.value?qtFmt(qtNum(this.value)):\'\'"></div>';
+  var dep=qtNum(d.rsv.deposit), add=(d.rsv.depMode==='add'), site=qrSite(d,t);
+  var h='<div class="qt-box qr-pay"><div class="qr-pr"><span class="k">예약금 · 미리 받음</span><input class="qr-money" inputmode="numeric" value="'+(dep?qtFmt(dep):'')+'" placeholder="0" oninput="qrSetR(\'deposit\',this.value);qtRecalc()" onblur="this.value=this.value?qtFmt(qtNum(this.value)):\'\'">';
+  h+='<span class="qr-seg">'+[['sub','총액에서 빼기'],['add','총액에 더하기']].map(function(p){return '<button type="button" class="'+((add?'add':'sub')===p[0]?'on':'')+'" onclick="qrSetDepMode(\''+p[0]+'\')">'+p[1]+'</button>';}).join('')+'</span>';
+  h+='<span class="qr-dep-hint">'+(add?'더하기: 견적 합계는 현장에서 받고, 예약금은 따로 받은 돈 → 예약금 포함 총 금액 = 합계 + 예약금':'빼기: 현장 결제 = 총 합계 − 예약금')+'</span></div>';
+  if(add)h+='<div class="qr-pr"><span class="k">예약금 포함 총 금액</span><b id="qr-grandall">'+(t.sum+dep).toLocaleString()+'원</b></div>';
   h+='<div class="qr-pr"><span class="k">현장 결제</span><b id="qr-site">'+site.toLocaleString()+'원</b><span class="qr-seg">'+['현/카 동일','현금만'].map(function(m){return '<button type="button" class="'+((d.rsv.pay||'현/카 동일')===m?'on':'')+'" onclick="qrSetPay(\''+m+'\')">'+m+'</button>';}).join('')+'</span></div></div>';
   return h;
 }
-function qrRecalcPay(t){ if(!qtCur||!qtCur.rsv)return; var site=Math.max(0,t.sum-qtNum(qtCur.rsv.deposit)); ['qr-site','qr-site2'].forEach(function(id){ var e=document.getElementById(id); if(e)e.textContent=site.toLocaleString()+'원'; }); }
+function qrSetDepMode(m){ if(!qtCur||!qtCur.rsv)return; qtCur.rsv.depMode=(m==='add')?'add':'sub'; qtRender(); }
+function qrRecalcPay(t){ if(!qtCur||!qtCur.rsv)return; var site=qrSite(qtCur,t); ['qr-site','qr-site2'].forEach(function(id){ var e=document.getElementById(id); if(e)e.textContent=site.toLocaleString()+'원'; }); var g=document.getElementById('qr-grandall'); if(g)g.textContent=(t.sum+qtNum(qtCur.rsv.deposit)).toLocaleString()+'원'; }
 function qrSetPay(m){ if(!qtCur||!qtCur.rsv)return; qtCur.rsv.pay=m; qtRender(); }
 function qrResetRows(){   // 예약 화면에서 고친 금액으로 견적서 줄을 다시 채움(얼라인 줄은 그대로)
   if(!qtCur||!qtCur.rsv||!qtCur.rsv.r)return;
-  var al=qtCur.rows.filter(function(z){return z.kind==='align';})[0], rows=qrRowsFromRsv(qtCur.rsv.r);
+  var al=qtCur.rows.filter(function(z){return z.kind==='align';})[0], rows=qrRowsFromRsv(qtCur.rsv.r,qtCur.rsv.depMode);
   rows.splice(1,0,al||{kind:'align',state:'none',labor:''}); qtCur.rows=rows; qtCur.rsv.mismatch=null; qtCur.rsv.pat0=(rows[0]&&rows[0].pat)||''; qtRender();
 }
 function qrDayHtml(r,d){   // 등록된 예약만: 작업 당일 체크·작업 후 메모·상태 버튼·재고 연결 관리 (지금 상세 화면 그대로)
@@ -19824,7 +19839,7 @@ function qrRender(){
   h+='</div>';
   if(r)h+=qrDayHtml(r,d);
   h+='<div class="qr-acts"><button onclick="qtPrint()">🖨 인쇄 / PDF</button><button onclick="qtXlsx()">📥 엑셀</button><button onclick="qtClose()">닫기</button></div>';
-  var site=Math.max(0,t.sum-qtNum(R.deposit));
+  var site=qrSite(d,t);
   h+='<div class="qr-bar"><div class="sum"><small>현장에서 받을 돈'+(r?' · '+esc(r.status||''):' · 새 예약')+'</small><b id="qr-site2">'+site.toLocaleString()+'원</b></div><button class="save" onclick="qrSave()">'+(r?'💾 저장':'예약 등록')+'</button></div>';
   (qtRotated()?document.getElementById('qt-land-sheet'):document.getElementById('qt-body')).innerHTML=h;
   qtSignInit();
@@ -19850,9 +19865,10 @@ async function qrSave(){   // 저장 = 숨긴 기존 예약 폼에 옮겨 rsvSub
     try{ var _st=_rsvMin(R.time); if(_st!=null){ var _en=_rsvHM(_st+(R.dur||60)); rsvFillTimeEnd(_en); sv('rsv-time-end',_en); } }catch(e){}
     sv('rsv-phone',d.tel||''); sv('rsv-carno',d.car_no||''); sv('rsv-carname',d.car_name||''); sv('rsv-memo',R.memo||'');
     var ast=al?al.state:'none', amt=al?qtNum(al.labor):0; rsvSetAlg(ast); sv('rsv-algamt',(ast!=='none'&&amt)?String(amt):'');
-    function lineOf(x){ var c=qtRowCalc(x), q=qtNum(x.qty), u=qtNum(x.unit); if(q>1&&u&&!qtNum(x.labor))return [String(u),String(q)]; return [c.sum?String(c.sum):'','']; }   // 단가×수량이면 그대로, 기술료가 있으면 그 줄 총액
-    var vr=rows.filter(function(x){return qtRowCalc(x).sum>0;}), L1=['',''], L2=['',''];
+    function lineOf(x){ var c=qtRowCalc(x), q=qtNum(x.qty); if(q>1&&c.unit&&!qtNum(x.labor)&&(!c.pm||c.unit*q===c.pamt))return [String(c.unit),String(q)]; return [c.sum?String(c.sum):'','']; }   // 단가×수량이면 그대로(부품가 먼저 적은 줄은 딱 나눠질 때만), 아니면 그 줄 총액
+    var vr=rows.filter(function(x){return qtRowCalc(x).sum>0;}), L1=['',''], L2=['',''], addDep=(R.depMode==='add')?dep:0;
     if(vr.length===1)L1=lineOf(vr[0]); else if(vr.length===2){ L1=lineOf(vr[0]); L2=lineOf(vr[1]); } else if(vr.length>2)L1=[String(T),''];   // 줄 1~2개 = 예약 결제 칸 1~2줄, 3개 넘으면 총액
+    if(addDep){ if(vr.length===1)L2=[String(addDep),'']; else if(vr.length===0)L1=[String(addDep),'']; else { var lv=(L2[1]&&qtNum(L2[1])>1)?qtNum(L2[0])*qtNum(L2[1]):qtNum(L2[0]); L2=[String(lv+addDep),'']; } }   // 더하기: 예약금을 둘째 줄(또는 둘째 줄 합)에 얹음 → 폼 '총액 − 예약금' = 견적 합계
     sv('rsv-payunit',L1[0]); sv('rsv-payqty',L1[1]); sv('rsv-paytotal',''); sv('rsv-payunit2',L2[0]); sv('rsv-payqty2',L2[1]); sv('rsv-paytotal2','');
     try{ rsvPayLast='unit'; rsvPayLast2='unit'; }catch(e){}
     rsvApplyPayMethod(R.pay||'현/카 동일'); sv('rsv-deposit',dep?String(dep):''); rsvCalc();
@@ -19873,7 +19889,7 @@ async function qrSave(){   // 저장 = 숨긴 기존 예약 폼에 옮겨 rsvSub
   _qrSaving=false;
   var rm2=document.getElementById('rsv-modal'); if(rm2)rm2.classList.remove('on');
   if(failed){ qtCur=d; qtRender(); if(!qtRotated())document.getElementById('qt-modal').classList.add('on'); return; }   // 적던 견적서를 그대로 다시 보여 줌
-  var x={no:(d.no&&d.no!=='등록 시 자동')?d.no:qrNo(nw),name:d.name||'',km:d.km||'',note:d.note||'',sign:d.sign||'',rows:rows};
+  var x={no:(d.no&&d.no!=='등록 시 자동')?d.no:qrNo(nw),name:d.name||'',km:d.km||'',note:d.note||'',sign:d.sign||'',rows:rows,dep_mode:R.depMode||'sub'};
   try{ await qrStoreX(nw.id,x); try{ localStorage.removeItem('tg_quote_'+nw.id); }catch(e){} if(typeof stkToast==='function')stkToast('🧾 '+x.no+' '+(R.id?'저장':'예약 등록')+'됨'); }
   catch(e){ alert('예약은 저장됐지만 견적서 칸(고객명·주행거리·줄·비고·서명)은 저장하지 못했습니다: '+e.message); }
   qtCur=null; await qrOpen(nw.id);   // 저장된 내용으로 같은 자리(세로·가로)에 다시 그림
@@ -19883,11 +19899,11 @@ function qrForDoc(d,payInNote){   // 인쇄·엑셀용: 얼라인 줄 → 보통
   var t=qtTotals(d), dep=qtNum(d.rsv.deposit);
   var rows=d.rows.map(function(x){ if(x.kind!=='align')return x; if(x.state==='none')return null; var a=qtNum(x.labor); if(!a)return null;
     return qtRowIncluded(x,d)?{part:'얼라인',pat:'',out:'',work:'휠 얼라인먼트',qty:'',unit:'',labor:String(a)}:{part:'얼라인',pat:'선택 항목 ('+qtFmt(a)+'원)',out:'',work:'휠 얼라인먼트',qty:'',unit:'',labor:''}; }).filter(Boolean);
-  var note=d.note||''; if(payInNote&&dep)note=(note?note+'\n':'')+'예약금(미리 받음) '+qtFmt(dep)+'원 · 현장 결제 '+qtFmt(Math.max(0,t.sum-dep))+'원 · '+(d.rsv.pay||'');
+  var note=d.note||''; if(payInNote&&dep)note=(note?note+'\n':'')+((d.rsv.depMode==='add')?('예약금(따로 받음) '+qtFmt(dep)+'원 · 예약금 포함 총 금액 '+qtFmt(t.sum+dep)+'원 · 현장 결제 '+qtFmt(t.sum)+'원'):('예약금(미리 받음) '+qtFmt(dep)+'원 · 현장 결제 '+qtFmt(Math.max(0,t.sum-dep))+'원'))+' · '+(d.rsv.pay||'');
   return Object.assign({},d,{rows:rows,note:note,date:(d.date||'')+(d.rsv.time?' '+d.rsv.time:''),rsv:null});
 }
-function qrPrintPay(d0,t){ if(!d0||!d0.rsv)return ''; var dep=qtNum(d0.rsv.deposit); if(!dep)return ''; var site=Math.max(0,t.sum-dep);
-  return '<div class="qt-box qr-pay" style="margin-top:6px"><div class="qr-pr"><span class="k">예약금 (미리 받음)</span><b>'+dep.toLocaleString()+'원</b></div><div class="qr-pr"><span class="k">현장 결제</span><b>'+site.toLocaleString()+'원</b><span style="font-size:12px;color:#64748b">'+esc(d0.rsv.pay||'')+'</span></div></div>'; }
+function qrPrintPay(d0,t){ if(!d0||!d0.rsv)return ''; var dep=qtNum(d0.rsv.deposit); if(!dep)return ''; var add=(d0.rsv.depMode==='add'), site=qrSite(d0,t);
+  return '<div class="qt-box qr-pay" style="margin-top:6px"><div class="qr-pr"><span class="k">예약금 ('+(add?'따로 받음':'미리 받음')+')</span><b>'+dep.toLocaleString()+'원</b></div>'+(add?'<div class="qr-pr"><span class="k">예약금 포함 총 금액</span><b>'+(t.sum+dep).toLocaleString()+'원</b></div>':'')+'<div class="qr-pr"><span class="k">현장 결제</span><b>'+site.toLocaleString()+'원</b><span style="font-size:12px;color:#64748b">'+esc(d0.rsv.pay||'')+'</span></div></div>'; }
 /* 예약 연결 */
 function qtRsvLabel(r){return (r.date_str?(r.date_str+' '+(r.time_slot||'')):'📌 미지정')+' · '+(r.car_no||'차량번호 없음')+(r.car_name?' '+r.car_name:'')+(r.phone?' · '+r.phone:'')+(r.tire_spec?' · '+noPP(r.tire_spec):'');}
 function qtPickOpen(mode,rsvId,dateFilter){
@@ -19981,7 +19997,7 @@ async function qrExLoadAll(){   // DB에 저장된 견적서 칸 전부 {예약i
 function qrExDoc(r,x){   // 예약 1건 → 견적서 1장 (화면과 같은 계산)
   var d=qrFromRsv(r,'',null,x||{}), t=qtTotals(d), dep=qtNum(d.rsv.deposit), AL={none:'없음',inform:'안내함',take:'받기로함'};
   var al=d.rows.filter(function(z){return z.kind==='align';})[0], doc=qrForDoc(d,true);
-  doc.rsv_id=r.id; doc._saved=!!d.saved; doc._imp=!!d.rsv.imported; doc._t=t; doc._dep=dep; doc._site=Math.max(0,t.sum-dep); doc._pay=d.rsv.pay||'';
+  doc.rsv_id=r.id; doc._saved=!!d.saved; doc._imp=!!d.rsv.imported; doc._t=t; doc._dep=dep; doc._site=qrSite(d,t); doc._pay=d.rsv.pay||''; doc._depMode=(d.rsv.depMode==='add')?'총액에 더하기':'총액에서 빼기';
   doc._alg=al?((AL[al.state]||'')+((al.state!=='none'&&qtNum(al.labor))?' '+qtFmt(qtNum(al.labor)):'')):'';
   doc._memo=d.rsv.memo||''; doc._note=d.note||''; doc._ds=r.date_str||''; doc._ts=r.time_slot||''; doc._st=r.status||''; doc.writer=r.user_name||''; doc._savedAt=d.saved_at||'';
   return doc;
@@ -20024,10 +20040,10 @@ async function qrExDownload(){
       return ws;
     }
     var L=[], D=[];
-    function lines(q,ds){ (q.rows||[]).filter(function(x){return x.part||x.pat||x.out||x.work||x.qty||x.unit||x.labor;}).forEach(function(x){var c=qtRowCalc(x);D.push([q.no,ds,q.name||'',q.car_no||'',x.part||'',x.pat||'',x.out||'',x.work||'',qtNum(x.qty)||null,qtNum(x.unit)||null,c.pamt||null,c.labor||null,c.sum||null]);}); }
-    P.docs.forEach(function(q){ L.push([q.no,q._ds||'미지정',q._ts||'',q.name||'',q.car_no||'',q.car_name||'',q.km||'',q.tel||'',q._st||'',q._t.pamt,q._t.labor,q._t.sum,q._dep||null,q._site,q._pay||'',q._alg||'',(q._note||'').replace(/\n/g,' / '),(q._memo||'').replace(/\n/g,' / '),q.sign?'있음':'',q.writer||'',q._savedAt||'']); lines(q,q._ds||'미지정'); });
-    P.free.forEach(function(q){ var tt=qtTotals(q); L.push([q.no,q.date||'','',q.name||'',q.car_no||'',q.car_name||'',q.km||'',q.tel||'','예약 없음(이 기기)',tt.pamt,tt.labor,tt.sum,null,null,'','',(q.note||'').replace(/\n/g,' / '),'',q.sign?'있음':'',q.writer||'',q.saved_at||'']); lines(q,q.date||''); });
-    listSheet('목록',['견적번호','예약 날짜','시간','고객명','차량번호','차명','주행거리','전화','예약 상태','부품가','기술료','총합계(부가세 포함)','예약금','현장 결제','결제수단','얼라인','비고','직원 메모','서명','작성자','견적서 저장'],L,[14,11,7,10,11,12,9,14,9,11,11,15,11,11,10,13,30,24,6,8,16],[10,11,12,13,14]);
+    function lines(q,ds){ (q.rows||[]).filter(function(x){return x.part||x.pat||x.out||x.work||x.qty||x.unit||x.labor;}).forEach(function(x){var c=qtRowCalc(x);D.push([q.no,ds,q.name||'',q.car_no||'',x.part||'',x.pat||'',x.out||'',x.work||'',qtNum(x.qty)||null,c.unit||null,c.pamt||null,c.labor||null,c.sum||null]);}); }
+    P.docs.forEach(function(q){ L.push([q.no,q._ds||'미지정',q._ts||'',q.name||'',q.car_no||'',q.car_name||'',q.km||'',q.tel||'',q._st||'',q._t.pamt,q._t.labor,q._t.sum,q._dep||null,q._site,q._pay||'',q._depMode||'',q._alg||'',(q._note||'').replace(/\n/g,' / '),(q._memo||'').replace(/\n/g,' / '),q.sign?'있음':'',q.writer||'',q._savedAt||'']); lines(q,q._ds||'미지정'); });
+    P.free.forEach(function(q){ var tt=qtTotals(q); L.push([q.no,q.date||'','',q.name||'',q.car_no||'',q.car_name||'',q.km||'',q.tel||'','예약 없음(이 기기)',tt.pamt,tt.labor,tt.sum,null,null,'','','',(q.note||'').replace(/\n/g,' / '),'',q.sign?'있음':'',q.writer||'',q.saved_at||'']); lines(q,q.date||''); });
+    listSheet('목록',['견적번호','예약 날짜','시간','고객명','차량번호','차명','주행거리','전화','예약 상태','부품가','기술료','총합계(부가세 포함)','예약금','현장 결제','결제수단','예약금 처리','얼라인','비고','직원 메모','서명','작성자','견적서 저장'],L,[14,11,7,10,11,12,9,14,9,11,11,15,11,11,10,13,13,30,24,6,8,16],[10,11,12,13,14]);
     listSheet('줄별',['견적번호','예약 날짜','고객명','차량번호','부품','패턴','부품출고','작업내용','수량','단가','부품가','기술료','합계'],D,[14,11,10,11,10,26,10,16,6,11,11,11,12],[9,10,11,12,13]);
     var used={}; P.docs.filter(function(q){return q._saved||q._imp;}).concat(P.free).forEach(function(q){var nm=String(q.no).replace(/[\\\/\?\*\[\]:]/g,'-').slice(0,28); var k=nm,i=2; while(used[k]){k=nm+'('+(i++)+')';} used[k]=1; qtXlStyledSheet(wb,wb.addWorksheet(k),q);});
     wb.xlsx.writeBuffer().then(function(buf){qtSaveBlob(new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),fn);if(typeof stkToast==='function')stkToast('📥 '+(P.docs.length+P.free.length)+'건 엑셀 저장');qrExPreview();}).catch(function(e){alert('엑셀 만들기 실패: '+e.message);qrExPreview();});
@@ -20064,7 +20080,7 @@ function qtXlStyledSheet(wb,ws,d){
   QT_COLS.forEach(function(c,i){var x=ws.getCell(HR,i+1);x.value=c[1];x.fill=dark;x.font={bold:true,color:{argb:'FFFFFFFF'},size:10.5};x.alignment={horizontal:'center',vertical:'middle'};});
   var rows=(d.rows||[]).filter(function(x){return x.part||x.pat||x.out||x.work||x.qty||x.unit||x.labor;}); while(rows.length<6)rows.push(qtBlankRow());
   rows.forEach(function(x,i){var r=HR+1+i, c=qtRowCalc(x); ws.getRow(r).height=20;
-    var vals=[x.part||'',x.pat||'',x.out||'',x.work||'',qtNum(x.qty)||null,qtNum(x.unit)||null,{formula:'E'+r+'*F'+r,result:c.pamt},qtNum(x.labor)||null,{formula:'G'+r+'+H'+r,result:c.sum}];
+    var vals=[x.part||'',x.pat||'',x.out||'',x.work||'',qtNum(x.qty)||null,c.unit||null,(c.pm?(c.pamt||null):{formula:'E'+r+'*F'+r,result:c.pamt}),qtNum(x.labor)||null,{formula:'G'+r+'+H'+r,result:c.sum}];   // 부품가 먼저 적은 줄은 값 그대로(나눈 단가의 반올림 차이 방지)
     vals.forEach(function(v,j){var y=ws.getCell(r,j+1);y.value=v;y.font={size:10.5,bold:(j===6||j===8)};y.alignment={vertical:'middle',horizontal:(j>=4?'right':'left'),wrapText:j===1};if(j>=4)y.numFmt='#,##0';if(j===6||j===8){y.fill=calc;y.font={size:10.5,bold:true,color:{argb:'FF0C447C'}};}});
   });
   var first=HR+1, last=HR+rows.length, SR=last+1; ws.getRow(SR).height=22;
