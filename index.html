@@ -19431,7 +19431,7 @@ function rsvCloseDetail(){document.getElementById('rsv-detail-modal').classList.
    - 금액은 부가세 포함으로 안내. 비고·서명은 일단 둠(나중에 필요 없으면 제거)
    - 저장은 목업이라 이 브라우저(localStorage)에만. 정식은 DB 테이블(quotes)로 */
 var QT_SUP={biz:'743-87-01655',reg:'01-4120-000478',name:'(주) 티지코퍼레이션',addr:'남양주시 진접읍 금곡리 793',biztype:'도소매 / 자동차정비수리',tel:'010-7745-6789'};
-var QT_COLS=[['part','부품',9],['pat','패턴',21],['out','부품출고',9],['work','작업내용',14],['qty','수량',5],['unit','단가',9],['pamt','부품가',11],['labor','기술료',10],['sum','합계',12]];
+var QT_COLS=[['part','부품',8],['pat','패턴',18],['out','부품출고',8],['work','작업내용',12],['qty','수량',5],['unit','단가',9],['pamt','부품가',10],['lunit','기술단가',9],['labor','기술료',10],['sum','합계',11]];   // (10/13) 기술단가 칸
 var qtCur=null, _qtSign=null;
 function qtBlankRow(){return {part:'',pat:'',out:'',work:'',qty:'',unit:'',labor:''};}
 function qtMobile(){return window.innerWidth<=640&&!qtRotated();}
@@ -19484,9 +19484,10 @@ function qtPortrait(){ var land=document.getElementById('qt-land'); qtLandExitFs
 document.addEventListener('fullscreenchange',function(){ if(!document.fullscreenElement&&_qtLandFs&&document.getElementById('qt-land'))qtPortrait(); });   // 폰 뒤로가기·위에서 끌어내리기로 전체화면이 풀려도 세로 견적서로
 function qtNum(v){v=String(v==null?'':v).replace(/[^0-9.-]/g,'');var n=parseFloat(v);return isFinite(n)?n:0;}
 function qtFmt(n){n=Math.round(n||0);return n?n.toLocaleString():'';}
-function qtRowCalc(row){var q=qtNum(row.qty),u=qtNum(row.unit),l=qtNum(row.labor),pm=(row.last==='pamt'),p;   // (10/12) 부품가를 먼저 적었으면(last='pamt') 단가 = 부품가 ÷ 수량
+function qtRowCalc(row){var q=qtNum(row.qty),u=qtNum(row.unit),pm=(row.last==='pamt'),lm=(row.llast==='unit'),p,l,lu;   // (10/12) 부품가를 먼저 적었으면(last='pamt') 단가 = 부품가 ÷ 수량 / (10/13) 기술료도 같은 짝: 기술단가×수량 또는 기술료÷수량
   if(pm){p=qtNum(row.pamt);u=(q>0&&p)?Math.round(p/q):0;}else{p=(q&&u)?q*u:0;}
-  return {pamt:p,labor:l,sum:p+l,unit:u,pm:pm};}
+  if(lm){lu=qtNum(row.lunit);l=(q&&lu)?q*lu:0;}else{l=qtNum(row.labor);lu=(q>0&&l)?Math.round(l/q):0;}
+  return {pamt:p,labor:l,sum:p+l,unit:u,pm:pm,lunit:lu,lm:lm};}
 function qtRowIncluded(r,d){ if(!r||r.kind!=='align')return true; var chk=(d&&d.rsv&&d.rsv.r)?(d.rsv.r.chk_align||''):''; return (r.state==='take'&&chk!=='skip')||(r.state==='inform'&&chk==='done'); }   // 받기로함=당일 안 함만 빠짐 / 안내만=당일 했음일 때만 들어감 (지금 예약과 같은 규칙)
 function qtTotals(d){var t={pamt:0,labor:0,sum:0};(d.rows||[]).forEach(function(r){if(!qtRowIncluded(r,d))return;var c=qtRowCalc(r);t.pamt+=c.pamt;t.labor+=c.labor;t.sum+=c.sum;});return t;}
 function qtKey(d){return 'tg_quote_'+(d.rsv_id||('no_'+d.no));}
@@ -19515,7 +19516,7 @@ function qtOpen(rsvId){
 function qtLoad(no){var all=qtAllSaved().filter(function(d){return d.no===no;});if(!all.length)return;qtCur=all[0];qtRender();}
 function qtClose(){var m=document.getElementById('qt-modal');m.classList.remove('on');m.classList.remove('qt-rot');var land=document.getElementById('qt-land');if(land){qtLandExitFs();land.remove();}}
 function qtSet(k,v){if(!qtCur)return;qtCur[k]=v;}
-function qtSetRow(i,k,v){if(!qtCur||!qtCur.rows[i])return;var row=qtCur.rows[i];row[k]=v;if(k==='unit')row.last='unit';if(k==='pamt')row.last='pamt';if(k==='qty'||k==='unit'||k==='labor'||k==='pamt')qtRecalc();}
+function qtSetRow(i,k,v){if(!qtCur||!qtCur.rows[i])return;var row=qtCur.rows[i];row[k]=v;if(k==='unit')row.last='unit';if(k==='pamt')row.last='pamt';if(k==='lunit')row.llast='unit';if(k==='labor')row.llast='total';if(k==='qty'||k==='unit'||k==='labor'||k==='pamt'||k==='lunit')qtRecalc();}
 function qtRecalc(){
   if(!qtCur)return;
   qtCur.rows.forEach(function(row,i){var c=qtRowCalc(row);var a=document.getElementById('qt-pamt-'+i),b=document.getElementById('qt-sum-'+i);
@@ -19523,6 +19524,8 @@ function qtRecalc(){
     var un=document.getElementById('qt-unit-'+i), ae=document.activeElement;
     if(a){ if(a.tagName==='INPUT'){ if(ae!==a)a.value=c.pamt?qtFmt(c.pamt):''; } else a.textContent=qtFmt(c.pamt); }
     if(un&&un.tagName==='INPUT'&&ae!==un)un.value=c.unit?qtFmt(c.unit):'';   // 부품가를 적는 중이면 단가가 나눠져 채워짐
+    var lb=document.getElementById('qt-labor-'+i), lu=document.getElementById('qt-lunit-'+i);
+    if(lb&&ae!==lb)lb.value=c.labor?qtFmt(c.labor):''; if(lu&&ae!==lu)lu.value=c.lunit?qtFmt(c.lunit):'';   // 기술료 ↔ 기술단가도 같은 식
     if(b)b.textContent=qtFmt(c.sum);});
   if(qtCur.rsv)setTimeout(function(){ try{ qrRecalcPay(qtTotals(qtCur)); }catch(e){} },0);
   var t=qtTotals(qtCur);
@@ -19567,6 +19570,8 @@ function qtTableHtml(d,edit){
       if(edit&&d.rsv&&i===0&&(((d.rsv.linked||d.rsv.fromStock)&&k==='pat')||(d.rsv.linked&&k==='qty'))){h+='<td style="padding:0 6px;background:#f0fdfa;font-weight:700'+(k==='qty'?';text-align:right':'')+'">'+esc(row[k]==null?'':String(row[k]))+'</td>';return;}   // 연결된 타이어는 재고 값 그대로
       if(k==='pamt'){ if(edit)h+='<td class="calc ed"><input id="qt-pamt-'+i+'" value="'+(c.pamt?qtFmt(c.pamt):'')+'" inputmode="numeric" placeholder="부품가" title="부품가를 먼저 적고 수량을 적으면 단가가 나눠집니다" oninput="qtSetRow('+i+',\'pamt\',this.value)" onblur="this.value=this.value?qtFmt(qtNum(this.value)):\'\'"></td>'; else h+='<td class="calc" id="qt-pamt-'+i+'">'+qtFmt(c.pamt)+'</td>'; return; }
       if(k==='unit'){ var uv=c.unit?qtFmt(c.unit):''; if(edit)h+='<td class="num"><input id="qt-unit-'+i+'" value="'+uv+'" inputmode="numeric" oninput="qtSetRow('+i+',\'unit\',this.value)" onblur="this.value=this.value?qtFmt(qtNum(this.value)):\'\'"></td>'; else h+='<td style="text-align:right">'+uv+'</td>'; return; }
+      if(k==='lunit'){ var lv=c.lunit?qtFmt(c.lunit):''; if(edit)h+='<td class="num"><input id="qt-lunit-'+i+'" value="'+lv+'" inputmode="numeric" placeholder="1개당" title="1개당 기술료 × 수량 = 기술료" oninput="qtSetRow('+i+',\'lunit\',this.value)" onblur="this.value=this.value?qtFmt(qtNum(this.value)):\'\'"></td>'; else h+='<td style="text-align:right">'+lv+'</td>'; return; }
+      if(k==='labor'){ var lt=c.labor?qtFmt(c.labor):''; if(edit)h+='<td class="num"><input id="qt-labor-'+i+'" value="'+lt+'" inputmode="numeric" title="기술료를 먼저 적고 수량을 적으면 1개당 기술료가 나눠집니다" oninput="qtSetRow('+i+',\'labor\',this.value)" onblur="this.value=this.value?qtFmt(qtNum(this.value)):\'\'"></td>'; else h+='<td style="text-align:right">'+lt+'</td>'; return; }
       if(k==='sum'){h+='<td class="calc" id="qt-sum-'+i+'">'+qtFmt(c.sum)+'</td>';return;}
       var num=(k==='qty'||k==='unit'||k==='labor');
       var v=row[k]==null?'':String(row[k]);
@@ -19577,7 +19582,7 @@ function qtTableHtml(d,edit){
     h+='</tr>';
   });
   var t=qtTotals(d);
-  h+='</tbody><tfoot><tr><td colspan="6" style="text-align:center;letter-spacing:4px">합 계</td><td class="calc" id="qt-tp">'+qtFmt(t.pamt)+'</td><td class="calc" id="qt-tl">'+qtFmt(t.labor)+'</td><td class="calc" id="qt-ts">'+qtFmt(t.sum)+'</td>'+(edit?'<td></td>':'')+'</tr></tfoot></table></div>';
+  h+='</tbody><tfoot><tr><td colspan="6" style="text-align:center;letter-spacing:4px">합 계</td><td class="calc" id="qt-tp">'+qtFmt(t.pamt)+'</td><td class="calc"></td><td class="calc" id="qt-tl">'+qtFmt(t.labor)+'</td><td class="calc" id="qt-ts">'+qtFmt(t.sum)+'</td>'+(edit?'<td></td>':'')+'</tr></tfoot></table></div>';
   return h;
 }
 function qtRender(){
@@ -19780,7 +19785,7 @@ function qrAlignRowHtml(row,i,edit,d){   // 얼라인 줄 = 기존 예약 폼과
   var h='<tr class="qr-align'+(inc?'':' off')+'"><td style="padding:0 6px;font-weight:800;white-space:nowrap">얼라인</td>';
   if(edit)h+='<td colspan="2" style="padding:3px 4px"><span class="qr-seg qr-alg">'+[['none','없음'],['inform','안내함'],['take','받기로함']].map(function(p){return '<button type="button" class="'+(row.state===p[0]?('on'+(p[0]==='none'?' none':'')):'')+'" onclick="qrSetAlign('+i+',\''+p[0]+'\')">'+p[1]+'</button>';}).join('')+'</span>'+(day?'<small class="qr-day">'+day+'</small>':'')+'</td>';
   else h+='<td colspan="2" style="padding:0 6px">'+(none?'없음':(inc?'':'선택 항목'))+'</td>';
-  h+='<td style="padding:0 6px">휠 얼라인먼트</td><td></td><td></td><td class="calc"></td>';
+  h+='<td style="padding:0 6px">휠 얼라인먼트</td><td></td><td></td><td class="calc"></td><td></td>';
   if(edit)h+='<td class="num">'+(none?'<span style="display:block;text-align:center;color:#cbd5e1">—</span>':'<input value="'+esc(amt?qtFmt(amt):'')+'" inputmode="numeric" placeholder="금액" oninput="qtSetRow('+i+',\'labor\',this.value)" onblur="this.value=this.value?qtFmt(qtNum(this.value)):\'\'">')+'</td>';
   else h+='<td style="text-align:right">'+(none?'':(amt?(inc?qtFmt(amt):'('+qtFmt(amt)+')'):''))+'</td>';
   h+='<td class="calc" id="qt-sum-'+i+'">'+(inc?qtFmt(amt):((!none&&amt)?'<span class="qr-opt">선택</span>':''))+'</td>';
@@ -19865,7 +19870,7 @@ async function qrSave(){   // 저장 = 숨긴 기존 예약 폼에 옮겨 rsvSub
     try{ var _st=_rsvMin(R.time); if(_st!=null){ var _en=_rsvHM(_st+(R.dur||60)); rsvFillTimeEnd(_en); sv('rsv-time-end',_en); } }catch(e){}
     sv('rsv-phone',d.tel||''); sv('rsv-carno',d.car_no||''); sv('rsv-carname',d.car_name||''); sv('rsv-memo',R.memo||'');
     var ast=al?al.state:'none', amt=al?qtNum(al.labor):0; rsvSetAlg(ast); sv('rsv-algamt',(ast!=='none'&&amt)?String(amt):'');
-    function lineOf(x){ var c=qtRowCalc(x), q=qtNum(x.qty); if(q>1&&c.unit&&!qtNum(x.labor)&&(!c.pm||c.unit*q===c.pamt))return [String(c.unit),String(q)]; return [c.sum?String(c.sum):'','']; }   // 단가×수량이면 그대로(부품가 먼저 적은 줄은 딱 나눠질 때만), 아니면 그 줄 총액
+    function lineOf(x){ var c=qtRowCalc(x), q=qtNum(x.qty); if(q>1&&c.unit&&!c.labor&&(!c.pm||c.unit*q===c.pamt))return [String(c.unit),String(q)]; return [c.sum?String(c.sum):'','']; }   // 단가×수량이면 그대로(부품가 먼저 적은 줄은 딱 나눠질 때만), 아니면 그 줄 총액
     var vr=rows.filter(function(x){return qtRowCalc(x).sum>0;}), L1=['',''], L2=['',''], addDep=(R.depMode==='add')?dep:0;
     if(vr.length===1)L1=lineOf(vr[0]); else if(vr.length===2){ L1=lineOf(vr[0]); L2=lineOf(vr[1]); } else if(vr.length>2)L1=[String(T),''];   // 줄 1~2개 = 예약 결제 칸 1~2줄, 3개 넘으면 총액
     if(addDep){ if(vr.length===1)L2=[String(addDep),'']; else if(vr.length===0)L1=[String(addDep),'']; else { var lv=(L2[1]&&qtNum(L2[1])>1)?qtNum(L2[0])*qtNum(L2[1]):qtNum(L2[0]); L2=[String(lv+addDep),'']; } }   // 더하기: 예약금을 둘째 줄(또는 둘째 줄 합)에 얹음 → 폼 '총액 − 예약금' = 견적 합계
@@ -20040,11 +20045,11 @@ async function qrExDownload(){
       return ws;
     }
     var L=[], D=[];
-    function lines(q,ds){ (q.rows||[]).filter(function(x){return x.part||x.pat||x.out||x.work||x.qty||x.unit||x.labor;}).forEach(function(x){var c=qtRowCalc(x);D.push([q.no,ds,q.name||'',q.car_no||'',x.part||'',x.pat||'',x.out||'',x.work||'',qtNum(x.qty)||null,c.unit||null,c.pamt||null,c.labor||null,c.sum||null]);}); }
+    function lines(q,ds){ (q.rows||[]).filter(function(x){return x.part||x.pat||x.out||x.work||x.qty||x.unit||x.labor;}).forEach(function(x){var c=qtRowCalc(x);D.push([q.no,ds,q.name||'',q.car_no||'',x.part||'',x.pat||'',x.out||'',x.work||'',qtNum(x.qty)||null,c.unit||null,c.pamt||null,c.lunit||null,c.labor||null,c.sum||null]);}); }
     P.docs.forEach(function(q){ L.push([q.no,q._ds||'미지정',q._ts||'',q.name||'',q.car_no||'',q.car_name||'',q.km||'',q.tel||'',q._st||'',q._t.pamt,q._t.labor,q._t.sum,q._dep||null,q._site,q._pay||'',q._depMode||'',q._alg||'',(q._note||'').replace(/\n/g,' / '),(q._memo||'').replace(/\n/g,' / '),q.sign?'있음':'',q.writer||'',q._savedAt||'']); lines(q,q._ds||'미지정'); });
     P.free.forEach(function(q){ var tt=qtTotals(q); L.push([q.no,q.date||'','',q.name||'',q.car_no||'',q.car_name||'',q.km||'',q.tel||'','예약 없음(이 기기)',tt.pamt,tt.labor,tt.sum,null,null,'','','',(q.note||'').replace(/\n/g,' / '),'',q.sign?'있음':'',q.writer||'',q.saved_at||'']); lines(q,q.date||''); });
     listSheet('목록',['견적번호','예약 날짜','시간','고객명','차량번호','차명','주행거리','전화','예약 상태','부품가','기술료','총합계(부가세 포함)','예약금','현장 결제','결제수단','예약금 처리','얼라인','비고','직원 메모','서명','작성자','견적서 저장'],L,[14,11,7,10,11,12,9,14,9,11,11,15,11,11,10,13,13,30,24,6,8,16],[10,11,12,13,14]);
-    listSheet('줄별',['견적번호','예약 날짜','고객명','차량번호','부품','패턴','부품출고','작업내용','수량','단가','부품가','기술료','합계'],D,[14,11,10,11,10,26,10,16,6,11,11,11,12],[9,10,11,12,13]);
+    listSheet('줄별',['견적번호','예약 날짜','고객명','차량번호','부품','패턴','부품출고','작업내용','수량','단가','부품가','기술단가','기술료','합계'],D,[14,11,10,11,10,26,10,16,6,11,11,11,11,12],[9,10,11,12,13,14]);
     var used={}; P.docs.filter(function(q){return q._saved||q._imp;}).concat(P.free).forEach(function(q){var nm=String(q.no).replace(/[\\\/\?\*\[\]:]/g,'-').slice(0,28); var k=nm,i=2; while(used[k]){k=nm+'('+(i++)+')';} used[k]=1; qtXlStyledSheet(wb,wb.addWorksheet(k),q);});
     wb.xlsx.writeBuffer().then(function(buf){qtSaveBlob(new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),fn);if(typeof stkToast==='function')stkToast('📥 '+(P.docs.length+P.free.length)+'건 엑셀 저장');qrExPreview();}).catch(function(e){alert('엑셀 만들기 실패: '+e.message);qrExPreview();});
   });
@@ -20062,43 +20067,43 @@ function qtXlStyledSheet(wb,ws,d){
   function cell(a){return ws.getCell(a);}
   function box(r1,c1,r2,c2,b){for(var r=r1;r<=r2;r++)for(var c=c1;c<=c2;c++){var x=ws.getCell(r,c);x.border={top:r===r1?b:thin,bottom:r===r2?b:thin,left:c===c1?b:thin,right:c===c2?b:thin};}}
   function hdr(r,c1,c2,text){ws.mergeCells(r,c1,r,c2);var x=ws.getCell(r,c1);x.value=text;x.fill=dark;x.font={bold:true,color:{argb:'FFFFFFFF'},size:11};x.alignment={horizontal:'left',vertical:'middle'};ws.getRow(r).height=20;}
-  ws.columns=[{width:11},{width:26},{width:11},{width:15},{width:6},{width:11},{width:12},{width:11},{width:12}];
-  ws.mergeCells('A1:I1'); cell('A1').value='견   적   서'; cell('A1').font={size:22,bold:true}; cell('A1').alignment={horizontal:'center',vertical:'middle'}; ws.getRow(1).height=38;
+  ws.columns=[{width:11},{width:24},{width:10},{width:14},{width:6},{width:11},{width:12},{width:11},{width:11},{width:12}];
+  ws.mergeCells('A1:J1'); cell('A1').value='견   적   서'; cell('A1').font={size:22,bold:true}; cell('A1').alignment={horizontal:'center',vertical:'middle'}; ws.getRow(1).height=38;
   ws.mergeCells('A2:D2'); cell('A2').value='견적번호 '+(d.no||''); cell('A2').font={bold:true,color:{argb:'FF0F766E'},size:11};
-  ws.mergeCells('F2:I2'); cell('F2').value='금액은 부가세 포함'; cell('F2').font={bold:true,color:{argb:'FFB45309'},size:11}; cell('F2').alignment={horizontal:'right'};
-  hdr(4,1,4,'고 객'); hdr(4,6,9,'공 급 자');
+  ws.mergeCells('F2:J2'); cell('F2').value='금액은 부가세 포함'; cell('F2').font={bold:true,color:{argb:'FFB45309'},size:11}; cell('F2').alignment={horizontal:'right'};
+  hdr(4,1,4,'고 객'); hdr(4,6,10,'공 급 자');
   var cust=[['날짜',d.date||''],['고객명',d.name||''],['차량번호',d.car_no||''],['차명',d.car_name||''],['주행거리',d.km||''],['전화번호',d.tel||'']];
   var sup=[['사업자등록번호',QT_SUP.biz],['정비업등록번호',QT_SUP.reg],['상호',QT_SUP.name],['주소',QT_SUP.addr],['업태 / 종목',QT_SUP.biztype],['전화',QT_SUP.tel]];
   for(var i=0;i<6;i++){var r=5+i; ws.getRow(r).height=20;
     var a=ws.getCell(r,1); a.value=cust[i][0]; a.fill=light; a.font={bold:true,size:10}; a.alignment={vertical:'middle'};
     ws.mergeCells(r,2,r,4); var b=ws.getCell(r,2); b.value=cust[i][1]; b.font={bold:true,size:11}; b.alignment={vertical:'middle'};
     var f=ws.getCell(r,6); f.value=sup[i][0]; f.fill=light; f.font={bold:true,size:10}; f.alignment={vertical:'middle'};
-    ws.mergeCells(r,7,r,9); var g=ws.getCell(r,7); g.value=sup[i][1]; g.font={bold:true,size:11}; g.alignment={vertical:'middle'};
+    ws.mergeCells(r,7,r,10); var g=ws.getCell(r,7); g.value=sup[i][1]; g.font={bold:true,size:11}; g.alignment={vertical:'middle'};
   }
-  box(4,1,10,4,med); box(4,6,10,9,med);
+  box(4,1,10,4,med); box(4,6,10,10,med);
   var HR=12; ws.getRow(HR).height=22;
   QT_COLS.forEach(function(c,i){var x=ws.getCell(HR,i+1);x.value=c[1];x.fill=dark;x.font={bold:true,color:{argb:'FFFFFFFF'},size:10.5};x.alignment={horizontal:'center',vertical:'middle'};});
   var rows=(d.rows||[]).filter(function(x){return x.part||x.pat||x.out||x.work||x.qty||x.unit||x.labor;}); while(rows.length<6)rows.push(qtBlankRow());
   rows.forEach(function(x,i){var r=HR+1+i, c=qtRowCalc(x); ws.getRow(r).height=20;
-    var vals=[x.part||'',x.pat||'',x.out||'',x.work||'',qtNum(x.qty)||null,c.unit||null,(c.pm?(c.pamt||null):{formula:'E'+r+'*F'+r,result:c.pamt}),qtNum(x.labor)||null,{formula:'G'+r+'+H'+r,result:c.sum}];   // 부품가 먼저 적은 줄은 값 그대로(나눈 단가의 반올림 차이 방지)
-    vals.forEach(function(v,j){var y=ws.getCell(r,j+1);y.value=v;y.font={size:10.5,bold:(j===6||j===8)};y.alignment={vertical:'middle',horizontal:(j>=4?'right':'left'),wrapText:j===1};if(j>=4)y.numFmt='#,##0';if(j===6||j===8){y.fill=calc;y.font={size:10.5,bold:true,color:{argb:'FF0C447C'}};}});
+    var vals=[x.part||'',x.pat||'',x.out||'',x.work||'',qtNum(x.qty)||null,c.unit||null,(c.pm?(c.pamt||null):{formula:'E'+r+'*F'+r,result:c.pamt}),c.lunit||null,(c.lm?{formula:'E'+r+'*H'+r,result:c.labor}:(c.labor||null)),{formula:'G'+r+'+I'+r,result:c.sum}];   // 부품가(또는 기술료)를 먼저 적은 줄은 값 그대로(나눈 단가의 반올림 차이 방지), 단가를 적은 줄은 수식
+    vals.forEach(function(v,j){var y=ws.getCell(r,j+1);y.value=v;y.font={size:10.5,bold:(j===6||j===9)};y.alignment={vertical:'middle',horizontal:(j>=4?'right':'left'),wrapText:j===1};if(j>=4)y.numFmt='#,##0';if(j===6||j===9){y.fill=calc;y.font={size:10.5,bold:true,color:{argb:'FF0C447C'}};}});
   });
   var first=HR+1, last=HR+rows.length, SR=last+1; ws.getRow(SR).height=22;
   ws.mergeCells(SR,1,SR,6); var sc=ws.getCell(SR,1); sc.value='합   계'; sc.fill=light; sc.font={bold:true,size:11}; sc.alignment={horizontal:'center',vertical:'middle'};
   var t=qtTotals(d);
-  [['G',t.pamt],['H',t.labor],['I',t.sum]].forEach(function(p){var y=cell(p[0]+SR);y.value={formula:'SUM('+p[0]+first+':'+p[0]+last+')',result:p[1]};y.fill=light;y.font={bold:true,size:11};y.numFmt='#,##0';y.alignment={horizontal:'right',vertical:'middle'};});
-  box(HR,1,SR,9,med);
+  [['G',t.pamt],['I',t.labor],['J',t.sum]].forEach(function(p){var y=cell(p[0]+SR);y.value={formula:'SUM('+p[0]+first+':'+p[0]+last+')',result:p[1]};y.fill=light;y.font={bold:true,size:11};y.numFmt='#,##0';y.alignment={horizontal:'right',vertical:'middle'};});
+  box(HR,1,SR,10,med);
   var TR=SR+2; ws.getRow(TR).height=26;
-  ws.mergeCells(TR,1,TR,8); var tc=ws.getCell(TR,1); tc.value='총 합계 (부가세 포함)'; tc.fill=yellow; tc.font={bold:true,size:11,color:{argb:'FF5B6478'}}; tc.alignment={vertical:'middle'};
-  var tv=ws.getCell(TR,9); tv.value={formula:'I'+SR,result:t.sum}; tv.fill=yellow; tv.font={bold:true,size:14,color:{argb:'FF8A6D00'}}; tv.numFmt='#,##0"원"'; tv.alignment={horizontal:'right',vertical:'middle'};
-  box(TR,1,TR,9,med);
-  var NR=TR+2; hdr(NR,1,6,'비 고'); hdr(NR,7,9,'서 명');
+  ws.mergeCells(TR,1,TR,9); var tc=ws.getCell(TR,1); tc.value='총 합계 (부가세 포함)'; tc.fill=yellow; tc.font={bold:true,size:11,color:{argb:'FF5B6478'}}; tc.alignment={vertical:'middle'};
+  var tv=ws.getCell(TR,10); tv.value={formula:'J'+SR,result:t.sum}; tv.fill=yellow; tv.font={bold:true,size:14,color:{argb:'FF8A6D00'}}; tv.numFmt='#,##0"원"'; tv.alignment={horizontal:'right',vertical:'middle'};
+  box(TR,1,TR,10,med);
+  var NR=TR+2; hdr(NR,1,6,'비 고'); hdr(NR,7,10,'서 명');
   ws.mergeCells(NR+1,1,NR+4,6); var nc=ws.getCell(NR+1,1); nc.value=d.note||''; nc.alignment={vertical:'top',wrapText:true}; nc.font={size:10.5};
-  ws.mergeCells(NR+1,7,NR+4,9);
+  ws.mergeCells(NR+1,7,NR+4,10);
   for(var k=1;k<=4;k++)ws.getRow(NR+k).height=20;
-  box(NR,1,NR+4,6,med); box(NR,7,NR+4,9,med);
+  box(NR,1,NR+4,6,med); box(NR,7,NR+4,10,med);
   if(d.sign){ try{ var img=wb.addImage({base64:String(d.sign).split(',')[1]||d.sign,extension:'png'}); ws.addImage(img,{tl:{col:6.3,row:NR+0.15},ext:{width:190,height:66}}); }catch(e){} }
-  var FR=NR+6; ws.mergeCells(FR,1,FR,9); var fc=ws.getCell(FR,1); fc.value=QT_SUP.name+' · '+QT_SUP.tel+' · 작성자 '+(d.writer||''); fc.font={size:9,color:{argb:'FF64748B'}}; fc.alignment={horizontal:'right'};
+  var FR=NR+6; ws.mergeCells(FR,1,FR,10); var fc=ws.getCell(FR,1); fc.value=QT_SUP.name+' · '+QT_SUP.tel+' · 작성자 '+(d.writer||''); fc.font={size:9,color:{argb:'FF64748B'}}; fc.alignment={horizontal:'right'};
   ws.pageSetup={paperSize:9,orientation:'portrait',fitToPage:true,fitToWidth:1,fitToHeight:1,margins:{left:0.4,right:0.4,top:0.5,bottom:0.5,header:0.2,footer:0.2},horizontalCentered:true};
   ws.views=[{showGridLines:false}];
   return ws;
