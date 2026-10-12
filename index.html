@@ -909,6 +909,7 @@ body.rb-on #app{padding-top:58px}
 .qt-rotbar{display:flex;align-items:center;gap:8px;background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:9px;padding:7px 10px;margin-bottom:8px;font-size:12px;color:#1e40af;font-weight:700}
 .qt-rotbar button{border:none;background:#2563eb;color:#fff;border-radius:7px;padding:7px 12px;font-size:12.5px;font-weight:800;cursor:pointer;white-space:nowrap}
 @media(max-width:900px){ .modal-bg#qt-modal{padding:0} #qt-modal .paste-modal{padding:10px 8px 16px;max-width:none;border-radius:0} }   /* 폰 가로: 여백 줄여 9칸 표(760px)가 들어가게 */
+@media(min-width:700px) and (max-width:900px){ #qt-modal .qt-tbl{min-width:0} #qt-modal .qt-tbl td input{padding:0 4px} }   /* 폰 가로: 표를 화면 폭에 맞춤 */
 #qt-print{display:none}
 /* 인쇄: 견적서만 A4 한 장으로 */
 @media print{
@@ -2262,7 +2263,15 @@ body.rb-on #app{padding-top:58px}
         <span style="font-size:15px;color:#888">=</span>
         <input id="rsv-paytotal" inputmode="text" placeholder="총액" oninput="rsvPayLast='total';rsvCalc()" style="flex:1.15;min-width:0;font-weight:800">
       </div>
-      <div style="font-size:11px;color:#94a3b8;margin:-2px 0 4px">단가와 수량을 적으면 총액이, 총액과 수량을 적으면 단가가 저절로 채워집니다. 수량 없이 총액만 적어도 됩니다.</div>
+      <div style="display:flex;align-items:center;gap:5px;margin-bottom:4px">
+        <input id="rsv-payunit2" inputmode="text" placeholder="1개당 단가" oninput="rsvPayLast2='unit';rsvCalc()" style="flex:1;min-width:0">
+        <span style="font-size:15px;color:#888">×</span>
+        <input id="rsv-payqty2" inputmode="numeric" placeholder="수량" oninput="rsvCalc()" style="width:50px;text-align:center;flex:none">
+        <span style="font-size:15px;color:#888">=</span>
+        <input id="rsv-paytotal2" inputmode="text" placeholder="총액" oninput="rsvPayLast2='total';rsvCalc()" style="flex:1.15;min-width:0;font-weight:800">
+      </div>
+      <div id="rsv-paygrand" style="font-size:13.5px;font-weight:800;color:#0c447c;text-align:right;margin:0 0 2px"></div>
+      <div style="font-size:11px;color:#94a3b8;margin:-2px 0 4px">단가와 수량을 적으면 총액이, 총액과 수량을 적으면 단가가 저절로 채워집니다. 수량 없이 총액만 적어도 됩니다. 두 줄 다 써도 되고 한 줄만 써도 됩니다.</div>
       <div id="rsv-paycalc" style="font-size:12px;color:#185fa5;text-align:right;min-height:15px"></div>
       <label>현장결제수단</label>
       <div style="display:flex;gap:5px;margin-bottom:8px;flex-wrap:wrap">
@@ -18929,11 +18938,18 @@ function rsvParseWon(raw){
   m=s.match(/([0-9]+)/);if(m)total+=parseInt(m[1],10);
   return total;
 }
-var rsvPayLast='unit';   // 마지막으로 적은 칸: 'unit'(단가) 또는 'total'(총액) — 다른 쪽을 자동으로 채움 (10/8)
-function rsvPayVal(){   // 돌려주는 val = 총액(예약금 빼기 전). 현장에서 받을 돈은 rsvCalc/rsvSubmit에서 총액−예약금
-  var unitEl=document.getElementById('rsv-payunit'), totEl=document.getElementById('rsv-paytotal');
+var rsvPayLast='unit', rsvPayLast2='unit';   // 줄마다 마지막으로 적은 칸: 'unit'(단가) 또는 'total'(총액) — 다른 쪽을 자동으로 채움 (10/8, 둘째 줄 10/12)
+function rsvPayVal(){   // 돌려주는 val = 두 줄 총액의 합(예약금 빼기 전). 현장에서 받을 돈은 rsvCalc/rsvSubmit에서 합 − 예약금
+  var a=_rsvPayLine('rsv-payunit','rsv-payqty','rsv-paytotal',rsvPayLast), b=_rsvPayLine('rsv-payunit2','rsv-payqty2','rsv-paytotal2',rsvPayLast2);
+  var g=document.getElementById('rsv-paygrand'); if(g)g.textContent=(a.val&&b.val)?('전체 총액 '+(a.val+b.val).toLocaleString()+'원'):'';
+  return {val:a.val+b.val, expr:[a.expr,b.expr].filter(Boolean).join(' + ')};
+}
+function _rsvPayJoin(a,b){ var x=((document.getElementById(a)||{}).value||'').trim(), y=((document.getElementById(b)||{}).value||'').trim(); return y?(x+'|'+y):x; }   // 둘째 줄은 '|' 뒤에 붙여 저장
+function _rsvPayLine(uId,qId,tId,last){   // 한 줄: 단가 × 수량 = 총액
+  var unitEl=document.getElementById(uId), totEl=document.getElementById(tId), qEl=document.getElementById(qId);
+  if(!unitEl||!qEl)return {val:0,expr:''};
   var unitRaw=(unitEl.value||''), totRaw=(totEl?totEl.value:'')||'';
-  var q=parseInt((document.getElementById('rsv-payqty').value||'').replace(/[^0-9]/g,'')||'0',10);
+  var q=parseInt((qEl.value||'').replace(/[^0-9]/g,'')||'0',10);
   // 단가칸에 곱하기가 있으면 통금액 직접 입력으로 간주 (옛 방식 유지)
   if(/[*×xX]/.test(unitRaw)){
     var val0=rsvParseWon(unitRaw);
@@ -18942,7 +18958,7 @@ function rsvPayVal(){   // 돌려주는 val = 총액(예약금 빼기 전). 현�
     return {val:val0, expr:parts.map(function(x){return rsvParseWon(x).toLocaleString();}).join(' × ')};
   }
   var unit=rsvParseWon(unitRaw), total=rsvParseWon(totRaw);
-  if(rsvPayLast==='total'){   // 총액 기준 → 단가 채움
+  if(last==='total'){   // 총액 기준 → 단가 채움
     if(q>1){ unit=Math.round(total/q); unitEl.value=total?unit.toLocaleString():''; return {val:total, expr:total?(unit.toLocaleString()+' × '+q):''}; }
     unitEl.value=total?total.toLocaleString():''; return {val:total, expr:''};
   }
@@ -18988,7 +19004,7 @@ function rsvOpenAdd(ds,out){
   rsvFillTime(dt12&&dt12.length>=12?dt12.slice(8,10)+':'+dt12.slice(10,12):''); rsvSyncDt(); rsvEndAuto(true);   // 열 때부터 기본 1시간
   document.getElementById('rsv-memo').value='';
   document.getElementById('rsv-phone').value='';document.getElementById('rsv-carno').value='';document.getElementById('rsv-carname').value='';
-  document.getElementById('rsv-payunit').value=''; document.getElementById('rsv-payqty').value=''; var _pt0=document.getElementById('rsv-paytotal'); if(_pt0)_pt0.value=''; rsvPayLast='unit';
+  document.getElementById('rsv-payunit').value=''; document.getElementById('rsv-payqty').value=''; var _pt0=document.getElementById('rsv-paytotal'); if(_pt0)_pt0.value=''; rsvPayLast='unit'; ['rsv-payunit2','rsv-payqty2','rsv-paytotal2'].forEach(function(id){var e=document.getElementById(id);if(e)e.value='';}); rsvPayLast2='unit';
   document.getElementById('rsv-algamt').value='';
   rsvSetAlg('inform');
   var tl=document.getElementById('rsv-tireline');
@@ -19014,20 +19030,23 @@ function rsvOpenEdit(id){
   (function(){ var st=_rsvMin((r.time_slot||'').slice(0,5)); rsvFillTimeEnd(st==null?'':_rsvHM(st+(parseInt(r.duration_min,10)||60))); _rsvLastStart=st; })();
   document.getElementById('rsv-memo').value=r.memo||'';
   document.getElementById('rsv-phone').value=r.phone||'';document.getElementById('rsv-carno').value=r.car_no||'';document.getElementById('rsv-carname').value=r.car_name||'';
+  var _pu=String(r.pay_unit||'').split('|'), _pq=String(r.pay_qty||'').split('|');   // (10/12) 둘째 줄은 '|' 뒤
   if(r.pay_unit||r.pay_qty){ // 적었던 단가·개수 원문 그대로 복원 (2026-07-31)
-    document.getElementById('rsv-payunit').value=r.pay_unit||'';
-    document.getElementById('rsv-payqty').value=r.pay_qty||'';
+    document.getElementById('rsv-payunit').value=_pu[0]||'';
+    document.getElementById('rsv-payqty').value=_pq[0]||'';
   }else{ // 구건(원문 미저장) — 종전대로 총액 표시
     document.getElementById('rsv-payunit').value=(r.pay_amount||'').replace(/[^0-9]/g,'');
     document.getElementById('rsv-payqty').value='';
   }
+  (function(){ var u2=document.getElementById('rsv-payunit2'), q2=document.getElementById('rsv-payqty2'), t2=document.getElementById('rsv-paytotal2'); if(u2)u2.value=_pu[1]||''; if(q2)q2.value=_pq[1]||''; if(t2)t2.value=''; rsvPayLast2='unit'; })();
   var _dpe=document.getElementById('rsv-deposit'); if(_dpe)_dpe.value=(r.deposit>0?String(r.deposit):'');
-  (function(){ // 총액 = 현장 금액 + 예약금 (옛 건은 단가×수량이 현장 금액이라 총액 기준으로 단가를 다시 채움) (10/8)
+  (function(){ // 전체 총액 = 현장 금액 + 예약금(10/8). 첫 줄 = 전체 − 둘째 줄. 단가×수량이 첫 줄 총액과 다르면(옛 건·반올림) 총액 기준으로 열어 재저장해도 금액 그대로 (10/12)
     var _pa=parseInt(String(r.pay_amount||'').replace(/[^0-9]/g,''),10)||0, _dp=parseInt(r.deposit||0,10)||0, _tot=_pa+_dp;
-    var _q=parseInt(String(r.pay_qty||'').replace(/[^0-9]/g,''),10)||0, _u=rsvParseWon(r.pay_unit||'');
-    var _te=document.getElementById('rsv-paytotal'); if(_te)_te.value=_tot?_tot.toLocaleString():'';
-    if(_tot&&_dp>0&&!(_q>1?(_u*_q===_tot):(_u===_tot))){ document.getElementById('rsv-payunit').value=(_q>1?Math.round(_tot/_q):_tot).toLocaleString(); }
-    rsvPayLast='unit';
+    function _lv(u,q){ var uu=rsvParseWon(u||''), qq=parseInt(String(q||'').replace(/[^0-9]/g,''),10)||0; return qq>1?uu*qq:uu; }
+    var _v2=_lv(_pu[1],_pq[1]), _v1=_tot-_v2;
+    var _q1=parseInt(String(_pq[0]||'').replace(/[^0-9]/g,''),10)||0, _u1=rsvParseWon(_pu[0]||'');
+    var _te=document.getElementById('rsv-paytotal'); if(_te)_te.value=_v1>0?_v1.toLocaleString():'';
+    rsvPayLast=(_v1>0&&!(_q1>1?(_u1*_q1===_v1):(_u1===_v1)))?'total':'unit';
   })();
   rsvApplyPayMethod(r.pay_method||'');
   document.getElementById('rsv-algamt').value=(r.align_amount||'');
@@ -19054,8 +19073,8 @@ async function rsvSubmit(){
     align_state:rsvAlg,
     align_amount:((rsvAlg==='take'||rsvAlg==='inform')?a:null),
     pay_amount:(pc.val>0?String(Math.max(0,pc.val-rsvParseWon((document.getElementById('rsv-deposit')||{}).value||''))):''),   // 현장에서 받을 돈 = 총액 − 예약금 (10/8)
-    pay_unit:(document.getElementById('rsv-payunit').value||'').trim(),
-    pay_qty:(document.getElementById('rsv-payqty').value||'').trim(),
+    pay_unit:_rsvPayJoin('rsv-payunit','rsv-payunit2'),
+    pay_qty:_rsvPayJoin('rsv-payqty','rsv-payqty2'),
     deposit:rsvParseWon((document.getElementById('rsv-deposit')||{}).value||''),
     pay_method:(rsvPayMethod||null),
     alignment:(rsvAlg==='take')
