@@ -19078,7 +19078,7 @@ function rsvOpenAdd(ds,out){
     var now=kstNow(), hh=now.getUTCHours(), mm=Math.round(now.getUTCMinutes()/30)*30;   // 서울 기준
     if(mm===60){mm=0;hh++;}
     if(hh<8){hh=9;mm=0;} else if(hh>19||(hh===19&&mm>30)){hh=19;mm=30;} // 08~19:30
-    var ds2=ds?ds:rsvDateStr(now);
+    var ds2=ds?ds:getTodayISO();   // (10/13) 서울 날짜 — kstNow()를 기기 날짜로 읽으면 오후 3시 이후 내일이 되던 것
     dt12=ds2.replace(/-/g,'')+String(hh).padStart(2,'0')+String(mm).padStart(2,'0');
   }
   document.getElementById('rsv-dt12').value=dt12;
