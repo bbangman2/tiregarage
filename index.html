@@ -967,6 +967,30 @@ tr.qr-align.off td input{color:#94a3b8}
 #qt-modal .paste-modal{max-height:88vh;max-height:88dvh}   /* dvh를 모르는 브라우저도 창 안에서 스크롤 → 바닥 저장 줄이 붙어 있게 */
 @media(max-width:640px){ #qt-modal .paste-modal{height:100vh;max-height:100vh;height:100dvh;max-height:100dvh} }
 @media(min-width:700px) and (max-width:900px){ #qt-modal .qt-tbl{min-width:0} #qt-modal .qt-tbl td input{padding:0 4px} }   /* 폰 가로: 표를 화면 폭에 맞춤 */
+/* (10/13) 전체 검색 */
+#gs-bar{background:#1e2a4a;padding:6px 10px;display:flex;gap:6px;align-items:center;flex:none}
+#gs-bar input{flex:1;height:34px;border:none;border-radius:9px;padding:0 12px;font-size:14px;min-width:0;background:#fff}
+#gs-bar button{height:34px;border:none;border-radius:9px;background:#0f766e;color:#fff;font-weight:800;padding:0 12px;cursor:pointer;white-space:nowrap}
+#gs-panel{position:fixed;left:0;right:0;top:76px;bottom:0;z-index:94;background:rgba(15,23,42,.35);display:none}   /* top은 검색창 바로 아래로 JS가 맞춤 */
+#gs-panel.on{display:block}
+#gs-box{background:#fff;max-height:calc(100% - 12px);overflow:auto;margin:0 auto;max-width:860px;border-radius:0 0 14px 14px;padding:8px 12px 16px;box-shadow:0 8px 24px rgba(0,0,0,.25)}
+.gs-busy{font-size:11.5px;color:#0f766e;font-weight:800}
+.gs-all{border:1.5px solid #0f766e;background:#fff;color:#0f766e;border-radius:7px;padding:3px 9px;font-size:11.5px;font-weight:800;cursor:pointer}
+.gs-top{display:flex;align-items:center;gap:8px;font-size:12.5px;color:#475569;padding:4px 0 6px;border-bottom:1px solid #eef0f4;margin-bottom:4px}
+.gs-top b{color:#1e2a4a}
+.gs-grp{margin:10px 0 5px;font-size:12.5px;font-weight:800;color:#0f766e;display:flex;align-items:center;gap:6px}
+.gs-grp small{color:#64748b;font-weight:700}
+.gs-it{border:1.5px solid #e6e9ef;border-radius:10px;padding:7px 10px;margin-bottom:6px;cursor:pointer;font-size:13px;line-height:1.5}
+.gs-it:hover{border-color:#0f766e;background:#f0fdfa}
+.gs-it .t1{font-weight:800;color:#1e2a4a;word-break:break-all}
+.gs-it .t2{color:#475569;font-size:12.5px;word-break:break-all}
+.gs-it .st{display:inline-block;font-size:10.5px;font-weight:800;border-radius:5px;padding:1px 6px;margin-left:4px;background:#eef2f7;color:#334155;vertical-align:1px}
+.gs-it .st.ok{background:#dcfce7;color:#15803d}.gs-it .st.bad{background:#fee2e2;color:#b91c1c}.gs-it .st.wait{background:#fef3c7;color:#92400e}.gs-it .st.blue{background:#dbeafe;color:#1d4ed8}
+.gs-it mark{background:#fde68a;padding:0 1px;border-radius:2px}
+.gs-more{width:100%;border:1.5px dashed #94a3b8;background:#f8fafc;border-radius:8px;padding:7px;font-weight:800;cursor:pointer;font-size:12.5px;color:#334155;margin:2px 0 4px}
+.gs-flash{animation:gsflash 2.6s ease-out}
+@keyframes gsflash{0%{box-shadow:0 0 0 4px #f59e0b;background:#fef3c7}70%{box-shadow:0 0 0 4px #f59e0b}100%{box-shadow:none}}
+@media(max-width:640px){ #gs-bar{padding:5px 8px} #gs-bar input{font-size:13px;height:32px} #gs-bar button{height:32px;padding:0 9px;font-size:12.5px} #gs-box{border-radius:0;max-height:100%} }
 #qt-print{display:none}
 /* 인쇄: 견적서만 A4 한 장으로 */
 @media print{
@@ -19909,6 +19933,156 @@ function qrForDoc(d,payInNote){   // 인쇄·엑셀용: 얼라인 줄 → 보통
 }
 function qrPrintPay(d0,t){ if(!d0||!d0.rsv)return ''; var dep=qtNum(d0.rsv.deposit); if(!dep)return ''; var add=(d0.rsv.depMode==='add'), site=qrSite(d0,t);
   return '<div class="qt-box qr-pay" style="margin-top:6px"><div class="qr-pr"><span class="k">예약금 ('+(add?'따로 받음':'미리 받음')+')</span><b>'+dep.toLocaleString()+'원</b></div>'+(add?'<div class="qr-pr"><span class="k">예약금 포함 총 금액</span><b>'+(t.sum+dep).toLocaleString()+'원</b></div>':'')+'<div class="qr-pr"><span class="k">현장 결제</span><b>'+site.toLocaleString()+'원</b><span style="font-size:12px;color:#64748b">'+esc(d0.rsv.pay||'')+'</span></div></div>'; }
+/* ===== (10/13) 전체 검색 — 맨 위 고정 검색창, 모든 방·탭 한 번에, 서버에서 걸러 받음 ===== */
+var GS_PAGE=200, GS={q:'',tokens:[],res:{},seq:0,timer:null};
+var GS_SRC=[
+ {key:'rsv',name:'예약장착방',icon:'📅',table:'reservations',cols:['phone','car_no','car_name','tire_spec','tire_pattern','memo','work_note','status','user_name','customer_name','customer_tel','car_model','source','date_str','src_label','done_log','pay_method'],sel:'id,date_str,time_slot,phone,car_no,car_name,tire_spec,memo,work_note,status,align_state,qty,pay_amount,deposit,user_name',order:['date_str',false]},
+ {key:'dlv',name:'직배송방',icon:'🚚',table:'deliveries',cols:['tire','spec','recv','tel','addr','zipcode','trade_client','trade_memo','note','src','brand','code','channel','date_str','user_name','cust_recv','cust_tel','cust_addr','cust_zip','shop_name','ship_type','src_label','done_by','raw_line'],sel:'id,room_id,date_str,tab,channel,car,tire,spec,qty,recv,tel,addr,zipcode,trade_client,trade_memo,note,src,done,cancelled,confirmed,user_name,ship_type,cust_recv,cust_tel,cust_addr,cust_zip,shop_name',order:['date_str',false]},
+ {key:'inb',name:'입고방',icon:'📦',table:'items',cols:['model','spec','src','use_note','date_str','user_name','out_to','out_user','arrived_by'],sel:'id,room_id,date_str,model,spec,src,qty,out_qty,cancel_qty,arrived,cancelled,use_note,user_name,out_to',order:['date_str',false]},
+ {key:'stk',name:'재고방 상품',icon:'🛞',table:'stock_products',cols:['brand','name','code','size','ply','spec','memo','source','category'],sel:'id,brand,name,code,size,ply,spec,memo,source,category',order:['brand',true]},
+ {key:'lot',name:'재고방 칸(위치·연식)',icon:'📍',table:'stock_lots',cols:['loc','dot','src_in'],pcols:['brand','name','code','size','ply'],sel:'id,product_id,qty,dot,loc,src_in,stock_products!inner(id,brand,name,code,size,ply)',order:['product_id',true],extra:function(q){return q.gt('qty',0);}},
+ {key:'log',name:'출고기록',icon:'📋',table:'stock_logs',cols:['action','note','detail','channel','user_name','from_loc','to_loc','dot'],sel:'id,ts,action,note,detail,user_name,qty,from_loc,to_loc,dot',order:['ts',false]},
+ {key:'msg',name:'채팅',icon:'💬',table:'messages',cols:['content','user_name'],sel:'id,room_id,user_name,content,created_at',order:['created_at',false]},
+ {key:'qt',name:'견적서',icon:'🧾',table:'settings',cols:['value->>name','value->>note','value->>km','value->>no','value->>rows'],sel:'key,value',order:['key',false],extra:function(q){return q.like('key','qrsv:%');}},
+ {key:'sch',name:'휴무·연차',icon:'🌴',table:'staff_schedules',cols:['staff_name','kind','memo','date_str'],sel:'id,date_str,staff_name,kind,memo',order:['date_str',false]}
+];
+/* 방 낱말 → 그 방만 찾음 */
+var GS_ROOM_WORDS={'입고':['inb'],'입고방':['inb'],'직배송':['dlv'],'직배송방':['dlv'],'예약':['rsv','qt'],'예약방':['rsv','qt'],'예약장착방':['rsv','qt'],'재고':['stk','lot'],'재고방':['stk','lot'],'출고기록':['log'],'기록':['log'],'채팅':['msg'],'공지':['msg'],'공지방':['msg'],'자유':['msg'],'자유방':['msg'],'견적':['qt'],'견적서':['qt'],'휴무':['sch'],'연차':['sch']};
+var GS_MSG_ROOM={'공지':'공지','공지방':'공지','자유':'자유','자유방':'자유'};
+/* 상태·탭 낱말 → 그 표에서는 조건으로(글자로도 같이 찾음), 다른 표에서는 글자로 */
+var GS_STATE={
+ dlv:{'택배':'tab.eq.parcel','택배전환':'tab.eq.parcel','미출고':'tab.eq.hold','1호차':'and(tab.eq.deliv,car.eq.3)','2호차':'and(tab.eq.deliv,car.eq.2)','대기':'and(tab.eq.deliv,car.eq.1)','완료':'done.is.true','미완료':'and(done.is.false,cancelled.is.false)','취소':'cancelled.is.true','확인':'confirmed.is.true','미확인':'and(tab.eq.parcel,confirmed.is.false)','핑':'channel.eq.ping','온라인':'channel.eq.online','거래처':'channel.eq.trade','스팸':'channel.eq.spam','번개':'channel.eq.bunjang'},
+ rsv:{'완료':'status.eq.완료','취소':'status.eq.취소','미완료':'status.eq.예약','예약중':'status.eq.예약','받기로함':'align_state.eq.take','안내함':'align_state.eq.inform','얼라인':'align_state.in.(take,inform)','얼라이':'align_state.in.(take,inform)','미지정':'or(date_str.is.null,date_str.eq."")'},
+ inb:{'입고됨':'arrived.is.true','입고완료':'arrived.is.true','입고전':'arrived.is.false','입고대기':'arrived.is.false','취소':'cancelled.is.true','출고':'out_qty.gt.0','반품':'is_return.is.true'},
+ lot:{'미배치':'loc.eq.U','dot누락':'or(dot.is.null,dot.eq."")','연식누락':'or(dot.is.null,dot.eq."")'}
+};
+function gsParse(tokens){   // 낱말 → 방 한정 / 글자(상태 포함)
+  var rooms=null, text=[], msgRoom=null;
+  tokens.forEach(function(t){ var rw=GS_ROOM_WORDS[t]; if(rw){ rooms=(rooms||[]).concat(rw); if(GS_MSG_ROOM[t])msgRoom=GS_MSG_ROOM[t]; return; } text.push(t); });
+  if(rooms)rooms=rooms.filter(function(k,i,arr){return arr.indexOf(k)===i;});
+  return {rooms:rooms,text:text,msgRoom:msgRoom,tokens:tokens};
+}
+function gsRoomNote(){ var P=GS.parse; if(!P||!P.rooms)return ''; return ' · '+P.rooms.map(function(k){var s2=GS_SRC.filter(function(x){return x.key===k;})[0];return s2?s2.name:k;}).join('·')+'만'; }
+function gsInit(){
+  if(document.getElementById('gs-bar'))return; var cw=document.querySelector('#app .chat-wrap'); if(!cw)return;
+  cw.insertAdjacentHTML('afterbegin','<div id="gs-bar"><input id="gs-q" placeholder="🔍 전체 검색 — 낱말을 띄어 쓰면 모두 들어 있는 것만 (주소·메모·전화·사이즈·상태…)" oninput="gsType()" onkeydown="if(event.key===\'Enter\'){gsRun();} if(event.key===\'Escape\'){gsClose();}" onfocus="if(GS.q&&Object.keys(GS.res).length)gsOpen()"><button onclick="gsClear()" style="background:#475569" title="검색어 지우기">✕</button></div>');
+  document.body.insertAdjacentHTML('beforeend','<div id="gs-panel" onclick="if(event.target===this)gsClose()"><div id="gs-box"></div></div>');
+}
+var _gsBoot0=bootApp;
+bootApp=async function(){ var r=await _gsBoot0.apply(this,arguments); try{ gsInit(); }catch(e){} return r; };
+try{ gsInit(); }catch(e){}   // 자동 로그인이 이 줄보다 먼저 bootApp을 부르므로, 읽히는 즉시 만들어 둠
+document.addEventListener('DOMContentLoaded',function(){ try{ gsInit(); }catch(e){} });
+function gsTokens(q){ return String(q||'').trim().split(/\s+/).filter(Boolean); }
+function gsPattern(t){   // 서버 정규식(대소문자 무시): 숫자만이면 숫자 사이에 다른 글자 허용(2255517·225 55 17 ↔ 225/55R17), 글자면 글자 사이 공백 허용
+  var d=t.replace(/[^0-9]/g,'');
+  if(d&&d===t){ if(d.length<=3)return '(^|[^0-9])'+d+'([^0-9]|$)';   // 짧은 숫자(225·55·17·8P의 8)는 통째 숫자 덩어리로만 — 재고방 규칙
+    return '(^|[^0-9])'+d.split('').join('[^0-9]*'); }   // 긴 숫자(2255517·코드 4470…)는 덩어리 시작부터, 숫자 사이 기호 허용
+  return t.split('').map(function(ch){ return ch.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'); }).join('\\s*');
+}
+function gsOr(cols,pat){ return cols.map(function(c){ return c+'.imatch.'+JSON.stringify(pat); }).join(','); }
+function gsHi(txt){   // 맞은 글자 노랗게
+  var h=esc(String(txt==null?'':txt)); GS.tokens.forEach(function(t){ try{ var re=new RegExp(gsPattern(t),'ig'); h=h.replace(re,function(m){return m?'<mark>'+m+'</mark>':m;}); }catch(e){} }); return h;
+}
+function gsType(){ clearTimeout(GS.timer); var v=(document.getElementById('gs-q')||{}).value||''; if(!v.trim()){ gsClose(); GS.q=''; GS.res={}; return; } GS.timer=setTimeout(gsRun,600); }   // 글자가 바뀌면 0.6초 뒤 자동으로 다시 찾음 (필터처럼)
+function gsOpen(){ var p=document.getElementById('gs-panel'), b=document.getElementById('gs-bar'); if(!p)return; if(b){ var r=b.getBoundingClientRect(); p.style.top=Math.round(r.bottom)+'px'; } p.classList.add('on'); }   // 검색창은 덮지 않음 → 커서가 그대로 있고 글자를 고칠 수 있음
+function gsClose(){ var p=document.getElementById('gs-panel'); if(p)p.classList.remove('on'); }
+function gsClear(){ var i=document.getElementById('gs-q'); if(i){ i.value=''; i.focus(); } GS.q=''; GS.res={}; gsClose(); }
+async function gsAll(key){   // 한 그룹 전부 펼치기 (200건씩 이어 받음, 최대 5,000건)
+  var src=GS_SRC.filter(function(s){return s.key===key;})[0], cur=GS.res[key]; if(!src||!cur)return; var seq=GS.seq;
+  var btn=document.getElementById('gs-all-'+key); if(btn){btn.disabled=true;btn.textContent='받는 중…';}
+  try{ while(cur.rows.length<cur.count&&cur.rows.length<5000){ var r=await gsQuery(src,GS.parse,cur.rows.length); if(seq!==GS.seq)return; if(!r.rows.length)break; cur.rows=cur.rows.concat(r.rows); cur.count=r.count; } }catch(e){ cur.err=e.message; }
+  if(key==='lot')await gsLotNames(); gsRender();
+}
+async function gsAllAll(){ for(var i=0;i<GS_SRC.length;i++){ var k=GS_SRC[i].key, c=GS.res[k]; if(c&&c.rows.length<c.count)await gsAll(k); } }
+async function gsQuery(src,P,offset){
+  var q=sb.from(src.table).select(src.sel,{count:'exact'});
+  if(src.extra)q=src.extra(q);
+  if(src.key==='msg'&&P.msgRoom){ var rm=(rooms||[]).find(function(r){return (r.name||'').indexOf(P.msgRoom)>=0;}); if(rm)q=q.eq('room_id',rm.id); }
+  var st=GS_STATE[src.key]||{};
+  if(src.key==='lot'){   // 재고 칸: 연식(20xx)·위치(A1-05 꼴)·미배치/DOT누락은 칸에서, 나머지 낱말은 상품(임베드)에서
+    P.text.forEach(function(t){ var f=st[t]||st[t.toLowerCase()], isLot=!!f||/^20[0-9]{2}$/.test(t)||/^[A-Za-z]{1,2}[0-9]/.test(t);
+      if(isLot){ var o=gsOr(src.cols,gsPattern(t)); q=q.or(f?(f+','+o):o); }
+      else q=q.or(gsOr(src.pcols,gsPattern(t)),{referencedTable:'stock_products',foreignTable:'stock_products'}); });
+  }else P.text.forEach(function(t){ var f=st[t]||st[t.toLowerCase()], o=gsOr(src.cols,gsPattern(t)); q=q.or(f?(f+','+o):o); });   // 상태 낱말이면 '그 조건 또는 글자', 아니면 글자
+  q=q.order(src.order[0],{ascending:src.order[1]}).range(offset,offset+GS_PAGE-1);
+  var r=await q; if(r.error)throw r.error; return {rows:r.data||[],count:(r.count==null?(r.data||[]).length:r.count)};
+}
+GS.prod={};
+async function gsLotNames(){   // 재고칸 결과에 상품 이름 붙이기
+  var cur=GS.res.lot; if(!cur||!cur.rows.length)return;
+  var ids=cur.rows.map(function(z){return z.product_id;}).filter(function(v,i,arr){return v&&!GS.prod[v]&&arr.indexOf(v)===i;});
+  for(var i=0;i<ids.length;i+=200){ try{ var r=await sb.from('stock_products').select('id,brand,name,code,size,ply').in('id',ids.slice(i,i+200)); (r.data||[]).forEach(function(p){GS.prod[p.id]=p;}); }catch(e){} }
+}
+async function gsRun(){
+  var q=((document.getElementById('gs-q')||{}).value||'').trim(); if(!q)return;
+  var tokens=gsTokens(q), seq=++GS.seq, P=gsParse(tokens); GS.q=q; GS.parse=P; GS.tokens=P.text; var prev=GS.res; GS.res={};
+  if(!P.text.length){ gsOpen(); document.getElementById('gs-box').innerHTML='<div class="gs-top">🔍 <b>'+esc(q)+'</b>'+gsRoomNote()+' · 찾을 낱말을 더 적어 주세요</div>'; return; }
+  gsOpen(); var bz=document.getElementById('gs-busy'); if(bz)bz.textContent='찾는 중…'; else if(!Object.keys(prev).length)document.getElementById('gs-box').innerHTML='<div class="gs-top">🔍 <b>'+esc(q)+'</b> <span class="gs-busy">찾는 중…</span></div>';   // 이미 결과가 있으면 그대로 두고 위에 '찾는 중'만
+  await Promise.all(GS_SRC.filter(function(src){return !P.rooms||P.rooms.indexOf(src.key)>=0;}).map(function(src){ return gsQuery(src,P,0).then(function(r){ GS.res[src.key]={rows:r.rows,count:r.count,err:null}; },function(e){ GS.res[src.key]={rows:[],count:0,err:e.message||String(e)}; }); }));
+  if(seq!==GS.seq)return; await gsLotNames(); if(seq!==GS.seq)return; gsRender();
+}
+async function gsMore(key){ var src=GS_SRC.filter(function(s){return s.key===key;})[0], cur=GS.res[key]; if(!src||!cur)return;
+  var btn=document.getElementById('gs-more-'+key); if(btn){btn.disabled=true;btn.textContent='받는 중…';}
+  try{ var r=await gsQuery(src,GS.parse,cur.rows.length); cur.rows=cur.rows.concat(r.rows); cur.count=r.count; }catch(e){ cur.err=e.message; }
+  if(key==='lot')await gsLotNames(); gsRender();
+}
+function gsRoomOf(id){ return (rooms||[]).find(function(r){return r.id===id;}); }
+function gsRoomName(id){ var r=gsRoomOf(id); return r?r.name:''; }
+function gsSt(txt,cls){ return '<span class="st '+(cls||'')+'">'+txt+'</span>'; }
+function gsItem(src,row){   // 결과 한 줄 (방 · 날짜 · 내용 · 상태)
+  var t1='',t2='',st='';
+  if(src.key==='rsv'){ t1=gsHi((row.date_str||'미지정')+(row.time_slot?' '+row.time_slot:'')+' · '+[row.car_no,row.car_name].filter(Boolean).join(' ')+(row.phone?' · '+row.phone:'')); t2=gsHi([row.tire_spec?noPP(row.tire_spec)+(row.qty?' ×'+row.qty:''):'',row.memo,row.work_note?'작업후: '+row.work_note:''].filter(Boolean).join(' · '));
+    st=gsSt(row.status||'',row.status==='완료'?'ok':(row.status==='취소'?'bad':'blue'))+(row.align_state==='take'?gsSt('얼라인 받기로함','wait'):(row.align_state==='inform'?gsSt('얼라인 안내함'):''))+(row.pay_amount?gsSt('현장 '+rsvWon(parseInt(String(row.pay_amount).replace(/[^0-9]/g,''),10)||0)):'')+(row.user_name?gsSt(row.user_name):''); }
+  else if(src.key==='dlv'){ var tab=row.tab==='deliv'?('직배송 '+(row.car===3?'1호차':(row.car===2?'2호차':'대기'))):(row.tab==='hold'?'미출고':(row.tab==='parcel'?'택배':(row.tab||''))); var ch={ping:'핑',online:'온라인',trade:'거래처',spam:'스팸',bunjang:'번개'}[row.channel]||row.channel||'';
+    t1=gsHi((row.date_str||'')+' · '+[row.recv,row.tel].filter(Boolean).join(' ')+(row.tire||row.spec?' · '+[row.tire,row.spec].filter(Boolean).join(' '):'')+(row.qty?' ×'+row.qty:'')); t2=gsHi([row.addr?row.addr+(row.zipcode?' ['+row.zipcode+']':''):'',row.trade_client?'거래처 '+row.trade_client:'',row.src?'출처 '+row.src:'',row.trade_memo,row.note].filter(Boolean).join(' · '));
+    st=gsSt(tab,'blue')+(ch?gsSt(ch):'')+(row.cancelled?gsSt('취소','bad'):(row.done?gsSt('완료','ok'):(row.tab==='parcel'?(row.confirmed?gsSt('택배 확인','ok'):gsSt('택배 미확인','wait')):gsSt('미완료','wait'))))+(row.user_name?gsSt(row.user_name):''); }
+  else if(src.key==='inb'){ var inQ=parseInt(row.qty,10)||0,outQ=parseInt(row.out_qty,10)||0,cq=parseInt(row.cancel_qty,10)||0; t1=gsHi((row.date_str||'')+' · '+[row.src,row.model,row.spec].filter(Boolean).join(' ')+(inQ?' ×'+inQ:'')); t2=gsHi(row.use_note||'');
+    st=(row.cancelled?gsSt('취소','bad'):'')+(row.arrived?gsSt('입고됨','ok'):gsSt('입고 전','wait'))+(outQ?gsSt('출고 '+outQ,'blue'):'')+(cq?gsSt('취소 '+cq,'bad'):'')+(row.user_name?gsSt(row.user_name):''); }
+  else if(src.key==='stk'){ t1=gsHi([row.brand,row.name,row.code,row.size,row.ply].filter(Boolean).join(' ')); t2=gsHi([row.category,row.source,row.spec,row.memo].filter(Boolean).join(' · ')); }
+  else if(src.key==='log'){ var ts=row.ts?kstFmt(row.ts):''; t1=gsHi(ts+' · '+(row.action||'')+(row.qty?' ×'+row.qty:'')); t2=gsHi([row.note,row.from_loc&&row.to_loc?row.from_loc+' → '+row.to_loc:'',row.dot?'연식 '+row.dot:''].filter(Boolean).join(' · ')); st=row.user_name?gsSt(row.user_name):''; }
+  else if(src.key==='msg'){ t1=gsHi(gsRoomName(row.room_id)+' · '+(row.created_at?kstFmt(row.created_at):'')+' · '+(row.user_name||'')); t2=gsHi(String(row.content||'').slice(0,160)); }
+  else if(src.key==='qt'){ var v=row.value||{}, rid=String(row.key||'').slice(5), rr=(reservations||[]).find(function(z){return z.id===rid;}); t1=gsHi('견적번호 '+(v.no||'')+' · '+[v.name,v.km?v.km+'km':''].filter(Boolean).join(' · ')+(rr?' · '+(rr.date_str||'미지정')+' '+[rr.car_no,rr.car_name].filter(Boolean).join(' '):'')); t2=gsHi(v.note||''); st=v.saved_at?gsSt('저장 '+v.saved_at):''; }
+  else if(src.key==='sch'){ t1=gsHi((row.date_str||'')+' · '+(row.staff_name||'')+' · '+(row.kind||'')); t2=gsHi(row.memo||''); }
+  else if(src.key==='lot'){ var p=row.stock_products||GS.prod[row.product_id]; t1=gsHi(p?[p.brand,p.name,p.code,p.size,p.ply].filter(Boolean).join(' '):'상품 '+String(row.product_id||'').slice(0,8)); t2=gsHi('📍 '+((row.loc&&row.loc!=='U')?row.loc:'미배치')+' · 연식 '+(row.dot||'누락')+(row.src_in?' · 출처 '+row.src_in:'')); st=gsSt((row.qty||0)+'개',(row.qty>0?'ok':'bad')); }
+  return '<div class="gs-it" onclick="gsGo(\''+src.key+'\','+JSON.stringify(String(row.id||row.key||'')).replace(/"/g,'&quot;')+')"><div class="t1">'+t1+st+'</div>'+(t2?'<div class="t2">'+t2+'</div>':'')+'</div>';
+}
+function gsRender(){
+  var box=document.getElementById('gs-box'); if(!box)return; var total=0, h='';
+  GS_SRC.forEach(function(src){ var r=GS.res[src.key]; if(!r)return; total+=r.count||0; });
+  var shown=0; GS_SRC.forEach(function(src){ var r=GS.res[src.key]; if(r)shown+=r.rows.length; });
+  h+='<div class="gs-top">🔍 <b>'+esc(GS.q)+'</b> · 전체 '+total.toLocaleString()+'건'+(shown<total?' (보이는 것 '+shown.toLocaleString()+')':'')+gsRoomNote()+' <span id="gs-busy" class="gs-busy"></span><span style="flex:1"></span>'+(shown<total?'<button class="gs-all" onclick="gsAllAll()">모든 방 전부 펼치기</button>':'')+'<button onclick="gsClose()" style="border:1px solid #cbd5e1;background:#fff;border-radius:7px;padding:3px 9px;font-size:12px;cursor:pointer;margin-left:6px">닫기</button></div>';
+  GS_SRC.forEach(function(src){ var r=GS.res[src.key]; if(!r)return; if(r.err){ h+='<div class="gs-grp">'+src.icon+' '+src.name+' <small style="color:#b91c1c">검색 실패: '+esc(r.err)+'</small></div>'; return; } if(!r.count&&!r.rows.length)return;
+    h+='<div class="gs-grp">'+src.icon+' '+src.name+' <small>'+r.count.toLocaleString()+'건'+(r.rows.length<r.count?' (보여준 것 '+r.rows.length+')':'')+'</small></div>';
+    h+=r.rows.map(function(row){return gsItem(src,row);}).join('');
+    if(r.rows.length<r.count)h+='<div style="display:flex;gap:6px;margin:2px 0 4px"><button class="gs-more" id="gs-more-'+src.key+'" onclick="gsMore(\''+src.key+'\')" style="margin:0">더 보기 ('+(r.count-r.rows.length).toLocaleString()+'건 남음)</button><button class="gs-all" id="gs-all-'+src.key+'" onclick="gsAll(\''+src.key+'\')" style="flex:none">'+src.name+' 모두 펼치기</button></div>';
+  });
+  if(!total)h+='<div style="color:#94a3b8;text-align:center;padding:18px 0">맞는 것이 없습니다</div>';
+  box.innerHTML=h;
+}
+function gsFlash(el){ if(!el)return; try{ el.scrollIntoView({block:'center',behavior:'smooth'}); }catch(e){ el.scrollIntoView(); } el.classList.remove('gs-flash'); void el.offsetWidth; el.classList.add('gs-flash'); }
+async function gsWaitFor(fn,ms){ var t0=Date.now(); while(Date.now()-t0<(ms||4000)){ var el=fn(); if(el)return el; await new Promise(function(r){setTimeout(r,150);}); } return null; }
+function gsSetDate(ds){ var f=document.getElementById('date-from'), t=document.getElementById('date-to'); if(f)f.value=ds; if(t)t.value=ds; try{ if(typeof rangeMode!=='undefined'&&rangeMode)toggleRange(); }catch(e){} if(f)f.value=ds; if(t)t.value=ds; }
+async function gsGo(key,id){   // 결과 누르면 그 자리로
+  var src=GS_SRC.filter(function(s){return s.key===key;})[0], r=GS.res[key], row=(r&&r.rows||[]).find(function(z){return String(z.id||z.key)===String(id);}); if(!src||!row)return;
+  gsClose();
+  function roomBy(f){ return (rooms||[]).find(f); }
+  try{
+    if(key==='rsv'||key==='qt'){ var rid=(key==='qt')?String(row.key).slice(5):row.id; var rm=roomBy(function(x){return (ROOM_META[x.name]||{}).mode==='reserve';}); if(rm&&(!curRoom||curRoom.id!==rm.id))await selectRoom(rm); if(!(reservations||[]).some(function(z){return z.id===rid;}))await loadReservations(); rsvShowDetail(rid); return; }
+    if(key==='dlv'){ var rm=gsRoomOf(row.room_id)||roomBy(function(x){return (ROOM_META[x.name]||{}).mode==='delivery';}); if(rm&&(!curRoom||curRoom.id!==rm.id))await selectRoom(rm);
+      if(!(deliveriesCache||[]).some(function(c){return c.id===row.id;}))deliveriesCache=(deliveriesCache||[]).concat([row]);   // dlvJumpTo가 카드의 탭·호차를 보게
+      await dlvJumpTo(row.id,row.date_str);   // 앱에 있는 '카드로 가기': 날짜·호차 탭·완료/취소 접힘 펼침·강조
+      var el=await gsWaitFor(function(){return document.querySelector('[data-cid="'+row.id+'"]');}); gsFlash(el); if(!el&&typeof stkToast==='function')stkToast('그 날짜로 옮겼습니다 (카드가 지금 화면 조건에서 안 보일 수 있어요)'); return; }
+    if(key==='inb'){ var rm=gsRoomOf(row.room_id)||roomBy(function(x){return (ROOM_META[x.name]||{}).mode==='items';}); if(rm&&(!curRoom||curRoom.id!==rm.id))await selectRoom(rm);
+      try{ switchItemTab('ledger'); }catch(e){} await gsWaitFor(function(){return document.getElementById('ledger-from');},3000);
+      try{ var lf=document.getElementById('ledger-from'), lt=document.getElementById('ledger-to'); if(lf)lf.value=row.date_str; if(lt)lt.value=row.date_str; ledgerSetRange(); ledgerSetDone('all'); if(typeof ledgerSetUse==='function')ledgerSetUse('all'); }catch(e){}   // 원장: 그 날짜만 · 상태 전체(완료도 보이게)
+      var el=await gsWaitFor(function(){return document.querySelector('tr[data-id="'+row.id+'"]');}); gsFlash(el); if(!el&&typeof stkToast==='function')stkToast('입고 원장을 그 날짜로 옮겼습니다 (줄이 안 보이면 원장 조건을 확인하세요)'); return; }
+    if(key==='stk'){ var rm=roomBy(function(x){return x.name==='재고방';}); if(rm&&(!curRoom||curRoom.id!==rm.id))await selectRoom(rm); try{ stkTab(0); }catch(e){} var qi=document.getElementById('stk-q'); if(qi){ qi.value=[row.brand,row.name,row.size].filter(Boolean).join(' '); stkRenderSearch(); } return; }
+    if(key==='lot'){ var rm=roomBy(function(x){return x.name==='재고방';}); if(rm&&(!curRoom||curRoom.id!==rm.id))await selectRoom(rm); try{ stkTab(0); }catch(e){} var p=row.stock_products||GS.prod[row.product_id]; var qi=document.getElementById('stk-q'); if(qi){ qi.value=p?[p.brand,p.name,p.size].filter(Boolean).join(' '):''; stkRenderSearch(); } return; }
+    if(key==='log'){ var rm=roomBy(function(x){return x.name==='재고방';}); if(rm&&(!curRoom||curRoom.id!==rm.id))await selectRoom(rm); try{ stkTab(2); stkLogAllDates=true; stkRenderLogTab(); }catch(e){} return; }
+    if(key==='msg'){ var rm=gsRoomOf(row.room_id); if(!rm)return; if(!curRoom||curRoom.id!==rm.id)await selectRoom(rm); else await loadMsgs(); var el=await gsWaitFor(function(){ var b=document.querySelector('button[onclick="deleteMsg(\''+row.id+'\')"]'); return b?b.closest('.msg-group'):null; },2500); if(!el){ var ds=kstDate(row.created_at); el=document.querySelector('.day-div[data-date="'+ds+'"]'); } gsFlash(el); return; }
+    if(key==='sch'){ var rm=roomBy(function(x){return (ROOM_META[x.name]||{}).mode==='reserve';}); if(rm&&(!curRoom||curRoom.id!==rm.id))await selectRoom(rm); if(typeof stkToast==='function')stkToast('🌴 '+(row.date_str||'')+' '+(row.staff_name||'')+' '+(row.kind||'')+(row.memo?' · '+row.memo:'')); return; }
+  }catch(e){ console.error('gsGo',e); if(typeof stkToast==='function')stkToast('이동 실패: '+e.message); }
+}
 /* 예약 연결 */
 function qtRsvLabel(r){return (r.date_str?(r.date_str+' '+(r.time_slot||'')):'📌 미지정')+' · '+(r.car_no||'차량번호 없음')+(r.car_name?' '+r.car_name:'')+(r.phone?' · '+r.phone:'')+(r.tire_spec?' · '+noPP(r.tire_spec):'');}
 function qtPickOpen(mode,rsvId,dateFilter){
