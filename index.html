@@ -12477,7 +12477,10 @@ var STK_FX_DEF={
   inst19:19000,    // 장착비 19인치
   inst20:22000,    // 장착비 20인치
   inst21:25000,    // 장착비 21인치 이상
-  instOff:25000    // 오프로드 장착비 (인치 무관 — 대표 지시)
+  mg17:30000,      // (10/14) 피렐리·오프로드 최소마진 17인치 이하 — 택배가·장착가 모두, 수수료로 나누기 전에 더함
+  mg19:35000,      // 18~19인치
+  mg21:40000,      // 20~21인치
+  mg22:45000       // 22인치 이상
 };
 var STK_FX={};
 for(var _fk in STK_FX_DEF)STK_FX[_fk]=STK_FX_DEF[_fk];
@@ -12540,7 +12543,11 @@ function stkFxOpen(){
   h+=row('19인치','inst19',g('inst19'),'100','');
   h+=row('20인치','inst20',g('inst20'),'100','');
   h+=row('21인치 이상','inst21',g('inst21'),'100','');
-  h+=row('오프로드','instOff',g('instOff'),'100','AT·MT·RT 등 — 인치 구분 없음');
+  h+='<div style="font-weight:800;font-size:13px;margin:14px 0 6px;color:#0f172a">피렐리·오프로드 최소마진 <span style="font-weight:600;color:#64748b;font-size:11px">(택배가·장착가 = (원가+배송료 또는 장착비+이 마진) ÷ 요율1 ÷ 요율2 · 오프로드 = 분류 오프로드 또는 AT·MT·RT · 장착비는 일반과 같은 인치표)</span></div>';
+  h+=row('17인치 이하','mg17',g('mg17'),'1000','');
+  h+=row('18~19인치','mg19',g('mg19'),'1000','');
+  h+=row('20~21인치','mg21',g('mg21'),'1000','');
+  h+=row('22인치 이상','mg22',g('mg22'),'1000','');
   h+='<div style="font-weight:800;font-size:13px;margin:14px 0 6px;color:#0f172a">배송비</div>';
   h+=row('플로테이션 고정','floatShip',g('floatShip'),'100','31x10.5R15 처럼 폭이 100 미만인 규격');
   h+='<div style="font-weight:800;font-size:13px;margin:14px 0 6px;color:#0f172a">사이즈별 배송비표 <span id="fx-shipCnt" style="font-weight:600;color:#64748b"></span></div>';
@@ -12687,10 +12694,10 @@ function stkCostIsManual(r){ // 원가 직접 수정됨? (자동값과 다르면
 }
 
 // ── 택배가(price)·장착가(inst): 직접 수정 시 그 값 고정(빨강), 비우면 원가 기준 수식 (권한자만 수정)
-function stkPriceDisplay(r){ if(r.price!==''&&r.price!=null)return parseInt(r.price); var c=stkCalcTaekbae(stkCostDisplay(r),r.size); return c==null?'':c; }
-function stkPriceIsManual(r){ if(r.price===''||r.price==null)return false; var c=stkCalcTaekbae(stkCostDisplay(r),r.size); if(c==null)return true; return parseInt(r.price)!==c; }
-function stkInstDisplay(r){ if(r.inst!==''&&r.inst!=null)return parseInt(r.inst); var c=stkCalcJangchak(stkCostDisplay(r),r.size,stkIsOffroad(r)); return c==null?'':c; }
-function stkInstIsManual(r){ if(r.inst===''||r.inst==null)return false; var c=stkCalcJangchak(stkCostDisplay(r),r.size,stkIsOffroad(r)); if(c==null)return true; return parseInt(r.inst)!==c; }
+function stkPriceDisplay(r){ if(r.price!==''&&r.price!=null)return parseInt(r.price); var c=stkCalcTaekbae(stkCostDisplay(r),r.size,r); return c==null?'':c; }
+function stkPriceIsManual(r){ if(r.price===''||r.price==null)return false; var c=stkCalcTaekbae(stkCostDisplay(r),r.size,r); if(c==null)return true; return parseInt(r.price)!==c; }
+function stkInstDisplay(r){ if(r.inst!==''&&r.inst!=null)return parseInt(r.inst); var c=stkCalcJangchak(stkCostDisplay(r),r.size,stkIsOffroad(r),r); return c==null?'':c; }
+function stkInstIsManual(r){ if(r.inst===''||r.inst==null)return false; var c=stkCalcJangchak(stkCostDisplay(r),r.size,stkIsOffroad(r),r); if(c==null)return true; return parseInt(r.inst)!==c; }
 // 화면에 보여줄 실원가 값 (비어 있고 할인율 있으면 계산값)
 function stkRCdisplay(r){
   if(r.real_cost!==''&&r.real_cost!=null)return r.real_cost;
@@ -12741,22 +12748,27 @@ function stkShipFee(size){
 // 장착비 (인치별): ~18:18000 / 19:19000 / 20:22000 / 21+:25000
 function stkInstallFee(size,offroad){
   var t=stkParseSize(size); if(!t)return null; var inch=t[2];
-  if(offroad){ return stkFxN('instOff'); }   // 오프로드는 인치 무관 고정 (대표 지시)
+  // (10/14) 오프로드 25,000 고정 없앰 — 일반과 같은 인치표 + 최소마진(stkMinMargin)
   if(inch<=18)return stkFxN('inst18');
   if(inch===19)return stkFxN('inst19');
   if(inch===20)return stkFxN('inst20');
   return stkFxN('inst21');
 }
 // 택배가/장착가 자동계산 = (원가+배송료 또는 장착비)/0.97/0.96, 올림 100원
-function stkCalcTaekbae(cost,size){
+function stkMinMargin(r,size){   // (10/14 호준님) 피렐리·오프로드만 인치별 최소마진, 그 외 0
+  if(!r)return 0; var pi=(String(r.br||r.brand||'').indexOf('피렐리')>=0), off=stkIsOffroad(r); if(!pi&&!off)return 0;
+  var t=stkParseSize(size||r.size); var inch=t?t[2]:0; if(!inch)return 0;
+  if(inch<=17)return stkFxN('mg17'); if(inch<=19)return stkFxN('mg19'); if(inch<=21)return stkFxN('mg21'); return stkFxN('mg22');
+}
+function stkCalcTaekbae(cost,size,r){
   var c=parseInt(cost); if(isNaN(c)||!c)return null;
   var ship=stkShipFee(size); if(ship==null)return null;
-  return Math.ceil((c+ship)/stkFxN('fee1')/stkFxN('fee2')/100)*100;
+  return Math.ceil((c+ship+stkMinMargin(r,size))/stkFxN('fee1')/stkFxN('fee2')/100)*100;
 }
-function stkCalcJangchak(cost,size,offroad){
+function stkCalcJangchak(cost,size,offroad,r){
   var c=parseInt(cost); if(isNaN(c)||!c)return null;
   var fee=stkInstallFee(size,offroad); if(fee==null)return null;
-  return Math.ceil((c+fee)/stkFxN('fee1')/stkFxN('fee2')/100)*100;
+  return Math.ceil((c+fee+stkMinMargin(r,size))/stkFxN('fee1')/stkFxN('fee2')/100)*100;
 }
 function stkFmtAuto(v){return v==null?'':v;}
 
@@ -15382,8 +15394,8 @@ function stkRenderTable(){
     var isNum=(NUMCOLS.indexOf(sc)>=0)||(sc.indexOf('ch')===0);
     function sortNum(r){
       if(sc==='cost')return stkCostDisplay(r);                          // 원가 = 유효원가(수동 or 수식)
-      if(sc==='price')return stkCalcTaekbae(stkCostDisplay(r),r.size);  // 택배가 = 계산값
-      if(sc==='inst')return stkCalcJangchak(stkCostDisplay(r),r.size,stkIsOffroad(r));  // 장착가 = 계산값
+      if(sc==='price')return stkCalcTaekbae(stkCostDisplay(r),r.size,r);  // 택배가 = 계산값
+      if(sc==='inst')return stkCalcJangchak(stkCostDisplay(r),r.size,stkIsOffroad(r),r);  // 장착가 = 계산값
       if(sc==='real_cost')return stkRCdisplay(r);                       // 실원가 = 유효값
       if(sc==='fprice')return parseInt(r.fprice);
       if(sc==='target')return (r.target===''||r.target==null)?null:parseInt(r.target);
@@ -15656,8 +15668,8 @@ function stkRenderSearch(){
           '<button class="lotbtn" onclick="event.stopPropagation();stkOpenOut(\''+l.id+'\')">📦 출고</button>'+srcLine+'</div>';
       }).join('')||'<div class="lotrow" style="color:#bbb">창고 재고 없음 — 출고하면 입고예정(마이너스)으로 잡힙니다 <button class="lotbtn" onclick="event.stopPropagation();stkOutZero(\''+p.id+'\')">📦 출고</button></div>';
     var priceLine='<div style="font-size:12px;color:#444;padding:3px 0;display:flex;gap:14px;flex-wrap:wrap">'+
-      '<span>🔧 장착가 <b style="color:#c2410c">'+(stkCalcJangchak(stkCostDisplay(p),p.size,stkIsOffroad(p))?stkWon(stkCalcJangchak(stkCostDisplay(p),p.size,stkIsOffroad(p))):'미정')+'</b></span>'+
-      '<span>📦 택배가 <b style="color:#0c447c">'+(stkCalcTaekbae(stkCostDisplay(p),p.size)?stkWon(stkCalcTaekbae(stkCostDisplay(p),p.size)):'미정')+'</b></span>'+
+      '<span>🔧 장착가 <b style="color:#c2410c">'+(stkCalcJangchak(stkCostDisplay(p),p.size,stkIsOffroad(p),p)?stkWon(stkCalcJangchak(stkCostDisplay(p),p.size,stkIsOffroad(p),p)):'미정')+'</b></span>'+
+      '<span>📦 택배가 <b style="color:#0c447c">'+(stkCalcTaekbae(stkCostDisplay(p),p.size,p)?stkWon(stkCalcTaekbae(stkCostDisplay(p),p.size,p)):'미정')+'</b></span>'+
       ((stkCostDisplay(p)!=='')?'<span>💰 원가 <b style="color:#b45309">'+stkWon(stkCostDisplay(p))+'</b></span>':'')+
       (p.factory_price?'<span>🏭 공장도 <b style="color:#555">'+stkWon(p.factory_price)+'</b></span>':'')+'</div>';
     var memoLine=p.memo?'<div style="font-size:11px;color:#9a6b1f;padding:2px 0">📝 '+stkEsc(p.memo)+'</div>':'';
@@ -17602,8 +17614,8 @@ function stkSheetPlan(rows){
     set('category','분류',txt(c,0),p.cat||'일반'); set('source','출처',txt(c,1),p.source); set('brand','브랜드',txt(c,2),p.br);
     set('name','패턴',txt(c,3),p.name); set('code','패턴코드',txt(c,4),p.code); if(txt(c,5)!=null)set('size','사이즈',stkNormSize(txt(c,5)),p.size);
     set('ply','P수',txt(c,6),p.ply); set('spec','재원',txt(c,7),p.spec);
-    var pr=num(c,9); if(pr!=null){ var autoP=(pr!=='-')?stkCalcTaekbae(stkCostDisplay(pv),p.size):null; if(pr!=='-'&&autoP===pr&&(p.price==null||p.price==='')){} else set('price','택배가',pr,p.price); }
-    var ins=num(c,10); if(ins!=null){ var autoI=(ins!=='-')?stkCalcJangchak(stkCostDisplay(pv),p.size,(typeof stkIsOffroad==='function')&&stkIsOffroad(p)):null; if(ins!=='-'&&autoI===ins&&(p.inst==null||p.inst==='')){} else set('inst_price','장착가',ins,p.inst); }
+    var pr=num(c,9); if(pr!=null){ var autoP=(pr!=='-')?stkCalcTaekbae(stkCostDisplay(pv),p.size,p):null; if(pr!=='-'&&autoP===pr&&(p.price==null||p.price==='')){} else set('price','택배가',pr,p.price); }
+    var ins=num(c,10); if(ins!=null){ var autoI=(ins!=='-')?stkCalcJangchak(stkCostDisplay(pv),p.size,(typeof stkIsOffroad==='function')&&stkIsOffroad(p),p):null; if(ins!=='-'&&autoI===ins&&(p.inst==null||p.inst==='')){} else set('inst_price','장착가',ins,p.inst); }
     var co=num(c,11); if(co!=null){ var autoC=(co!=='-')?stkCalcCostAuto(pv):null; if(co!=='-'&&autoC===co&&(p.cost==null||p.cost==='')){} else set('cost','원가',co,p.cost); }
     if(canRc){ var rcv=num(c,12); if(rcv!=null){ var autoR=(rcv!=='-'&&typeof stkCalcRC==='function')?stkCalcRC(pv):null; if(rcv!=='-'&&autoR===rcv&&(p.real_cost==null||p.real_cost==='')){} else set('real_cost','실원가',rcv,p.real_cost); }   // 자동 계산된 실원가를 값으로 붙여넣어도 수동값으로 굳지 않게
       set('discount_rate','할인율',flt(c,13),p.discount_rate); } else if(V(c,12)||V(c,13))plan.rcDenied++;
