@@ -20184,20 +20184,26 @@ function kdPeriod(k){
   kdPeriodKey=k;
   if(k==='today')kdSetRange(t,t); else if(k==='yest')kdSetRange(ago(1),ago(1)); else if(k==='all')kdSetRange('2000-01-01',t); else kdSetRange(ago(parseInt(k,10)-1),t);
 }
-function kdPeriodHtml(){ return KD_PERIODS.map(function(p){ return '<button class="'+(kdPeriodKey===p[0]?'on':'')+'" onclick="kdPeriod(\''+p[0]+'\')">'+p[1]+'</button>'; }).join('')+'<span style="flex:1"></span><button id="kd-refresh" class="kd-rf" onclick="kdRefreshNow()" title="경동에서 지금 바로 한 번 받아옵니다 (평소엔 5분마다 자동)">🔄 지금 최신화</button>'; }
+function kdPeriodHtml(){ return KD_PERIODS.map(function(p){ return '<button class="'+(kdPeriodKey===p[0]?'on':'')+'" onclick="kdPeriod(\''+p[0]+'\')">'+p[1]+'</button>'; }).join('')+'<span style="flex:1"></span><button id="kd-refresh" class="kd-rf" onclick="kdRefreshNow(\'today\')" title="오늘 송장만 경동에서 지금 받아옵니다 (평소엔 5분마다 자동)">🔄 오늘 최신화</button><button id="kd-refresh2" class="kd-rf" onclick="kdRefreshNow(\'range\')" title="지금 보고 있는 기간 전부를 경동에서 다시 받아옵니다 (최대 31일)">🔄 전체 최신화</button>'; }
 var KD_RF_KEY='kd_refresh_url', _kdRfUrl=null;
 async function kdRefreshUrl(){ if(_kdRfUrl!==null)return _kdRfUrl; try{ var r=await sb.from('settings').select('value').eq('key',KD_RF_KEY).maybeSingle(); _kdRfUrl=(r&&r.data&&typeof r.data.value==='string')?r.data.value:''; }catch(e){ _kdRfUrl=''; } return _kdRfUrl; }
-async function kdRefreshNow(){   // (10/14) 지금 최신화: 구글 웹 앱(경동수집_코드.gs doGet) 호출 → 수집 → 다시 읽기
-  var b=document.getElementById('kd-refresh'); var url=await kdRefreshUrl();
+async function kdRefreshNow(mode){   // (10/14) 지금 최신화: 구글 웹 앱(경동수집_코드.gs doGet) 호출 → 수집 → 다시 읽기. mode 'today'=오늘만 / 'range'=보고 있는 기간 전부
+  mode=mode||'today'; var b=document.getElementById(mode==='range'?'kd-refresh2':'kd-refresh'), b2=document.getElementById(mode==='range'?'kd-refresh':'kd-refresh2'); var url=await kdRefreshUrl();
   if(!url){ var v=prompt('경동 수집 "웹 앱" 주소를 붙여 넣으세요 (★경동수집_설치안내.md 7단계)\n모양: https://script.google.com/macros/s/…/exec?k=열쇠'); if(!v)return; v=v.trim().replace(/\s+/g,''); if(/\/exec\/?$/.test(v))v=v.replace(/\/$/,'')+'?k=tg-kd-9731';   // (10/14) 주소만 넣어도 열쇠를 붙여 줌(코드 WEB_KEY 기본값)
     if(!/^https:\/\/script\.google\.com\/macros\/s\/[^?]+\/exec\?k=.+/.test(v)){ alert('주소 모양이 다릅니다.\n배포 화면의 "웹 앱 URL"(https://script.google.com/macros/s/…/exec)을 그대로 붙여 넣어 주세요'); return; }
     try{ var w=await sb.from('settings').upsert({key:KD_RF_KEY,value:v,updated_at:new Date().toISOString()},{onConflict:'key'}); if(w&&w.error)throw w.error; }catch(e){ alert('주소 저장 실패: '+e.message); return; } _kdRfUrl=v; url=v; }
-  if(b){ b.disabled=true; b.textContent='⏳ 최신화 중…'; }
+  var _lbl=b?b.textContent:''; if(b){ b.disabled=true; b.textContent='⏳ 최신화 중…'; } if(b2)b2.disabled=true;
+  var _sel=getSelectedRange(), _f=_sel.from, _t=(rangeMode&&_sel.to)?_sel.to:_sel.from, _td=getTodayISO();   // (10/14 호준님) 오늘 최신화=오늘만 / 전체 최신화=보고 있는 기간 전부(31일 넘으면 구글 쪽이 기본 3일로)
+  if(mode!=='range'){ _f=_td; _t=_td; }
+  url=url+(url.indexOf('?')>=0?'&':'?')+'from='+_f+'&to='+_t;
   var okMsg='', errMsg='';
   try{ var ctl=new AbortController(); var tm=setTimeout(function(){ctl.abort();},90000); var res=await fetch(url,{signal:ctl.signal,redirect:'follow'}); clearTimeout(tm); var j=null; try{ j=await res.json(); }catch(e){}
-    if(j&&j.ok)okMsg='최신화 완료 · 저장 '+j.saved+'건'; else errMsg=(j&&j.error)||('HTTP '+res.status);
-  }catch(e){ errMsg=(e.name==='AbortError')?'90초 안에 응답 없음':e.message; }
-  if(b){ b.disabled=false; b.textContent='🔄 지금 최신화'; }
+    if(j&&j.ok)okMsg='최신화 완료 ('+(j.range||'')+') · 저장 '+j.saved+'건'; else errMsg=(j&&j.error)||('HTTP '+res.status);
+  }catch(e){ errMsg=(e.name==='AbortError')?'90초 안에 응답 없음':e.message;
+    if(/Failed to fetch|NetworkError|Load failed/i.test(errMsg)){   // (10/14) 브라우저가 응답을 못 읽게 막힌 경우 → 결과를 안 읽는 방식으로 한 번 더 보내고 20초 뒤 다시 읽기
+      try{ await fetch(url,{mode:'no-cors',redirect:'follow'}); if(b)b.textContent='⏳ 요청 보냄, 20초 뒤 다시 읽기…'; await new Promise(function(r){setTimeout(r,8000);}); errMsg=''; okMsg='최신화 요청을 보냈습니다 (결과는 "마지막 수집" 시각으로 확인)'; }catch(e2){}
+    } }
+  if(b){ b.disabled=false; b.textContent=_lbl||'🔄 최신화'; } if(b2)b2.disabled=false;
   if(errMsg){ var keyBad=/열쇠/.test(errMsg); alert('최신화 실패: '+errMsg+(keyBad?'\n주소 끝의 k= 열쇠가 코드의 WEB_KEY와 달라요. 저장된 주소를 지웠으니 다시 누르면 새로 적을 수 있어요.':'\n(웹 앱 배포가 "액세스: 모든 사용자"인지 확인)')); if(keyBad){ _kdRfUrl=''; try{ await sb.from('settings').delete().eq('key',KD_RF_KEY); }catch(e){} } }
   else if(okMsg&&typeof stkToast==='function')stkToast(okMsg);
   await kdLoad();
