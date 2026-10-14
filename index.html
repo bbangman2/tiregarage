@@ -20189,8 +20189,8 @@ var KD_RF_KEY='kd_refresh_url', _kdRfUrl=null;
 async function kdRefreshUrl(){ if(_kdRfUrl!==null)return _kdRfUrl; try{ var r=await sb.from('settings').select('value').eq('key',KD_RF_KEY).maybeSingle(); _kdRfUrl=(r&&r.data&&typeof r.data.value==='string')?r.data.value:''; }catch(e){ _kdRfUrl=''; } return _kdRfUrl; }
 async function kdRefreshNow(){   // (10/14) 지금 최신화: 구글 웹 앱(경동수집_코드.gs doGet) 호출 → 수집 → 다시 읽기
   var b=document.getElementById('kd-refresh'); var url=await kdRefreshUrl();
-  if(!url){ var v=prompt('경동 수집 "웹 앱" 주소를 붙여 넣으세요 (★경동수집_설치안내.md 7단계)\n모양: https://script.google.com/macros/s/…/exec?k=열쇠'); if(!v)return; v=v.trim();
-    if(!/^https:\/\/script\.google\.com\/macros\/s\/[^?]+\/exec\?k=.+/.test(v)){ alert('주소 모양이 다릅니다. …/exec?k=열쇠 형태여야 해요'); return; }
+  if(!url){ var v=prompt('경동 수집 "웹 앱" 주소를 붙여 넣으세요 (★경동수집_설치안내.md 7단계)\n모양: https://script.google.com/macros/s/…/exec?k=열쇠'); if(!v)return; v=v.trim().replace(/\s+/g,''); if(/\/exec\/?$/.test(v))v=v.replace(/\/$/,'')+'?k=tg-kd-9731';   // (10/14) 주소만 넣어도 열쇠를 붙여 줌(코드 WEB_KEY 기본값)
+    if(!/^https:\/\/script\.google\.com\/macros\/s\/[^?]+\/exec\?k=.+/.test(v)){ alert('주소 모양이 다릅니다.\n배포 화면의 "웹 앱 URL"(https://script.google.com/macros/s/…/exec)을 그대로 붙여 넣어 주세요'); return; }
     try{ var w=await sb.from('settings').upsert({key:KD_RF_KEY,value:v,updated_at:new Date().toISOString()},{onConflict:'key'}); if(w&&w.error)throw w.error; }catch(e){ alert('주소 저장 실패: '+e.message); return; } _kdRfUrl=v; url=v; }
   if(b){ b.disabled=true; b.textContent='⏳ 최신화 중…'; }
   var okMsg='', errMsg='';
