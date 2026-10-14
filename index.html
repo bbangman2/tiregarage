@@ -1013,6 +1013,9 @@ tr.qr-align.off td input{color:#94a3b8}
 .kd-st.ok{background:#dcfce7;color:#15803d}.kd-st.bad{background:#fee2e2;color:#b91c1c}.kd-st.warn{background:#ffedd5;color:#9a3412}.kd-st.blue{background:#dbeafe;color:#1d4ed8}
 #kd-chips button{border:1.4px solid #e6e9ef;background:#fafbfc;color:#64748b;border-radius:8px;padding:4px 9px;font-size:12px;font-weight:800;cursor:pointer}
 #kd-chips button.on{border-color:#0f766e;background:#f0fdfa;color:#0f766e}
+#kd-period button{border:1.4px solid #cbd5e1;background:#fff;color:#334155;border-radius:7px;padding:4px 10px;font-size:12px;font-weight:800;cursor:pointer}
+#kd-period button.on{border-color:#1d4ed8;background:#1d4ed8;color:#fff}
+.kd-sum b{color:#0f172a}.kd-sum .sep{color:#cbd5e1;margin:0 5px}
 .kd-card.gs-flash{animation:gsflash 2.6s ease-out}
 #qt-print{display:none}
 /* 인쇄: 견적서만 A4 한 장으로 */
@@ -2177,9 +2180,10 @@ tr.qr-align.off td input{color:#94a3b8}
 <!-- ===== 종합방 (1단계: 붙여넣기·분류·표시) ===== -->
 <div id="kd-screen" style="display:none;flex-direction:column;flex:1;min-height:0;overflow:hidden">
   <div style="padding:8px 14px;background:#fff;border-bottom:1px solid #eee">
+    <div id="kd-period" style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px"></div>
     <div id="kd-summary" style="font-size:12.5px;color:#475569;margin-bottom:6px"></div>
     <div id="kd-chips" style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:6px"></div>
-    <input id="kd-q" placeholder="🔍 이 날짜 안에서 찾기 — 운송장·받는분·전화·주소·품목·보내는분" oninput="kdRender()" style="width:100%;height:36px;border:1.5px solid #ddd;border-radius:9px;padding:0 12px;font-size:13px;box-sizing:border-box">
+    <input id="kd-q" placeholder="🔍 이 기간 안에서 찾기 (날짜 상관없이 찾으려면 맨 위 전체 검색)" oninput="kdRender()" style="width:100%;height:36px;border:1.5px solid #ddd;border-radius:9px;padding:0 12px;font-size:13px;box-sizing:border-box">
   </div>
   <div id="kd-list" style="flex:1;overflow:auto;padding:8px 14px 20px"></div>
 </div>
@@ -3950,7 +3954,7 @@ async function selectRoom(room){
   if(dlvSub){sb.removeChannel(dlvSub);dlvSub=null;}
   if(stockSub){sb.removeChannel(stockSub);stockSub=null;}
   if(typeof reserveSub!=='undefined'&&reserveSub){sb.removeChannel(reserveSub);reserveSub=null;}
-  if(isKd){ initDatePicker(); await kdLoad(); return; }
+  if(isKd){ kdPeriod('7'); return; }   // (10/14) 방을 열면 최근 7일로
   if(isTrade){
     if(typeof tradeLoad==='function')await tradeLoad();
     return;
@@ -4035,7 +4039,7 @@ function onDateChange(){
   const m=ROOM_META[curRoom.name]||{};
   if(m.mode==='items'){loadItems();loadItemMemos();}
   else if(m.mode==='delivery'){loadDeliveries();}
-  else if(m.mode==='kd'){kdLoad();}
+  else if(m.mode==='kd'){kdPeriodKey='';kdLoad();}
   else if(m.mode==='stock'){if(typeof stkRenderTable==='function')stkRenderTable();if(typeof stkRenderLogTab==='function')stkRenderLogTab();}
   else if(m.ai)loadMsgs();
 }
@@ -20153,11 +20157,25 @@ async function rsvSetTag(id,on){
 }
 /* ===== (10/14) 🚛 경동택배방 — kd_waybills(경동수집_코드.gs가 5분마다 채움)를 날짜로 보기 ===== */
 var kdCache=[], kdChip='all', _kdTimer=null, _kdFlash=null;
-function kdStCls(st){ st=String(st||''); if(/도착|완료|배달/.test(st))return 'ok'; if(/미착|과착|변상|사고|분실/.test(st))return 'bad'; if(/회수|반송|보류/.test(st))return 'warn'; if(/발송|접수|집하|이동/.test(st))return 'blue'; return ''; }
+var KD_PERIODS=[['yest','어제'],['today','오늘'],['7','7일'],['30','30일']], kdPeriodKey='';   // (10/14 호준님) 네 개만, 날짜 무관 검색은 맨 위 전체 검색
+function kdSetRange(from,to){   // 날짜 선택기를 기간으로 맞추고 다시 받기
+  var f=document.getElementById('date-from'), t=document.getElementById('date-to'); if(!f||!t)return;
+  var want=(from!==to);
+  if(want!==rangeMode){ rangeMode=want; var rt=document.getElementById('range-toggle'); if(rt)rt.classList.toggle('on',rangeMode); var sp=document.getElementById('date-sep'); if(sp)sp.style.display=rangeMode?'':'none'; t.style.display=rangeMode?'':'none'; }
+  f.value=from; t.value=to; kdLoad();
+}
+function kdPeriod(k){
+  var t=getTodayISO(); function ago(n){ var d=new Date(t+'T00:00:00'); d.setDate(d.getDate()-n); function p(x){return (x<10?'0':'')+x;} return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate()); }   // toISOString은 UTC라 하루 밀림
+  kdPeriodKey=k;
+  if(k==='today')kdSetRange(t,t); else if(k==='yest')kdSetRange(ago(1),ago(1)); else if(k==='all')kdSetRange('2000-01-01',t); else kdSetRange(ago(parseInt(k,10)-1),t);
+}
+function kdPeriodHtml(){ return KD_PERIODS.map(function(p){ return '<button class="'+(kdPeriodKey===p[0]?'on':'')+'" onclick="kdPeriod(\''+p[0]+'\')">'+p[1]+'</button>'; }).join(''); }
+function kdStCls(st){ st=String(st||''); if(/완료|배달/.test(st))return 'ok'; if(/도착/.test(st))return 'blue'; if(/미착|과착|변상|사고|분실/.test(st))return 'bad'; if(/회수|반송|보류/.test(st))return 'warn'; if(/발송|접수|집하|이동/.test(st))return 'blue'; return ''; }
 function kdStChips(r){ var h=''; [r.status,r.return_status,r.nonarrival_status,r.overarrival_status,r.repair_status].forEach(function(st,i){ if(!st)return; var lab=(i===1?'회수 ':i===2?'미착 ':i===3?'과착 ':i===4?'변상 ':'')+st; h+='<span class="kd-st '+kdStCls(st)+'">'+esc(lab)+'</span>'; }); return h; }
 async function kdLoad(){
   var el=document.getElementById('kd-list'); if(!el)return;
   var sel=getSelectedRange(), from=sel.from, to=(rangeMode&&sel.to)?sel.to:sel.from;
+  var pe=document.getElementById('kd-period'); if(pe)pe.innerHTML=kdPeriodHtml();
   el.innerHTML='<div style="text-align:center;color:#999;padding:24px 0">불러오는 중…</div>';
   try{ kdCache=await sbFetchAll(function(){ return sb.from('kd_waybills').select('waybill_no,reg_dt,date_str,status,return_status,nonarrival_status,overarrival_status,repair_status,deli_date,acct_name,send_branch,arrive_branch,sender_name,sender_tel,sender_addr,recv_name,recv_tel,recv_etc_tel,recv_zip,recv_addr,prod_name,qty,pay_type,pay_method,total_pay,memo,pickup_driver,channel,fetched_at').gte('date_str',from).lte('date_str',to).order('reg_dt',{ascending:false}); }); }
   catch(e){ kdCache=[]; var m=String(e&&e.message||e); el.innerHTML='<div style="text-align:center;color:#b91c1c;padding:24px 10px;font-size:13px">'+(/does not exist|relation|schema cache/i.test(m)?'경동 송장 표가 아직 없습니다 — 탈출가방\\SQL_호준님실행.sql ④를 실행해 주세요':'불러오기 실패: '+esc(m))+'</div>'; return; }
@@ -20171,7 +20189,9 @@ function kdRender(){
   var chips='<button class="'+(kdChip==='all'?'on':'')+'" onclick="kdSetChip(\'all\')">전체 '+kdCache.length+'</button>'+Object.keys(cnt).sort().map(function(k){ return '<button class="'+(kdChip===k?'on':'')+'" onclick="kdSetChip(\''+esc(k).replace(/'/g,'')+'\')">'+esc(k)+' '+cnt[k]+'</button>'; }).join('');
   var ce=document.getElementById('kd-chips'); if(ce)ce.innerHTML=chips;
   var last=kdCache.length?kdCache.map(function(r){return r.fetched_at||'';}).sort().pop():'';
-  var se=document.getElementById('kd-summary'); if(se)se.innerHTML='🚛 경동택배 송장 <b>'+kdCache.length+'</b>건'+(last?' · 마지막 수집 '+esc(kstFmt(last)):'')+' <span style="color:#94a3b8">· 5분마다 자동, 운송장번호가 같으면 최신 상태로</span>';
+  var pay={}, payTot=0; kdCache.forEach(function(r){ var k=r.pay_type||'(구분 없음)'; if(!pay[k])pay[k]={n:0,v:0}; pay[k].n++; var v=Number(r.total_pay)||0; pay[k].v+=v; payTot+=v; });
+  var payH=Object.keys(pay).sort().map(function(k){ return esc(k)+' <b>'+pay[k].n+'</b>건 <b>'+pay[k].v.toLocaleString()+'</b>원'; }).join('<span class="sep">|</span>');
+  var se=document.getElementById('kd-summary'); if(se)se.innerHTML='<div class="kd-sum">🚛 송장 <b>'+kdCache.length+'</b>건'+(kdCache.length?'<span class="sep">|</span>'+payH+'<span class="sep">|</span>합계 <b>'+payTot.toLocaleString()+'</b>원':'')+'</div><div style="color:#94a3b8;font-size:11.5px;margin-top:2px">'+(last?'마지막 수집 '+esc(kstFmt(last))+' · ':'')+'5분마다 자동, 운송장번호가 같으면 최신 상태로</div>';
   var list=kdCache.filter(function(r){ if(kdChip!=='all'&&(r.status||'(상태 없음)')!==kdChip)return false; if(!q)return true; var hay=[r.waybill_no,r.recv_name,r.recv_tel,r.recv_addr,r.recv_zip,r.prod_name,r.sender_name,r.sender_tel,r.memo,r.status,r.acct_name,r.send_branch,r.arrive_branch,r.pickup_driver].filter(Boolean).join(' ').toLowerCase(); return q.split(/\s+/).every(function(t){return hay.indexOf(t)>=0;}); });
   if(!list.length){ el.innerHTML='<div style="text-align:center;color:#aaa;padding:24px 0;font-size:13px">'+(kdCache.length?'조건에 맞는 송장이 없습니다':'이 날짜에 송장이 없습니다')+'</div>'; return; }
   el.innerHTML=list.map(function(r){
