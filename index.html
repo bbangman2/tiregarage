@@ -991,6 +991,29 @@ tr.qr-align.off td input{color:#94a3b8}
 .gs-flash{animation:gsflash 2.6s ease-out}
 @keyframes gsflash{0%{box-shadow:0 0 0 4px #f59e0b;background:#fef3c7}70%{box-shadow:0 0 0 4px #f59e0b}100%{box-shadow:none}}
 @media(max-width:640px){ #gs-bar{padding:5px 8px} #gs-bar input{font-size:13px;height:32px} #gs-bar button{height:32px;padding:0 9px;font-size:12.5px} #gs-box{border-radius:0;max-height:100%} }
+/* (10/14) 🏷 예약 타이어 꼬리표 */
+.rsv-pill.tag{border-left:4px solid #f97316!important;background:#fff7ed!important;color:#9a3412!important;font-weight:800}
+.rsv-blk.tag{border-left:5px solid #f97316!important;background:#fff7ed!important}
+.rsv-tagchip{display:inline-block;font-size:10.5px;font-weight:800;border-radius:5px;padding:1px 6px;background:#ffedd5;color:#9a3412;border:1px solid #fdba74;white-space:nowrap}
+.rsv-tagrow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:#fff7ed;border:1.5px solid #fdba74;border-radius:10px;padding:8px 11px;margin-bottom:8px}
+.rsv-tagrow .k{font-size:13px;font-weight:800;color:#9a3412}
+.rsv-tagrow button{height:30px;border-radius:7px;border:1.5px solid #fdba74;background:#fff;color:#9a3412;font-size:12.5px;font-weight:800;padding:0 11px;cursor:pointer}
+.rsv-tagrow button.on{background:#f97316;border-color:#f97316;color:#fff}
+.rsv-tagrow .who{font-size:11px;color:#9a3412;opacity:.8}
+.rsv-tagrow.off{background:#f8fafc;border-color:#e2e8f0}.rsv-tagrow.off .k{color:#64748b}.rsv-tagrow.off button{border-color:#cbd5e1;color:#64748b}
+/* (10/14) 경동택배방 */
+.kd-card{border:1.5px solid #e6e9ef;border-radius:11px;padding:9px 12px;margin-bottom:7px;background:#fff}
+.kd-card .l1{display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:13.5px}
+.kd-card .l1 b{font-size:14.5px;color:#0f172a}
+.kd-card .l2{font-size:12.5px;color:#334155;margin-top:3px;word-break:break-all}
+.kd-card .l3{font-size:12.5px;color:#475569;margin-top:2px}
+.kd-card .no{font-size:12px;color:#0f766e;font-weight:800;margin-top:3px;display:flex;align-items:center;gap:6px}
+.kd-card .no button{border:1px solid #99e3d0;background:#fff;color:#0f766e;border-radius:6px;padding:1px 7px;font-size:11px;font-weight:800;cursor:pointer}
+.kd-st{display:inline-block;font-size:10.5px;font-weight:800;border-radius:5px;padding:1px 6px;background:#eef2f7;color:#334155}
+.kd-st.ok{background:#dcfce7;color:#15803d}.kd-st.bad{background:#fee2e2;color:#b91c1c}.kd-st.warn{background:#ffedd5;color:#9a3412}.kd-st.blue{background:#dbeafe;color:#1d4ed8}
+#kd-chips button{border:1.4px solid #e6e9ef;background:#fafbfc;color:#64748b;border-radius:8px;padding:4px 9px;font-size:12px;font-weight:800;cursor:pointer}
+#kd-chips button.on{border-color:#0f766e;background:#f0fdfa;color:#0f766e}
+.kd-card.gs-flash{animation:gsflash 2.6s ease-out}
 #qt-print{display:none}
 /* 인쇄: 견적서만 A4 한 장으로 */
 @media print{
@@ -2152,6 +2175,14 @@ tr.qr-align.off td input{color:#94a3b8}
   <div id="rsv-cal" class="rsv-cal"></div>
 </div>
 <!-- ===== 종합방 (1단계: 붙여넣기·분류·표시) ===== -->
+<div id="kd-screen" style="display:none;flex-direction:column;flex:1;min-height:0;overflow:hidden">
+  <div style="padding:8px 14px;background:#fff;border-bottom:1px solid #eee">
+    <div id="kd-summary" style="font-size:12.5px;color:#475569;margin-bottom:6px"></div>
+    <div id="kd-chips" style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:6px"></div>
+    <input id="kd-q" placeholder="🔍 이 날짜 안에서 찾기 — 운송장·받는분·전화·주소·품목·보내는분" oninput="kdRender()" style="width:100%;height:36px;border:1.5px solid #ddd;border-radius:9px;padding:0 12px;font-size:13px;box-sizing:border-box">
+  </div>
+  <div id="kd-list" style="flex:1;overflow:auto;padding:8px 14px 20px"></div>
+</div>
 <div id="trade-screen" style="display:none;flex-direction:column;flex:1;min-height:0;overflow:hidden">
   <div class="dlv-tabs">
     <button class="dlv-tab active" data-ttab="import" onclick="tradeSetTab('import')">가져오기 <span class="cnt" id="tcnt-import">0</span></button>
@@ -3670,6 +3701,7 @@ const ROOM_META={
   '거래처종합방':{icon:'💰',ai:false,mode:'trade',desc:'거래처 정산 · 가져오기 · 수정기록'},
   '예약장착방':{icon:'📅',ai:false,mode:'reserve',desc:'장착 예약 · 캘린더'},
   '종합방':{icon:'📋',ai:false,mode:'jonghap',desc:'핑·스팜·11번가·전화 통합 출고'},
+  '경동택배방':{icon:'🚛',ai:false,mode:'kd',desc:'경동택배 송장 · 5분마다 자동 수집'},
   '공지방':{icon:'📢',ai:false,desc:'공지 및 전달사항'},
   '자유방':{icon:'💬',ai:false,desc:'자유로운 대화'},
 };
@@ -3835,6 +3867,7 @@ async function bootApp(){
   if(data&&!data.some(r=>r.name==='중고타이어방'))data.splice(3,0,{id:'stock-used-virtual',name:'중고타이어방'});
   if(data&&!data.some(r=>r.name==='예약장착방'))data.splice(3,0,{id:'reserve-virtual',name:'예약장착방'});
   if(data&&!data.some(r=>r.name==='종합방'))data.splice(4,0,{id:'jonghap-virtual',name:'종합방'});
+  if(data&&!data.some(r=>r.name==='경동택배방'))data.splice(5,0,{id:'kd-virtual',name:'경동택배방'});   // (10/14) 경동택배방
   await tradeLoadViewers();
   await bkLoadUsers();
   if(data&&!data.some(r=>r.name==='거래처종합방')&&tradeCanView())data.splice(5,0,{id:'trade-virtual',name:'거래처종합방'});
@@ -3880,14 +3913,16 @@ async function selectRoom(room){
   STK_STORE=(isStock&&room.name==='중고타이어방')?'used':'main';   // 중고방에서만 used_* 매핑, 그 외 방은 항상 본재고
   const isReserve=(m.mode==='reserve');
   const isJonghap=(m.mode==='jonghap');
+  const isKd=(m.mode==='kd');
   const isTrade=(m.mode==='trade');
-  const isSpecial=isItems||isDelivery||isStock||isReserve||isJonghap||isTrade;
+  const isSpecial=isItems||isDelivery||isStock||isReserve||isJonghap||isTrade||isKd;
   // 입고방/직배송방/재고방/예약장착방: 전용 화면. 그 외: 기존 채팅
   document.getElementById('items-screen').style.display=isItems?'flex':'none';
   document.getElementById('delivery-screen').style.display=isDelivery?'flex':'none';
   document.getElementById('stock-screen').style.display=isStock?'flex':'none';
   var rsv=document.getElementById('reserve-screen');if(rsv)rsv.style.display=isReserve?'flex':'none';
   var jh=document.getElementById('jonghap-screen');if(jh)jh.style.display=isJonghap?'flex':'none';
+  var kds=document.getElementById('kd-screen');if(kds)kds.style.display=isKd?'flex':'none';
   if(isJonghap&&window.PX&&PX.init)PX.init();   /* v88: 새 종합방(목업) */
   var trd=document.getElementById('trade-screen');if(trd)trd.style.display=isTrade?'flex':'none';
   if(isTrade&&typeof tradeInit==='function')tradeInit();
@@ -3895,7 +3930,7 @@ async function selectRoom(room){
   document.querySelector('.msgs-wrap').style.display=isSpecial?'none':'flex';
   document.querySelector('.input-wrap').style.display=isSpecial?'none':'';
   document.getElementById('ai-btn').style.display='none';
-  document.getElementById('date-picker-wrap').style.display=(isItems||isDelivery||isStock)?'flex':'none';
+  document.getElementById('date-picker-wrap').style.display=(isItems||isDelivery||isStock||isKd)?'flex':'none';
   document.getElementById('settings-btn').style.display='none';
   document.getElementById('item-search-btn').style.display=(isItems||isDelivery)?'flex':'none';
   document.getElementById('item-export-btn').style.display=isItems?'flex':'none';
@@ -3915,6 +3950,7 @@ async function selectRoom(room){
   if(dlvSub){sb.removeChannel(dlvSub);dlvSub=null;}
   if(stockSub){sb.removeChannel(stockSub);stockSub=null;}
   if(typeof reserveSub!=='undefined'&&reserveSub){sb.removeChannel(reserveSub);reserveSub=null;}
+  if(isKd){ initDatePicker(); await kdLoad(); return; }
   if(isTrade){
     if(typeof tradeLoad==='function')await tradeLoad();
     return;
@@ -3999,6 +4035,7 @@ function onDateChange(){
   const m=ROOM_META[curRoom.name]||{};
   if(m.mode==='items'){loadItems();loadItemMemos();}
   else if(m.mode==='delivery'){loadDeliveries();}
+  else if(m.mode==='kd'){kdLoad();}
   else if(m.mode==='stock'){if(typeof stkRenderTable==='function')stkRenderTable();if(typeof stkRenderLogTab==='function')stkRenderLogTab();}
   else if(m.ai)loadMsgs();
 }
@@ -12068,7 +12105,7 @@ async function stkOpenCellHist(loc){
 
 
 /* ===== 전체 데이터 백업 / 삭제 / 복구 (대표 전용) ===== */
-var DB_TABLES=['rooms','users','settings','stock_settings','used_settings','stock_products','stock_lots','stock_logs','used_products','used_lots','used_logs','reservations','items','deliveries','delivery_logs','jonghap_orders','messages']; // 복구=부모먼저, 삭제=역순 (used_* = 중고타이어방, 테이블 미생성 시 자동 건너뜀)
+var DB_TABLES=['rooms','users','settings','stock_settings','used_settings','stock_products','stock_lots','stock_logs','used_products','used_lots','used_logs','reservations','reservation_links','staff_schedules','items','deliveries','delivery_logs','jonghap_orders','messages','trade_settle','trade_logs','price_rules','price_rows','tg_trash','audit_logs'];   // (10/14) 빠져 있던 표 8개 추가 — 예약 추가연결·휴무·거래처 정산·정산기록·할인율 규칙·단가표·휴지통·작업기록 // 복구=부모먼저, 삭제=역순 (used_* = 중고타이어방, 테이블 미생성 시 자동 건너뜀)
 var DB_KEY={settings:'key',stock_settings:'key',users:'name'}; // 나머지는 id
 var DB_WIPE_SKIP=['users','rooms','settings','stock_settings','used_settings']; // 보존: 계정·방(구조)·설정·권한 — 데이터만 비움
 var DB_RESTORE_SKIP=['users','rooms','settings','stock_settings','used_settings']; // 복구에서 안 건드림: 계정·방·설정 — 데이터만 채움(room_id는 방 이름으로 재매핑)
@@ -12117,7 +12154,7 @@ async function dbExportAll(){
 }
 
 // ── 보기용 엑셀: 사람이 읽는 용도(관리자 전용). 열 이름은 "한글 (영문)", 값은 한글, 시각은 한국시간. 복구는 ① JSON 백업으로.
-var XLSX_TABLES=DB_TABLES.concat(['reservation_links','staff_schedules','trade_settle','trade_logs','price_rules','price_rows','tg_trash','audit_logs']);
+var XLSX_TABLES=DB_TABLES.slice();
 var XLSX_LABEL={rooms:'방목록',users:'직원',settings:'설정',stock_settings:'재고설정',used_settings:'중고설정',stock_products:'재고상품',stock_lots:'재고로트',stock_logs:'재고기록',used_products:'중고상품',used_lots:'중고로트',used_logs:'중고기록',reservations:'예약',reservation_links:'예약 추가연결',staff_schedules:'휴무연차',items:'입고표',deliveries:'직배송',delivery_logs:'직배송기록',jonghap_orders:'종합방주문',messages:'메시지',trade_settle:'거래처정산',trade_logs:'거래처정산기록',price_rules:'할인율규칙',price_rows:'단가표',tg_trash:'휴지통',audit_logs:'작업기록(전체)'};
 var XLSX_KO={id:'번호',name:'이름',description:'설명',created_at:'등록시각',updated_at:'수정시각',password:'비밀번호',key:'항목',value:'값',room_id:'방',user_id:'직원',user_name:'작성자',content:'내용',
  brand:'브랜드',code:'패턴코드',size:'사이즈',ply:'P수',spec:'재원',category:'분류',source:'출처',factory_price:'공장도가',discount_rate:'할인율',real_cost:'실원가',cost:'직접입력원가',price:'판매가',inst_price:'장착가',memo:'메모',target_qty:'목표수량',target_map:'목표수량(사이즈별)',
@@ -18407,7 +18444,7 @@ function rsvRenderSearchList(q){
     var dd=new Date(r.date_str+'T00:00:00');
     var dow=['일','월','화','수','목','금','토'][dd.getDay()];
     h+='<div class="rsv-dl-card" onclick="rsvShowDetail(\''+r.id+'\')">'+
-       '<div class="rsv-dl-time">'+r.date_str+' ('+dow+') '+(r.time_slot||'')+' <span style="color:'+stc+'">· '+r.status+'</span></div>'+((r.car_name||r.car_no||r.phone)?'<div style="font-size:12.5px;color:#3a4256;font-weight:600;margin:2px 0">'+esc([r.car_name,r.car_no].filter(Boolean).join(' · '))+(r.phone?' <span style="color:#8a93a5;font-weight:500">'+esc(r.phone)+'</span>':'')+'</div>':'')+(function(){var cs='';var cp=function(t,bg,fg){return '<span style="font-size:10px;font-weight:800;border-radius:5px;padding:2px 6px;background:'+bg+';color:'+fg+'">'+t+'</span>';};if(r.chk_align==='done')cs+=cp('얼라인 ✓','#e7f5ec','#15803d');else if(r.chk_align==='skip')cs+=cp('얼라인 ✗','#fdeaea','#dc2626');else if(r.align_state==='take'||r.align_state==='inform')cs+=cp('얼라인 요청','#fef3e2','#b45309');if(r.chk_balance)cs+=cp('밸런스 ✓','#e7f5ec','#15803d');if(r.chk_air)cs+=cp('공기압 ✓','#e7f5ec','#15803d');if(r.chk_tpms)cs+=cp('TPMS ✓','#e7f5ec','#15803d');return cs?'<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px">'+cs+'</div>':'';})()+
+       '<div class="rsv-dl-time">'+r.date_str+' ('+dow+') '+(r.time_slot||'')+' <span style="color:'+stc+'">· '+r.status+'</span></div>'+((r.car_name||r.car_no||r.phone)?'<div style="font-size:12.5px;color:#3a4256;font-weight:600;margin:2px 0">'+esc([r.car_name,r.car_no].filter(Boolean).join(' · '))+(r.phone?' <span style="color:#8a93a5;font-weight:500">'+esc(r.phone)+'</span>':'')+'</div>':'')+(function(){var cs='';var cp=function(t,bg,fg){return '<span style="font-size:10px;font-weight:800;border-radius:5px;padding:2px 6px;background:'+bg+';color:'+fg+'">'+t+'</span>';};if(rsvTagOn(r))cs+=cp('🏷 꼬리표','#ffedd5','#9a3412');if(r.chk_align==='done')cs+=cp('얼라인 ✓','#e7f5ec','#15803d');else if(r.chk_align==='skip')cs+=cp('얼라인 ✗','#fdeaea','#dc2626');else if(r.align_state==='take'||r.align_state==='inform')cs+=cp('얼라인 요청','#fef3e2','#b45309');if(r.chk_balance)cs+=cp('밸런스 ✓','#e7f5ec','#15803d');if(r.chk_air)cs+=cp('공기압 ✓','#e7f5ec','#15803d');if(r.chk_tpms)cs+=cp('TPMS ✓','#e7f5ec','#15803d');return cs?'<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px">'+cs+'</div>':'';})()+
        '<div class="rsv-dl-eng">'+esc(rsvEngLine(r))+'</div>'+
        (_tot>0?'<div class="rsv-dl-pay">현장 합계 '+rsvWon(_tot)+'</div>':'')+
        '</div>';
@@ -18440,7 +18477,7 @@ function renderReserveMonth(){
         list.slice(0,3).forEach(function(r){
           var _lk=(r.src_product_id||r.src_item_id||r.stock_done||rsvHasLink(r.id));
           var cls=r.status==='취소'?' cancel':(r.status==='완료'?(_lk?' done':' donebad'):(_lk?'':' need'));
-          h+='<div class="rsv-pill'+cls+'">'+(r.time_slot||'')+' '+esc(rsvEngLine(r)).slice(0,10)+'</div>';
+          h+='<div class="rsv-pill'+cls+(rsvTagOn(r)?' tag':'')+'">'+(rsvTagOn(r)?'🏷':'')+(r.time_slot||'')+' '+esc(rsvEngLine(r)).slice(0,10)+'</div>';
         });
         if(list.length>3)h+='<div class="rsv-pill more">+'+(list.length-3)+'</div>';
         h+='</div>';
@@ -18477,7 +18514,7 @@ function renderReserveDay(){
     var tdec=strike?'text-decoration:line-through;':'';
     html+='<div onclick="rsvShowDetail(\''+r.id+'\')" style="display:flex;gap:10px;background:'+cardBg+';border:1px solid '+cardBd+';border-radius:11px;padding:11px 12px;cursor:pointer;align-items:flex-start;'+dim+'">'+
       '<div style="font-weight:800;color:#0f172a;font-size:15px;min-width:46px;'+tdec+'">'+t+'</div>'+
-      '<div style="flex:1;min-width:0"><div style="font-weight:700;color:#0f172a;font-size:14px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;'+tdec+'">'+esc(tire)+' '+stat+'</div>'+
+      '<div style="flex:1;min-width:0"><div style="font-weight:700;color:#0f172a;font-size:14px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;'+tdec+'">'+esc(tire)+' '+stat+rsvTagChip(r)+'</div>'+
       (sub?'<div style="color:#64748b;font-size:12px;margin-top:3px">'+esc(sub)+'</div>':'')+
       (r.memo?'<div style="color:#64748b;font-size:12px;margin-top:2px">'+esc(r.memo)+'</div>':'')+'</div></div>';
   }); }
@@ -18541,11 +18578,11 @@ function rsvTlPlaceBlock(ds,e){
   var sub=_tot>0?(' · '+rsvWon(_tot)):'';
   var b=document.createElement('div');
   var _lk=(e.src_product_id||e.src_item_id||e.stock_done||rsvHasLink(e.id));
-  b.className='rsv-blk'+(e.status==='취소'?' cancel':(e.status==='완료'?(_lk?' done':' donebad'):(_lk?'':' need')));
+  b.className='rsv-blk'+(e.status==='취소'?' cancel':(e.status==='완료'?(_lk?' done':' donebad'):(_lk?'':' need')))+(rsvTagOn(e)?' tag':'');
   b.style.top=top+'px';b.style.height=ht+'px';
   b.style.left='calc('+(e._col*w)+'% + 1px)';b.style.width='calc('+w+'% - 2px)';
   var _et=(e._s!=null)?_rsvHM(e._s+e._dur):'';
-  b.innerHTML='<div class="bt">'+(e.time_slot||'')+(_et?'~'+_et:'')+sub+'</div>'+esc(rsvEngLine(e));
+  b.innerHTML='<div class="bt">'+(rsvTagOn(e)?'🏷 ':'')+(e.time_slot||'')+(_et?'~'+_et:'')+sub+'</div>'+esc(rsvEngLine(e));
   b.dataset.id=e.id;
   col.appendChild(b);
   rsvTlDrag(b,e);
@@ -19435,7 +19472,7 @@ function rsvShowDetail(id){
   payBox+='</div>';
   if(r.pay_method_first&&r.pay_method&&r.pay_method!==r.pay_method_first)payBox+='<div style="margin-top:6px;font-size:12px;font-weight:800;color:#b45309;background:#fff7ed;border:1px solid #fcd9a8;border-radius:7px;padding:6px 9px">⚠ 결제수단 변경됨: '+esc(r.pay_method_first)+' → '+esc(r.pay_method)+' — 완료 전 확인</div>';
   payBox+='</div>';
-  document.getElementById('rsv-detail-body').innerHTML=_dhead+_dtire+_dmemo+rows.join('')+payBox+chk+acts;
+  document.getElementById('rsv-detail-body').innerHTML=_dhead+rsvTagRowHtml(r)+_dtire+_dmemo+rows.join('')+payBox+chk+acts;
   document.getElementById('rsv-detail-modal').classList.add('on');
 }
 async function rsvDetailSetPay(id,m){
@@ -19540,7 +19577,9 @@ function qtOpen(rsvId){
 function qtLoad(no){var all=qtAllSaved().filter(function(d){return d.no===no;});if(!all.length)return;qtCur=all[0];qtRender();}
 function qtClose(){var m=document.getElementById('qt-modal');m.classList.remove('on');m.classList.remove('qt-rot');var land=document.getElementById('qt-land');if(land){qtLandExitFs();land.remove();}}
 function qtSet(k,v){if(!qtCur)return;qtCur[k]=v;}
-function qtSetRow(i,k,v){if(!qtCur||!qtCur.rows[i])return;var row=qtCur.rows[i];row[k]=v;if(k==='unit')row.last='unit';if(k==='pamt')row.last='pamt';if(k==='lunit')row.llast='unit';if(k==='labor')row.llast='total';if(k==='qty'||k==='unit'||k==='labor'||k==='pamt'||k==='lunit')qtRecalc();}
+function qtSetRow(i,k,v){if(!qtCur||!qtCur.rows[i])return;var row=qtCur.rows[i];
+  if(k==='sum'){ var _c=qtRowCalc(row), _t=qtNum(v); row.pamt=_t?String(Math.max(0,_t-_c.labor)):''; row.last='pamt'; qtRecalc(); return; }   // (10/14) 합계(총액) 적으면 부품가 = 총액 − 기술료, 단가 = 부품가 ÷ 수량
+  row[k]=v;if(k==='unit')row.last='unit';if(k==='pamt')row.last='pamt';if(k==='lunit')row.llast='unit';if(k==='labor')row.llast='total';if(k==='qty'||k==='unit'||k==='labor'||k==='pamt'||k==='lunit')qtRecalc();}
 function qtRecalc(){
   if(!qtCur)return;
   qtCur.rows.forEach(function(row,i){var c=qtRowCalc(row);var a=document.getElementById('qt-pamt-'+i),b=document.getElementById('qt-sum-'+i);
@@ -19550,7 +19589,7 @@ function qtRecalc(){
     if(un&&un.tagName==='INPUT'&&ae!==un)un.value=c.unit?qtFmt(c.unit):'';   // 부품가를 적는 중이면 단가가 나눠져 채워짐
     var lb=document.getElementById('qt-labor-'+i), lu=document.getElementById('qt-lunit-'+i);
     if(lb&&ae!==lb)lb.value=c.labor?qtFmt(c.labor):''; if(lu&&ae!==lu)lu.value=c.lunit?qtFmt(c.lunit):'';   // 기술료 ↔ 기술단가도 같은 식
-    if(b)b.textContent=qtFmt(c.sum);});
+    if(b){ if(b.tagName==='INPUT'){ if(ae!==b)b.value=c.sum?qtFmt(c.sum):''; } else b.textContent=qtFmt(c.sum); }});
   if(qtCur.rsv)setTimeout(function(){ try{ qrRecalcPay(qtTotals(qtCur)); }catch(e){} },0);
   var t=qtTotals(qtCur);
   var e1=document.getElementById('qt-tp'),e2=document.getElementById('qt-tl'),e3=document.getElementById('qt-ts'),e4=document.getElementById('qt-grand');
@@ -19591,12 +19630,13 @@ function qtTableHtml(d,edit){
     QT_COLS.forEach(function(col){
       var k=col[0];
       if(edit&&d.rsv&&i===0&&k==='out'){h+='<td class="qr-out">'+qrOutCell(d)+'</td>';return;}   // 부품출고 = 재고·입고분 연결
-      if(edit&&d.rsv&&i===0&&(((d.rsv.linked||d.rsv.fromStock)&&k==='pat')||(d.rsv.linked&&k==='qty'))){h+='<td style="padding:0 6px;background:#f0fdfa;font-weight:700'+(k==='qty'?';text-align:right':'')+'">'+esc(row[k]==null?'':String(row[k]))+'</td>';return;}   // 연결된 타이어는 재고 값 그대로
+      if(edit&&d.rsv&&i===0&&(d.rsv.linked||d.rsv.fromStock)&&k==='pat'){h+='<td style="padding:0 6px;background:#f0fdfa;font-weight:700">'+esc(row[k]==null?'':String(row[k]))+'</td>';return;}   // 연결된 타이어는 패턴만 재고 값 그대로
+      if(edit&&d.rsv&&i===0&&d.rsv.linked&&k==='qty'){ var _lq=(d.rsv.r&&(d.rsv.r.src_qty||d.rsv.r.qty))||''; h+='<td class="num" title="재고 연결 '+esc(String(_lq))+'짝 — 여기 수량은 금액 계산용(예약방 결제 줄 수량과 같음), 재고 출고 수량은 그대로"><input value="'+esc(row.qty==null?'':String(row.qty))+'" inputmode="numeric" oninput="qtSetRow('+i+',\'qty\',this.value)" style="background:#f0fdfa"></td>'; return; }   // (10/14) 수량은 적을 수 있게 — 총액÷수량=단가
       if(k==='pamt'){ if(edit)h+='<td class="calc ed"><input id="qt-pamt-'+i+'" value="'+(c.pamt?qtFmt(c.pamt):'')+'" inputmode="numeric" placeholder="부품가" title="부품가를 먼저 적고 수량을 적으면 단가가 나눠집니다" oninput="qtSetRow('+i+',\'pamt\',this.value)" onblur="this.value=this.value?qtFmt(qtNum(this.value)):\'\'"></td>'; else h+='<td class="calc" id="qt-pamt-'+i+'">'+qtFmt(c.pamt)+'</td>'; return; }
       if(k==='unit'){ var uv=c.unit?qtFmt(c.unit):''; if(edit)h+='<td class="num"><input id="qt-unit-'+i+'" value="'+uv+'" inputmode="numeric" oninput="qtSetRow('+i+',\'unit\',this.value)" onblur="this.value=this.value?qtFmt(qtNum(this.value)):\'\'"></td>'; else h+='<td style="text-align:right">'+uv+'</td>'; return; }
       if(k==='lunit'){ var lv=c.lunit?qtFmt(c.lunit):''; if(edit)h+='<td class="num"><input id="qt-lunit-'+i+'" value="'+lv+'" inputmode="numeric" placeholder="1개당" title="1개당 기술료 × 수량 = 기술료" oninput="qtSetRow('+i+',\'lunit\',this.value)" onblur="this.value=this.value?qtFmt(qtNum(this.value)):\'\'"></td>'; else h+='<td style="text-align:right">'+lv+'</td>'; return; }
       if(k==='labor'){ var lt=c.labor?qtFmt(c.labor):''; if(edit)h+='<td class="num"><input id="qt-labor-'+i+'" value="'+lt+'" inputmode="numeric" title="기술료를 먼저 적고 수량을 적으면 1개당 기술료가 나눠집니다" oninput="qtSetRow('+i+',\'labor\',this.value)" onblur="this.value=this.value?qtFmt(qtNum(this.value)):\'\'"></td>'; else h+='<td style="text-align:right">'+lt+'</td>'; return; }
-      if(k==='sum'){h+='<td class="calc" id="qt-sum-'+i+'">'+qtFmt(c.sum)+'</td>';return;}
+      if(k==='sum'){ if(edit)h+='<td class="calc ed"><input id="qt-sum-'+i+'" value="'+(c.sum?qtFmt(c.sum):'')+'" inputmode="numeric" placeholder="총액" title="총액을 먼저 적고 수량을 적으면 단가가 나눠집니다 (기술료가 있으면 그만큼 뺀 것이 부품가)" oninput="qtSetRow('+i+',\'sum\',this.value)" onblur="this.value=this.value?qtFmt(qtNum(this.value)):\'\'"></td>'; else h+='<td class="calc" id="qt-sum-'+i+'">'+qtFmt(c.sum)+'</td>'; return; }   // (10/14) 합계에 직접 적기 = 총액
       var num=(k==='qty'||k==='unit'||k==='labor');
       var v=row[k]==null?'':String(row[k]);
       if(edit)h+='<td class="'+(num?'num':'')+'"><input value="'+esc((num&&k!=='qty'&&v)?qtFmt(qtNum(v)):v)+'"'+(num?' inputmode="numeric"':'')+' oninput="qtSetRow('+i+',\''+k+'\',this.value)"'+((num&&k!=='qty')?' onblur="this.value=this.value?qtFmt(qtNum(this.value)):\'\'"':'')+'></td>';
@@ -19837,7 +19877,7 @@ function qrResetRows(){   // 예약 화면에서 고친 금액으로 견적서 �
 }
 function qrDayHtml(r,d){   // 등록된 예약만: 작업 당일 체크·작업 후 메모·상태 버튼·재고 연결 관리 (지금 상세 화면 그대로)
   var _alg=r.chk_align||'', _req=(r.align_state==='take'||r.align_state==='inform');
-  var h='<div class="qr-day-box"><div class="lb">🔧 작업 당일</div>';
+  var h='<div class="qr-day-box">'+rsvTagRowHtml(r)+'<div class="lb">🔧 작업 당일</div>';
   h+='<div class="qr-algday"><span>🎯 얼라인'+(_req?' <small>요청 건</small>':'')+'</span><span class="qr-seg"><button type="button" class="'+(_alg==='done'?'on':'')+'" onclick="rsvSetChk(\''+r.id+'\',\'chk_align\',\'done\')">✓ 했음</button><button type="button" class="'+(_alg==='skip'?'on bad':'')+'" onclick="rsvSetChk(\''+r.id+'\',\'chk_align\',\'skip\')">✗ 안 함</button></span></div>';
   h+='<div class="qr-chk">'+[['chk_balance','⚖️ 밸런스'],['chk_air','🔧 공기압'],['chk_tpms','📡 TPMS']].map(function(p){return '<button class="'+(r[p[0]]?'on':'')+'" onclick="rsvSetChk(\''+r.id+'\',\''+p[0]+'\',true)">'+p[1]+(r[p[0]]?' ✓':'')+'</button>';}).join('')+'</div>';
   if(_req&&_alg==='skip')h+='<div class="qr-warn">⚠ 얼라인 요청했으나 미진행 — 편마모 위험. 기록에 남습니다.</div>';
@@ -19902,6 +19942,7 @@ async function qrSave(){   // 저장 = 숨긴 기존 예약 폼에 옮겨 rsvSub
     try{ rsvPayLast='unit'; rsvPayLast2='unit'; }catch(e){}
     rsvApplyPayMethod(R.pay||'현/카 동일'); sv('rsv-deposit',dep?String(dep):''); rsvCalc();
     var tq=qtNum(tire.qty);
+    try{ if(R.id&&R.linked&&R.r&&tq){ var _sq=parseInt(R.r.src_qty||R.r.qty||0,10)||0; if(_sq&&tq!==_sq&&typeof toast==='function')toast('견적 수량 '+tq+'짝 ≠ 재고 연결 '+_sq+'짝 — 금액만 반영, 재고 출고 수량은 그대로'); } }catch(e){}   // (10/14)
     if(!R.id&&R.fromStock&&keepOut){ rsvOutInfo=keepOut; rsvOutInfo.qty=tq||keepOut.qty; sv('rsv-outqty',String(tq||keepOut.qty||1)); }   // 재고에서 온 새 예약 → 등록 때 재고 출고(지금과 같음)
     else if(!(R.id&&R.linked)){
       var spec=(tire.pat||'').trim(), r0=R.r;
@@ -19944,10 +19985,11 @@ var GS_SRC=[
  {key:'log',name:'출고기록',icon:'📋',table:'stock_logs',cols:['action','note','detail','channel','user_name','from_loc','to_loc','dot'],sel:'id,ts,action,note,detail,user_name,qty,from_loc,to_loc,dot',order:['ts',false]},
  {key:'msg',name:'채팅',icon:'💬',table:'messages',cols:['content','user_name'],sel:'id,room_id,user_name,content,created_at',order:['created_at',false]},
  {key:'qt',name:'견적서',icon:'🧾',table:'settings',cols:['value->>name','value->>note','value->>km','value->>no','value->>rows'],sel:'key,value',order:['key',false],extra:function(q){return q.like('key','qrsv:%');}},
+ {key:'kd',name:'경동택배',icon:'🚛',table:'kd_waybills',cols:['waybill_no','status','return_status','nonarrival_status','overarrival_status','repair_status','recv_name','recv_tel','recv_etc_tel','recv_addr','recv_zip','sender_name','sender_tel','sender_addr','prod_name','memo','acct_name','send_branch','arrive_branch','pickup_driver','date_str','channel','pay_type'],sel:'waybill_no,reg_dt,date_str,status,return_status,nonarrival_status,overarrival_status,repair_status,recv_name,recv_tel,recv_addr,recv_zip,prod_name,qty,sender_name,acct_name,memo,arrive_branch',order:['reg_dt',false]},
  {key:'sch',name:'휴무·연차',icon:'🌴',table:'staff_schedules',cols:['staff_name','kind','memo','date_str'],sel:'id,date_str,staff_name,kind,memo',order:['date_str',false]}
 ];
 /* 방 낱말 → 그 방만 찾음 */
-var GS_ROOM_WORDS={'입고':['inb'],'입고방':['inb'],'직배송':['dlv'],'직배송방':['dlv'],'예약':['rsv','qt'],'예약방':['rsv','qt'],'예약장착방':['rsv','qt'],'재고':['stk','lot'],'재고방':['stk','lot'],'출고기록':['log'],'기록':['log'],'채팅':['msg'],'공지':['msg'],'공지방':['msg'],'자유':['msg'],'자유방':['msg'],'견적':['qt'],'견적서':['qt'],'휴무':['sch'],'연차':['sch']};
+var GS_ROOM_WORDS={'경동':['kd'],'경동택배':['kd'],'경동택배방':['kd'],'택배사':['kd'],'송장':['kd'],'입고':['inb'],'입고방':['inb'],'직배송':['dlv'],'직배송방':['dlv'],'예약':['rsv','qt'],'예약방':['rsv','qt'],'예약장착방':['rsv','qt'],'재고':['stk','lot'],'재고방':['stk','lot'],'출고기록':['log'],'기록':['log'],'채팅':['msg'],'공지':['msg'],'공지방':['msg'],'자유':['msg'],'자유방':['msg'],'견적':['qt'],'견적서':['qt'],'휴무':['sch'],'연차':['sch']};
 var GS_MSG_ROOM={'공지':'공지','공지방':'공지','자유':'자유','자유방':'자유'};
 /* 상태·탭 낱말 → 그 표에서는 조건으로(글자로도 같이 찾음), 다른 표에서는 글자로 */
 var GS_STATE={
@@ -20018,7 +20060,7 @@ async function gsRun(){
   var tokens=gsTokens(q), seq=++GS.seq, P=gsParse(tokens); GS.q=q; GS.parse=P; GS.tokens=P.text; var prev=GS.res; GS.res={};
   if(!P.text.length){ gsOpen(); document.getElementById('gs-box').innerHTML='<div class="gs-top">🔍 <b>'+esc(q)+'</b>'+gsRoomNote()+' · 찾을 낱말을 더 적어 주세요</div>'; return; }
   gsOpen(); var bz=document.getElementById('gs-busy'); if(bz)bz.textContent='찾는 중…'; else if(!Object.keys(prev).length)document.getElementById('gs-box').innerHTML='<div class="gs-top">🔍 <b>'+esc(q)+'</b> <span class="gs-busy">찾는 중…</span></div>';   // 이미 결과가 있으면 그대로 두고 위에 '찾는 중'만
-  await Promise.all(GS_SRC.filter(function(src){return !P.rooms||P.rooms.indexOf(src.key)>=0;}).map(function(src){ return gsQuery(src,P,0).then(function(r){ GS.res[src.key]={rows:r.rows,count:r.count,err:null}; },function(e){ GS.res[src.key]={rows:[],count:0,err:e.message||String(e)}; }); }));
+  await Promise.all(GS_SRC.filter(function(src){return !P.rooms||P.rooms.indexOf(src.key)>=0;}).map(function(src){ return gsQuery(src,P,0).then(function(r){ GS.res[src.key]={rows:r.rows,count:r.count,err:null}; },function(e){ var em=e.message||String(e); GS.res[src.key]={rows:[],count:0,err:/does not exist|relation|schema cache/i.test(em)?null:em}; }); }));
   if(seq!==GS.seq)return; await gsLotNames(); if(seq!==GS.seq)return; gsRender();
 }
 async function gsMore(key){ var src=GS_SRC.filter(function(s){return s.key===key;})[0], cur=GS.res[key]; if(!src||!cur)return;
@@ -20043,8 +20085,9 @@ function gsItem(src,row){   // 결과 한 줄 (방 · 날짜 · 내용 · 상태
   else if(src.key==='msg'){ t1=gsHi(gsRoomName(row.room_id)+' · '+(row.created_at?kstFmt(row.created_at):'')+' · '+(row.user_name||'')); t2=gsHi(String(row.content||'').slice(0,160)); }
   else if(src.key==='qt'){ var v=row.value||{}, rid=String(row.key||'').slice(5), rr=(reservations||[]).find(function(z){return z.id===rid;}); t1=gsHi('견적번호 '+(v.no||'')+' · '+[v.name,v.km?v.km+'km':''].filter(Boolean).join(' · ')+(rr?' · '+(rr.date_str||'미지정')+' '+[rr.car_no,rr.car_name].filter(Boolean).join(' '):'')); t2=gsHi(v.note||''); st=v.saved_at?gsSt('저장 '+v.saved_at):''; }
   else if(src.key==='sch'){ t1=gsHi((row.date_str||'')+' · '+(row.staff_name||'')+' · '+(row.kind||'')); t2=gsHi(row.memo||''); }
+  else if(src.key==='kd'){ t1=gsHi((row.date_str||'')+' · '+(row.recv_name||'')+(row.recv_tel?' '+row.recv_tel:'')+(row.prod_name?' · '+row.prod_name+(row.qty?' ×'+row.qty:''):'')); t2=gsHi([row.recv_addr?row.recv_addr+(row.recv_zip?' ['+row.recv_zip+']':''):'',row.sender_name?'보내는분 '+row.sender_name:'',row.acct_name?'거래처 '+row.acct_name:'',row.memo,'운송장 '+row.waybill_no].filter(Boolean).join(' · ')); st=(typeof kdStChips==='function'?kdStChips(row).replace(/kd-st/g,'st'):''); }
   else if(src.key==='lot'){ var p=row.stock_products||GS.prod[row.product_id]; t1=gsHi(p?[p.brand,p.name,p.code,p.size,p.ply].filter(Boolean).join(' '):'상품 '+String(row.product_id||'').slice(0,8)); t2=gsHi('📍 '+((row.loc&&row.loc!=='U')?row.loc:'미배치')+' · 연식 '+(row.dot||'누락')+(row.src_in?' · 출처 '+row.src_in:'')); st=gsSt((row.qty||0)+'개',(row.qty>0?'ok':'bad')); }
-  return '<div class="gs-it" onclick="gsGo(\''+src.key+'\','+JSON.stringify(String(row.id||row.key||'')).replace(/"/g,'&quot;')+')"><div class="t1">'+t1+st+'</div>'+(t2?'<div class="t2">'+t2+'</div>':'')+'</div>';
+  return '<div class="gs-it" onclick="gsGo(\''+src.key+'\','+JSON.stringify(String(row.id||row.key||row.waybill_no||'')).replace(/"/g,'&quot;')+')"><div class="t1">'+t1+st+'</div>'+(t2?'<div class="t2">'+t2+'</div>':'')+'</div>';
 }
 function gsRender(){
   var box=document.getElementById('gs-box'); if(!box)return; var total=0, h='';
@@ -20063,7 +20106,7 @@ function gsFlash(el){ if(!el)return; try{ el.scrollIntoView({block:'center',beha
 async function gsWaitFor(fn,ms){ var t0=Date.now(); while(Date.now()-t0<(ms||4000)){ var el=fn(); if(el)return el; await new Promise(function(r){setTimeout(r,150);}); } return null; }
 function gsSetDate(ds){ var f=document.getElementById('date-from'), t=document.getElementById('date-to'); if(f)f.value=ds; if(t)t.value=ds; try{ if(typeof rangeMode!=='undefined'&&rangeMode)toggleRange(); }catch(e){} if(f)f.value=ds; if(t)t.value=ds; }
 async function gsGo(key,id){   // 결과 누르면 그 자리로
-  var src=GS_SRC.filter(function(s){return s.key===key;})[0], r=GS.res[key], row=(r&&r.rows||[]).find(function(z){return String(z.id||z.key)===String(id);}); if(!src||!row)return;
+  var src=GS_SRC.filter(function(s){return s.key===key;})[0], r=GS.res[key], row=(r&&r.rows||[]).find(function(z){return String(z.id||z.key||z.waybill_no)===String(id);}); if(!src||!row)return;
   gsClose();
   function roomBy(f){ return (rooms||[]).find(f); }
   try{
@@ -20077,12 +20120,72 @@ async function gsGo(key,id){   // 결과 누르면 그 자리로
       try{ var lf=document.getElementById('ledger-from'), lt=document.getElementById('ledger-to'); if(lf)lf.value=row.date_str; if(lt)lt.value=row.date_str; ledgerSetRange(); ledgerSetDone('all'); if(typeof ledgerSetUse==='function')ledgerSetUse('all'); }catch(e){}   // 원장: 그 날짜만 · 상태 전체(완료도 보이게)
       var el=await gsWaitFor(function(){return document.querySelector('tr[data-id="'+row.id+'"]');}); gsFlash(el); if(!el&&typeof stkToast==='function')stkToast('입고 원장을 그 날짜로 옮겼습니다 (줄이 안 보이면 원장 조건을 확인하세요)'); return; }
     if(key==='stk'){ var rm=roomBy(function(x){return x.name==='재고방';}); if(rm&&(!curRoom||curRoom.id!==rm.id))await selectRoom(rm); try{ stkTab(0); }catch(e){} var qi=document.getElementById('stk-q'); if(qi){ qi.value=[row.brand,row.name,row.size].filter(Boolean).join(' '); stkRenderSearch(); } return; }
+    if(key==='kd'){ var rm=roomBy(function(x){return (ROOM_META[x.name]||{}).mode==='kd';}); if(rm&&(!curRoom||curRoom.id!==rm.id))await selectRoom(rm); _kdFlash=row.waybill_no; gsSetDate(row.date_str||getTodayISO()); var qi=document.getElementById('kd-q'); if(qi)qi.value=''; kdChip='all'; await kdLoad(); return; }
     if(key==='lot'){ var rm=roomBy(function(x){return x.name==='재고방';}); if(rm&&(!curRoom||curRoom.id!==rm.id))await selectRoom(rm); try{ stkTab(0); }catch(e){} var p=row.stock_products||GS.prod[row.product_id]; var qi=document.getElementById('stk-q'); if(qi){ qi.value=p?[p.brand,p.name,p.size].filter(Boolean).join(' '):''; stkRenderSearch(); } return; }
     if(key==='log'){ var rm=roomBy(function(x){return x.name==='재고방';}); if(rm&&(!curRoom||curRoom.id!==rm.id))await selectRoom(rm); try{ stkTab(2); stkLogAllDates=true; stkRenderLogTab(); }catch(e){} return; }
     if(key==='msg'){ var rm=gsRoomOf(row.room_id); if(!rm)return; if(!curRoom||curRoom.id!==rm.id)await selectRoom(rm); else await loadMsgs(); var el=await gsWaitFor(function(){ var b=document.querySelector('button[onclick="deleteMsg(\''+row.id+'\')"]'); return b?b.closest('.msg-group'):null; },2500); if(!el){ var ds=kstDate(row.created_at); el=document.querySelector('.day-div[data-date="'+ds+'"]'); } gsFlash(el); return; }
     if(key==='sch'){ var rm=roomBy(function(x){return (ROOM_META[x.name]||{}).mode==='reserve';}); if(rm&&(!curRoom||curRoom.id!==rm.id))await selectRoom(rm); if(typeof stkToast==='function')stkToast('🌴 '+(row.date_str||'')+' '+(row.staff_name||'')+' '+(row.kind||'')+(row.memo?' · '+row.memo:'')); return; }
   }catch(e){ console.error('gsGo',e); if(typeof stkToast==='function')stkToast('이동 실패: '+e.message); }
 }
+/* ===== (10/14) 🏷 예약 타이어 꼬리표 — 미리 주문해 둔 타이어에 스티커를 붙였다는 표시(모두가 보게) ===== */
+function rsvTagColOk(){ var r=(reservations||[])[0]; return !!r&&('tag_state' in r); }   // DB에 칸이 있는지(SQL 실행 전엔 없음)
+function rsvTagOn(r){ return !!(r&&r.tag_state==='done'); }
+function rsvTagChip(r){ return rsvTagOn(r)?'<span class="rsv-tagchip">🏷 꼬리표</span>':''; }
+function rsvTagRowHtml(r){
+  var on=rsvTagOn(r), ok=rsvTagColOk();
+  var who=on?('붙임 '+esc(r.tag_by||'')+(r.tag_at?' · '+kstFmt(r.tag_at):'')):'';
+  return '<div class="rsv-tagrow'+(on?'':' off')+'"><span class="k">🏷 타이어 꼬리표(스티커)</span>'+
+    '<button type="button" class="'+(on?'':'on')+'" onclick="rsvSetTag(\''+r.id+'\',false)">미부착</button>'+
+    '<button type="button" class="'+(on?'on':'')+'" onclick="rsvSetTag(\''+r.id+'\',true)">붙임 ✓</button>'+
+    (who?'<span class="who">'+who+'</span>':'')+(ok?'':'<span class="who" style="color:#b91c1c">DB 칸 추가(SQL) 전 — 저장 안 됨</span>')+'</div>';
+}
+async function rsvSetTag(id,on){
+  var r=(reservations||[]).find(function(x){return x.id===id;}); if(!r)return;
+  if(!rsvTagColOk()){ alert('꼬리표 칸이 아직 DB에 없습니다.\n탈출가방\\SQL_호준님실행.sql ①을 수파베이스 SQL 편집기에서 실행한 뒤 쓸 수 있어요.'); return; }
+  var upd=on?{tag_state:'done',tag_by:(me&&me.name)||'',tag_at:new Date().toISOString()}:{tag_state:null,tag_by:null,tag_at:null};
+  try{ var q=await sb.from('reservations').update(upd).eq('id',id); if(q.error)throw q.error; }catch(e){ alert('저장 실패: '+e.message); return; }
+  Object.assign(r,upd);
+  try{ logAudit('예약 꼬리표 '+(on?'붙임':'해제'), ((r.date_str||'')+' '+(r.time_slot||'')).trim()+' · '+(r.car_no||r.phone||'')); }catch(e){}
+  try{ renderReserve(); }catch(e){}
+  if(document.getElementById('rsv-detail-modal').classList.contains('on'))rsvShowDetail(id);
+  else if(typeof qrShowingFor==='function'&&qrShowingFor(id)){ try{ qrRefresh(r); }catch(e){} }
+  if(typeof stkToast==='function')stkToast(on?'🏷 꼬리표 붙임으로 표시했습니다':'꼬리표 표시를 지웠습니다');
+}
+/* ===== (10/14) 🚛 경동택배방 — kd_waybills(경동수집_코드.gs가 5분마다 채움)를 날짜로 보기 ===== */
+var kdCache=[], kdChip='all', _kdTimer=null, _kdFlash=null;
+function kdStCls(st){ st=String(st||''); if(/도착|완료|배달/.test(st))return 'ok'; if(/미착|과착|변상|사고|분실/.test(st))return 'bad'; if(/회수|반송|보류/.test(st))return 'warn'; if(/발송|접수|집하|이동/.test(st))return 'blue'; return ''; }
+function kdStChips(r){ var h=''; [r.status,r.return_status,r.nonarrival_status,r.overarrival_status,r.repair_status].forEach(function(st,i){ if(!st)return; var lab=(i===1?'회수 ':i===2?'미착 ':i===3?'과착 ':i===4?'변상 ':'')+st; h+='<span class="kd-st '+kdStCls(st)+'">'+esc(lab)+'</span>'; }); return h; }
+async function kdLoad(){
+  var el=document.getElementById('kd-list'); if(!el)return;
+  var sel=getSelectedRange(), from=sel.from, to=(rangeMode&&sel.to)?sel.to:sel.from;
+  el.innerHTML='<div style="text-align:center;color:#999;padding:24px 0">불러오는 중…</div>';
+  try{ kdCache=await sbFetchAll(function(){ return sb.from('kd_waybills').select('waybill_no,reg_dt,date_str,status,return_status,nonarrival_status,overarrival_status,repair_status,deli_date,acct_name,send_branch,arrive_branch,sender_name,sender_tel,sender_addr,recv_name,recv_tel,recv_etc_tel,recv_zip,recv_addr,prod_name,qty,pay_type,pay_method,total_pay,memo,pickup_driver,channel,fetched_at').gte('date_str',from).lte('date_str',to).order('reg_dt',{ascending:false}); }); }
+  catch(e){ kdCache=[]; var m=String(e&&e.message||e); el.innerHTML='<div style="text-align:center;color:#b91c1c;padding:24px 10px;font-size:13px">'+(/does not exist|relation|schema cache/i.test(m)?'경동 송장 표가 아직 없습니다 — 탈출가방\\SQL_호준님실행.sql ④를 실행해 주세요':'불러오기 실패: '+esc(m))+'</div>'; return; }
+  kdRender();
+  clearTimeout(_kdTimer); _kdTimer=setTimeout(function(){ if(curRoom&&(ROOM_META[curRoom.name]||{}).mode==='kd'&&!document.hidden)kdLoad(); },120000);   // 방을 보고 있는 동안 2분마다 새로 (수집은 5분마다)
+}
+function kdRender(){
+  var el=document.getElementById('kd-list'); if(!el)return;
+  var q=((document.getElementById('kd-q')||{}).value||'').trim().toLowerCase();
+  var cnt={}; kdCache.forEach(function(r){ var k=r.status||'(상태 없음)'; cnt[k]=(cnt[k]||0)+1; });
+  var chips='<button class="'+(kdChip==='all'?'on':'')+'" onclick="kdSetChip(\'all\')">전체 '+kdCache.length+'</button>'+Object.keys(cnt).sort().map(function(k){ return '<button class="'+(kdChip===k?'on':'')+'" onclick="kdSetChip(\''+esc(k).replace(/'/g,'')+'\')">'+esc(k)+' '+cnt[k]+'</button>'; }).join('');
+  var ce=document.getElementById('kd-chips'); if(ce)ce.innerHTML=chips;
+  var last=kdCache.length?kdCache.map(function(r){return r.fetched_at||'';}).sort().pop():'';
+  var se=document.getElementById('kd-summary'); if(se)se.innerHTML='🚛 경동택배 송장 <b>'+kdCache.length+'</b>건'+(last?' · 마지막 수집 '+esc(kstFmt(last)):'')+' <span style="color:#94a3b8">· 5분마다 자동, 운송장번호가 같으면 최신 상태로</span>';
+  var list=kdCache.filter(function(r){ if(kdChip!=='all'&&(r.status||'(상태 없음)')!==kdChip)return false; if(!q)return true; var hay=[r.waybill_no,r.recv_name,r.recv_tel,r.recv_addr,r.recv_zip,r.prod_name,r.sender_name,r.sender_tel,r.memo,r.status,r.acct_name,r.send_branch,r.arrive_branch,r.pickup_driver].filter(Boolean).join(' ').toLowerCase(); return q.split(/\s+/).every(function(t){return hay.indexOf(t)>=0;}); });
+  if(!list.length){ el.innerHTML='<div style="text-align:center;color:#aaa;padding:24px 0;font-size:13px">'+(kdCache.length?'조건에 맞는 송장이 없습니다':'이 날짜에 송장이 없습니다')+'</div>'; return; }
+  el.innerHTML=list.map(function(r){
+    var t=(r.reg_dt||'').replace('T',' ').slice(5,16);
+    return '<div class="kd-card" data-kd="'+esc(r.waybill_no)+'"><div class="l1"><b>'+esc(r.recv_name||'(받는분 없음)')+'</b>'+(r.recv_tel?'<span style="color:#64748b">'+esc(r.recv_tel)+'</span>':'')+kdStChips(r)+'<span style="margin-left:auto;font-size:11px;color:#94a3b8">'+esc(t)+'</span></div>'+
+      (r.recv_addr?'<div class="l2">📍 '+esc(r.recv_addr)+(r.recv_zip?' ['+esc(r.recv_zip)+']':'')+'</div>':'')+
+      '<div class="l3">'+esc([r.prod_name?r.prod_name+(r.qty?' ×'+r.qty:''):'',r.sender_name?'보내는분 '+r.sender_name:'',r.acct_name?'거래처 '+r.acct_name:'',r.pay_type?r.pay_type+(r.total_pay?' '+Number(r.total_pay).toLocaleString()+'원':''):'',r.arrive_branch?'도착 '+r.arrive_branch:'',r.pickup_driver?'픽업 '+r.pickup_driver:''].filter(Boolean).join(' · '))+'</div>'+
+      (r.memo?'<div class="l3" style="color:#b45309">📝 '+esc(r.memo)+'</div>':'')+
+      '<div class="no">운송장 '+esc(r.waybill_no)+'<button onclick="kdCopy(\''+esc(r.waybill_no)+'\')">복사</button></div></div>';
+  }).join('');
+  if(_kdFlash){ var fe=el.querySelector('[data-kd="'+_kdFlash+'"]'); _kdFlash=null; if(fe&&typeof gsFlash==='function')gsFlash(fe); }
+}
+function kdSetChip(v){ kdChip=v; kdRender(); }
+function kdCopy(no){ try{ navigator.clipboard.writeText(no); if(typeof stkToast==='function')stkToast('운송장 '+no+' 복사'); }catch(e){ prompt('운송장번호',no); } }
 /* 예약 연결 */
 function qtRsvLabel(r){return (r.date_str?(r.date_str+' '+(r.time_slot||'')):'📌 미지정')+' · '+(r.car_no||'차량번호 없음')+(r.car_name?' '+r.car_name:'')+(r.phone?' · '+r.phone:'')+(r.tire_spec?' · '+noPP(r.tire_spec):'');}
 function qtPickOpen(mode,rsvId,dateFilter){
@@ -20460,7 +20563,7 @@ function rsvRenderUnscheduled(){
     var tire=esc(rsvTiresLabel(r)||rsvEngLine(r)||'');
     var sub=[r.car_name,r.car_no,r.phone].filter(function(x){return x;}).map(esc).join(' · ');
     h+='<div class="rsv-unsched-card" draggable="true" onclick="rsvOpenEdit(\''+r.id+'\')" ondragstart="rsvUnschedDragStart(event,\''+r.id+'\')" ondragend="rsvUnschedDragEnd(event)">';
-    h+='<div class="ruc-name">'+nm+'</div>';
+    h+='<div class="ruc-name">'+nm+(rsvTagOn(r)?' '+rsvTagChip(r):'')+'</div>';
     if(tire)h+='<div class="ruc-tire">'+tire+'</div>';
     if(sub)h+='<div class="ruc-sub">'+sub+'</div>';
     h+='<div class="ruc-edit">✎ 날짜 지정</div>';
