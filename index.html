@@ -2463,7 +2463,7 @@ tr.qr-align.off td input{color:#94a3b8}
       </div>
       <input type="hidden" id="rsv-dt12">
       <div id="rsv-dt12out" style="font-size:12px;color:#185fa5;margin:-1px 0 6px"></div>
-      <label style="background:#fff7ed;border:1.5px solid #fcd9a8;border-radius:10px;padding:8px 10px;color:#c2410c">📝 특이사항 <span style="font-weight:600;color:#b45309">(작업자가 한눈에 — 카드·달력·견적서 맨 위에 보임 · 인쇄 안 됨)</span><textarea id="rsv-memo" rows="2" placeholder="예: 앞쪽 편마모 / 휠보관 1짝 / 견적 4본 48만+얼라이" style="width:100%;box-sizing:border-box;min-height:60px;border:1.5px solid #fcd9a8;border-radius:9px;padding:8px 10px;font-size:14px;font-weight:700;color:#7c2d12;background:#fff;resize:vertical;font-family:inherit;line-height:1.4;margin-top:4px"></textarea></label>
+      <label style="background:#fff7ed;border:1.5px solid #fcd9a8;border-radius:10px;padding:8px 10px;color:#c2410c">📝 특이사항 <span style="font-weight:600;color:#b45309">(작업자가 한눈에 — 카드·달력·견적서 맨 위에 보임 · 인쇄 안 됨)</span><textarea id="rsv-memo" rows="2" oninput="rsvPhoneAuto()" placeholder="예: 앞쪽 편마모 / 휠보관 1짝 / 견적 4본 48만+얼라이 (010 번호를 적으면 전화번호에 자동)" style="width:100%;box-sizing:border-box;min-height:60px;border:1.5px solid #fcd9a8;border-radius:9px;padding:8px 10px;font-size:14px;font-weight:700;color:#7c2d12;background:#fff;resize:vertical;font-family:inherit;line-height:1.4;margin-top:4px"></textarea></label>
       <!-- (10/8) 오늘/내일/모레·시간 칩 제거 — 일시 칸으로만 입력 -->
       <div id="rsv-tireline" style="font-size:12px;color:#666;background:#f3f3f0;border-radius:7px;padding:7px 9px;margin:6px 0;display:none"></div>
       <div id="rsv-outqtyrow" style="display:none;align-items:center;gap:7px;margin:6px 0">
@@ -18941,6 +18941,7 @@ async function rsvDetailAlgQuick(id,v){
   try{ _qmNoJump[id]=1; setTimeout(function(){ delete _qmNoJump[id]; },1500); }catch(e){}   // 🧪 목업9: 기존 양식으로 보던 중이면 그대로(견적서로 안 튐)
   rsvShowDetail(id); try{ renderReserve(); }catch(e){}
 }
+function rsvPhoneAuto(){ var ph=document.getElementById('rsv-phone'), mm=document.getElementById('rsv-memo'); if(!ph||!mm||ph.value.trim())return; var p=qrPhoneFromText(mm.value); if(p){ ph.value=p; if(typeof stkToast==='function')stkToast('📞 특이사항의 번호를 전화번호에 넣었어요: '+p); } }   // (10/15) 기존 폼
 function rsvAlgQuick(v){   // (1차 목업 — 폼에서는 안 씀)
   var inp=document.getElementById('rsv-algamt'); var cur=rsvParseWon((inp&&inp.value)||'');
   if(cur===v){ if(inp)inp.value=''; rsvAlgQuickSync(); rsvCalc(); return; }
@@ -19490,7 +19491,7 @@ async function rsvSubmit(){
   var rec={
     date_str:p.date_str, time_slot:p.time_slot, duration_min:rsvDurVal(), user_name:me?me.name:'?',
     memo:document.getElementById('rsv-memo').value.trim(),
-    phone:document.getElementById('rsv-phone').value.trim(),
+    phone:(document.getElementById('rsv-phone').value.trim()||qrPhoneFromText(document.getElementById('rsv-memo').value)||''),   // (10/15) 비어 있으면 특이사항의 010 번호
     car_no:document.getElementById('rsv-carno').value.trim(),
     car_name:document.getElementById('rsv-carname').value.trim(),
     align_state:rsvAlg,
@@ -19907,7 +19908,7 @@ function qtRecalc(){
 function qtAddRow(){if(!qtCur)return;qtCur.rows.push(qtBlankRow());qtRender();}
 function qtDelRow(i){if(!qtCur)return;qtCur.rows.splice(i,1);if(!qtCur.rows.length)qtCur.rows.push(qtBlankRow());qtRender();}
 function qtInfoHtml(d,edit){
-  function f(k,label,key,ph){var v=d[key]||'';return '<div class="qt-row"><div class="k">'+label+'</div><div class="v">'+(edit?'<input value="'+esc(v)+'" placeholder="'+(ph||'')+'" oninput="qtSet(\''+key+'\',this.value)">':esc(v)||'&nbsp;')+'</div></div>';}
+  function f(k,label,key,ph){var v=d[key]||'';return '<div class="qt-row"><div class="k">'+label+'</div><div class="v">'+(edit?'<input'+(key==='tel'?' id="qr-tel" inputmode="tel"':'')+' value="'+esc(v)+'" placeholder="'+(ph||(key==='tel'?'특이사항에 010 번호가 있으면 자동':''))+'" oninput="qtSet(\''+key+'\',this.value)">':esc(v)||'&nbsp;')+'</div></div>';}
   function s(label,v){return '<div class="qt-row"><div class="k">'+label+'</div><div class="v">'+esc(v)+'</div></div>';}
   var cust='<div class="qt-box"><div class="qt-bt">고 객</div>'+(d.rsv?'<div class="qt-row"><div class="k">날짜</div><div class="v" id="qr-cust-date">'+esc(qrCustDateTxt(d))+'</div></div>':f(0,'날짜','date',''))+f(0,'고객명','name','')+f(0,'차량번호','car_no','')+f(0,'차명','car_name','')+f(0,'주행거리','km','km')+f(0,'전화번호','tel','')+'</div>';
   var supIn=s('사업자등록번호',QT_SUP.biz)+s('정비업등록번호',QT_SUP.reg)+s('상호',QT_SUP.name)+s('주소',QT_SUP.addr)+s('업태 / 종목',QT_SUP.biztype)+s('전화',QT_SUP.tel);
@@ -20221,7 +20222,9 @@ function qrDateTopHtml(d){   // (10/15) 맨 위 일시 칸 — 날짜·시작시
   var du=DUR.map(function(m){var hh=Math.floor(m/60),m2=m%60; return '<option value="'+m+'"'+(cur===m?' selected':'')+'>'+(m<60?m+'분':hh+'시간'+(m2===30?' 반':(m2?' '+m2+'분':'')))+'</option>';}).join('');
   return '<div class="qr-dt3"><label><span>날짜</span><input type="date" value="'+esc(d.date||'')+'" onchange="qtSet(\'date\',this.value)"></label><label><span>시작시간</span><select onchange="qrSetR(\'time\',this.value)">'+to+'</select></label><label><span>소요시간</span><select onchange="qrSetR(\'dur\',parseInt(this.value,10))">'+du+'</select></label><div class="qr-end3">끝나는 시각 <b class="qr-end" id="qr-end">'+qrEndTxt(R)+'</b></div></div>';
 }
-function qrSetR(k,v){ if(!qtCur||!qtCur.rsv)return; qtCur.rsv[k]=v; if(k==='time'||k==='dur'){ var e=document.getElementById('qr-end'); if(e)e.textContent=qrEndTxt(qtCur.rsv); qrCustDateSync(); } }
+function qrPhoneFromText(t){ var m=String(t||'').match(/010[\s\-.]?\d{3,4}[\s\-.]?\d{4}/); if(!m)return ''; var d=m[0].replace(/\D/g,''); if(d.length!==11)return ''; return d.slice(0,3)+'-'+d.slice(3,7)+'-'+d.slice(7); }   // (10/15) 글 안의 010 번호 11자리 → 010-0000-0000
+function qrPhoneAuto(){ if(!qtCur||!qtCur.rsv)return; if(qtCur.tel)return; var p=qrPhoneFromText(qtCur.rsv.memo); if(!p)return; qtCur.tel=p; var e=document.getElementById('qr-tel'); if(e)e.value=p; if(typeof stkToast==='function')stkToast('📞 특이사항의 번호를 전화번호에 넣었어요: '+p); }
+function qrSetR(k,v){ if(!qtCur||!qtCur.rsv)return; qtCur.rsv[k]=v; if(k==='time'||k==='dur'){ var e=document.getElementById('qr-end'); if(e)e.textContent=qrEndTxt(qtCur.rsv); qrCustDateSync(); } if(k==='memo')qrPhoneAuto(); }
 function qrDateRowHtml(d){
   var R=d.rsv, opts=[]; for(var mm=8*60;mm<=20*60;mm+=30)opts.push(_rsvHM(mm)); if(R.time&&opts.indexOf(R.time)<0)opts.push(R.time);
   var to='<option value="">시간</option>'+opts.map(function(v){return '<option'+(v===R.time?' selected':'')+'>'+v+'</option>';}).join('');
@@ -20338,8 +20341,9 @@ var _qrSaving=false;
 async function qrSave(){   // 저장 = 숨긴 기존 예약 폼에 옮겨 rsvSubmit 그대로(예약 칸 뜻 동일) + 견적서 칸은 DB(qrsv:)
   var d=qtCur; if(!d||!d.rsv||_qrSaving)return; var R=d.rsv;
   if(!d.date||!R.time){alert('날짜와 시간을 고르세요');return;}
-  if(!d.tel&&!d.car_no){alert('전화번호나 차량번호 중 하나는 적어 주세요');return;}
+  /* (10/15) 전화·차량번호 필수 아님 — 특이사항의 010 번호는 자동으로 전화번호에 */
   if(R.id&&!(reservations||[]).some(function(x){return x.id===R.id;})){alert('이 예약을 찾지 못했습니다 (지워졌을 수 있어요)');return;}
+  if(!d.tel){ var _ap=qrPhoneFromText(R.memo); if(_ap)d.tel=_ap; }   // (10/15) 저장 때도 특이사항 번호 → 전화번호
   _qrSaving=true;
   var btn=document.querySelector('.qr-bar .save'); if(btn){btn.disabled=true;btn.textContent='저장 중…';}
   var nw=null, failed=false;
@@ -21267,7 +21271,7 @@ function qbRender(){
 async function qbSubmit(){
   var d=qbCur; if(!d)return;
   if(!d.date||!d.time){alert('날짜와 시간을 고르세요');return;}
-  if(!d.tel&&!d.car_no){alert('전화번호나 차량번호 중 하나는 적어 주세요');return;}
+  /* (10/15) 전화·차량번호 필수 아님 — 특이사항의 010 번호는 자동으로 전화번호에 */
   var first=d.rows[0]||{};
   document.getElementById('rsv-date').value=d.date; document.getElementById('rsv-time').value=d.time; rsvDateTimeSync(); try{rsvEndAuto(true);}catch(e){}
   document.getElementById('rsv-phone').value=d.tel||''; document.getElementById('rsv-carno').value=d.car_no||''; document.getElementById('rsv-carname').value=d.car_name||''; document.getElementById('rsv-memo').value=(d.note||'').replace(/\n/g,' / ');
@@ -21419,7 +21423,7 @@ function qcClose(){document.getElementById('qc-modal').classList.remove('on');}
 async function qcSave(){
   var d=qcCur; if(!d)return;
   if(!d.date||!d.time){alert('날짜와 시간을 고르세요');return;}
-  if(!d.tel&&!d.car_no){alert('전화번호나 차량번호 중 하나는 적어 주세요');return;}
+  /* (10/15) 전화·차량번호 필수 아님 — 특이사항의 010 번호는 자동으로 전화번호에 */
   var btn=document.getElementById('qc-save'); if(btn){btn.disabled=true;btn.textContent='저장 중…';}
   if(d.id){ _qbOpenEdit0(d.id); document.getElementById('rsv-modal').classList.remove('on'); }   // 숨긴 기존 폼을 수정 모드로(화면은 안 띄움)
   var t=qcTotals(d), first=d.rows[0]||{};
