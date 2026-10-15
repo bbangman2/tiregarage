@@ -2519,7 +2519,7 @@ tr.qr-align.off td input{color:#94a3b8}
       </div>
       <div id="rsv-totline" style="font-size:13px;font-weight:600;text-align:right;margin:6px 0;border-top:0.5px solid #eee;padding-top:8px"></div>
       <div style="font-size:12px;font-weight:800;color:#5b6478;border-top:1px dashed #d9dde5;margin:10px 0 8px;padding-top:8px">👤 인적사항 <span style="font-weight:600;color:#94a3b8">(사무실 정리용 — 전화·차량번호 중 하나는 꼭)</span></div>
-      <label>전화번호<input id="rsv-phone" inputmode="tel" placeholder="010-1234-5678"></label><label>차량번호<input id="rsv-carno" placeholder="12가 3456"></label><label>차량명<input id="rsv-carname" placeholder="그랜저 IG"></label><label>고객명<input id="rsv-custname" placeholder="홍길동"></label><label>주행거리<input id="rsv-km" inputmode="numeric" placeholder="52,300"></label><label>비고 <span style="font-weight:600;color:#94a3b8">(고객용 · 견적서에 인쇄)</span><input id="rsv-note" placeholder="예: 다음 점검 6개월 후 권장"></label>
+      <label>전화번호<input id="rsv-phone" inputmode="tel" placeholder="010-1234-5678 (특이사항에 적으면 자동)" oninput="this.dataset.auto=''"></label><label>차량번호<input id="rsv-carno" placeholder="12가 3456"></label><label>차량명<input id="rsv-carname" placeholder="그랜저 IG"></label><label>고객명<input id="rsv-custname" placeholder="홍길동"></label><label>주행거리<input id="rsv-km" inputmode="numeric" placeholder="52,300"></label><label>비고 <span style="font-weight:600;color:#94a3b8">(고객용 · 견적서에 인쇄)</span><input id="rsv-note" placeholder="예: 다음 점검 6개월 후 권장"></label>
       <button class="rsv-submit" id="rsv-submit-btn" onclick="rsvSubmit()">예약 등록</button>
     </div>
   </div>
@@ -18941,7 +18941,7 @@ async function rsvDetailAlgQuick(id,v){
   try{ _qmNoJump[id]=1; setTimeout(function(){ delete _qmNoJump[id]; },1500); }catch(e){}   // 🧪 목업9: 기존 양식으로 보던 중이면 그대로(견적서로 안 튐)
   rsvShowDetail(id); try{ renderReserve(); }catch(e){}
 }
-function rsvPhoneAuto(){ var ph=document.getElementById('rsv-phone'), mm=document.getElementById('rsv-memo'); if(!ph||!mm||ph.value.trim())return; var p=qrPhoneFromText(mm.value); if(p){ ph.value=p; if(typeof stkToast==='function')stkToast('📞 특이사항의 번호를 전화번호에 넣었어요: '+p); } }   // (10/15) 기존 폼
+function rsvPhoneAuto(){ var ph=document.getElementById('rsv-phone'), mm=document.getElementById('rsv-memo'); if(!ph||!mm)return; if(ph.value.trim()&&ph.dataset.auto!=='1')return; var p=qrPhoneFromText(mm.value); if(p===ph.value)return; ph.value=p; ph.dataset.auto=p?'1':''; if(typeof stkToast==='function')stkToast(p?('📞 특이사항의 번호를 전화번호에 넣었어요: '+p):'📞 특이사항에서 번호가 지워져 전화번호도 비웠어요'); }   // (10/15) 기존 폼 — 자동으로 채운 값은 특이사항을 따라감
 function rsvAlgQuick(v){   // (1차 목업 — 폼에서는 안 씀)
   var inp=document.getElementById('rsv-algamt'); var cur=rsvParseWon((inp&&inp.value)||'');
   if(cur===v){ if(inp)inp.value=''; rsvAlgQuickSync(); rsvCalc(); return; }
@@ -19884,7 +19884,7 @@ function qtOpen(rsvId){
 }
 function qtLoad(no){var all=qtAllSaved().filter(function(d){return d.no===no;});if(!all.length)return;qtCur=all[0];qtRender();}
 function qtClose(){var m=document.getElementById('qt-modal');m.classList.remove('on');m.classList.remove('qt-rot');var land=document.getElementById('qt-land');if(land){qtLandExitFs();land.remove();}}
-function qtSet(k,v){if(!qtCur)return;qtCur[k]=v;if(k==='date')qrCustDateSync();}
+function qtSet(k,v){if(!qtCur)return;qtCur[k]=v;if(k==='date')qrCustDateSync();if(k==='tel')qtCur._telAuto=false;}   // (10/15) 손으로 적은 전화번호는 자동 연동에서 뺌
 function qrCustDateTxt(d){ d=d||qtCur; if(!d||!d.rsv)return (d&&d.date)||''; return (d.date||'')+(d.rsv.time?' '+d.rsv.time+' '+qrEndTxt(d.rsv):''); }
 function qrCustDateSync(){ var e=document.getElementById('qr-cust-date'); if(e)e.textContent=qrCustDateTxt(qtCur); }   // (10/15) 맨 위에서 고르는 즉시 고객 칸 날짜도
 function qtSetRow(i,k,v){if(!qtCur||!qtCur.rows[i])return;var row=qtCur.rows[i];
@@ -20223,7 +20223,12 @@ function qrDateTopHtml(d){   // (10/15) 맨 위 일시 칸 — 날짜·시작시
   return '<div class="qr-dt3"><label><span>날짜</span><input type="date" value="'+esc(d.date||'')+'" onchange="qtSet(\'date\',this.value)"></label><label><span>시작시간</span><select onchange="qrSetR(\'time\',this.value)">'+to+'</select></label><label><span>소요시간</span><select onchange="qrSetR(\'dur\',parseInt(this.value,10))">'+du+'</select></label><div class="qr-end3">끝나는 시각 <b class="qr-end" id="qr-end">'+qrEndTxt(R)+'</b></div></div>';
 }
 function qrPhoneFromText(t){ var m=String(t||'').match(/010[\s\-.]?\d{3,4}[\s\-.]?\d{4}/); if(!m)return ''; var d=m[0].replace(/\D/g,''); if(d.length!==11)return ''; return d.slice(0,3)+'-'+d.slice(3,7)+'-'+d.slice(7); }   // (10/15) 글 안의 010 번호 11자리 → 010-0000-0000
-function qrPhoneAuto(){ if(!qtCur||!qtCur.rsv)return; if(qtCur.tel)return; var p=qrPhoneFromText(qtCur.rsv.memo); if(!p)return; qtCur.tel=p; var e=document.getElementById('qr-tel'); if(e)e.value=p; if(typeof stkToast==='function')stkToast('📞 특이사항의 번호를 전화번호에 넣었어요: '+p); }
+function qrPhoneAuto(){   // (10/15) 전화번호 칸이 비었거나 '자동으로 채운 값'이면 특이사항 번호를 그대로 따라감(지우면 같이 지움). 손으로 적은 번호는 안 건드림
+  if(!qtCur||!qtCur.rsv)return; if(qtCur.tel&&!qtCur._telAuto)return;
+  var p=qrPhoneFromText(qtCur.rsv.memo); if(p===(qtCur.tel||''))return;
+  qtCur.tel=p; qtCur._telAuto=!!p; var e=document.getElementById('qr-tel'); if(e)e.value=p;
+  if(typeof stkToast==='function')stkToast(p?('📞 특이사항의 번호를 전화번호에 넣었어요: '+p):'📞 특이사항에서 번호가 지워져 전화번호도 비웠어요');
+}
 function qrSetR(k,v){ if(!qtCur||!qtCur.rsv)return; qtCur.rsv[k]=v; if(k==='time'||k==='dur'){ var e=document.getElementById('qr-end'); if(e)e.textContent=qrEndTxt(qtCur.rsv); qrCustDateSync(); } if(k==='memo')qrPhoneAuto(); }
 function qrDateRowHtml(d){
   var R=d.rsv, opts=[]; for(var mm=8*60;mm<=20*60;mm+=30)opts.push(_rsvHM(mm)); if(R.time&&opts.indexOf(R.time)<0)opts.push(R.time);
