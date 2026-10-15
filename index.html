@@ -19205,7 +19205,7 @@ async function rsvLinkSync(linkId, want){
 // 첫 연결 + 모든 추가연결 일괄 동기화 (각자 부족분만 1회)
 async function rsvSyncAllStock(rid, want){
   var r=reservations.find(function(x){return x.id===rid;});
-  if(r && r.src_kind && r.src_product_id){ await rsvSyncStock(rid, want); }
+  if(r && r.src_kind && (r.src_product_id||r.src_item_id)){ await rsvSyncStock(rid, want); }   // (10/15) 첫 연결이 입고분(src_item_id만 있음)이어도 취소 복구·되돌리기 차감
   var lks=rsvLinks.filter(function(x){return x.reservation_id===rid;});
   for(var i=0;i<lks.length;i++){ await rsvLinkSync(lks[i].id, want); }
 }
@@ -21511,7 +21511,7 @@ function qtXlsxPlain(){   // (옛) 꾸밈 없는 엑셀 — 안 씀
 // 어떤 상태 조합(예약↔완료↔취소)을 몇 번 오가도 절대 이중/유령 차감·복구가 안 생김.
 async function rsvSyncStock(id, want){
   var r=reservations.find(function(x){return x.id===id;});
-  if(!r || !r.src_kind || !r.src_product_id) return; // 재고 연결된 예약만
+  if(!r || !r.src_kind || !(r.src_product_id||r.src_item_id)) return; // 재고·입고분 연결된 예약만 (10/15: 입고분 첫 연결 포함)
   if(want){ // 미점유→점유 : stock_done false→true 전환 성공 시에만 차감
     var c=await sb.from('reservations').update({stock_done:true}).eq('id',id).eq('stock_done',false).select();
     if(c && c.data && c.data.length){ await rsvStockOut({kind:r.src_kind,product_id:r.src_product_id,item_id:r.src_item_id,dot:r.src_dot,lot_id:r.src_lot_id,spec:r.tire_spec}, r.src_qty||r.qty||1, _rsvLogTag(r)); if(r.src_kind!=='inbound'){ try{ var _sl2=_rsvLocLabel(); await sb.from('reservations').update({src_label:_sl2}).eq('id',id); r.src_label=_sl2; }catch(_e){} } }
