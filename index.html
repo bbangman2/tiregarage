@@ -3233,6 +3233,7 @@ var PERM_DEFS=[
   {key:'trade', label:'거래처방', hint:'거래처 종합방 표시 (대표는 항상)', list:function(){return tradeViewers;}, save:function(){return tradeSaveViewers();}, color:'#b45309'},
   {key:'backup', label:'백업·복구', hint:'일일백업·감사로그 다운로드', list:function(){return backupUsers;}, save:function(){return bkSaveUsers();}, color:'#0d9488'},
   {key:'em', label:'편집모드', hint:'재고표 엑셀형 대량편집 (PC 전용)', list:function(){return STK_EM_USERS;}, save:function(){return stkSaveEmUsers();}, color:'#7c3aed'},
+  {key:'tablet', label:'태블릿 손님 모드', hint:'이 계정으로 로그인하면 예약 명단과 👤 손님 화면 버튼만 보임(매장 태블릿용)', list:function(){return TABLET_USERS;}, save:function(){return tabletSaveUsers();}, color:'#0f766e'},
   {key:'rate', label:'할인율 관리', hint:'할인율 탭에서 🛡 실 데이터 보기 · ➕ 규칙 추가 · 율 수정 (탭 자체는 모두에게 안전값으로 공개)', list:function(){return STK_SAFE.users;}, save:function(){return stkSafeUsersSave();}, color:'#9a3412'}
 ];
 var _permNames=[];
@@ -3256,32 +3257,71 @@ async function permMatrixToggle(){
 // 표의 이름 소스 = users 테이블 ∪ 권한 명단 (코드 고정 명단은 합집합에서 제외 — 삭제한 직원이 유령처럼 되살아나는 것 방지)
 async function permLoadNames(){
   var names={};
-  try{ var r=await sb.from('users').select('name'); if(!r.error)(r.data||[]).forEach(function(u){ if(u&&u.name)names[String(u.name).trim()]=1; }); }catch(e){}
+  _permPw={}; _permMaster='';
+  try{ var r=await sb.from('users').select('name,password'); if(!r.error)(r.data||[]).forEach(function(u){ if(u&&u.name){ names[String(u.name).trim()]=1; _permPw[String(u.name).trim()]=(u.password==null?'':String(u.password)); } }); }catch(e){}   // (10/18) 비밀번호도 같이(관리자 화면 표시용)
+  try{ var m=await sb.from('stock_settings').select('value').eq('key','master_pw').maybeSingle(); if(m&&m.data&&m.data.value)_permMaster=String(m.data.value); }catch(e){}
   PERM_DEFS.forEach(function(p){ (p.list()||[]).forEach(function(n){ if(n)names[n]=1; }); });
   delete names[ADMIN_NAME];
   var order=Object.keys(PW);
   _permNames=Object.keys(names).sort(function(a,b){ var ia=order.indexOf(a),ib=order.indexOf(b); if(ia<0)ia=999; if(ib<0)ib=999; return (ia-ib)||a.localeCompare(b,'ko'); });
 }
+var _permPw={}, _permMaster='';   // (10/18) 관리자 화면 비밀번호 표시용
+/* ═══ 🧪 태블릿 손님 모드 (10/19) ═══ */
+var TABLET_USERS=[];
+async function tabletLoadUsers(){ try{ var r=await sb.from('settings').select('value').eq('key','tablet_users').maybeSingle(); if(r&&r.data&&Array.isArray(r.data.value))TABLET_USERS=r.data.value; }catch(e){} }
+async function tabletSaveUsers(){ var r=await sb.from('settings').upsert({key:'tablet_users',value:TABLET_USERS,updated_at:new Date().toISOString()},{onConflict:'key'}); if(r&&r.error)throw new Error(r.error.message||'저장 실패'); }
+function tabletIsMe(){ return !!(me&&me.name!==ADMIN_NAME&&TABLET_USERS.indexOf(me.name)>=0); }
+var TB={date:null};
+function tabletDay(n){ var d=new Date(getTodayISO()+'T00:00:00+09:00'); d.setDate(d.getDate()+n); return d.toISOString().slice(0,10); }
+async function tabletShow(){
+  if(!TB.date)TB.date=getTodayISO();
+  var sc=document.getElementById('tablet-screen'); if(!sc){ sc=document.createElement('div'); sc.id='tablet-screen'; sc.style.cssText='position:fixed;inset:0;z-index:9000;background:#f1f5f9;overflow:auto;font-size:15px'; document.body.appendChild(sc); }
+  sc.style.display='block'; sc.innerHTML='<div style="padding:40px;text-align:center;color:#64748b">예약 명단 읽는 중…</div>';
+  var rows=[]; try{ var r=await sb.from('reservations').select('*').eq('date_str',TB.date).neq('status','취소').order('time_slot',{ascending:true}); rows=r.data||[]; if(typeof rsvLoadLinks==='function'){ try{ await rsvLoadLinks(); }catch(e){} } }catch(e){ sc.innerHTML='<div style="padding:40px;color:#b91c1c">읽기 실패: '+esc(e.message)+'</div>'; return; }
+  reservations=rows;   // 손님 화면(custStart)이 찾는 목록
+  var lab=(TB.date===getTodayISO())?'오늘':(TB.date===tabletDay(-1)?'어제':(TB.date===tabletDay(1)?'내일':''));
+  var h='<div style="background:#0f172a;color:#fff;padding:12px 16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;position:sticky;top:0;z-index:2"><b style="font-size:17px">🛞 타이어게러지 · 태블릿</b><span style="color:#cbd5e1;font-size:13px">'+esc(me.name)+'</span><span style="flex:1"></span>'
+    +'<button class="dact" style="height:38px" onclick="TB.date=tabletDay(-1);tabletShow()">◀ 어제</button><button class="dact" style="height:38px;'+(lab==='오늘'?'background:#1d4ed8;color:#fff;border-color:#1d4ed8':'')+'" onclick="TB.date=getTodayISO();tabletShow()">오늘</button><button class="dact" style="height:38px" onclick="TB.date=tabletDay(1);tabletShow()">내일 ▶</button>'
+    +'<button class="dact" style="height:38px" onclick="tabletShow()">🔄</button><button class="dact" style="height:38px;color:#94a3b8" onclick="doLogout()">로그아웃</button></div>';
+  h+='<div style="max-width:900px;margin:0 auto;padding:14px 16px 60px"><div style="font-weight:800;font-size:16px;margin:4px 0 10px">📅 '+esc(TB.date)+(lab?' ('+lab+')':'')+' · 예약 '+rows.length+'건 <span style="color:#64748b;font-size:12.5px;font-weight:400">— 손님 줄의 버튼을 누르면 손님 화면이 됩니다</span></div>';
+  if(!rows.length)h+='<div style="padding:30px;text-align:center;color:#94a3b8;background:#fff;border-radius:12px">이 날짜에 예약이 없습니다</div>';
+  rows.forEach(function(r){ var x=_qrX[r.id]; var signed=!!(x&&x.sign);
+    h+='<div style="background:#fff;border:1px solid #e5e7eb;border-left:5px solid '+(r.status==='완료'?'#15803d':'#2563eb')+';border-radius:12px;padding:12px 14px;margin-bottom:10px"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b style="font-size:18px">'+esc(r.time_slot||'시간 미정')+'</b><b style="font-size:16px">'+esc(r.customer_name||'(이름 없음)')+'</b><span style="color:#64748b">'+esc(r.phone||'')+'</span>'+(r.car_no?'<span style="color:#475569">'+esc(r.car_no)+(r.car_name?' '+esc(r.car_name):'')+'</span>':'')+'<span style="margin-left:auto;font-size:12px;color:'+(r.status==='완료'?'#15803d':'#b45309')+';font-weight:800">'+esc(r.status||'')+(signed?' · ✍ 서명 있음':'')+'</span></div>'
+      +'<div style="margin-top:4px;color:#334155">'+esc(r.tire_spec||'')+(r.qty?' × '+esc(r.qty):'')+'</div>'
+      +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><button class="dact" style="height:44px;font-size:15px;font-weight:800;background:#1d4ed8;color:#fff;border-color:#1d4ed8" onclick="custStart(\''+r.id+'\',\'quote\')">🧾 견적서</button><button class="dact" style="height:44px;font-size:15px;font-weight:800;background:#1d4ed8;color:#fff;border-color:#1d4ed8" onclick="custStart(\''+r.id+'\',\'memo\')">📝 특이사항</button><button class="dact" style="height:44px;font-size:15px;font-weight:800;background:#0f172a;color:#fff;border-color:#0f172a" onclick="custStart(\''+r.id+'\',\'both\')">👤 둘 다</button></div></div>'; });
+  h+='</div>'; sc.innerHTML=h;
+  try{ if(typeof qrPreloadAll==='function')qrPreloadAll(rows.map(function(r){return r.id;})); }catch(e){}
+}
+var _tbBoot0=bootApp;
+bootApp=async function(){ var r=await _tbBoot0.apply(this,arguments); try{ await tabletLoadUsers(); if(tabletIsMe())await tabletShow(); }catch(e){ console.error('태블릿 모드',e); } return r; };
+function permPwCell(name){   // 지금 비밀번호 + ✏️ — 대표에게만
+  if(!me||me.name!==ADMIN_NAME)return '<td style="border-bottom:1px solid #f1f5f9;color:#cbd5e1;text-align:center">••••</td>';
+  var v=_permPw[name], src='';
+  if(v==null||v===''){ v=(typeof PW!=='undefined'&&PW&&PW[name])?String(PW[name]):''; src=v?' <span style="font-size:10px;color:#94a3b8">(기본)</span>':' <span style="font-size:10px;color:#b91c1c">(없음)</span>'; }
+  var safe=String(name).replace(/\\/g,'').replace(/'/g,'');
+  return '<td style="padding:2px 8px;border-bottom:1px solid #f1f5f9;white-space:nowrap;font-family:ui-monospace,Consolas,monospace;font-size:12px">'+esc(v)+src+' <button title="비밀번호 변경" onclick="permEmpPw(\''+safe+'\')" style="border:1px solid #e2e8f0;background:#fff;border-radius:6px;padding:1px 5px;cursor:pointer;font-size:11px">✏️</button></td>';
+}
+async function permMasterPw(){ if(typeof stkChangeMasterPw==='function')await stkChangeMasterPw(); await permLoadNames(); permMatrixRender(); }
 function permMatrixRefreshIfOpen(){ var w=document.getElementById('perm-matrix-wrap'); if(w&&w.style.display!=='none')permMatrixRender(); }
 function permMatrixRender(){
   var el=document.getElementById('perm-matrix'); if(!el)return;
   var h='<table style="border-collapse:collapse;font-size:12px;background:#fff;border-radius:10px;overflow:hidden;border:1px solid #e2e8f0">';
-  h+='<tr style="background:#f1f5f9"><th style="text-align:left;padding:5px 8px;border-bottom:2px solid #e2e8f0">직원</th>'
+  h+='<tr style="background:#f1f5f9"><th style="text-align:left;padding:5px 8px;border-bottom:2px solid #e2e8f0">직원</th><th style="text-align:left;padding:5px 8px;border-bottom:2px solid #e2e8f0;font-size:11px" title="지금 쓰는 로그인 비밀번호 — 대표에게만 보임">비밀번호</th>'
     +PERM_DEFS.map(function(p){return '<th title="'+esc(p.hint)+'" style="padding:4px 6px;border-bottom:2px solid #e2e8f0;color:'+p.color+';font-size:11px;white-space:nowrap">'+esc(p.label)+'</th>';}).join('')+'<th style="padding:4px 6px;border-bottom:2px solid #e2e8f0;font-size:11px">관리</th></tr>';
-  h+='<tr style="background:#fffbeb"><td style="padding:4px 8px;border-bottom:1px solid #f1f5f9;font-weight:800;white-space:nowrap">'+esc(ADMIN_NAME)+' <span style="font-size:11px;color:#b45309">(대표)</span></td>'
+  h+='<tr style="background:#fffbeb"><td style="padding:4px 8px;border-bottom:1px solid #f1f5f9;font-weight:800;white-space:nowrap">'+esc(ADMIN_NAME)+' <span style="font-size:11px;color:#b45309">(대표)</span></td>'+permPwCell(ADMIN_NAME)
     +PERM_DEFS.map(function(){return '<td style="text-align:center;border-bottom:1px solid #f1f5f9;color:#b45309;font-weight:800" title="대표는 항상 모든 권한">✓</td>';}).join('')+'<td style="text-align:center;border-bottom:1px solid #f1f5f9;color:#cbd5e1">—</td></tr>';
   _permNames.forEach(function(n){
     var safe=n.replace(/\\/g,'').replace(/'/g,'');
-    h+='<tr><td style="padding:4px 8px;border-bottom:1px solid #f1f5f9;font-weight:700;white-space:nowrap">'+esc(n)+'</td>';
+    h+='<tr><td style="padding:4px 8px;border-bottom:1px solid #f1f5f9;font-weight:700;white-space:nowrap">'+esc(n)+'</td>'+permPwCell(n);
     PERM_DEFS.forEach(function(p){
       var on=(p.list()||[]).indexOf(n)>=0;
       h+='<td style="text-align:center;padding:2px 4px;border-bottom:1px solid #f1f5f9"><input type="checkbox" '+(on?'checked ':'')+'style="width:15px;height:15px;accent-color:'+p.color+';cursor:pointer" onchange="permMatrixSet(\''+safe+'\',\''+p.key+'\',this.checked,this)"></td>';
     });
     h+='<td style="text-align:center;white-space:nowrap;padding:2px 4px;border-bottom:1px solid #f1f5f9">'
-      +'<button title="비밀번호 변경" onclick="permEmpPw(\''+safe+'\')" style="border:1px solid #e2e8f0;background:#fff;border-radius:6px;padding:2px 6px;cursor:pointer;font-size:11px">🔑</button> '
       +'<button title="직원 삭제" onclick="permEmpDel(\''+safe+'\')" style="border:1px solid #fecaca;background:#fff;color:#dc2626;border-radius:6px;padding:2px 6px;cursor:pointer;font-size:11px;font-weight:800">✕</button></td>';
     h+='</tr>';
   });
+  h+='<tr style="background:#fef2f2"><td style="padding:4px 8px;font-weight:800;white-space:nowrap">🔒 마스터 비밀번호 <span style="font-size:10.5px;color:#64748b;font-weight:400">수정모드·재고 잠금 해제·전부삭제·초기화 공용</span></td><td style="padding:2px 8px;white-space:nowrap;font-family:ui-monospace,Consolas,monospace;font-size:12px">'+((me&&me.name===ADMIN_NAME)?(esc(_permMaster||'tg1234')+(_permMaster?'':' <span style="font-size:10px;color:#b91c1c">(기본값 — 바꾸세요)</span>')+' <button title="마스터 비밀번호 변경" onclick="permMasterPw()" style="border:1px solid #e2e8f0;background:#fff;border-radius:6px;padding:1px 5px;cursor:pointer;font-size:11px">✏️</button>'):'••••')+'</td><td colspan="'+(PERM_DEFS.length+1)+'" style="color:#94a3b8;font-size:11px">로그인 비밀번호와 별개 · 왼쪽 아래 [🔒 잠금/삭제 비번]과 같은 값</td></tr>';   // (10/18)
   h+='</table>';
   el.innerHTML=h;
 }
@@ -3336,6 +3376,7 @@ async function permEmpPw(name){
     if(r&&r.error)throw new Error(r.error.message);
   }catch(e){ alert('저장 실패: '+e.message); return; }
   try{ logAudit('🔑비번변경', name+' 로그인 비밀번호 변경', '', '(변경됨)'); }catch(e){} // 비밀번호 값 자체는 어디에도 기록하지 않음
+  try{ await permLoadNames(); permMatrixRender(); }catch(e){}   // (10/18) 표의 비밀번호 칸 즉시 갱신
   alert('✓ '+name+' 비밀번호 변경됨 — 다음 로그인부터 적용 (이미 로그인된 기기는 유지)');
 }
 async function permEmpDel(name){
@@ -5882,7 +5923,7 @@ async function dlvHistOpen(id){
   body.innerHTML=rows.map(function(r){ return '<div style="display:grid;grid-template-columns:78px 56px 1fr;gap:6px;padding:5px 0;border-bottom:1px solid #f1f5f9;font-size:12px"><span style="color:#64748b">'+kstMDHMof(r.t)+'</span><span style="font-weight:800;color:'+(r.kind==='DB'?'#7c3aed':'#1d4ed8')+'">'+esc(r.who||'?')+'</span><span>'+esc(r.txt)+'</span></div>'; }).join('')+'<div style="font-size:10.5px;color:#94a3b8;margin-top:6px">보라 = DB 변경 기록(자동) · 파랑 = 직배송 기록(사람 글). 시각은 서울 기준.</div>';
 }
 /* (10/15) 🕘 예약 이력 — 예약 칸 변경·추가연결·견적서 저장·재고 차감/복구를 시간순 한글 문장으로 (직배송 카드 이력 창 재사용) */
-var _RSV_KO={date_str:'날짜',time_slot:'시간',status:'상태',customer_name:'고객명',customer_tel:'고객전화',phone:'전화',car_no:'차량번호',car_name:'차종',car_model:'차종',tire_spec:'타이어',tire_pattern:'패턴',qty:'수량',memo:'특이사항',work_note:'작업메모',pay_amount:'금액',pay_method:'결제',pay_method_first:'처음 결제',pay_unit:'단가',pay_qty:'결제 수량',deposit:'예약금',align_state:'얼라인',align_amount:'얼라인 금액',align_amt:'얼라인 금액',chk_align:'얼라인 당일',chk_balance:'밸런스',chk_air:'공기압',chk_tpms:'TPMS',stock_done:'재고 차감',src_kind:'연결 종류',src_product_id:'연결 상품',src_item_id:'연결 입고분',src_qty:'연결 수량',src_dot:'연식',src_lot_id:'재고 칸',src_label:'위치',src_user:'연결한 사람',duration_min:'소요(분)',done_log:'완료 기록',done_by:'완료자',tag_state:'꼬리표',tag_by:'꼬리표 붙인 사람',tag_at:'꼬리표 시각',edited_by:'수정자',edited_at:'수정 시각',user_name:'작성자',tire_loc:'타이어 위치',notice:'안내',review_notice:'리뷰 안내',source:'출처',line:'줄',alignment:'얼라인 여부',kind:'종류',product_id:'상품',item_id:'입고분',dot:'연식',lot_id:'재고 칸',reservation_id:'예약',value:'견적서 내용',key:'키',action:'동작',note:'메모',channel:'경로',ref:'참조',from_loc:'원래 칸',to_loc:'옮긴 칸',out_qty:'출고 수량',out_done:'출고 완료',loc:'칸'};
+var _RSV_KO={out_target:'처리처',out_user:'처리자',out_at:'처리 시각',case_kind:'분류',dtype:'종류',matched_id:'재고 짝',assignee:'담당',platform:'채널',order_no:'주문번호',use_note:'메모',inbound_item_id:'입고 줄',date_str:'날짜',time_slot:'시간',status:'상태',customer_name:'고객명',customer_tel:'고객전화',phone:'전화',car_no:'차량번호',car_name:'차종',car_model:'차종',tire_spec:'타이어',tire_pattern:'패턴',qty:'수량',memo:'특이사항',work_note:'작업메모',pay_amount:'금액',pay_method:'결제',pay_method_first:'처음 결제',pay_unit:'단가',pay_qty:'결제 수량',deposit:'예약금',align_state:'얼라인',align_amount:'얼라인 금액',align_amt:'얼라인 금액',chk_align:'얼라인 당일',chk_balance:'밸런스',chk_air:'공기압',chk_tpms:'TPMS',stock_done:'재고 차감',src_kind:'연결 종류',src_product_id:'연결 상품',src_item_id:'연결 입고분',src_qty:'연결 수량',src_dot:'연식',src_lot_id:'재고 칸',src_label:'위치',src_user:'연결한 사람',duration_min:'소요(분)',done_log:'완료 기록',done_by:'완료자',tag_state:'꼬리표',tag_by:'꼬리표 붙인 사람',tag_at:'꼬리표 시각',edited_by:'수정자',edited_at:'수정 시각',user_name:'작성자',tire_loc:'타이어 위치',notice:'안내',review_notice:'리뷰 안내',source:'출처',line:'줄',alignment:'얼라인 여부',kind:'종류',product_id:'상품',item_id:'입고분',dot:'연식',lot_id:'재고 칸',reservation_id:'예약',value:'견적서 내용',key:'키',action:'동작',note:'메모',channel:'경로',ref:'참조',from_loc:'원래 칸',to_loc:'옮긴 칸',out_qty:'출고 수량',out_done:'출고 완료',loc:'칸'};
 var _RSV_TBL_KO={reservations:'예약',reservation_links:'추가연결',settings:'견적서',stock_logs:'재고이동',stock_lots:'재고 칸',stock_products:'재고 상품',items:'입고분',deliveries:'직배송'};
 function _rsvHistVal(k,v){ if(v==null||v==='')return '(비움)'; if(typeof v==='boolean')return v?'예':'아니오'; if(k==='value'&&typeof v==='object')return '줄 '+((v.rows||[]).length)+'개'+(v.no?' · '+v.no:'')+(v.note?' · 비고 '+String(v.note).slice(0,30):''); if(typeof v==='object')return JSON.stringify(v).slice(0,60); if(/_at$/.test(k)&&/^\d{4}-/.test(String(v)))return kstMDHMof(v); if((k==='src_product_id'||k==='product_id')&&rsvProdMap&&rsvProdMap[v]){ var p=rsvProdMap[v]; return [p.brand,p.name,p.size].filter(Boolean).join(' '); } if((k==='src_item_id'||k==='item_id')&&rsvItemMap&&rsvItemMap[v]){ var it=rsvItemMap[v]; return [it.model,it.spec].filter(Boolean).join(' '); } return String(v).replace(/\n/g,' ⏎ ').slice(0,60); }
 function _rsvHistJson(sv){ if(!sv)return null; var i=String(sv).indexOf('{'); if(i<0)return null; try{ return JSON.parse(String(sv).slice(i)); }catch(e){ return null; } }
@@ -5910,6 +5951,69 @@ async function rsvHistOpen(id){
   if(!rows.length){ body.innerHTML='<div style="color:#64748b">이 예약에 남은 기록이 없습니다.</div>'; return; }
   var col={reservations:'#7c3aed',reservation_links:'#0f766e',settings:'#b45309',stock_logs:'#1d4ed8',items:'#1d4ed8',stock_lots:'#1d4ed8'};
   body.innerHTML=rows.map(function(x){ return '<div style="display:grid;grid-template-columns:78px 56px 1fr;gap:6px;padding:5px 0;border-bottom:1px solid #f1f5f9;font-size:12px"><span style="color:#64748b">'+kstMDHMof(x.t)+'</span><span style="font-weight:800;color:'+(col[x.kind]||'#475569')+'">'+esc(x.who||'?')+'</span><span>'+esc(x.txt)+'</span></div>'; }).join('')+'<div style="font-size:10.5px;color:#94a3b8;margin-top:6px">보라 = 예약 칸 · 초록 = 추가연결 · 갈색 = 견적서 · 파랑 = 재고·입고분. 시각은 서울 기준. 기록 '+rows.length+'건.</div>';
+}
+/* ═══════════ 🧪 👤 손님 화면 (태블릿, A안) 10/19 ═══════════ */
+var CUST={rid:null,mode:'both',active:false,signed:false,cv:null,ctx:null,x:null};
+function custAsk(rid){ window._custRid=rid; var a=document.getElementById('cust-ask'); if(a)a.style.display='flex'; }
+function custMoney(n){ n=Math.round(Number(n)||0); return n.toLocaleString(); }
+async function custStart(rid,mode){
+  var a=document.getElementById('cust-ask'); if(a)a.style.display='none';
+  var r=(reservations||[]).find(function(z){return z.id===rid;}); if(!r){ alert('예약을 찾을 수 없어요'); return; }
+  var x=null; try{ x=_qrX[rid]||await qrLoadX(rid); }catch(e){} x=x||{}; CUST={rid:rid,mode:mode,active:true,signed:false,cv:null,ctx:null,x:x,r:r};
+  var rows=(x.rows||[]).filter(function(z){return z&&z.kind!=='align'&&(z.part||z.pat||z.work||qtNum(z.qty)||qtNum(z.unit)||qtNum(z.pamt)||qtNum(z.labor));});
+  var sum=0; var trs=rows.map(function(z){ var c=qtRowCalc(z); sum+=c.sum||0; return '<tr><td>'+esc(z.part||'')+'</td><td>'+esc([z.pat,z.work].filter(Boolean).join(' · '))+'</td><td style="text-align:right">'+esc(z.qty||'')+'</td><td style="text-align:right">'+(c.sum?custMoney(c.sum):'')+'</td></tr>'; }).join('');
+  var al=(x.rows||[]).filter(function(z){return z&&z.kind==='align';})[0]; if(al&&al.state==='take'&&qtNum(al.labor)){ sum+=qtNum(al.labor); trs+='<tr><td>얼라인</td><td>휠 얼라인먼트</td><td></td><td style="text-align:right">'+custMoney(al.labor)+'</td></tr>'; }
+  var dep=parseInt(r.deposit||0,10)||0; var site=(x.dep_mode==='add')?sum:Math.max(0,sum-dep);
+  var quoteH=rows.length||al?'<div class="cs-sec"><div class="cs-lab">🧾 견적서</div><table class="cs-tbl"><tr><th>품목</th><th>내용</th><th>수량</th><th>금액</th></tr>'+trs+'<tr class="tot"><th colspan="3">현장에서 받을 돈'+(dep?' (예약금 '+custMoney(dep)+'원 '+(x.dep_mode==='add'?'별도':'제외')+')':'')+'</th><th style="text-align:right">'+custMoney(site)+'원</th></tr></table></div>':'<div class="cs-sec"><div class="cs-lab">🧾 견적서</div><div class="cs-memo" style="color:#94a3b8">아직 적힌 항목이 없습니다</div></div>';
+  var memoH='<div class="cs-sec"><div class="cs-lab">📝 작업 내용 · 특이사항</div><div class="cs-memo">'+(r.memo?esc(r.memo):'<span style="color:#94a3b8">적힌 내용 없음</span>')+'</div></div>';
+  var when=(r.date_str||'')+(r.time_slot?' '+r.time_slot:'');
+  var h='<style>#cust-screen{font-size:16px}#cust-screen .cs-bar{background:#0f172a;color:#fff;padding:14px 18px;font-weight:800;display:flex;justify-content:space-between;align-items:center;font-size:17px}#cust-screen .cs-bar small{color:#cbd5e1;font-weight:400;font-size:13px}#cust-screen .cs-in{max-width:820px;margin:0 auto;padding:16px 18px 60px}#cust-screen .cs-sec{margin-bottom:16px}#cust-screen .cs-lab{font-size:13px;color:#64748b;font-weight:800;margin-bottom:6px}#cust-screen .cs-tbl{border-collapse:collapse;width:100%;font-size:15px}#cust-screen .cs-tbl th,#cust-screen .cs-tbl td{border:1px solid #e5e7eb;padding:9px 10px;text-align:left}#cust-screen .cs-tbl th{background:#f1f5f9}#cust-screen .cs-tbl tr.tot th{background:#fef9c3;font-size:16px}#cust-screen .cs-memo{background:#fffbeb;border:1.5px solid #fcd34d;border-radius:10px;padding:12px;font-size:17px;line-height:1.7;white-space:pre-line}#cust-screen .cs-form{display:grid;grid-template-columns:1fr 1fr;gap:10px}#cust-screen .cs-form label{font-size:12px;font-weight:800;color:#475569;display:block;margin-bottom:3px}#cust-screen .cs-form input{width:100%;height:48px;border:1.5px solid #cbd5e1;border-radius:10px;padding:0 12px;font-size:18px;box-sizing:border-box}#cust-screen .cs-full{grid-column:1/3}#cust-screen canvas{border:1.5px dashed #94a3b8;border-radius:10px;width:100%;height:150px;touch-action:none;background:#fff;display:block}#cust-screen .cs-btn{width:100%;height:58px;border:none;border-radius:12px;background:#15803d;color:#fff;font-size:20px;font-weight:800;cursor:pointer}#cust-screen .cs-small{border:1.5px solid #cbd5e1;background:#fff;border-radius:8px;padding:6px 10px;font-size:13px;font-weight:800;cursor:pointer}#cust-screen .cs-lock{position:fixed;inset:0;background:rgba(15,23,42,.95);color:#fff;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;text-align:center;padding:20px}#cust-screen .cs-lock input{height:54px;font-size:26px;width:220px;text-align:center;border-radius:10px;border:none;letter-spacing:8px}@media (max-width:600px){#cust-screen .cs-form{grid-template-columns:1fr}#cust-screen .cs-full{grid-column:1}}</style>';
+  h+='<div class="cs-bar"><span>🛞 타이어게러지</span><small>손님 확인 화면 · '+esc(when)+'</small></div><div class="cs-in" id="cust-in">';
+  h+='<div style="font-size:18px;font-weight:800;margin:4px 0 12px">아래 내용을 확인해 주세요</div>'+(mode==='memo'?'':quoteH)+(mode==='quote'?'':memoH);
+  h+='<div style="font-size:18px;font-weight:800;margin:18px 0 8px">본인 정보를 적어 주세요</div><div class="cs-form">'
+    +'<div><label>이름</label><input id="cs-name" value="'+esc(r.customer_name||'')+'" placeholder="홍길동"></div><div><label>전화번호</label><input id="cs-tel" inputmode="tel" value="'+esc(r.phone||'')+'" placeholder="010-0000-0000"></div>'
+    +'<div><label>차량번호</label><input id="cs-car" value="'+esc(r.car_no||'')+'" placeholder="12가 3456"></div><div><label>차종</label><input id="cs-model" value="'+esc(r.car_name||'')+'" placeholder="그랜저"></div>'
+    +'<div class="cs-full"><label>서명 (손가락으로)</label><canvas id="cs-sign"></canvas><div style="text-align:right;margin-top:4px"><button class="cs-small" onclick="custSignClear()">지우기</button></div></div>'
+    +'<div class="cs-full"><button class="cs-btn" onclick="custSubmit()">✓ 확인 및 서명 완료</button></div></div>'
+    +'<div style="text-align:center;margin-top:14px"><button class="cs-small" style="color:#94a3b8;border-color:#e5e7eb" onclick="custLock()">직원용 🔒</button></div></div>';
+  var sc=document.getElementById('cust-screen'); sc.innerHTML=h; sc.style.display='block';
+  try{ history.pushState({cust:1},''); }catch(e){} window.addEventListener('popstate',custBack); window.addEventListener('beforeunload',custUnload);
+  try{ if(document.documentElement.requestFullscreen)document.documentElement.requestFullscreen().catch(function(){}); }catch(e){}
+  setTimeout(custSignInit,50);
+  try{ logAudit('👤 손님 화면 열기', (r.customer_name||r.phone||'')+' · '+mode); }catch(e){}
+}
+function custBack(){ if(CUST.active){ try{ history.pushState({cust:1},''); }catch(e){} } }
+function custUnload(e){ if(CUST.active){ e.preventDefault(); e.returnValue=''; return ''; } }
+function custSignInit(){ var cv=document.getElementById('cs-sign'); if(!cv)return; var rc=cv.getBoundingClientRect(); cv.width=Math.max(300,rc.width*2); cv.height=300; var ctx=cv.getContext('2d'); ctx.scale(2,2); ctx.lineWidth=2.6; ctx.lineCap='round'; ctx.lineJoin='round'; ctx.strokeStyle='#111'; CUST.cv=cv; CUST.ctx=ctx; var drawing=false;
+  function pos(e){ var b=cv.getBoundingClientRect(); return {x:(e.clientX-b.left)*(cv.width/2/b.width),y:(e.clientY-b.top)*(cv.height/2/b.height)}; }
+  cv.onpointerdown=function(e){ drawing=true; try{ cv.setPointerCapture(e.pointerId); }catch(_e){} var p=pos(e); ctx.beginPath(); ctx.moveTo(p.x,p.y); e.preventDefault(); };
+  cv.onpointermove=function(e){ if(!drawing)return; var p=pos(e); ctx.lineTo(p.x,p.y); ctx.stroke(); CUST.signed=true; e.preventDefault(); };
+  cv.onpointerup=cv.onpointercancel=function(){ drawing=false; };
+}
+function custSignClear(){ if(CUST.ctx&&CUST.cv){ CUST.ctx.clearRect(0,0,CUST.cv.width,CUST.cv.height); CUST.signed=false; } }
+async function custSubmit(){
+  var name=(document.getElementById('cs-name').value||'').trim(), tel=(document.getElementById('cs-tel').value||'').trim(), car=(document.getElementById('cs-car').value||'').trim(), model=(document.getElementById('cs-model').value||'').trim();
+  if(!name){ alert('이름을 적어 주세요'); return; } if(!CUST.signed){ alert('서명을 해 주세요'); return; }
+  var r=CUST.r, rid=CUST.rid, upd={}; if(name&&name!==(r.customer_name||''))upd.customer_name=name; if(tel&&tel!==(r.phone||''))upd.phone=tel; if(car&&car!==(r.car_no||''))upd.car_no=car; if(model&&model!==(r.car_name||''))upd.car_name=model;
+  var sign=''; try{ sign=CUST.cv.toDataURL('image/png'); }catch(e){}
+  try{
+    if(Object.keys(upd).length){ var u=await sb.from('reservations').update(upd).eq('id',rid); if(u&&u.error)throw u.error; Object.assign(r,upd); }
+    var x=Object.assign({},CUST.x||{}); x.sign=sign; x.cust_at=new Date().toISOString(); x.cust_by='손님(태블릿)'; if(!x.name&&name)x.name=name; await qrStoreX(rid,x); try{ _qrX[rid]=x; }catch(e){}
+    try{ logAudit('👤 손님 직접 입력(태블릿)', name+(car?' · '+car:'')+(model?' · '+model:'')+' · 서명', '', Object.keys(upd).map(function(k){return k;}).join(',')||'(이름·전화 그대로)'); }catch(e){}
+  }catch(e){ alert('저장하지 못했어요: '+(e&&e.message||e)+'\n직원을 불러 주세요'); return; }
+  var inEl=document.getElementById('cust-in'); if(inEl)inEl.innerHTML='<div style="text-align:center;padding:70px 20px"><div style="font-size:30px;font-weight:800;margin-bottom:10px">감사합니다 🙏</div><div style="color:#475569;font-size:17px">입력하신 내용이 접수됐습니다.<br>직원에게 태블릿을 돌려주세요.</div></div>';
+  setTimeout(custLock,3000);
+}
+async function custLock(){ var sc=document.getElementById('cust-screen'); if(!sc||!CUST.active)return; if(document.getElementById('cs-lock'))return;
+  var d=document.createElement('div'); d.className='cs-lock'; d.id='cs-lock'; d.innerHTML='<div style="font-size:20px;font-weight:800">🔒 직원 확인</div><div style="font-size:13px;color:#cbd5e1">메신저로 돌아가려면 직원 PIN(마스터 비밀번호)을 넣으세요</div><input id="cs-pin" type="password" inputmode="text" placeholder="PIN" autocomplete="off"><button class="dact" style="height:46px;font-size:15px;font-weight:800;background:#1d4ed8;color:#fff;border-color:#1d4ed8;padding:0 22px" onclick="custUnlock()">메신저로 돌아가기</button><div id="cs-pin-msg" style="font-size:12px;color:#fca5a5;min-height:16px"></div>'; sc.appendChild(d); setTimeout(function(){ var p=document.getElementById('cs-pin'); if(p)p.focus(); },100);
+}
+async function custUnlock(){ var pin=(document.getElementById('cs-pin').value||'').trim(); var pw='tg1234'; try{ var r=await sb.from('stock_settings').select('value').eq('key','master_pw').maybeSingle(); if(r&&r.data&&r.data.value)pw=String(r.data.value); }catch(e){}
+  if(pin!==pw){ var m=document.getElementById('cs-pin-msg'); if(m)m.textContent='PIN이 다릅니다'; try{ logAudit('👤 손님 화면 PIN 틀림',''); }catch(e){} return; }
+  CUST.active=false; window.removeEventListener('popstate',custBack); window.removeEventListener('beforeunload',custUnload); try{ if(document.fullscreenElement&&document.exitFullscreen)document.exitFullscreen().catch(function(){}); }catch(e){}
+  var sc=document.getElementById('cust-screen'); sc.style.display='none'; sc.innerHTML=''; var rid=CUST.rid;
+  if(typeof tabletIsMe==='function'&&tabletIsMe()){ await tabletShow(); if(typeof stkToast==='function')stkToast('👤 손님 입력이 예약에 반영됐어요'); return; }   // 태블릿 모드: 명단으로
+  try{ await loadReservations(); }catch(e){} try{ if(typeof qrShowingFor==='function'&&qrShowingFor(rid)){ qtCur=null; await qrOpen(rid); } else { rsvShowDetail(rid); } }catch(e){}
+  if(typeof stkToast==='function')stkToast('👤 손님 입력이 예약에 반영됐어요');
 }
 function dlvHistClose(){ var b=document.getElementById('dlv-hist'); if(b)b.style.display='none'; }
 async function dlvStkUnlink(id){
@@ -12268,7 +12372,7 @@ async function stkOpenCellHist(loc){
 
 
 /* ===== 전체 데이터 백업 / 삭제 / 복구 (대표 전용) ===== */
-var DB_TABLES=['rooms','users','settings','stock_settings','used_settings','stock_products','stock_lots','stock_logs','used_products','used_lots','used_logs','reservations','reservation_links','staff_schedules','items','deliveries','delivery_logs','jonghap_orders','messages','trade_settle','trade_logs','price_rules','price_rows','tg_trash','audit_logs'];   // (10/14) 빠져 있던 표 8개 추가 — 예약 추가연결·휴무·거래처 정산·정산기록·할인율 규칙·단가표·휴지통·작업기록 // 복구=부모먼저, 삭제=역순 (used_* = 중고타이어방, 테이블 미생성 시 자동 건너뜀)
+var DB_TABLES=['rooms','users','settings','stock_settings','used_settings','stock_products','stock_lots','stock_logs','used_products','used_lots','used_logs','reservations','reservation_links','staff_schedules','items','deliveries','delivery_logs','jonghap_orders','messages','trade_settle','trade_logs','price_rules','price_rows','tg_trash','audit_logs','kd_waybills','tab_logs','day_duty','push_subscriptions','push_mutes'];   // (10/14) 빠져 있던 표 8개 추가 · (10/18) 경동 송장·입고 분석 기록·출동 배정·푸시 2표 추가 — 예약 추가연결·휴무·거래처 정산·정산기록·할인율 규칙·단가표·휴지통·작업기록 // 복구=부모먼저, 삭제=역순 (used_* = 중고타이어방, 테이블 미생성 시 자동 건너뜀)
 var DB_KEY={settings:'key',stock_settings:'key',users:'name'}; // 나머지는 id
 var DB_WIPE_SKIP=['users','rooms','settings','stock_settings','used_settings']; // 보존: 계정·방(구조)·설정·권한 — 데이터만 비움
 var DB_RESTORE_SKIP=['users','rooms','settings','stock_settings','used_settings']; // 복구에서 안 건드림: 계정·방·설정 — 데이터만 채움(room_id는 방 이름으로 재매핑)
@@ -12318,7 +12422,7 @@ async function dbExportAll(){
 
 // ── 보기용 엑셀: 사람이 읽는 용도(관리자 전용). 열 이름은 "한글 (영문)", 값은 한글, 시각은 한국시간. 복구는 ① JSON 백업으로.
 var XLSX_TABLES=DB_TABLES.slice();
-var XLSX_LABEL={rooms:'방목록',users:'직원',settings:'설정',stock_settings:'재고설정',used_settings:'중고설정',stock_products:'재고상품',stock_lots:'재고로트',stock_logs:'재고기록',used_products:'중고상품',used_lots:'중고로트',used_logs:'중고기록',reservations:'예약',reservation_links:'예약 추가연결',staff_schedules:'휴무연차',items:'입고표',deliveries:'직배송',delivery_logs:'직배송기록',jonghap_orders:'종합방주문',messages:'메시지',trade_settle:'거래처정산',trade_logs:'거래처정산기록',price_rules:'할인율규칙',price_rows:'단가표',tg_trash:'휴지통',audit_logs:'작업기록(전체)'};
+var XLSX_LABEL={rooms:'방목록',users:'직원',settings:'설정',stock_settings:'재고설정',used_settings:'중고설정',stock_products:'재고상품',stock_lots:'재고로트',stock_logs:'재고기록',used_products:'중고상품',used_lots:'중고로트',used_logs:'중고기록',reservations:'예약',reservation_links:'예약 추가연결',staff_schedules:'휴무연차',items:'입고표',deliveries:'직배송',delivery_logs:'직배송기록',jonghap_orders:'종합방주문',messages:'메시지',trade_settle:'거래처정산',trade_logs:'거래처정산기록',price_rules:'할인율규칙',price_rows:'단가표',tg_trash:'휴지통',audit_logs:'작업기록(전체)',kd_waybills:'경동 송장',tab_logs:'입고 분석 기록',day_duty:'오늘 출동 배정',push_subscriptions:'푸시 구독',push_mutes:'푸시 끄기'};
 var XLSX_KO={id:'번호',name:'이름',description:'설명',created_at:'등록시각',updated_at:'수정시각',password:'비밀번호',key:'항목',value:'값',room_id:'방',user_id:'직원',user_name:'작성자',content:'내용',
  brand:'브랜드',code:'패턴코드',size:'사이즈',ply:'P수',spec:'재원',category:'분류',source:'출처',factory_price:'공장도가',discount_rate:'할인율',real_cost:'실원가',cost:'직접입력원가',price:'판매가',inst_price:'장착가',memo:'메모',target_qty:'목표수량',target_map:'목표수량(사이즈별)',
  product_id:'상품',dot:'연식',qty:'수량',loc:'위치',src_in:'입고출처',due_date:'예정일',
@@ -19776,7 +19880,7 @@ function rsvShowDetail(id){
     if(isTmp)acts+='<button class="rsv-bt-cancel" onclick="rsvDelete(\''+r.id+'\')">임시예약 취소</button>';
     else acts+='<button class="rsv-bt-cancel" onclick="rsvSetStatus(\''+r.id+'\',\'취소\')">예약취소</button>';
   }
-  acts+='<button class="rsv-bt-reopen" onclick="rsvHistOpen(\''+r.id+'\')" title="이 예약에 일어난 모든 기록">🕘 이력</button>';   // (10/15)
+  acts+='<button class="rsv-bt-reopen" onclick="rsvHistOpen(\''+r.id+'\')" title="이 예약에 일어난 모든 기록">🕘 이력</button><button class="rsv-bt-reopen" onclick="custAsk(\''+r.id+'\')" title="태블릿을 손님에게 — 견적서/특이사항 보여주고 인적사항·서명 받기">👤 손님 화면</button>';   // (10/15·10/19)
   acts+='</div>';
     acts+=rsvBuildLinksHtml(r);
   if(r.date_str && r.status!=='완료' && r.status!=='취소'){ acts+='<div style="margin-top:8px"><button onclick="rsvToUnscheduled(\''+r.id+'\')" style="width:100%;border:1.5px solid #d6b53a;background:#fffbe8;color:#8a6d00;border-radius:9px;padding:10px;font-weight:800;cursor:pointer">📌 미지정으로 보내기 (날짜 미정 보관함)</button></div>'; }
@@ -20461,7 +20565,7 @@ function qrDayHtml(r,d){   // 등록된 예약만: 작업 당일 체크·작업 
   if(r.status==='완료')h+='<button onclick="rsvSetStatus(\''+r.id+'\',\'예약\')">작업완료 취소</button>';
   else if(r.status==='취소')h+='<button onclick="rsvSetStatus(\''+r.id+'\',\'예약\')">예약취소 되돌리기</button><button style="color:#b91c1c;border-color:#fca5a5" onclick="rsvDelete(\''+r.id+'\')">🗑 완전 삭제</button>';
   else{ h+='<button style="background:#15803d;color:#fff;border-color:#15803d" onclick="rsvSetStatus(\''+r.id+'\',\'완료\')">✅ 작업완료</button>'; var isTmp=!(r.src_kind&&(r.src_product_id||r.src_item_id)); h+=isTmp?'<button style="color:#b91c1c;border-color:#fca5a5" onclick="rsvDelete(\''+r.id+'\')">임시예약 취소</button>':'<button style="color:#b91c1c;border-color:#fca5a5" onclick="rsvSetStatus(\''+r.id+'\',\'취소\')">예약취소</button>'; if(r.date_str)h+='<button onclick="rsvToUnscheduled(\''+r.id+'\')">📌 미지정으로</button>'; }
-  h+='<button onclick="rsvHistOpen(\''+r.id+'\')" title="이 예약에 일어난 모든 기록">🕘 이력</button>';   // (10/15)
+  h+='<button onclick="rsvHistOpen(\''+r.id+'\')" title="이 예약에 일어난 모든 기록">🕘 이력</button><button onclick="custAsk(\''+r.id+'\')" title="태블릿을 손님에게">👤 손님 화면</button>';   // (10/15·10/19)
   h+='</div>';
   h+='<details class="qd-fold"><summary>🔗 재고·입고분 연결 관리 '+((r.src_product_id||r.src_item_id||rsvHasLink(r.id))?'<span style="color:#0f766e">연결됨</span>':'<span style="color:#a16207">미연결</span>')+'</summary><div class="bd">'+rsvBuildLinksHtml(r)+'</div></details>';
   h+='<div style="font-size:11px;color:#94a3b8;margin-top:6px">작성자 '+esc(r.user_name||'')+(r.created_at?' · '+kstFmt(r.created_at):'')+(r.edited_by?' · 수정 '+esc(r.edited_by):'')+((d&&d.saved_at)?' · 🧾 견적서 저장 '+esc(d.saved_at)+(d.saved_by?' '+esc(d.saved_by):''):'')+'</div>';
@@ -20497,7 +20601,7 @@ function qrRender(){
   if(r)h+=qrDayHtml(r,d);
   h+='<div class="qr-acts"><button onclick="qtPrint()">🖨 인쇄 / PDF</button><button onclick="qtXlsx()">📥 엑셀</button><button onclick="qtClose()">닫기</button></div>';
   var site=qrSite(d,t);
-  h+='<div class="qr-bar"><div class="sum"><small>현장에서 받을 돈'+(r?' · '+esc(r.status||''):' · 새 예약')+'</small><b id="qr-site2">'+site.toLocaleString()+'원</b></div>'+(r?'<button onclick="rsvHistOpen(\''+r.id+'\')" title="이 예약에 일어난 모든 기록" style="height:44px;border:1.5px solid #cbd5e1;border-radius:10px;background:#fff;font-size:13px;font-weight:800;padding:0 10px;cursor:pointer;margin-right:6px">🕘</button>':'')+(ed?'<button class="save" onclick="qrSave()">'+(r?'💾 저장':'예약 등록')+'</button>':'<button class="save" style="background:#2563eb" onclick="qrEditOn()">✏️ 수정</button>')+'</div>';
+  h+='<div class="qr-bar"><div class="sum"><small>현장에서 받을 돈'+(r?' · '+esc(r.status||''):' · 새 예약')+'</small><b id="qr-site2">'+site.toLocaleString()+'원</b></div>'+(r?'<button onclick="rsvHistOpen(\''+r.id+'\')" title="이 예약에 일어난 모든 기록" style="height:44px;border:1.5px solid #cbd5e1;border-radius:10px;background:#fff;font-size:13px;font-weight:800;padding:0 10px;cursor:pointer;margin-right:6px">🕘</button><button onclick="custAsk(\''+r.id+'\')" title="태블릿을 손님에게 — 견적서/특이사항 보여주고 인적사항·서명 받기" style="height:44px;border:1.5px solid #cbd5e1;border-radius:10px;background:#fff;font-size:13px;font-weight:800;padding:0 10px;cursor:pointer;margin-right:6px">👤</button>':'')+(ed?'<button class="save" onclick="qrSave()">'+(r?'💾 저장':'예약 등록')+'</button>':'<button class="save" style="background:#2563eb" onclick="qrEditOn()">✏️ 수정</button>')+'</div>';
   (qtRotated()?document.getElementById('qt-land-sheet'):document.getElementById('qt-body')).innerHTML=h;
   qtSignInit(); try{ qtHideCols(); }catch(e){} try{ qrLockView(); }catch(e){}
 }
@@ -20659,7 +20763,7 @@ async function qmDetailInject(id){   // 예약 상세 화면에 '견적서 내�
   var alAmt=(r.align_state==='take'||r.align_state==='inform')?(parseInt(r.align_amount||0,10)||0):0, alTxt=r.align_state==='take'?'받기로함':(r.align_state==='inform'?'안내함':'없음');
   var inc=(r.align_state==='take'&&r.chk_align!=='skip')||(r.align_state==='inform'&&r.chk_align==='done');
   var h='<div id="qm-detail" style="margin:8px 0;border:1.5px solid #99e3d0;border-radius:11px;padding:10px 12px;background:#f0fdfa">';
-  h+='<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px"><span style="font-size:12px;font-weight:800;color:#0f766e">🧾 견적서 내용</span><span style="font-size:11.5px;font-weight:700;color:#64748b">견적번호 '+esc(x.no||qrNo(r))+(x.saved_at?'':' · 자동')+'</span><span style="flex:1"></span>'+(x.sign?'<span style="font-size:11px;font-weight:800;color:#0f766e">✍ 서명 있음</span>':'<span style="font-size:11px;color:#94a3b8">서명 없음</span>')+'</div>';
+  h+='<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px"><span style="font-size:12px;font-weight:800;color:#0f766e">🧾 견적서 내용</span><span style="font-size:11.5px;font-weight:700;color:#64748b">견적번호 '+esc(x.no||qrNo(r))+(x.saved_at?'':' · 자동')+'</span><span style="flex:1"></span>'+(x.sign?'<span style="font-size:11px;font-weight:800;color:#0f766e">✍ 서명 있음'+(x.cust_at?' · 👤 손님 입력 '+esc(kstMDHMof(x.cust_at)):'')+'</span>':'<span style="font-size:11px;color:#94a3b8">서명 없음</span>')+'</div>';
   function line(k,v){ return '<div style="display:flex;justify-content:space-between;gap:8px;font-size:12.5px;padding:2px 0"><span style="color:#64748b;flex:none">'+k+'</span><span style="font-weight:700;text-align:right">'+v+'</span></div>'; }
   if(x.name)h+=line('고객명',esc(x.name)); if(x.km)h+=line('주행거리',esc(x.km)); if(x.note)h+=line('비고 (인쇄)',esc(x.note));
   rows.forEach(function(z){ if(!z||z.kind==='align')return; var c=qtRowCalc(z); if(!c.sum&&!z.part&&!z.pat)return; var q=qtNum(z.qty); h+=line(esc((z.part||'항목')+(z.pat?' · '+z.pat:'')+(z.work?' · '+z.work:'')), (q>1&&c.unit?q+' × '+qtFmt(c.unit)+(c.labor?' + 기술료 '+qtFmt(c.labor):''):(c.labor&&!c.pamt?'기술료 '+qtFmt(c.labor):qtFmt(c.pamt)+(c.labor?' + 기술료 '+qtFmt(c.labor):'')))+' = <b>'+qtFmt(c.sum)+'</b>'); });
@@ -21568,7 +21672,7 @@ function qcRender(keepScroll){
     if(r.status==='완료')h+='<button onclick="rsvSetStatus(\''+r.id+'\',\'예약\')">작업완료 취소</button>';
     else if(r.status==='취소')h+='<button onclick="rsvSetStatus(\''+r.id+'\',\'예약\')">예약 되살리기</button><button style="color:#b91c1c;border-color:#fca5a5" onclick="rsvDelete(\''+r.id+'\')">🗑 완전 삭제</button>';
     else{ h+='<button style="background:#15803d;color:#fff;border-color:#15803d" onclick="rsvSetStatus(\''+r.id+'\',\'완료\')">✅ 작업완료</button>'; var isTmp=!(r.src_kind&&(r.src_product_id||r.src_item_id)); h+=isTmp?'<button style="color:#b91c1c;border-color:#fca5a5" onclick="rsvDelete(\''+r.id+'\')">임시예약 취소</button>':'<button style="color:#b91c1c;border-color:#fca5a5" onclick="rsvSetStatus(\''+r.id+'\',\'취소\')">예약취소</button>'; if(r.date_str)h+='<button onclick="rsvToUnscheduled(\''+r.id+'\')">📌 미지정으로</button>'; }
-    h+='<button onclick="rsvHistOpen(\''+r.id+'\')" title="이 예약에 일어난 모든 기록">🕘 이력</button><button onclick="qcPrint()">🖨 인쇄</button><button onclick="qcXlsx()">📥 엑셀</button></div>';
+    h+='<button onclick="rsvHistOpen(\''+r.id+'\')" title="이 예약에 일어난 모든 기록">🕘 이력</button><button onclick="custAsk(\''+r.id+'\')" title="태블릿을 손님에게">👤 손님 화면</button><button onclick="qcPrint()">🖨 인쇄</button><button onclick="qcXlsx()">📥 엑셀</button></div>';
     h+='<div style="font-size:11px;color:#94a3b8;margin-top:6px">작성자 '+esc(r.user_name||'')+(r.created_at?' · '+kstFmt(r.created_at):'')+(r.edited_by?' · 수정 '+esc(r.edited_by):'')+'</div>';
   }else{
     h+='<div class="qc-acts"><button onclick="qcPrint()">🖨 인쇄</button><button onclick="qcXlsx()">📥 엑셀</button></div>';
@@ -21924,7 +22028,9 @@ async function rsvDelete(id){
     <button class="stk-ok" onclick="stkFxSave()">저장</button>
   </div>
 </div></div>
-<div id="dlv-hist" style="display:none;position:fixed;inset:0;z-index:62;background:rgba(0,0,0,.45)" onclick="if(event.target===this)dlvHistClose()">
+<div id="cust-ask" style="display:none;position:fixed;inset:0;z-index:99998;background:rgba(15,23,42,.55);align-items:center;justify-content:center" onclick="if(event.target===this)this.style.display='none'"><div style="background:#fff;border-radius:16px;padding:18px 20px;max-width:360px;width:92%"><div style="font-weight:800;font-size:15px;margin-bottom:6px">👤 손님에게 보여줄 내용</div><div style="font-size:12px;color:#64748b;margin-bottom:12px">누르면 이 기기가 손님 화면으로 바뀝니다. 손님이 확인·서명을 끝내면 직원 PIN(마스터 비밀번호)으로 돌아옵니다.</div><div style="display:flex;flex-direction:column;gap:8px"><button class="dact" style="height:46px;font-size:15px;font-weight:800;background:#1d4ed8;color:#fff;border-color:#1d4ed8" onclick="custStart(window._custRid,'quote')">🧾 견적서</button><button class="dact" style="height:46px;font-size:15px;font-weight:800;background:#1d4ed8;color:#fff;border-color:#1d4ed8" onclick="custStart(window._custRid,'memo')">📝 특이사항</button><button class="dact" style="height:46px;font-size:15px;font-weight:800;background:#0f172a;color:#fff;border-color:#0f172a" onclick="custStart(window._custRid,'both')">둘 다</button><button class="dact" style="height:40px" onclick="document.getElementById('cust-ask').style.display='none'">취소</button></div></div></div>
+<div id="cust-screen" style="display:none;position:fixed;inset:0;z-index:99999;background:#fff;overflow:auto;-webkit-overflow-scrolling:touch"></div>
+<div id="dlv-hist" style="display:none;position:fixed;inset:0;z-index:9990;background:rgba(0,0,0,.45)" onclick="if(event.target===this)dlvHistClose()">
   <div style="background:#fff;max-width:640px;margin:5vh auto;border-radius:14px;padding:14px 16px;box-shadow:0 10px 40px rgba(0,0,0,.3);max-height:88vh;overflow:auto">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><span id="dlv-hist-title" style="font-weight:900;font-size:14px"></span><button onclick="dlvHistClose()" style="border:none;background:none;font-size:22px;cursor:pointer;color:#94a3b8">×</button></div>
     <div id="dlv-hist-body"></div>
