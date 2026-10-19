@@ -2289,6 +2289,7 @@ tr.qr-align.off td input{color:#94a3b8}
   <div id="rsv-cal" class="rsv-cal"></div>
 </div>
 <!-- ===== 종합방 (1단계: 붙여넣기·분류·표시) ===== -->
+<style>@media (max-width:700px){ #orders-screen{overflow-y:auto!important;-webkit-overflow-scrolling:touch} #orders-screen>#om-list{flex:none!important;overflow:visible!important} #om-sum{font-size:14px!important} #om-tabline{font-size:13.5px!important} }</style>
 <div id="orders-screen" style="display:none;flex-direction:column;flex:1;min-height:0;overflow:hidden">
   <div style="padding:8px 14px;background:#fff;border-bottom:1px solid #eee">
     <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
@@ -2298,7 +2299,7 @@ tr.qr-align.off td input{color:#94a3b8}
       <button class="dact" onclick="jhSheetFromFiles()" title="🧪 시험용 — 서버 폴더 시험_시트원본/*.csv">🧪</button>
     </div>
     <div id="om-sum" style="font-size:12.5px;color:#475569;margin:6px 0"></div>
-    <div id="jh-syncinfo" style="font-size:11px;color:#94a3b8;margin:-2px 0 4px"></div>
+    <details id="jh-syncfold" style="font-size:11px;color:#94a3b8;margin:-2px 0 4px"><summary style="cursor:pointer;list-style-position:inside">🔄 동기화 기록 (눌러서 보기)</summary><div id="jh-syncinfo" style="margin-top:2px"></div></details>
     <div class="dlv-tabs" id="om-tabs" style="margin:2px 0 4px"></div>
     <div id="om-tabline" style="font-size:15px;font-weight:800;color:#0f172a;margin:4px 0 2px"></div>
     <div id="om-chips-ch" style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;padding:3px 0"></div>
