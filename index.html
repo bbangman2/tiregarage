@@ -6809,6 +6809,8 @@ function dlvSummaryCard(c,idx,list){
   if(c.due_date&&!c.done&&!c.cancelled)h+='<span class="ddue-badge urgent" style="margin-right:4px">⚠️ '+esc(String(c.due_date).slice(0,14))+'</span> ';
   h+='<span class="dsaddr">'+_addrMain+'</span>';
   h+='<span class="dssub">'+_subHtml+'</span>';
+  var _dsm=[c.note,(c.channel==='trade'?c.trade_memo:'')].filter(function(x){return x&&String(x).trim();}).join(' · ');   /* (10/19) 메모도 접힌 줄에 */
+  if(_dsm)h+='<span style="display:block;margin-top:3px;font-size:12.5px;font-weight:700;color:#9a3412;background:#fff7ed;border-radius:6px;padding:2px 7px;white-space:normal;word-break:break-all">📝 '+esc(_dsm)+'</span>';
   h+='</span></span></div>';
   // 펼침 — 배지(취소/완료필요/N일째/⚠️)는 펼쳤을 때만
   h+='<div class="dsdetail">';
@@ -19019,8 +19021,12 @@ function rsvEngLine(r){
   if(!line)line='(내용 없음)';
   return line;
 }
+var RSV_QF='';   // (10/19) 예약방 견적서 칩: ''=전체, 'done'=작성됨, 'none'=미작성
+function rsvSetQF(v){ RSV_QF=(RSV_QF===v)?'':v; renderReserve(); }
+function rsvQChipsHtml(){ var b=function(v,lab,col){ var on=RSV_QF===v; return '<button onclick="rsvSetQF(\''+v+'\')" style="border:1.5px solid '+(on?col:'#cbd5e1')+';background:'+(on?col:'#fff')+';color:'+(on?'#fff':'#334155')+';border-radius:16px;padding:4px 11px;font-size:12px;font-weight:800;cursor:pointer">'+lab+'</button>'; }; return '<div id="rsv-qchips" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:6px 0 2px"><span style="font-size:11px;color:#94a3b8;font-weight:800">견적서</span>'+b('','전체','#0f172a')+b('done','🧾 작성됨','#15803d')+b('none','🧾 미작성','#dc2626')+(RSV_QF?'<span style="font-size:11px;color:#64748b">— 날짜 상관없이 모두 · 이름을 검색칸에 쓰면 그 사람 것만</span>':'')+'</div>'; }
 function renderReserve(){
   rsvFillTimeOptions();
+  (function(){ var si=document.getElementById('rsv-search'); if(!si)return; var ex=document.getElementById('rsv-qchips'); var hh=rsvQChipsHtml(); if(ex)ex.outerHTML=hh; else si.insertAdjacentHTML('afterend',hh); })();   // (10/19) 견적서 칩
   var todayDs=rsvDateStr(new Date());
   // 요약
   var todays=rsvByDate(todayDs);
@@ -19030,7 +19036,7 @@ function renderReserve(){
   rsvRenderUnscheduled();
   var sq=((document.getElementById('rsv-search')||{}).value||'').trim();
   var _hasRange=((document.getElementById('rsv-srch-from')||{}).value)||((document.getElementById('rsv-srch-to')||{}).value);
-  if(sq||_hasRange){ rsvRenderSearchList(sq); return; }
+  if(sq||_hasRange||RSV_QF){ rsvRenderSearchList(sq); return; }   // (10/19) 칩만 눌러도 목록
   if(reserveView==='month')renderReserveMonth();
   else if(reserveView==='day')renderReserveDay();
   else renderReserveWeek();
@@ -19077,24 +19083,28 @@ function rsvRenderSearchList(q){
       if(r.chk_balance)_chk.push('휠밸런스 밸런스');
       if(r.chk_air)_chk.push('공기압');
       if(r.chk_tpms)_chk.push('TPMS');
+      var _qs=rsvQuoteState(r), _dn=rsvDoneBy(r); if(_qs==='done')_chk.push('견적서 작성됨 견적작성 작성'); else if(_qs==='none')_chk.push('견적서 미작성 견적미작성 미작성'); if(_dn)_chk.push('완료 '+_dn);
       var hay=[r.memo,r.work_note,r.tire_spec,r.tire_pattern,r.phone,r.car_no,r.car_name,r.user_name,r.date_str,r.time_slot,r.status].concat(_amts).concat(_chk).filter(Boolean).join(' ').toLowerCase();
-      if(hay.indexOf(ql)<0) return false;
+      if(!ql.split(/\s+/).filter(Boolean).every(function(tk){ return hay.indexOf(tk)>=0; })) return false;   // (10/19) 띄어 쓴 낱말 모두
     }
+    if(RSV_QF){ var _q2=rsvQuoteState(r); if(RSV_QF==='done'&&_q2!=='done')return false; if(RSV_QF==='none'&&_q2==='done')return false; if(r.status==='취소')return false; }   // (10/19) 견적서 칩
     return true;
   });
   list.sort(function(a,b){return (b.date_str+(b.time_slot||'')).localeCompare(a.date_str+(a.time_slot||''));});
   var el=document.getElementById('rsv-cal'); if(!el)return;
-  document.getElementById('rsv-title').textContent='검색';
+  document.getElementById('rsv-title').textContent=RSV_QF?(RSV_QF==='none'?'견적서 미작성':'견적서 작성됨'):'검색';
   if(!list.length&&!schH){el.innerHTML='<div style="text-align:center;color:#aaa;padding:24px 0;font-size:13px">검색 결과 없음'+(q?' — "'+esc(q)+'"':'')+'</div>';return;}
   var h=schH+'<div style="font-size:12px;color:#888;margin-bottom:8px">📅 예약 '+list.length+'건</div>'+(list.length?'':'<div style="text-align:center;color:#aaa;padding:12px 0;font-size:12.5px">예약 검색 결과 없음</div>');
+  var _lastD=null;
   list.forEach(function(r){
+    if((r.date_str||'')!==_lastD){ _lastD=r.date_str||''; var _n=list.filter(function(x){return (x.date_str||'')===_lastD;}).length; h+='<div style="font-weight:800;color:#334155;margin:12px 0 5px;font-size:13px;border-bottom:1px solid #e2e8f0;padding-bottom:3px">📅 '+esc(_lastD||'미지정')+' <span style="color:#94a3b8;font-weight:600">'+_n+'건</span></div>'; }   // (10/19) 날짜별 머리줄
     var _pv=r.pay_amount?(parseInt(String(r.pay_amount).replace(/[^0-9]/g,''),10)||0):0;
     var _av=((r.align_state==='take'&&r.chk_align!=='skip')||(r.align_state==='inform'&&r.chk_align==='done'))?(r.align_amount||0):0; var _tot=_pv+_av;
     var stc=r.status==='완료'?'#1a6c4e':(r.status==='취소'?'#aaa':'#1f6feb');
     var dd=new Date(r.date_str+'T00:00:00');
     var dow=['일','월','화','수','목','금','토'][dd.getDay()];
     h+='<div class="rsv-dl-card" onclick="rsvShowDetail(\''+r.id+'\')">'+
-       '<div class="rsv-dl-time">'+rsvHi(r.date_str,q)+' ('+dow+') '+rsvHi(r.time_slot||'',q)+' <span style="color:'+stc+'">· '+rsvHi(r.status,q)+'</span></div>'+(r.memo?'<div class="rsv-memo-top">📝 '+rsvHi(r.memo,q)+'</div>':'')+((r.car_name||r.car_no||r.phone)?'<div style="font-size:12.5px;color:#3a4256;font-weight:600;margin:2px 0">'+rsvHi([r.car_name,r.car_no].filter(Boolean).join(' · '),q)+(r.phone?' <span style="color:#8a93a5;font-weight:500">'+rsvHi(r.phone,q)+'</span>':'')+'</div>':'')+(function(){var cs='';var cp=function(t,bg,fg){return '<span style="font-size:10px;font-weight:800;border-radius:5px;padding:2px 6px;background:'+bg+';color:'+fg+'">'+t+'</span>';};if(rsvTagOn(r))cs+=cp('🏷 꼬리표','#ffedd5','#9a3412');if(r.chk_align==='done')cs+=cp('얼라인 ✓','#e7f5ec','#15803d');else if(r.chk_align==='skip')cs+=cp('얼라인 ✗','#fdeaea','#dc2626');else if(r.align_state==='take'||r.align_state==='inform')cs+=cp('얼라인 요청','#fef3e2','#b45309');if(r.chk_balance)cs+=cp('밸런스 ✓','#e7f5ec','#15803d');if(r.chk_air)cs+=cp('공기압 ✓','#e7f5ec','#15803d');if(r.chk_tpms)cs+=cp('TPMS ✓','#e7f5ec','#15803d');return cs?'<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px">'+cs+'</div>':'';})()+
+       '<div class="rsv-dl-time">'+rsvHi(r.date_str,q)+' ('+dow+') '+rsvHi(r.time_slot||'',q)+' <span style="color:'+stc+'">· '+rsvHi(r.status,q)+'</span> '+rsvAuthorChip(r)+' '+rsvQuoteChip(r)+'</div>'+(r.memo?'<div class="rsv-memo-top">📝 '+rsvHi(r.memo,q)+'</div>':'')+((r.car_name||r.car_no||r.phone)?'<div style="font-size:12.5px;color:#3a4256;font-weight:600;margin:2px 0">'+rsvHi([r.car_name,r.car_no].filter(Boolean).join(' · '),q)+(r.phone?' <span style="color:#8a93a5;font-weight:500">'+rsvHi(r.phone,q)+'</span>':'')+'</div>':'')+(function(){var cs='';var cp=function(t,bg,fg){return '<span style="font-size:10px;font-weight:800;border-radius:5px;padding:2px 6px;background:'+bg+';color:'+fg+'">'+t+'</span>';};if(rsvTagOn(r))cs+=cp('🏷 꼬리표','#ffedd5','#9a3412');if(r.chk_align==='done')cs+=cp('얼라인 ✓','#e7f5ec','#15803d');else if(r.chk_align==='skip')cs+=cp('얼라인 ✗','#fdeaea','#dc2626');else if(r.align_state==='take'||r.align_state==='inform')cs+=cp('얼라인 요청','#fef3e2','#b45309');if(r.chk_balance)cs+=cp('밸런스 ✓','#e7f5ec','#15803d');if(r.chk_air)cs+=cp('공기압 ✓','#e7f5ec','#15803d');if(r.chk_tpms)cs+=cp('TPMS ✓','#e7f5ec','#15803d');return cs?'<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px">'+cs+'</div>':'';})()+
        (r.memo?'':'<div class="rsv-dl-eng">'+rsvHi(rsvShowLine(r),q)+'</div>')+
        (_tot>0?'<div class="rsv-dl-pay">현장 합계 '+rsvHi(rsvWon(_tot),q)+'</div>':'')+rsvHitLines(r,q)+
        '</div>';
@@ -19231,7 +19241,7 @@ function rsvTlPlaceBlock(ds,e){
   b.style.top=top+'px';b.style.height=ht+'px';
   b.style.left='calc('+(e._col*w)+'% + 1px)';b.style.width='calc('+w+'% - 2px)';
   var _et=(e._s!=null)?_rsvHM(e._s+e._dur):'';
-  var _ac='<div style="margin-top:2px;display:flex;gap:2px;flex-wrap:wrap">'+rsvAuthorChip(e)+rsvQuoteChip(e)+'</div>';   // (10/19) 작성자·견적서
+  var _qsE=rsvQuoteState(e), _dnE=rsvDoneBy(e); var _ac='<div style="margin-top:2px;font-size:9.5px;font-weight:800;color:#334155;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+(e.user_name?'✍'+esc(e.user_name):'')+(_dnE?' <span style="color:#15803d">✅'+esc(_dnE)+'</span>':'')+(_qsE?' · <span style="color:'+(_qsE==='done'?'#15803d':'#dc2626')+'">🧾'+(_qsE==='done'?'✓':'✗')+'</span>':'')+'</div>';   // (10/19) 작성자·완료자·견적서 한 줄
   if(e.memo){ b.innerHTML='<div class="rsv-blk-memo">'+(rsvTagOn(e)?'🏷 ':'')+'📝 '+esc(e.memo)+'</div>'+_ac; b.style.height='auto'; b.style.minHeight=ht+'px'; b.classList.add('memo'); }   // 🧪 목업6: 특이사항이 있으면 그 글 전체만(줄바꿈), 블록은 글만큼 늘어남
   else{ b.innerHTML='<div class="bt">'+(rsvTagOn(e)?'🏷 ':'')+(e.time_slot||'')+(_et?'~'+_et:'')+sub+'</div>'+esc(rsvShowLine(e))+_ac; b.style.height='auto'; b.style.minHeight=ht+'px'; }   // 🧪 목업5: 없으면 시간+견적 내용
   if(e.memo)b.title=e.memo;
@@ -21121,7 +21131,8 @@ var GS_STATE={
 };
 function gsParse(tokens){   // 낱말 → 방 한정 / 글자(상태 포함)
   var rooms=null, text=[], msgRoom=null;
-  tokens.forEach(function(t){ var rw=GS_ROOM_WORDS[t]; if(rw){ rooms=(rooms||[]).concat(rw); if(GS_MSG_ROOM[t])msgRoom=GS_MSG_ROOM[t]; return; } text.push(t); });
+  (function(){ var hasQ=tokens.some(function(t){return /^(견적서|견적)$/.test(t);}), q=null; tokens.forEach(function(t){ if(/^(미작성|견적서미작성|견적미작성)$/.test(t))q='미작성'; else if(/^(작성|작성됨|견적서작성|견적작성|견적서작성됨)$/.test(t)&&(hasQ||/견적/.test(t)))q=q||'견적작성'; }); if(q){ tokens=tokens.filter(function(t){ return !/^(견적서|견적|미작성|견적서미작성|견적미작성|작성|작성됨|견적서작성|견적작성|견적서작성됨)$/.test(t); }).concat([q]); rooms=['rsv']; } })();   // (10/19) 견적서 미작성/작성 → 예약에서
+  tokens.forEach(function(t){ var rw=GS_ROOM_WORDS[t]; if(rw&&!(rooms&&rooms.length===1&&rooms[0]==='rsv'&&GS_QWORD[tokens[tokens.length-1]])){ rooms=(rooms||[]).concat(rw); if(GS_MSG_ROOM[t])msgRoom=GS_MSG_ROOM[t]; return; } text.push(t); });
   if(rooms)rooms=rooms.filter(function(k,i,arr){return arr.indexOf(k)===i;});
   return {rooms:rooms,text:text,msgRoom:msgRoom,tokens:tokens,parcelOnly:tokens.indexOf('택배방')>=0,dlvRoomOnly:tokens.indexOf('직배송방')>=0};   // (10/15) '택배방' 낱말 = 택배방 카드만 · '직배송방' 낱말 = 택배방 카드 제외
 }
