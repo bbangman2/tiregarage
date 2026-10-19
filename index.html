@@ -7434,6 +7434,8 @@ async function clearDlvLogs(){   // 9/17: 삭제 대신 접기(관리자) — �
 // ===== 직배송 붙여넣기 (핑/온라인 형식) =====
 var dlvPasteFmt='ping';
 var dlvParsed=[];
+var _dlvRegBusy=false;   /* (10/19) 등록 두 번 눌림 막기 — 한 번 실행 중이면 무시 */
+(function(){ if(typeof dlvPasteRegister!=='function')return; var _orig=dlvPasteRegister; dlvPasteRegister=async function(){ if(_dlvRegBusy){ if(typeof stkToast==='function')stkToast('등록 중이에요 — 한 번만 눌러 주세요'); return; } _dlvRegBusy=true; var _btns=Array.prototype.slice.call(document.querySelectorAll('[onclick^="dlvPasteRegister"]')); _btns.forEach(function(x){ x.disabled=true; x.style.opacity='0.5'; }); try{ return await _orig.apply(this,arguments); } finally{ setTimeout(function(){ _dlvRegBusy=false; _btns.forEach(function(x){ x.disabled=false; x.style.opacity=''; }); },1500); } }; })();
 var dlvAutoErrs=[];   // 자동인식에서 칸 수 판정이 안 된 줄(등록 제외, 미리보기에 안내)
 const DLV_FMT_DESC={
   bunjang:'<b>번개장터</b>: 구매 화면에서 복사한 글을 그대로 붙여넣으세요. 줄마다 내용으로 알아보기 때문에 <b>줄 순서·빈 줄은 상관없습니다</b>. 한 건은 이렇게 네 줄이면 됩니다:<br><b>유현상</b> (이름 2~4글자)<br><b>(02246) 서울특별시 중랑구 면목로21길 43 (면목동), 1층</b> (괄호 우편번호+주소)<br><b>010-7290-0545</b> (전화)<br><b>한국타이어 Dynapro HP3 (RA55) 245/65R17</b> (상품 — 사이즈가 꼭 들어가야 함, 수량은 뒤에 "2개")<br>주소만 복사됐으면 상품 줄을 직접 이어 적으세요. 여러 건은 <b>빈 줄 + 다음 사람 이름</b>으로 시작하면 각각 한 건.',
