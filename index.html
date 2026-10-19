@@ -9957,11 +9957,11 @@ function jhSheetRow(plat,H,c){   // 시트 한 줄 → 종합방 파서가 내�
     u={order:g('주문번호'),date:jhDateNorm(g('주문일','날짜')),src:g('출고지'),brand:jhNbrand(maker),name:pname,size:jhNsize(g('사이즈')),ply:jhNply(g('세부정보')),qty:parseInt(g('수량'))||1,use:ship,recv:g('받는분이름','받는분','수취인'),tel:g('연락처'),addr:g('주소'),raw:pname,code:jhIsPirelli(maker)?g('제품코드').replace(/\D/g,''):'',ship_raw:ship,remark:g('세부정보'),rsv:'',instock:'',maker:maker,dot:g('DOT'),memo:g('메모'),zip:g('우편번호'),site:'핑',sheet_state:g('확정'),amount:g('정산금액'),cost:g('개별원가'),parcel:g('택배')}; }
   else if(plat==='스팜'){ var nm=g('상품명'), opt=g('옵션'); var qty=g('수량')||at(H['옵션']!=null?H['옵션']+1:-1);
     u={order:g('주문번호')||g('상품주문번호'),order2:g('상품주문번호'),date:jhDateNorm((g('상품주문번호')||g('주문번호')).slice(0,8)),src:g('출고지'),brand:jhFindBrand(nm)||jhName2Brand(nm),name:nm,size:jhNsize(nm)||jhNsize(opt),ply:jhNply(nm)||jhNply(opt),qty:parseInt(qty)||1,use:g('배송방법'),recv:g('수취인명','수취인'),tel:g('연락처'),addr:g('주소'),raw:nm,code:'',ship_raw:g('배송방법'),remark:g('처리내역'),rsv:g('장착예약일','예약일'),instock:g('재고유무'),opt:opt,zip:at(H['연락처']!=null?H['연락처']+1:-1),site:g('주문사이트'),sheet_state:g('처리내역'),amount:'',cost:''}; }
-  else if(plat==='11번가'){ var nm1=g('상품명'), opt1=g('옵션'); var d1=''; for(var i=0;i<4;i++){ if(/^20\d{6}$/.test(at(i))){ d1=at(i); break; } }
-    u={order:g('주문번호'),date:jhDateNorm(d1),src:g('출고지'),brand:jhFindBrand(nm1)||jhName2Brand(nm1),name:nm1,size:jhNsize(nm1)||jhNsize(opt1),ply:jhNply(opt1)||jhNply(nm1),qty:parseInt(g('수량'))||1,use:g('배송방법'),recv:g('수취인'),tel:g('휴대폰번호','연락처'),addr:g('주소'),raw:nm1,code:'',ship_raw:g('배송방법'),remark:opt1,rsv:g('장착예약일','예약일'),instock:g('재고유무'),opt:opt1,zip:g('우편번호'),site:g('주문사이트'),sheet_state:at(0)+(g('재고차감')?' '+g('재고차감'):''),amount:g('주문금액'),cost:'',settle:g('정산예정금액'),parcel:g('택배비')}; }
+  else if(plat==='11번가'){ var nm1=g('상품명'), opt1=g('옵션'); var d1=''; for(var i=0;i<4;i++){ if(/^20\d{6}$/.test(at(i))||/^20\d{2}년\s*\d/.test(at(i))){ d1=at(i); break; } }
+    u={order:g('주문번호'),date:(jhYmd(d1)||jhYmd(g('주문번호').slice(0,8))||jhToday()),_dateRaw:d1,src:g('출고지'),brand:jhFindBrand(nm1)||jhName2Brand(nm1),name:nm1,size:jhNsize(nm1)||jhNsize(opt1),ply:jhNply(opt1)||jhNply(nm1),qty:parseInt(g('수량'))||1,use:g('배송방법'),recv:g('수취인'),tel:g('휴대폰번호','연락처'),addr:g('주소'),raw:nm1,code:'',ship_raw:g('배송방법'),remark:opt1,rsv:g('장착예약일','예약일'),instock:g('재고유무'),opt:opt1,zip:g('우편번호'),site:g('주문사이트'),sheet_state:at(0)+(g('재고차감')?' '+g('재고차감'):''),amount:g('주문금액'),cost:'',settle:g('정산예정금액'),parcel:g('택배비')}; }
   else{ var nm2=g('상품','상품명')||at(7); var codes=jhPcodes(nm2); var br=jhFindBrand(nm2); var c2b=jhCode2Brand(); if(!br&&codes.length){ for(var ci=0;ci<codes.length&&!br;ci++)br=c2b[jhNcode(codes[ci])]||''; } if(!br)br=jhName2Brand(nm2);
     var tel2=g('연락처','휴대폰번호')||at(10), dt2=g('날짜')||at(0);
-    var dk=jhDateNorm(dt2,''); u={order:'TEL-'+(dk?dk.replace(/-/g,''):'x')+'-'+tel2.replace(/\D/g,'').slice(-4)+'-'+(nm2||'').replace(/\s+/g,'').slice(0,10),date:jhDateNorm(dt2),src:g('출고지')||at(5),brand:br,name:nm2,size:jhNsize(nm2),ply:jhNply(nm2),qty:parseInt(g('수량')||at(8))||1,use:g('배송방법')||at(3),recv:g('수취인','수취인명','받는분')||at(9),tel:tel2,addr:g('주소')||at(12),raw:nm2,code:'',ship_raw:g('배송방법')||at(3),remark:g('처리내역')||at(2),rsv:g('예약일','장착예약일')||at(4),instock:g('재고유무')||at(6),zip:g('우편번호')||at(11),site:g('주문사이트')||at(1),sheet_state:g('처리내역')||at(2),amount:'',cost:''}; }
+    var dk=jhDateNorm(dt2,''); u={order:'TEL-'+(dk?dk.replace(/-/g,''):'x')+'-'+tel2.replace(/\D/g,'').slice(-4)+'-'+(nm2||'').replace(/\s+/g,'').slice(0,10),date:jhDateNorm(dt2),src:g('출고지')||at(5),brand:br,name:nm2,size:jhNsize(nm2),ply:jhNply(nm2),qty:parseInt(g('수량')||at(8))||1,use:g('배송방법')||at(3),recv:g('수취인','수취인명','받는분')||at(9),tel:tel2,addr:g('주소')||at(12),raw:nm2,code:'',ship_raw:g('배송방법')||at(3),remark:g('처리내역')||at(2),rsv:g('예약일','장착예약일')||at(4),instock:g('재고유무')||at(6),zip:g('우편번호')||at(11),site:g('주문사이트')||at(1),sheet_state:g('처리내역')||at(2),amount:'',cost:'',_dateRaw:dt2}; }
   if(!u.name&&!u.size)return null;
   u.use=u.use||''; u._dtype=jhDtype(u,c,plat==='전화'?'전화주문':plat); u._case=jhClassify(u); u._match=null; try{ u._match=jhMatchStock(u); }catch(e){}
   u._key=jhOrderKey(plat,u.order,u.size,u.qty,u.date,u.recv,u.name);
@@ -9971,7 +9971,37 @@ function jhRawLine(c){ var a=(c||[]).map(function(x){return String(x==null?'':x)
 function jhRawNorm(s){ return String(s||'').replace(/[\t\s]+$/,''); }
 function jhOrderKey(plat,order,size,qty,date,recv,name){ var nz=function(x){return String(x||'').toLowerCase().replace(/\s+/g,'');}; return plat+'|'+(order?nz(order):(nz(date)+'|'+nz(recv)+'|'+nz(name)))+'|'+nz(size)+'|'+(parseInt(qty,10)||1); }   // 한 주문번호에 상품 여러 줄 → 사이즈·수량까지 열쇠
 function jhSheetDone(plat,u){ var st=String(u.sheet_state||''); if(plat==='스팜'||plat==='전화')return /완료|취소|처리/.test(st); if(plat==='11번가')return /완료|임의출고|취소/.test(st); return false; }   // 핑은 '확정'이 날짜라 처리 여부로 안 봄(7일 규칙만)
-function jhSheetNote(u){ var n=jhPackNote(u); var ex=[]; if(u.site&&u.site!=='핑')ex.push('사이트:'+u.site); if(u.order2&&u.order2!==u.order)ex.push('상품주문:'+u.order2); if(u.zip)ex.push('우편:'+u.zip); if(u.amount)ex.push('금액:'+u.amount); if(u.settle)ex.push('정산:'+u.settle); if(u.cost)ex.push('원가:'+u.cost); if(u.parcel)ex.push('택배비:'+u.parcel); if(u.sheet_state)ex.push('시트상태:'+u.sheet_state); return [n].concat(ex).filter(Boolean).join(' · '); }
+function jhSheetNote(u){ var n=jhPackNote(u); var ex=[]; if(u.site&&u.site!=='핑')ex.push('사이트:'+u.site); if(u.order2&&u.order2!==u.order)ex.push('상품주문:'+u.order2); if(u.zip)ex.push('우편:'+u.zip); if(u.amount)ex.push('금액:'+u.amount); if(u.settle)ex.push('정산:'+u.settle); if(u.cost)ex.push('원가:'+u.cost); if(u.parcel)ex.push('택배비:'+u.parcel); if(u._ord&&u._proc&&u._ord!==u._proc)ex.push('주문일:'+u._ord); if(u._est)ex.push('처리일추정'); if(u.sheet_state)ex.push('시트상태:'+u.sheet_state); return [n].concat(ex).filter(Boolean).join(' · '); }
+/* (10/19) 처리일 도우미 */
+var JH_HOLI={'2025-12-25':1,'2026-01-01':1,'2026-02-16':1,'2026-02-17':1,'2026-02-18':1,'2026-03-02':1,'2026-05-05':1,'2026-05-25':1,'2026-06-03':1,'2026-08-17':1,'2026-09-24':1,'2026-09-25':1,'2026-09-26':1,'2026-10-05':1,'2026-10-09':1,'2026-12-25':1};   // 공휴일(대체 포함) — 처리일 추정에서 건너뜀
+function jhPad(n){ return ('0'+n).slice(-2); }
+function jhYmd(v){ v=String(v||'').trim(); var m=v.match(/^(20\d{2})(?:[-.\/]|년\s*)?(\d{1,2})(?:[-.\/]|월\s*)?(\d{1,2})/); if(!m)return ''; var mo=+m[2], d=+m[3]; if(mo<1||mo>12||d<1||d>31)return ''; return m[1]+'-'+jhPad(mo)+'-'+jhPad(d); }
+function jhAddDay(ds,n){ var d=new Date(ds+'T00:00:00Z'); d.setUTCDate(d.getUTCDate()+n); return d.toISOString().slice(0,10); }
+function jhIsOff(ds){ var w=new Date(ds+'T00:00:00Z').getUTCDay(); return w===0||w===6||!!JH_HOLI[ds]; }
+function jhNextWork(ds){ var g=0; while(jhIsOff(ds)&&g++<10)ds=jhAddDay(ds,1); return ds; }
+function jhMd(v,today){ v=String(v||'').trim(); var y=jhYmd(v); if(y)return y; var m=v.match(/^(\d{1,2})\s*[-.\/월]\s*(\d{1,2})/); if(!m)return ''; var mo=+m[1], d=+m[2]; if(mo<1||mo>12||d<1||d>31)return ''; var yy=+today.slice(0,4); var x=yy+'-'+jhPad(mo)+'-'+jhPad(d); if(x>jhAddDay(today,3))x=(yy-1)+'-'+jhPad(mo)+'-'+jhPad(d); return x; }
+function jhSeenCol(head){ var H=(head||[]).map(function(h){ return String(h||'').replace(/\s+/g,''); }); var ci=H.indexOf('상품주문번호'); if(ci<0)ci=H.indexOf('주문번호'); return ci; }   // 구글 스크립트 _seenKeys와 같은 규칙
+function jhProcDates(plat,us,seen,today){   // u._proc(처리일) · u._ord(주문일) · u._est(추정)
+  var sm=(seen&&seen.m)||{};
+  us.forEach(function(u){ u._est=false; u._ord=''; u._proc='';
+    if(plat==='핑'){ u._ord=jhYmd(u.date); var p=jhMd(u.sheet_state,today); if(p&&u._ord&&p<u._ord)p=(+p.slice(0,4)+1)+p.slice(4); u._proc=p||u._ord||today; u._est=!p; }
+    else if(plat==='전화'){ u._ord=jhMd(u._dateRaw,today); u._proc=u._ord; }
+    else { u._ord=jhYmd(String(u.order||'').slice(0,8))||jhYmd(String(u.order2||'').slice(0,8)); if(plat==='11번가')u._proc=jhYmd(u._dateRaw); }
+  });
+  if(plat==='핑')return;
+  if(plat==='전화'){ var last=''; us.forEach(function(u){ if(u._proc)last=u._proc; else if(last){ u._proc=last; u._est=true; } }); var nx=''; for(var k=us.length-1;k>=0;k--){ if(us[k]._proc)nx=us[k]._proc; else { us[k]._proc=nx||today; us[k]._est=true; } } us.forEach(function(u){ if(!u._ord)u._ord=u._proc; }); return; }
+  var prev='', i=0;
+  while(i<us.length){ var u=us[i]; if(u._proc){ if(u._proc>prev)prev=u._proc; i++; continue; }
+    var j=i, grp=[]; while(j<us.length&&!us[j]._proc&&us[j]._blk===u._blk){ grp.push(us[j]); j++; }
+    var sd=grp.map(function(x){ return x._sk?sm[x._sk]:''; }).filter(Boolean).sort();
+    if(sd.length){ grp.forEach(function(x){ x._proc=sd[0]; }); }   // 구글 스크립트가 처음 본 날 — 묶음 전체를 그날로
+    else { var od=grp.map(function(x){return x._ord;}).filter(Boolean).sort(); var span=od.length?(new Date(od[od.length-1])-new Date(od[0]))/864e5:99;
+      if(od.length&&span<=7){ var e=jhNextWork(od[od.length-1]); if(prev&&e<=prev)e=jhNextWork(jhAddDay(prev,1)); if(e>today)e=today; grp.forEach(function(x){ x._proc=e; x._est=true; }); }
+      else grp.forEach(function(x){ var e=x._ord?jhNextWork(x._ord):(prev||today); if(e>today)e=today; x._proc=e; x._est=true; });   // 빈 줄 없이 몇 주씩 붙은 옛 묶음: 줄마다 주문일 다음 영업일
+    }
+    grp.forEach(function(x){ if(x._proc>prev)prev=x._proc; }); i=j; }
+  us.forEach(function(u){ if(!u._ord)u._ord=u._proc; });
+}
 function jhUuid(){ try{ return crypto.randomUUID(); }catch(e){ return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,function(ch){ var r=Math.random()*16|0; return (ch==='x'?r:(r&0x3|0x8)).toString(16); }); } }
 async function jhSyncRows(sheetName,rows,opt){   // 2차원 줄(머리줄 포함) → jonghap_orders. 돌려줌: {추가,갱신,완료전환,사라짐,건너뜀,오류[]}
   opt=opt||{}; var plat=jhSheetPlatform(sheetName); var R={sheet:sheetName,plat:plat,added:0,updated:0,done:0,gone:0,skipped:0,skipEmpty:0,skipDup:0,errors:[]};
@@ -9980,38 +10010,44 @@ async function jhSyncRows(sheetName,rows,opt){   // 2차원 줄(머리줄 포함
   var hi=-1; for(var i=0;i<Math.min(rows.length,10);i++){ if(jhIsHdrRow(rows[i])){ hi=i; break; } }
   if(hi<0){ R.errors.push('머리줄(주문번호·상품명·수량…)을 못 찾음'); return R; }
   var H=jhHdrIdx(rows[hi]); var who=(typeof me!=='undefined'&&me)?me.name:'?'; var today=jhToday();
-  var seen={}, us=[];
-  for(var r=hi+1;r<rows.length;r++){ var c=rows[r].map(function(x){return String(x==null?'':x);}); if(c.filter(function(x){return x.trim();}).length<4){ continue; } var u=jhSheetRow(plat,H,c); if(!u){ R.skipped++; R.skipEmpty++; continue; } if(seen[u._key]){ R.skipped++; R.skipDup++; continue; } seen[u._key]=1; u._c=c; us.push(u); }
+  var seen={}, us=[]; var _sc=jhSeenCol(rows[hi]), _occ={}, _blk=0;
+  for(var r=hi+1;r<rows.length;r++){ var c=(rows[r]||[]).map(function(x){return String(x==null?'':x);}); var _sk=''; if(_sc>=0){ var _sv=String(c[_sc]||'').trim(); if(_sv){ _occ[_sv]=(_occ[_sv]||0)+1; _sk=_sv+'#'+_occ[_sv]; } } if(c.filter(function(x){return x.trim();}).length<4){ _blk++; continue; } var u=jhSheetRow(plat,H,c); if(u){ u._sk=_sk; u._blk=_blk; } if(!u){ R.skipped++; R.skipEmpty++; continue; } if(seen[u._key]){ R.skipped++; R.skipDup++; continue; } seen[u._key]=1; u._c=c; us.push(u); }
   if(!us.length){ R.errors.push('자료 줄 0'); return R; }
-  var dates=us.map(function(u){return u.date;}).sort(); var dmin=dates[0], dmax=dates[dates.length-1];
+  jhProcDates(plat,us,opt.seen,today);   /* (10/19) 처리일 */
+  us.forEach(function(u){ u._key0=u._key; u._key=jhOrderKey(plat,u.order,u.size,u.qty,u._proc,u.recv,u.name); seen[u._key]=1; });
+  var dates=[]; us.forEach(function(u){ if(u.date)dates.push(jhDateNorm(u.date)); if(u._proc)dates.push(u._proc); }); dates.sort(); var dmin=dates[0], dmax=dates[dates.length-1];
   var ex=await sbFetchAll(function(){ return sb.from('jonghap_orders').select('id,platform,order_no,date_str,status,raw_line,origin_id,logs,reg_user,recv,name,size,qty,out_target,cancelled').eq('platform',plat).gte('date_str',dmin); });   // 시트에 나온 가장 이른 날짜부터(그 전 줄을 못 보면 또 넣음)
   var byKey={}; ex.forEach(function(o){ var k=jhOrderKey(plat,o.order_no,o.size,o.qty,o.date_str,o.recv,o.name); (byKey[k]=byKey[k]||[]).push(o); });
   var ins=[], ups=[];
-  us.forEach(function(u){ var olds=byKey[u._key]; var raw=jhRawLine(u._c); var sheetDone=jhSheetDone(plat,u); var old=(today>jhDateNorm(u.date)&&(new Date(today)-new Date(u.date))/864e5>7);
+  var fixes=[]; R.redated=0; R.oldDone=0;
+  us.forEach(function(u){ var olds=byKey[u._key]||byKey[u._key0]; var raw=jhRawLine(u._c); var sheetDone=jhSheetDone(plat,u); var old=(today>u._proc&&(new Date(today)-new Date(u._proc))/864e5>7);
     if(!olds){ var id=jhUuid(); var status=(sheetDone||old)?'done':'wait';
-      ins.push({id:id,date_str:u.date,origin_id:id,platform:plat,dtype:u._dtype,order_no:u.order||'',src:u.src||'',out_target:status==='done'?(sheetDone?'시트(처리됨)':'시트(지난 주문)'):jhTarget(u._case),case_kind:u._case,brand:u.brand||'',name:u.name||'',code:u.code||'',size:u.size||'',ply:u.ply||'',qty:u.qty||1,recv:u.recv||'',tel:u.tel||'',addr:u.addr||'',use_note:jhSheetNote(u),raw_line:raw,raw_cols:u._c,matched_id:(u._match&&u._match.m)?u._match.m.id:null,matched_kind:(u._case==='stock'||u._case==='pirelli')?'stock':(u._case==='ledger'?'ledger':null),status:status,reg_user:'시트',assignee:'미지정',out_user:status==='done'?'시트':null,out_at:status==='done'?new Date().toISOString():null,logs:[{t:'시트 자동등록',by:who,at:new Date().toISOString(),sheet:sheetName}]});
+      ins.push({id:id,date_str:u._proc,origin_id:id,platform:plat,dtype:u._dtype,order_no:u.order||'',src:u.src||'',out_target:status==='done'?(sheetDone?'시트(처리됨)':'시트(지난 주문)'):jhTarget(u._case),case_kind:u._case,brand:u.brand||'',name:u.name||'',code:u.code||'',size:u.size||'',ply:u.ply||'',qty:u.qty||1,recv:u.recv||'',tel:u.tel||'',addr:u.addr||'',use_note:jhSheetNote(u),raw_line:raw,raw_cols:u._c,matched_id:(u._match&&u._match.m)?u._match.m.id:null,matched_kind:(u._case==='stock'||u._case==='pirelli')?'stock':(u._case==='ledger'?'ledger':null),status:status,reg_user:'시트',assignee:'미지정',out_user:status==='done'?'시트':null,out_at:status==='done'?new Date().toISOString():null,logs:[{t:'시트 자동등록',by:who,at:new Date().toISOString(),sheet:sheetName}]});
     } else { var latest=olds.slice().sort(function(a,b){ return (b.date_str+(b.id)).localeCompare(a.date_str+(a.id)); })[0];
       var changed=jhRawNorm(latest.raw_line)!==jhRawNorm(raw); var toDone=sheetDone&&latest.status==='wait';
       if(changed||toDone){ var lg=Array.isArray(latest.logs)?latest.logs.slice():[]; if(changed)lg.push({t:'시트 변경',by:who,at:new Date().toISOString(),sheet:sheetName,before:String(latest.raw_line||'').slice(0,300)}); if(toDone)lg.push({t:'시트에서 처리됨',by:who,at:new Date().toISOString(),sheet:sheetName,state:u.sheet_state});
         var up={id:latest.id,logs:lg}; if(changed){ Object.assign(up,{dtype:u._dtype,src:u.src||'',brand:u.brand||'',name:u.name||'',code:u.code||'',size:u.size||'',ply:u.ply||'',qty:u.qty||1,recv:u.recv||'',tel:u.tel||'',addr:u.addr||'',use_note:jhSheetNote(u),raw_line:raw,raw_cols:u._c}); } if(toDone){ Object.assign(up,{status:'done',out_target:'시트(처리됨)',out_user:'시트',out_at:new Date().toISOString()}); }
-        ups.push(up); if(changed)R.updated++; if(toDone)R.done++; } }
+        if(latest.reg_user==='시트'&&latest.date_str!==u._proc){ up.date_str=u._proc; up.use_note=jhSheetNote(u); R.redated++; if(!toDone&&latest.status==='wait'&&old){ Object.assign(up,{status:'done',out_target:'시트(지난 주문)',out_user:'시트',out_at:new Date().toISOString()}); R.oldDone++; } }
+        ups.push(up); if(changed)R.updated++; if(toDone)R.done++; }
+      else if(latest.reg_user==='시트'&&latest.date_str!==u._proc){ var fx={id:latest.id,date_str:u._proc,use_note:jhSheetNote(u)}; if(latest.status==='wait'&&old){ Object.assign(fx,{status:'done',out_target:'시트(지난 주문)',out_user:'시트',out_at:new Date().toISOString()}); R.oldDone++; } fixes.push(fx); R.redated++; } }   /* (10/19) 처리일로 다시 맞춤 */
   });
   // 시트에서 사라진 줄(이 시트 날짜 범위 안, 시트로 들어온 줄만) — 지우지 않고 기록만 1회
   ex.forEach(function(o){ if(o.reg_user!=='시트'||o.cancelled)return; var lg0=Array.isArray(o.logs)?o.logs:[]; if(!lg0.some(function(g){return g&&g.sheet===sheetName;}))return;   // 이 시트로 들어온 줄만
     var k=jhOrderKey(plat,o.order_no,o.size,o.qty,o.date_str,o.recv,o.name); if(seen[k])return; var lg=Array.isArray(o.logs)?o.logs:[]; if(lg.some(function(g){return g&&g.t==='시트에서 사라짐';}))return; ups.push({id:o.id,logs:lg.concat([{t:'시트에서 사라짐',by:who,at:new Date().toISOString(),sheet:sheetName}])}); R.gone++; });
   for(var a=0;a<ins.length;a+=200){ var ch=ins.slice(a,a+200); var ir=await sb.from('jonghap_orders').insert(ch); if(ir&&ir.error){ R.errors.push('추가 실패 '+ch.length+'건: '+ir.error.message); } else R.added+=ch.length; }
   for(var b=0;b<ups.length;b++){ var ur=await sb.from('jonghap_orders').update(ups[b]).eq('id',ups[b].id); if(ur&&ur.error)R.errors.push('갱신 실패 '+ups[b].id.slice(0,8)+': '+ur.error.message); }
-  try{ logAudit('주문방 시트 동기화', sheetName+' — 추가 '+R.added+' · 갱신 '+R.updated+' · 처리전환 '+R.done+' · 사라짐 '+R.gone+' · 건너뜀 '+R.skipped+(R.errors.length?' · 오류 '+R.errors.length:'')); }catch(e){}
+  for(var fb=0;fb<fixes.length;fb+=25){ var _ch=fixes.slice(fb,fb+25); var _rs=await Promise.all(_ch.map(function(f){ var id=f.id, v=Object.assign({},f); delete v.id; return sb.from('jonghap_orders').update(v).eq('id',id).then(function(x){ return {id:id,e:x&&x.error}; },function(e){ return {id:id,e:e}; }); })); _rs.forEach(function(x){ if(x.e)R.errors.push('처리일 맞춤 실패 '+String(x.id).slice(0,8)+': '+(x.e.message||x.e)); }); }
+  try{ logAudit('주문방 시트 동기화', sheetName+' — 추가 '+R.added+' · 갱신 '+R.updated+' · 처리전환 '+R.done+' · 사라짐 '+R.gone+' · 처리일 맞춤 '+(R.redated||0)+(R.oldDone?'(지난 미처리→완료 '+R.oldDone+')':'')+' · 건너뜀 '+R.skipped+(R.errors.length?' · 오류 '+R.errors.length:'')); }catch(e){}
   return R;
 }
-function jhSyncSummary(list){ return list.map(function(R){ return R.sheet+': +'+R.added+' 갱신 '+R.updated+' 처리 '+R.done+' 사라짐 '+R.gone+(R.skipped?' 건너뜀 '+R.skipped+'(빈줄 '+(R.skipEmpty||0)+'·중복 '+(R.skipDup||0)+')':'')+(R.errors.length?' ⚠'+R.errors.join('; '):''); }).join(' / '); }
+function jhSyncSummary(list){ return list.map(function(R){ return R.sheet+': +'+R.added+' 갱신 '+R.updated+' 처리 '+R.done+' 사라짐 '+R.gone+(R.redated?' 날짜맞춤 '+R.redated:'')+(R.skipped?' 건너뜀 '+R.skipped+'(빈줄 '+(R.skipEmpty||0)+'·중복 '+(R.skipDup||0)+')':'')+(R.errors.length?' ⚠'+R.errors.join('; '):''); }).join(' / '); }
 async function jhSheetRefresh(){   // (10/19 v2) 구글 스크립트가 settings 'sheet_raw:*'에 밀어 넣은 시트 원문을 읽어 동기화 — 웹 앱 배포·공개 주소 없음
   if(!me||me.name!==ADMIN_NAME){ alert('대표만 시트 최신화를 돌릴 수 있어요 (시트는 15분마다 자동으로 DB에 들어오고, 여기서는 주문방 카드로 옮기는 일만 합니다)'); return; }
   var info=document.getElementById('jh-syncinfo'); if(info)info.textContent='DB에 들어온 시트 읽는 중…';
   var idx=null; try{ var r0=await sb.from('settings').select('value,updated_at').eq('key','sheet_raw_index').maybeSingle(); idx=r0&&r0.data; }catch(e){}
   if(!idx||!idx.value){ if(info)info.textContent=''; alert('아직 시트가 DB에 들어온 적이 없어요.\n구글 시트 → 확장 프로그램 → Apps Script에 시트수집_코드.gs를 넣고 pushNow 한 번, setupTrigger 한 번 실행해 주세요.'); return; }
   var list=(idx.value.sheets||[]).map(function(x){return x.name;}); var out=[];
-  for(var i=0;i<list.length;i++){ if(info)info.textContent='동기화 중… '+list[i]; try{ var r=await sb.from('settings').select('value').eq('key','sheet_raw:'+list[i]).maybeSingle(); var v=r&&r.data&&r.data.value; if(!v||!v.rows){ out.push({sheet:list[i],added:0,updated:0,done:0,gone:0,skipped:0,errors:['DB에 원문 없음']}); continue; } out.push(await jhSyncRows(list[i],v.rows)); }catch(e){ out.push({sheet:list[i],added:0,updated:0,done:0,gone:0,skipped:0,errors:[String(e&&e.message||e)]}); } }
+  for(var i=0;i<list.length;i++){ if(info)info.textContent='동기화 중… '+list[i]; try{ var r=await sb.from('settings').select('value').eq('key','sheet_raw:'+list[i]).maybeSingle(); var v=r&&r.data&&r.data.value; if(!v||!v.rows){ out.push({sheet:list[i],added:0,updated:0,done:0,gone:0,skipped:0,errors:['DB에 원문 없음']}); continue; } var _sv=null; try{ var _sr=await sb.from('settings').select('value').eq('key','sheet_seen:'+list[i]).maybeSingle(); _sv=_sr&&_sr.data&&_sr.data.value; }catch(_e){} out.push(await jhSyncRows(list[i],v.rows,{seen:_sv})); }catch(e){ out.push({sheet:list[i],added:0,updated:0,done:0,gone:0,skipped:0,errors:[String(e&&e.message||e)]}); } }
   var at=idx.value.at?kstMDHMof(idx.value.at):'?';
   if(info)info.textContent='🔄 시트 받은 시각 '+at+' · 동기화 '+kstMDHMof(new Date().toISOString())+' · '+jhSyncSummary(out); await omLoad(); if(typeof stkToast==='function')stkToast('🔄 시트 동기화 끝 — '+jhSyncSummary(out)); window.__jhSyncLast=out; return out;
 }
