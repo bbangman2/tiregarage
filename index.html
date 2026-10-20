@@ -8271,12 +8271,12 @@ async function dlvPasteRegister(){
   var _P=!!window.DLV_PARCEL_ROOM, _tabNew=_P?'parcel':'deliv';
   var _src=_P?dlvParsed.filter(function(d){return !d._skipDirect;}):dlvParsed;
   if(_P&&!_src.length){ alert('등록할 줄이 없어요 — 직배송 줄은 직배송방에 등록하세요'); return; }
-  if(_src.some(function(d){return d&&d.order_no;})){ try{ var _ons=_src.map(function(d){return d.order_no?('핑주문 '+d.order_no):'';}).filter(Boolean); if(_ons.length){ var _ex=await sb.from('deliveries').select('raw_line').eq('room_id',curRoom.id).in('raw_line',_ons); var _have={}; ((_ex&&_ex.data)||[]).forEach(function(x){_have[x.raw_line]=1;}); var _before=_src.length; _src=_src.filter(function(d){return !(d.order_no&&_have['핑주문 '+d.order_no]);}); if(_src.length<_before){ if(typeof stkToast==='function')stkToast('이미 등록된 주문번호 '+(_before-_src.length)+'건은 뺐어요'); if(!_src.length){ alert('전부 이미 등록된 주문이에요'); return; } } } }catch(_e){} }   // 주문번호 중복 방지
+  if(_src.some(function(d){return d&&d.order_no;})){ try{ var _ons=_src.map(function(d){return dlvOrderKeyOf(d);}).filter(Boolean);   /* (10/20) 채널별 열쇠 */ if(_ons.length){ var _ex=await sb.from('deliveries').select('raw_line').eq('room_id',curRoom.id).in('raw_line',_ons); var _have={}; ((_ex&&_ex.data)||[]).forEach(function(x){_have[x.raw_line]=1;}); var _before=_src.length; _src=_src.filter(function(d){ var k=dlvOrderKeyOf(d); return !(k&&_have[k]); }); if(_src.length<_before){ if(typeof stkToast==='function')stkToast('이미 등록된 주문번호 '+(_before-_src.length)+'건은 뺐어요'); if(!_src.length){ alert('전부 이미 등록된 주문이에요'); return; } } } }catch(_e){} }   // 주문번호 중복 방지
   let maxO=Math.max(0,...deliveriesCache.filter(function(x){return x.tab===_tabNew;}).map(function(x){return x.sort_order||0;}));
   const rows=_src.map(function(d){
     let so;
     if(d.channel==='ping'){maxO++;so=maxO;}else{maxO++;so=maxO;}
-    return {room_id:curRoom.id,date_str:ds,tab:_tabNew,channel:d.channel,code:d.code||'',car:1,note:((_P&&d.memo)?d.memo:undefined),raw_line:(d.order_no?('핑주문 '+d.order_no):undefined),
+    return {room_id:curRoom.id,date_str:ds,tab:_tabNew,channel:d.channel,code:d.code||'',car:1,note:((_P&&d.memo)?d.memo:undefined),raw_line:(dlvOrderKeyOf(d)||undefined),
       src:d.src||'',tire:(d.channel==='trade'?(d.tire||''):((d.tire||'')+(d.spec?' '+d.spec:'')).trim()),spec:d.spec||'',trade_client:d.trade_client||'',unit_price:d.unit_price||'',trade_memo:d.trade_memo||'',brand:d.brand||'',qty:d.qty||'',
       addr:d.addr||'',recv:d.recv||'',tel:d.tel||'',zipcode:(dlvZip5(d.zipcode)||undefined),first_date:ds,sort_order:so,user_name:me?me.name:'',
       ship_type:(d.ship_type||undefined),shop_name:(d.shop_name||undefined),
@@ -10138,7 +10138,7 @@ function jhSheetRow(plat,H,c){   // 시트 한 줄 → 종합방 파서가 내�
 }
 function jhRawLine(c){ var a=(c||[]).map(function(x){return String(x==null?'':x);}); var n=a.length; while(n>0&&!a[n-1].trim())n--; return a.slice(0,n).join('\t'); }   // 뒤쪽 빈칸 떼고 탭으로
 function jhRawNorm(s){ return String(s||'').replace(/[\t\s]+$/,''); }
-function jhOrderKey(plat,order,size,qty,date,recv,name){ var nz=function(x){return String(x||'').toLowerCase().replace(/\s+/g,'');}; return plat+'|'+(order?nz(order):(nz(date)+'|'+nz(recv)+'|'+nz(name)))+'|'+nz(size)+'|'+(parseInt(qty,10)||1); }   // 한 주문번호에 상품 여러 줄 → 사이즈·수량까지 열쇠
+function jhOrderKey(plat,order,size,qty,date,recv,name){ var nz=function(x){return String(x||'').toLowerCase().replace(/\s+/g,'');}; if(plat==='핑'&&order)return plat+'|'+nz(order);   /* (10/20) 핑 = 주문번호 하나(같은 번호가 또 나오면 같은 주문을 고쳐 적은 것) */ return plat+'|'+(order?nz(order):(nz(date)+'|'+nz(recv)+'|'+nz(name)))+'|'+nz(size)+'|'+(parseInt(qty,10)||1); }   // 한 주문번호에 상품 여러 줄 → 사이즈·수량까지 열쇠
 function jhSheetDone(plat,u){ var st=String(u.sheet_state||''); if(plat==='스팜'||plat==='전화')return /완료|취소|처리/.test(st); if(plat==='11번가')return /완료|임의출고|취소/.test(st); return false; }   // 핑은 '확정'이 날짜라 처리 여부로 안 봄(7일 규칙만)
 function jhSheetNote(u){ var n=jhPackNote(u); var ex=[]; if(u.site&&u.site!=='핑')ex.push('사이트:'+u.site); if(u.order2&&u.order2!==u.order)ex.push('상품주문:'+u.order2); if(u.zip)ex.push('우편:'+u.zip); if(u.amount)ex.push('금액:'+u.amount); if(u.settle)ex.push('정산:'+u.settle); if(u.cost)ex.push('원가:'+u.cost); if(u.parcel)ex.push('택배비:'+u.parcel); if(u._ord&&u._proc&&u._ord!==u._proc)ex.push('주문일:'+u._ord); if(u._est)ex.push('처리일추정'); if(u.sheet_state)ex.push('시트상태:'+u.sheet_state); return [n].concat(ex).filter(Boolean).join(' · '); }
 /* (10/19) 처리일 도우미 */
@@ -10182,20 +10182,25 @@ async function jhSyncRows(sheetName,rows,opt){   // 2차원 줄(머리줄 포함
   var _keyCols=['주문번호','상품주문번호','상품명','품명'].map(function(k){return H[k];}).filter(function(i){return i!=null;});
   var _jt0=jhToday; jhToday=getTodayISO; jhSheetRow._lazy=true; try{
   var seen={}, us=[]; var _sc=jhSeenCol(rows[hi]), _occ={}, _blk=0;
-  for(var r=hi+1;r<rows.length;r++){ var c=(rows[r]||[]).map(function(x){return String(x==null?'':x);}); var _sk=''; if(_sc>=0){ var _sv=String(c[_sc]||'').trim(); if(_sv){ _occ[_sv]=(_occ[_sv]||0)+1; _sk=_sv+'#'+_occ[_sv]; } } if(_keyCols.length?_keyCols.every(function(i){ return !String(c[i]||'').trim(); }):(c.filter(function(x){return x.trim();}).length<4)){ _blk++; continue; } if(c.filter(function(x){return x.trim();}).length<4)continue; var u=jhSheetRow(plat,H,c); if(u){ u._sk=_sk; u._blk=_blk; } if(!u){ R.skipped++; R.skipEmpty++; continue; } if(seen[u._key]){ R.skipped++; R.skipDup++; continue; } seen[u._key]=1; u._c=c; us.push(u); }
+  for(var r=hi+1;r<rows.length;r++){ var c=(rows[r]||[]).map(function(x){return String(x==null?'':x);}); var _sk=''; if(_sc>=0){ var _sv=String(c[_sc]||'').trim(); if(_sv){ _occ[_sv]=(_occ[_sv]||0)+1; _sk=_sv+'#'+_occ[_sv]; } } if(_keyCols.length?_keyCols.every(function(i){ return !String(c[i]||'').trim(); }):(c.filter(function(x){return x.trim();}).length<4)){ _blk++; continue; } if(c.filter(function(x){return x.trim();}).length<4)continue; var u=jhSheetRow(plat,H,c); if(u){ u._sk=_sk; u._blk=_blk; } if(!u){ R.skipped++; R.skipEmpty++; continue; } u._c=c; if(seen[u._key]){ R.skipped++; R.skipDup++; us[seen[u._key]-1]=u; continue; } seen[u._key]=us.length+1; us.push(u); }   /* (10/20) 같은 열쇠는 나중 줄(최신)로 */
   if(us.length)jhProcDates(plat,us,opt.seen,today);   /* (10/19) 처리일 */
   } finally { jhToday=_jt0; jhSheetRow._lazy=false; }
   if(!us.length){ R.errors.push('자료 줄 0'); return R; }
   us.forEach(function(u){ u._key0=u._key; u._key=jhOrderKey(plat,u.order,u.size,u.qty,u._proc,u.recv,u.name); seen[u._key]=1; });
   var dates=[]; us.forEach(function(u){ if(u.date)dates.push(jhDateNorm(u.date)); if(u._proc)dates.push(u._proc); }); dates.sort(); var dmin=dates[0], dmax=dates[dates.length-1];
-  var ex=await sbFetchAll(function(){ return sb.from('jonghap_orders').select('id,platform,order_no,date_str,status,raw_line,origin_id,logs,reg_user,recv,name,size,qty,out_target,cancelled').eq('platform',plat).gte('date_str',dmin); });   // 시트에 나온 가장 이른 날짜부터(그 전 줄을 못 보면 또 넣음)
+  var ex=await sbFetchAll(function(){ return sb.from('jonghap_orders').select('id,platform,order_no,date_str,status,raw_line,origin_id,logs,reg_user,recv,name,size,qty,out_target,cancelled,created_at').eq('platform',plat).gte('date_str',dmin); });   // 시트에 나온 가장 이른 날짜부터(그 전 줄을 못 보면 또 넣음)
   var byKey={}; ex.forEach(function(o){ var k=jhOrderKey(plat,o.order_no,o.size,o.qty,o.date_str,o.recv,o.name); (byKey[k]=byKey[k]||[]).push(o); });
+  var dupFix=[]; R.dupClean=0; R.dupSent=0;   /* (10/20) 시트 한 줄 = DB 한 줄 */
+  Object.keys(byKey).forEach(function(k){ var L=byKey[k].filter(function(o){ return !o.cancelled&&o.reg_user==='시트'&&!(o.origin_id&&o.origin_id!==o.id); }); if(L.length<2)return;
+    var rk=function(o){ return (o.status==='sent'?3:(o.status==='done'?2:1))*100000+(Array.isArray(o.logs)?o.logs.length:0); };
+    L.sort(function(a,b){ return (rk(b)-rk(a))||String(a.created_at||'').localeCompare(String(b.created_at||''))||String(a.id).localeCompare(String(b.id)); });
+    var keep=L[0]; L.slice(1).forEach(function(o){ if(o.status==='sent')R.dupSent++; o.cancelled=true; dupFix.push({id:o.id,cancelled:true,logs:(Array.isArray(o.logs)?o.logs:[]).concat([{t:'중복 정리',by:who,at:new Date().toISOString(),sheet:sheetName,keep:keep.id}])}); R.dupClean++; }); });
   var ins=[], ups=[];
   var fixes=[]; R.redated=0; R.oldDone=0;
   us.forEach(function(u){ var olds=byKey[u._key]||byKey[u._key0]; var raw=jhRawLine(u._c); var sheetDone=jhSheetDone(plat,u); var old=(today>u._proc&&(new Date(today)-new Date(u._proc))/864e5>7);
     if(!olds){ if(!u._match){ try{ u._match=jhMatchStock(u); }catch(e){} } var id=jhUuid(); var status=(sheetDone||old)?'done':'wait';
       ins.push({id:id,date_str:u._proc,origin_id:id,platform:plat,dtype:u._dtype,order_no:u.order||'',src:u.src||'',out_target:status==='done'?(sheetDone?'시트(처리됨)':'시트(지난 주문)'):jhTarget(u._case),case_kind:u._case,brand:u.brand||'',name:u.name||'',code:u.code||'',size:u.size||'',ply:u.ply||'',qty:u.qty||1,recv:u.recv||'',tel:u.tel||'',addr:u.addr||'',use_note:jhSheetNote(u),raw_line:raw,raw_cols:u._c,matched_id:(u._match&&u._match.m)?u._match.m.id:null,matched_kind:(u._case==='stock'||u._case==='pirelli')?'stock':(u._case==='ledger'?'ledger':null),status:status,reg_user:'시트',assignee:'미지정',out_user:status==='done'?'시트':null,out_at:status==='done'?new Date().toISOString():null,logs:[{t:'시트 자동등록',by:who,at:new Date().toISOString(),sheet:sheetName}]});
-    } else { var latest=olds.slice().sort(function(a,b){ return (b.date_str+(b.id)).localeCompare(a.date_str+(a.id)); })[0];
+    } else { var _act=olds.filter(function(o){return !o.cancelled;}); var latest=(_act.length?_act:olds).slice().sort(function(a,b){ return (b.date_str+(b.id)).localeCompare(a.date_str+(a.id)); })[0];   /* (10/20) 취소 안 된 줄 우선 */
       var changed=jhRawNorm(latest.raw_line)!==jhRawNorm(raw); if(changed){ var _kl=(Array.isArray(latest.logs)?latest.logs:[]).filter(function(g){return g&&g.t==='시트 변경 되돌림';}).pop(); if(_kl&&_kl.keep_raw===jhRawNorm(raw))changed=false; }   /* (10/19) 사람이 '이전 내용 유지'를 고른 변경은 다시 안 덮음 */
       var toDone=sheetDone&&latest.status==='wait';
       if(changed||toDone){ var lg=Array.isArray(latest.logs)?latest.logs.slice():[]; if(changed){ var _bc=String(latest.raw_line||'').split('\t'), _ac=u._c, _df=[]; for(var di=0;di<Math.max(_bc.length,_ac.length);di++){ var _bv=String(_bc[di]||'').trim(), _av=String(_ac[di]||'').trim(); if(_bv!==_av)_df.push({k:String(rows[hi][di]||'').replace(/\s+/g,' ').trim()||('칸'+(di+1)),b:_bv,a:_av}); } lg.push({t:'시트 변경',by:who,at:new Date().toISOString(),sheet:sheetName,before:String(latest.raw_line||'').slice(0,300),review:true,diff:_df.slice(0,20),before_cols:_bc,hdr:rows[hi].map(String)}); }   /* (10/19) 바뀐 칸 — 사람이 확인 */ if(toDone)lg.push({t:'시트에서 처리됨',by:who,at:new Date().toISOString(),sheet:sheetName,state:u.sheet_state});
@@ -10209,11 +10214,12 @@ async function jhSyncRows(sheetName,rows,opt){   // 2차원 줄(머리줄 포함
     var k=jhOrderKey(plat,o.order_no,o.size,o.qty,o.date_str,o.recv,o.name); if(seen[k])return; var lg=Array.isArray(o.logs)?o.logs:[]; if(lg.some(function(g){return g&&g.t==='시트에서 사라짐';}))return; ups.push({id:o.id,logs:lg.concat([{t:'시트에서 사라짐',by:who,at:new Date().toISOString(),sheet:sheetName}])}); R.gone++; });
   for(var a=0;a<ins.length;a+=200){ var ch=ins.slice(a,a+200); var ir=await sb.from('jonghap_orders').insert(ch); if(ir&&ir.error){ R.errors.push('추가 실패 '+ch.length+'건: '+ir.error.message); } else R.added+=ch.length; }
   for(var b=0;b<ups.length;b+=25){ var _uc=ups.slice(b,b+25); var _ur=await Promise.all(_uc.map(function(f){ var id=f.id, v=Object.assign({},f); delete v.id; return sb.from('jonghap_orders').update(v).eq('id',id).then(function(x){ return {id:id,e:x&&x.error}; },function(e){ return {id:id,e:e}; }); })); _ur.forEach(function(x){ if(x.e)R.errors.push('갱신 실패 '+String(x.id).slice(0,8)+': '+(x.e.message||x.e)); }); }   /* (10/19) 25줄씩 동시 */
+  for(var db2=0;db2<dupFix.length;db2+=25){ var _dc=dupFix.slice(db2,db2+25); var _dr=await Promise.all(_dc.map(function(f){ var id=f.id, v=Object.assign({},f); delete v.id; return sb.from('jonghap_orders').update(v).eq('id',id).then(function(x){ return {id:id,e:x&&x.error}; },function(e){ return {id:id,e:e}; }); })); _dr.forEach(function(x){ if(x.e)R.errors.push('중복 정리 실패 '+String(x.id).slice(0,8)+': '+(x.e.message||x.e)); }); }   /* (10/20) */
   for(var fb=0;fb<fixes.length;fb+=25){ var _ch=fixes.slice(fb,fb+25); var _rs=await Promise.all(_ch.map(function(f){ var id=f.id, v=Object.assign({},f); delete v.id; return sb.from('jonghap_orders').update(v).eq('id',id).then(function(x){ return {id:id,e:x&&x.error}; },function(e){ return {id:id,e:e}; }); })); _rs.forEach(function(x){ if(x.e)R.errors.push('처리일 맞춤 실패 '+String(x.id).slice(0,8)+': '+(x.e.message||x.e)); }); }
-  try{ logAudit('주문방 시트 동기화', sheetName+' — 추가 '+R.added+' · 갱신 '+R.updated+' · 처리전환 '+R.done+' · 사라짐 '+R.gone+' · 처리일 맞춤 '+(R.redated||0)+(R.oldDone?'(지난 미처리→완료 '+R.oldDone+')':'')+' · 건너뜀 '+R.skipped+(R.errors.length?' · 오류 '+R.errors.length:'')); }catch(e){}
+  try{ logAudit('주문방 시트 동기화', sheetName+' — 추가 '+R.added+' · 갱신 '+R.updated+' · 처리전환 '+R.done+' · 사라짐 '+R.gone+(R.dupClean?' · 중복 정리 '+R.dupClean+(R.dupSent?'(보낸 줄 '+R.dupSent+' — 직배송방 카드 확인)':''):'')+' · 처리일 맞춤 '+(R.redated||0)+(R.oldDone?'(지난 미처리→완료 '+R.oldDone+')':'')+' · 건너뜀 '+R.skipped+(R.errors.length?' · 오류 '+R.errors.length:'')); }catch(e){}
   return R;
 }
-function jhSyncSummary(list){ return list.map(function(R){ return R.sheet+': +'+R.added+' 갱신 '+R.updated+' 처리 '+R.done+' 사라짐 '+R.gone+(R.redated?' 날짜맞춤 '+R.redated:'')+(R.skipped?' 건너뜀 '+R.skipped+'(빈줄 '+(R.skipEmpty||0)+'·중복 '+(R.skipDup||0)+')':'')+(R.errors.length?' ⚠'+R.errors.join('; '):''); }).join(' / '); }
+function jhSyncSummary(list){ return list.map(function(R){ return R.sheet+': +'+R.added+' 갱신 '+R.updated+' 처리 '+R.done+' 사라짐 '+R.gone+(R.dupClean?' 중복정리 '+R.dupClean:'')+(R.redated?' 날짜맞춤 '+R.redated:'')+(R.skipped?' 건너뜀 '+R.skipped+'(빈줄 '+(R.skipEmpty||0)+'·중복 '+(R.skipDup||0)+')':'')+(R.errors.length?' ⚠'+R.errors.join('; '):''); }).join(' / '); }
 async function jhSheetRefresh(){   // (10/19 v2) 구글 스크립트가 settings 'sheet_raw:*'에 밀어 넣은 시트 원문을 읽어 동기화 — 웹 앱 배포·공개 주소 없음
   if(!me||me.name!==ADMIN_NAME){ alert('대표만 시트 최신화를 돌릴 수 있어요 (시트는 15분마다 자동으로 DB에 들어오고, 여기서는 주문방 카드로 옮기는 일만 합니다)'); return; }
   var info=document.getElementById('jh-syncinfo'); if(info)info.textContent='DB에 들어온 시트 읽는 중…';
@@ -10224,7 +10230,16 @@ async function jhSheetRefresh(){   // (10/19 v2) 구글 스크립트가 settings
   var at=idx.value.at?kstMDHMof(idx.value.at):'?';
   if(info)info.textContent='🔄 시트 받은 시각 '+at+' · 동기화 '+kstMDHMof(new Date().toISOString())+' · '+jhSyncSummary(out); await omLoad(); if(typeof stkToast==='function')stkToast('🔄 시트 동기화 끝 — '+jhSyncSummary(out)); window.__jhSyncLast=out; return out;
 }
-(function(){ var _o=jhSheetRefresh; jhSheetRefresh=async function(){ if(window._jhSyncBusy){ if(typeof stkToast==='function')stkToast('시트 최신화가 이미 돌고 있어요 — 끝날 때까지 기다려 주세요'); return; } window._jhSyncBusy=true; var t0=Date.now(); try{ var r=await _o.apply(this,arguments); var info=document.getElementById('jh-syncinfo'); if(info&&r)info.textContent+=' · '+Math.round((Date.now()-t0)/1000)+'초'; return r; } finally{ window._jhSyncBusy=false; } }; })();   /* (10/19) 겹쳐 돌기 막기 + 걸린 시간 */
+(function(){ var _o=jhSheetRefresh; jhSheetRefresh=async function(){ if(window._jhSyncBusy){ if(typeof stkToast==='function')stkToast('시트 최신화가 이미 돌고 있어요 — 끝날 때까지 기다려 주세요'); return; } window._jhSyncBusy=true; var t0=Date.now(); var _lk=null; try{ _lk=await jhSyncLockGet(); if(!_lk.ok){ var lv=_lk.v||{}; alert('다른 곳에서 시트 최신화가 돌고 있어요 — '+(lv.by||'?')+' · '+(lv.at?kstMDHMof(lv.at):'')+'\n끝난 뒤(보통 몇 초) 다시 눌러 주세요.'); return; } var r=await _o.apply(this,arguments); var info=document.getElementById('jh-syncinfo'); if(info&&r)info.textContent+=' · '+Math.round((Date.now()-t0)/1000)+'초'; return r; } finally{ if(_lk&&_lk.ok)await jhSyncLockFree(_lk.sid); window._jhSyncBusy=false; } }; })();   /* (10/19) 겹쳐 돌기 막기 + 걸린 시간 · (10/20) 컴퓨터가 달라도 DB 표시로 막음 */
+async function jhSyncLockGet(){   /* (10/20) settings 'jh_sync_lock' — 3분 지난 표시는 무효 */
+  var sid=Math.random().toString(36).slice(2)+Date.now().toString(36), who=(typeof me!=='undefined'&&me&&me.name)||'?';
+  var r=await sb.from('settings').select('value').eq('key','jh_sync_lock').maybeSingle(); var v=r&&r.data&&r.data.value;
+  if(v&&v.sid&&(Date.now()-new Date(v.at).getTime())<180000)return {ok:false,v:v};
+  var w=await sb.from('settings').upsert({key:'jh_sync_lock',value:{sid:sid,by:who,at:new Date().toISOString()},updated_at:new Date().toISOString()},{onConflict:'key'}); if(w&&w.error)return {ok:false,v:{by:'(표시 저장 실패: '+w.error.message+')'}};
+  await new Promise(function(res){ setTimeout(res,400); });
+  var r2=await sb.from('settings').select('value').eq('key','jh_sync_lock').maybeSingle(); var v2=r2&&r2.data&&r2.data.value;
+  return (v2&&v2.sid===sid)?{ok:true,sid:sid}:{ok:false,v:v2}; }
+async function jhSyncLockFree(sid){ try{ var r=await sb.from('settings').select('value').eq('key','jh_sync_lock').maybeSingle(); var v=r&&r.data&&r.data.value; if(v&&v.sid===sid)await sb.from('settings').upsert({key:'jh_sync_lock',value:{sid:'',by:'',at:new Date(0).toISOString()},updated_at:new Date().toISOString()},{onConflict:'key'}); }catch(e){} }
 async function jhSheetFromFiles(){   // 🧪 시험: 서버 폴더 시험_시트원본/*.csv
   var names=['핑9월','핑10월','2026스토어팜','11번가','전화주문']; var info=document.getElementById('jh-syncinfo'); var out=[];
   for(var i=0;i<names.length;i++){ if(info)info.textContent='파일 읽는 중… '+names[i]; try{ var q=await fetch('/시험_시트원본/'+encodeURIComponent(names[i])+'.csv?t='+Date.now()); if(!q.ok){ out.push({sheet:names[i],added:0,updated:0,done:0,gone:0,skipped:0,errors:['파일 없음 HTTP '+q.status]}); continue; } var t=await q.text(); out.push(await jhSyncRows(names[i],jhCsvParse(t))); }catch(e){ out.push({sheet:names[i],added:0,updated:0,done:0,gone:0,skipped:0,errors:[String(e&&e.message||e)]}); } }
@@ -10283,7 +10298,13 @@ async function omChgRevert(id){ var o=OM.rows.find(function(x){return x.id===id;
   var u=null; jhSheetRow._lazy=true; try{ u=jhSheetRow(o.platform,jhHdrIdx(g.hdr),g.before_cols.map(String)); }catch(e){} finally{ jhSheetRow._lazy=false; } if(!u){ alert('이전 내용을 읽지 못했어요'); return; }
   var ex={src:u.src||'',brand:u.brand||'',name:u.name||'',code:u.code||'',ply:u.ply||'',recv:u.recv||'',tel:u.tel||'',addr:u.addr||'',raw_line:jhRawLine(g.before_cols),raw_cols:g.before_cols};
   if(await omLogPush(o,{t:'시트 변경 되돌림',by:(me&&me.name)||'?',at:new Date().toISOString(),keep_raw:jhRawNorm(o.raw_line)},ex))omRender(); }
-function omKey(o){ return (o.platform||'')+'주문 '+(o.order_no||''); }   // 직배송방 카드 raw_line 열쇠 (핑주문 N / 스팜주문 N / 11번가주문 N / 전화주문 N)
+function jhSzDigits(s){ return String(s||'').replace(/\b\d{1,2}\s*PR?\b/ig,' ').replace(/\D/g,''); }   /* (10/20) 사이즈 숫자만(8P 같은 P수는 뺌) */
+function jhLineKey(label,no,size){ no=String(no||'').trim(); if(!no)return ''; return (label==='11번가')?(label+'주문 '+no+' · '+jhSzDigits(size)):(label+'주문 '+no); }   // 직배송 카드 열쇠 — 핑·스팜은 번호 하나(스팜=상품주문번호), 11번가는 한 주문에 사이즈 여러 줄이라 번호+사이즈
+function omKeyNo(o){ if(o.platform==='스팜'){ var m=String(o.use_note||'').match(/상품주문:(\d+)/); if(m)return m[1]; } return o.order_no||''; }   // 스팜은 붙여넣기와 같은 상품주문번호
+function omKey(o){ return jhLineKey(o.platform||'',omKeyNo(o),o.size); }
+function omKeyOld(o){ return (o.platform||'')+'주문 '+(o.order_no||''); }   // 10/20 전 열쇠(비추기에서만 찾음)
+var DLV_CH_LABEL={ping:'핑',spam:'스팜',st11:'11번가',tel:'전화'};
+function dlvOrderKeyOf(d){ return d&&d.order_no?jhLineKey(DLV_CH_LABEL[d.channel]||d.channel||'',d.order_no,d.spec||d.tire):''; }   // 직배송방 카드 raw_line 열쇠 (핑주문 N / 스팜주문 N / 11번가주문 N / 전화주문 N)
 function omRange(){ var t=jhToday(); function ago(n){ var d=new Date(t+'T00:00:00+09:00'); d.setDate(d.getDate()-n); return d.toISOString().slice(0,10); } if(OM.period==='custom'){ var ds=(document.getElementById('date-from')||{}).value||t; return [ds,ds]; } if(OM.period==='yest')return [ago(1),ago(1)]; if(OM.period==='today')return [t,t]; var n=parseInt(OM.period,10)||7; return [ago(n-1),t]; }
 function omSetPeriod(p){ OM.period=p; var r=omRange(); gsSetDate(r[1]); omLoad(); }
 async function omInit(){ JH_DATE=jhToday(); if(OM.period==='custom')OM.period='7'; if((!stkP||!stkP.length)&&typeof stkLoad==='function'){ try{ await stkLoad(); }catch(e){} } await omLoad(); }
@@ -10299,9 +10320,9 @@ async function omLoad(){
 }
 async function omMirror(){   // 보낸 줄의 직배송방 상태 비추기 + 취소되면 되돌리기
   OM.mirror={}; var sent=OM.rows.filter(function(o){return o.status==='sent';}); if(!sent.length)return;
-  var keys=sent.map(omKey); var found={};
+  var keys=sent.map(omKey).concat(sent.map(omKeyOld)).filter(Boolean); var found={};   /* (10/20) 새 열쇠 + 옛 열쇠 */
   for(var i=0;i<keys.length;i+=100){ var r=await sb.from('deliveries').select('id,date_str,tab,car,done,confirmed,cancelled,raw_line,room_id').in('raw_line',keys.slice(i,i+100)).order('date_str',{ascending:false}); (r.data||[]).forEach(function(d){ if(!found[d.raw_line]||d.date_str>found[d.raw_line].date_str)found[d.raw_line]=d; }); }
-  for(var j=0;j<sent.length;j++){ var o=sent[j], d=found[omKey(o)]; if(!d){ OM.mirror[o.id]={missing:true}; continue; } OM.mirror[o.id]=d;
+  for(var j=0;j<sent.length;j++){ var o=sent[j], d=found[omKey(o)]||found[omKeyOld(o)]; if(!d){ OM.mirror[o.id]={missing:true}; continue; } OM.mirror[o.id]=d;
     if(d.cancelled){ var who=(me&&me.name)||'?'; var lg=(Array.isArray(o.logs)?o.logs:[]).concat([{t:'직배송방에서 취소돼 되돌아옴',by:who,at:new Date().toISOString(),dlv_id:d.id}]); try{ await sb.from('jonghap_orders').update({status:'wait',out_target:jhTarget(o.case_kind),logs:lg}).eq('id',o.id); o.status='wait'; o.out_target=jhTarget(o.case_kind); o.logs=lg; }catch(e){} }
   }
 }
@@ -14813,10 +14834,7 @@ async function stkRtSaveBulkNew(){
   }catch(e){stkToast('등록 중 오류: '+e.message+' — 지금까지 '+ok+'건');console.error(e);}
   var zeroCnt=items.filter(function(r){return (parseInt(r.qty)||0)<=0;}).length;
   stkRtAdding=false;stkRtAddingCount=1;
-  var _q=document.getElementById('stk-rtq');if(_q)_q.value='';
-  var _br=document.getElementById('stk-rtBrand');if(_br)_br.value='';
-  var _ct=document.getElementById('stk-rtCat');if(_ct)_ct.value='';
-  var _oo=document.getElementById('stk-rtOnlyOut');if(_oo)_oo.checked=false;
+  /* (10/20) 검색어·거르기는 비우지 않음 — 하던 작업 그대로(방금 넣은 줄은 거르기와 상관없이 보임) */
   await stkLoad();await stkLoadLogTab();
   stkRenderTable();
   try{var _hl=document.querySelector('#stk-rtTable tr.stk-justadded');if(_hl&&_hl.scrollIntoView)_hl.scrollIntoView({block:'center'});}catch(_e){}
@@ -14828,6 +14846,41 @@ async function stkRtSaveBulkNew(){
 }
 
 function stkRtCancelAdd(){stkRtAdding=false;stkRenderTable();}
+/* ═══ (10/20) 재고표 상태 기억 — 새로고침해도 하던 자리로 ═══ */
+var STK_RT_STATE_KEY='stkRtState_v1', _stkRtRestoring=false, _stkRtSaveT=null, _stkRtDraftMem={};
+function stkRtDraftCapture(){ if(!stkRtAdding){ _stkRtDraftMem={}; return; } document.querySelectorAll('#stk-rtTable td.rt-newed').forEach(function(td){ var k=td.getAttribute('data-newrow')+'|'+td.getAttribute('data-newfield'); var t=td.textContent; if(td.getAttribute('data-empty')||!t||!t.trim())delete _stkRtDraftMem[k]; else _stkRtDraftMem[k]=t; }); }
+function stkRtDraftRefill(){ if(!stkRtAdding){ _stkRtDraftMem={}; return; } var ks=Object.keys(_stkRtDraftMem); if(!ks.length)return; ks.forEach(function(k){ var p=k.split('|'); var td=document.querySelector('#stk-rtTable td.rt-newed[data-newrow="'+p[0]+'"][data-newfield="'+p[1]+'"]'); if(td&&(td.getAttribute('data-empty')||!td.textContent.trim())){ td.removeAttribute('data-empty'); td.style.color=''; td.textContent=_stkRtDraftMem[k]; } }); try{ stkRtAttachNewRowHandlers(); }catch(e){} }
+function stkRtDraftRead(){ var d={}; if(!stkRtAdding)return d; document.querySelectorAll('#stk-rtTable td.rt-newed').forEach(function(td){ if(td.getAttribute('data-empty'))return; var t=td.textContent; if(t&&t.trim())d[td.getAttribute('data-newrow')+'|'+td.getAttribute('data-newfield')]=t; }); return d; }
+function stkRtStateSave(){ if(_stkRtRestoring)return; try{ var g=function(id){return document.getElementById(id)||{};}; var wrap=(typeof STK_RTV!=='undefined'&&STK_RTV.wrap)||document.querySelector('.stk-rtwrap');
+  var act=!!(typeof curRoom!=='undefined'&&curRoom&&curRoom.name==='재고방'&&window._stkTab128===3);
+  var st={at:Date.now(),active:act,q:g('stk-rtq').value||'',br:g('stk-rtBrand').value||'',cat:g('stk-rtCat').value||'',so:!!g('stk-rtSoldOut').checked,oo:!!g('stk-rtOnlyOut').checked,top:wrap?wrap.scrollTop:0,adding:!!stkRtAdding,n:((typeof stkRtAddingCount!=='undefined')?stkRtAddingCount:1)||1,draft:(stkRtAdding?Object.assign({},_stkRtDraftMem,stkRtDraftRead()):{})};
+  localStorage.setItem(STK_RT_STATE_KEY,JSON.stringify(st)); }catch(e){} }
+function stkRtStateSaveSoon(){ if(_stkRtSaveT)clearTimeout(_stkRtSaveT); _stkRtSaveT=setTimeout(stkRtStateSave,300); }
+function stkRtApplyState(st){ _stkRtRestoring=true; try{ var g=function(id){return document.getElementById(id);};
+  if(g('stk-rtq'))g('stk-rtq').value=st.q||''; if(g('stk-rtSoldOut'))g('stk-rtSoldOut').checked=!!st.so; if(g('stk-rtOnlyOut'))g('stk-rtOnlyOut').checked=!!st.oo;
+  stkTab(3); try{ stkRtFillFilters(); }catch(e){} if(g('stk-rtBrand'))g('stk-rtBrand').value=st.br||''; if(g('stk-rtCat'))g('stk-rtCat').value=st.cat||'';
+  var canAdd=(typeof stkCanInline==='function'&&stkCanInline()); if(st.adding&&canAdd){ stkRtAdding=true; stkRtAddingCount=Math.max(1,st.n||1); _stkRtDraftMem=Object.assign({},st.draft||{}); }
+  stkRenderTable();
+  setTimeout(function(){ try{ if(st.adding&&canAdd){ stkRtAttachNewRowHandlers(); Object.keys(st.draft||{}).forEach(function(k){ var p=k.split('|'); var td=document.querySelector('#stk-rtTable td.rt-newed[data-newrow="'+p[0]+'"][data-newfield="'+p[1]+'"]'); if(td){ td.removeAttribute('data-empty'); td.style.color=''; td.textContent=st.draft[k]; } }); }
+    var wrap=(typeof STK_RTV!=='undefined'&&STK_RTV.wrap)||document.querySelector('.stk-rtwrap'); if(wrap&&st.top){ wrap.scrollTop=st.top; wrap.dispatchEvent(new Event('scroll')); } }catch(e){}
+    setTimeout(function(){ _stkRtRestoring=false; stkRtStateSave(); },300);
+    if(typeof stkToast==='function')stkToast('↩ 재고표 — 하던 자리로 돌아왔어요'+(st.q?' (검색: '+st.q+')':'')+(Object.keys(st.draft||{}).length?' · 쓰던 새 행 '+Object.keys(st.draft).length+'칸':'')); },120);
+  }catch(e){ _stkRtRestoring=false; } }
+async function stkRtStateRestore(){ var st=null; try{ st=JSON.parse(localStorage.getItem(STK_RT_STATE_KEY)||'null'); }catch(e){} if(!st||!st.active||Date.now()-(st.at||0)>12*3600000)return;
+  if(typeof tabletIsMe==='function'&&tabletIsMe())return;
+  var rm=(typeof roomBy==='function')?roomBy(function(x){return x.name==='재고방';}):null; if(!rm)return;
+  if(!curRoom||curRoom.id!==rm.id){ try{ await selectRoom(rm); }catch(e){ return; } }
+  for(var i=0;i<60&&(!stkP||!stkP.length);i++)await new Promise(function(r){setTimeout(r,200);});
+  if(!stkP||!stkP.length)return; stkRtApplyState(st); }
+(function(){
+  var _rt=stkRenderTable; stkRenderTable=function(){ try{ stkRtDraftCapture(); }catch(e){} var r=_rt.apply(this,arguments); try{ stkRtDraftRefill(); }catch(e){} try{ var w=(typeof STK_RTV!=='undefined'&&STK_RTV.wrap); if(w&&!w._stkStateScroll){ w._stkStateScroll=true; w.addEventListener('scroll',stkRtStateSaveSoon,{passive:true}); } }catch(e){} stkRtStateSaveSoon(); return r; };
+  if(typeof stkRtVirtRender==='function'){ var _vr=stkRtVirtRender; stkRtVirtRender=function(){ try{ stkRtDraftCapture(); }catch(e){} var r=_vr.apply(this,arguments); try{ stkRtDraftRefill(); }catch(e){} return r; }; }   /* 스크롤로 다시 그려도 써 둔 글자 유지 */
+  var _tb=stkTab; stkTab=function(i){ var r=_tb.apply(this,arguments); stkRtStateSaveSoon(); return r; };
+  document.addEventListener('input',function(ev){ var t=ev.target; if(t&&t.closest&&t.closest('#stk-rtTable td.rt-newed'))stkRtStateSaveSoon(); },true);
+  window.addEventListener('pagehide',stkRtStateSave); window.addEventListener('beforeunload',stkRtStateSave);
+  if(typeof selectRoom==='function'){ var _sr=selectRoom; selectRoom=async function(){ var r=await _sr.apply(this,arguments); stkRtStateSaveSoon(); return r; }; }
+  if(typeof bootApp==='function'){ var _ba=bootApp; bootApp=async function(){ var r=await _ba.apply(this,arguments); setTimeout(function(){ stkRtStateRestore(); },400); return r; }; }
+})();
 // 엑셀에서 여러 행 복사해서 붙여넣기 → 한꺼번에 신규 등록
 // 형식: 카테고리\t브랜드\t패턴\t코드\t사이즈\t연식\t수량 (탭 구분)
 // 또는: 브랜드\t패턴\t코드\t사이즈\t연식\t수량 (카테고리 없으면 '일반')
@@ -14873,10 +14926,7 @@ async function stkRtBulkPaste(e){
   stkJustAdded=_added;
   var _zero=valid.filter(function(r){return (parseInt(r.qty)||0)<=0;}).length;
   stkRtAdding=false;
-  var _q=document.getElementById('stk-rtq');if(_q)_q.value='';
-  var _br=document.getElementById('stk-rtBrand');if(_br)_br.value='';
-  var _ct=document.getElementById('stk-rtCat');if(_ct)_ct.value='';
-  var _oo=document.getElementById('stk-rtOnlyOut');if(_oo)_oo.checked=false;
+  /* (10/20) 검색어·거르기는 비우지 않음 — 하던 작업 그대로(방금 넣은 줄은 거르기와 상관없이 보임) */
   await stkLoad();
   stkRenderTable();
   try{var _hl=document.querySelector('#stk-rtTable tr.stk-justadded');if(_hl&&_hl.scrollIntoView)_hl.scrollIntoView({block:'center'});}catch(_e){}
@@ -16238,6 +16288,7 @@ function stkRenderTable(){
   var fOnlyOut=(document.getElementById('stk-rtOnlyOut')||{}).checked;  // 출고만(오늘 채널출고 있는 상품만)
   var sums=stkChannelSums();
   var list=stkP.filter(function(p){
+    if(stkJustAdded[p.id])return true;   /* (10/20) 방금 추가한 줄은 거르기와 상관없이 보임 */
     if(fBr&&p.br!==fBr)return false;
     if(fCat&&(p.cat||'일반')!==fCat)return false;
     if(!stkMatch(p,q))return false;
