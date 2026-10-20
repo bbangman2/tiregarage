@@ -3945,7 +3945,9 @@ function getTodayISO(){const k=new Date(Date.now()+9*3600*1000);return k.toISOSt
 async function sbFetchAll(makeQuery){
   var out=[], page=0, SIZE=1000;
   while(true){
-    var r=await makeQuery().range(page*SIZE,(page+1)*SIZE-1);
+    var q=makeQuery(); try{ q=q.order('id',{ascending:true}); }catch(e){}   /* (10/20) 정렬 없이 나눠 읽으면 같은 줄 두 번·누락 — id를 보조 정렬로 */
+    var r=await q.range(page*SIZE,(page+1)*SIZE-1);
+    if(r&&r.error&&/\bid\b/.test(String(r.error.message||''))){ r=await makeQuery().range(page*SIZE,(page+1)*SIZE-1); }   /* id 칸이 없는 표는 원래대로 */
     if(r&&r.error)throw r.error;
     var rows=(r&&r.data)||[];
     out=out.concat(rows);
@@ -10241,15 +10243,15 @@ async function jhSheetRefresh(){   // (10/19 v2) 구글 스크립트가 settings
   if(info)info.textContent='🔄 시트 받은 시각 '+at+' · 동기화 '+kstMDHMof(new Date().toISOString())+' · '+jhSyncSummary(out); await omLoad(); if(typeof stkToast==='function')stkToast('🔄 시트 동기화 끝 — '+jhSyncSummary(out)); window.__jhSyncLast=out; try{ await sb.from('settings').upsert({key:'jh_sync_done',value:{at:new Date().toISOString(),raw_at:idx.value.at||'',by:(me&&me.name)||'?',auto:!!window._jhAutoRun},updated_at:new Date().toISOString()},{onConflict:'key'}); }catch(e){} return out;
 }
 (function(){ var _o=jhSheetRefresh; jhSheetRefresh=async function(){ if(window._jhSyncBusy){ if(typeof stkToast==='function')stkToast('시트 최신화가 이미 돌고 있어요 — 끝날 때까지 기다려 주세요'); return; } window._jhSyncBusy=true; var t0=Date.now(); var _lk=null; try{ _lk=await jhSyncLockGet(); if(!_lk.ok){ var lv=_lk.v||{}; alert('다른 곳에서 시트 최신화가 돌고 있어요 — '+(lv.by||'?')+' · '+(lv.at?kstMDHMof(lv.at):'')+'\n끝난 뒤(보통 몇 초) 다시 눌러 주세요.'); return; } var r=await _o.apply(this,arguments); var info=document.getElementById('jh-syncinfo'); if(info&&r)info.textContent+=' · '+Math.round((Date.now()-t0)/1000)+'초'; return r; } finally{ if(_lk&&_lk.ok)await jhSyncLockFree(_lk.sid); window._jhSyncBusy=false; } }; })();   /* (10/19) 겹쳐 돌기 막기 + 걸린 시간 · (10/20) 컴퓨터가 달라도 DB 표시로 막음 */
-async function jhSyncLockGet(){   /* (10/20) settings 'jh_sync_lock' — 3분 지난 표시는 무효 */
+async function jhSyncLockGet(){   /* (10/20) settings 'jh_sync_lock_v2' — 3분 지난 표시는 무효 */
   var sid=Math.random().toString(36).slice(2)+Date.now().toString(36), who=(typeof me!=='undefined'&&me&&me.name)||'?';
-  var r=await sb.from('settings').select('value').eq('key','jh_sync_lock').maybeSingle(); var v=r&&r.data&&r.data.value;
+  var r=await sb.from('settings').select('value').eq('key','jh_sync_lock_v2').maybeSingle(); var v=r&&r.data&&r.data.value;
   if(v&&v.sid&&(Date.now()-new Date(v.at).getTime())<180000)return {ok:false,v:v};
-  var w=await sb.from('settings').upsert({key:'jh_sync_lock',value:{sid:sid,by:who,at:new Date().toISOString()},updated_at:new Date().toISOString()},{onConflict:'key'}); if(w&&w.error)return {ok:false,v:{by:'(표시 저장 실패: '+w.error.message+')'}};
+  var w=await sb.from('settings').upsert({key:'jh_sync_lock_v2',value:{sid:sid,by:who,at:new Date().toISOString()},updated_at:new Date().toISOString()},{onConflict:'key'}); if(w&&w.error)return {ok:false,v:{by:'(표시 저장 실패: '+w.error.message+')'}};
   await new Promise(function(res){ setTimeout(res,400); });
-  var r2=await sb.from('settings').select('value').eq('key','jh_sync_lock').maybeSingle(); var v2=r2&&r2.data&&r2.data.value;
+  var r2=await sb.from('settings').select('value').eq('key','jh_sync_lock_v2').maybeSingle(); var v2=r2&&r2.data&&r2.data.value;
   return (v2&&v2.sid===sid)?{ok:true,sid:sid}:{ok:false,v:v2}; }
-async function jhSyncLockFree(sid){ try{ var r=await sb.from('settings').select('value').eq('key','jh_sync_lock').maybeSingle(); var v=r&&r.data&&r.data.value; if(v&&v.sid===sid)await sb.from('settings').upsert({key:'jh_sync_lock',value:{sid:'',by:'',at:new Date(0).toISOString()},updated_at:new Date().toISOString()},{onConflict:'key'}); }catch(e){} }
+async function jhSyncLockFree(sid){ try{ var r=await sb.from('settings').select('value').eq('key','jh_sync_lock_v2').maybeSingle(); var v=r&&r.data&&r.data.value; if(v&&v.sid===sid)await sb.from('settings').upsert({key:'jh_sync_lock_v2',value:{sid:'',by:'',at:new Date(0).toISOString()},updated_at:new Date().toISOString()},{onConflict:'key'}); }catch(e){} }
 async function jhSheetFromFiles(){   // 🧪 시험: 서버 폴더 시험_시트원본/*.csv
   var names=['핑9월','핑10월','2026스토어팜','11번가','전화주문']; var info=document.getElementById('jh-syncinfo'); var out=[];
   for(var i=0;i<names.length;i++){ if(info)info.textContent='파일 읽는 중… '+names[i]; try{ var q=await fetch('/시험_시트원본/'+encodeURIComponent(names[i])+'.csv?t='+Date.now()); if(!q.ok){ out.push({sheet:names[i],added:0,updated:0,done:0,gone:0,skipped:0,errors:['파일 없음 HTTP '+q.status]}); continue; } var t=await q.text(); out.push(await jhSyncRows(names[i],jhCsvParse(t))); }catch(e){ out.push({sheet:names[i],added:0,updated:0,done:0,gone:0,skipped:0,errors:[String(e&&e.message||e)]}); } }
