@@ -830,6 +830,7 @@ body.rb-on #app{padding-top:58px}
 .qr-locked{opacity:.75;cursor:default}
 /* ===== 🧾 견적서 (목업) ===== */
 .qt-sheet{font-size:13px;color:#111}
+.qr-neg{border:1px solid #cbd5e1;background:#fff;border-radius:5px;font-size:12px;line-height:1;padding:2px 5px;margin-left:3px;cursor:pointer;color:#b91c1c;font-weight:900;vertical-align:middle}
 .qt-top{display:flex;align-items:flex-end;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:8px}
 .qt-title{font-size:26px;font-weight:900;letter-spacing:14px;text-align:center;flex:1;min-width:160px}
 .qt-no{font-size:12px;font-weight:800;color:#0f766e;background:#f0fdfa;border:1.5px solid #99e3d0;border-radius:7px;padding:4px 9px;white-space:nowrap}
@@ -19378,7 +19379,7 @@ function renderReserve(){
   var todays=rsvByDate(todayDs);
   var done=todays.filter(function(r){return r.status==='완료';}).length;
   var sumEl=document.getElementById('rsv-summary');
-  if(sumEl){ sumEl.innerHTML='오늘 예약 <b>'+todays.length+'</b>건 · 완료 <b>'+done+'</b>건 · 대기 <b>'+(todays.filter(function(r){return r.status!=='완료'&&r.status!=='취소';}).length)+'</b>건'+'<button id="rsv-nt-toggle" onclick="rsvNtToggleAll()"></button>'; rsvNtToggleBtnPaint(); }
+  if(sumEl){ sumEl.innerHTML='오늘 예약 <b>'+todays.length+'</b>건 · 완료 <b>'+done+'</b>건 · 대기 <b>'+(todays.filter(function(r){return r.status!=='완료'&&r.status!=='취소';}).length)+'</b>건'+'<button id="rsv-nt-toggle" onclick="rsvNtToggleAll()"></button><button class="rsv-bt-reopen" style="margin-left:6px" onclick="rsvTrashOpen()" title="지운 예약·견적서 되살리기">🗑 휴지통</button>'; rsvNtToggleBtnPaint(); }   /* (10/20) 휴지통 */
   rsvRenderUnscheduled();
   var sq=((document.getElementById('rsv-search')||{}).value||'').trim();
   var _hasRange=((document.getElementById('rsv-srch-from')||{}).value)||((document.getElementById('rsv-srch-to')||{}).value);
@@ -20612,7 +20613,7 @@ function qtPortrait(){ var land=document.getElementById('qt-land'); qtLandExitFs
   if(qtCur){ document.getElementById('qt-modal').classList.add('on'); qtRender();
     setTimeout(function(){ if(!qtTypingNow()&&!document.getElementById('qt-land')&&document.getElementById('qt-modal').classList.contains('on'))qtRender(); },450); } }
 document.addEventListener('fullscreenchange',function(){ if(!document.fullscreenElement&&_qtLandFs&&document.getElementById('qt-land'))qtPortrait(); });   // 폰 뒤로가기·위에서 끌어내리기로 전체화면이 풀려도 세로 견적서로
-function qtNum(v){v=String(v==null?'':v).replace(/[^0-9.-]/g,'');var n=parseFloat(v);return isFinite(n)?n:0;}
+function qtNum(v){v=String(v==null?'':v).replace(/[−–]/g,'-').replace(/[^0-9.-]/g,'');var n=parseFloat(v);return isFinite(n)?n:0;}   /* (10/20) 마이너스(매입·할인) 인정 */
 function qtFmt(n){n=Math.round(n||0);return n?n.toLocaleString():'';}
 function qtRowCalc(row){var q=qtNum(row.qty),u=qtNum(row.unit),pm=(row.last==='pamt'),lm=(row.llast==='unit'),p,l,lu;   // (10/12) 부품가를 먼저 적었으면(last='pamt') 단가 = 부품가 ÷ 수량 / (10/13) 기술료도 같은 짝: 기술단가×수량 또는 기술료÷수량
   if(pm){p=qtNum(row.pamt);u=(q>0&&p)?Math.round(p/q):0;}else{p=(q&&u)?q*u:0;}
@@ -20649,7 +20650,7 @@ function qtSet(k,v){if(!qtCur)return;qtCur[k]=v;if(k==='date')qrCustDateSync();i
 function qrCustDateTxt(d){ d=d||qtCur; if(!d||!d.rsv)return (d&&d.date)||''; return (d.date||'')+(d.rsv.time?' '+d.rsv.time+' '+qrEndTxt(d.rsv):''); }
 function qrCustDateSync(){ var e=document.getElementById('qr-cust-date'); if(e)e.textContent=qrCustDateTxt(qtCur); }   // (10/15) 맨 위에서 고르는 즉시 고객 칸 날짜도
 function qtSetRow(i,k,v){if(!qtCur||!qtCur.rows[i])return;var row=qtCur.rows[i];
-  if(k==='sum'){ var _c=qtRowCalc(row), _t=qtNum(v); row.pamt=_t?String(Math.max(0,_t-_c.labor)):''; row.last='pamt'; qtRecalc(); return; }   // (10/14) 합계(총액) 적으면 부품가 = 총액 − 기술료, 단가 = 부품가 ÷ 수량
+  if(k==='sum'){ var _c=qtRowCalc(row), _t=qtNum(v); row.pamt=_t?String(_t-_c.labor):''; row.last='pamt'; qtRecalc(); return; }   /* (10/20) 0 아래도 */   // (10/14) 합계(총액) 적으면 부품가 = 총액 − 기술료, 단가 = 부품가 ÷ 수량
   row[k]=v;if(k==='unit')row.last='unit';if(k==='pamt')row.last='pamt';if(k==='lunit')row.llast='unit';if(k==='labor')row.llast='total';if(k==='qty'||k==='unit'||k==='labor'||k==='pamt'||k==='lunit')qtRecalc();}
 function qtRecalc(){
   if(!qtCur)return;
@@ -20660,12 +20661,60 @@ function qtRecalc(){
     if(un&&un.tagName==='INPUT'&&ae!==un)un.value=c.unit?qtFmt(c.unit):'';   // 부품가를 적는 중이면 단가가 나눠져 채워짐
     var lb=document.getElementById('qt-labor-'+i), lu=document.getElementById('qt-lunit-'+i);
     if(lb&&ae!==lb)lb.value=c.labor?qtFmt(c.labor):''; if(lu&&ae!==lu)lu.value=c.lunit?qtFmt(c.lunit):'';   // 기술료 ↔ 기술단가도 같은 식
-    if(b){ if(b.tagName==='INPUT'){ if(ae!==b)b.value=c.sum?qtFmt(c.sum):''; } else b.textContent=qtFmt(c.sum); }});
+    if(b){ if(b.tagName==='INPUT'){ if(ae!==b)b.value=c.sum?qtFmt(c.sum):''; } else b.textContent=qtFmt(c.sum); b.style.color=c.sum<0?'#b91c1c':''; b.style.fontWeight=c.sum<0?'800':''; }});   /* (10/20) 빼는 줄 빨갛게 */
   if(qtCur.rsv)setTimeout(function(){ try{ qrRecalcPay(qtTotals(qtCur)); }catch(e){} },0);
   var t=qtTotals(qtCur);
   var e1=document.getElementById('qt-tp'),e2=document.getElementById('qt-tl'),e3=document.getElementById('qt-ts'),e4=document.getElementById('qt-grand');
   if(e1)e1.textContent=qtFmt(t.pamt);if(e2)e2.textContent=qtFmt(t.labor);if(e3)e3.textContent=qtFmt(t.sum);if(e4)e4.textContent=(t.sum?t.sum.toLocaleString():'0')+'원';
 }
+
+/* ═══ (10/20) 견적서 ± · 휴지통 ═══ */
+function qtNegRow(i){ if(!qtCur||!qtCur.rows[i])return; var r=qtCur.rows[i]; if(r.kind==='align')return; var c=qtRowCalc(r); if(!c.sum&&!c.pamt&&!c.labor){ alert('먼저 금액을 적고 ± 를 누르세요'); return; }
+  if(r.last==='pamt'){ if(qtNum(r.pamt))r.pamt=String(-qtNum(r.pamt)); } else { if(qtNum(r.unit))r.unit=String(-qtNum(r.unit)); }
+  if(r.llast==='unit'){ if(qtNum(r.lunit))r.lunit=String(-qtNum(r.lunit)); } else { if(qtNum(r.labor))r.labor=String(-qtNum(r.labor)); }
+  qtRender(); if(typeof stkToast==='function')stkToast(qtRowCalc(r).sum<0?'➖ 빼는 금액으로 바꿨어요 (매입·할인) — 총액에서 빠집니다':'➕ 더하는 금액으로 돌렸어요'); }
+var _qrHistCache={};
+async function qrHistPush(id,prev){   // 저장 직전 값을 'qrsvh:<id>'에 최근 8벌 — 줄을 지우고 저장해도 되돌릴 수 있게
+  try{ if(!id||!prev||typeof prev!=='object'||!(prev.rows||[]).length)return; var k='qrsvh:'+id; var cur=null; try{ var q=await sb.from('settings').select('value').eq('key',k).maybeSingle(); cur=(q&&q.data&&q.data.value)||null; }catch(e){}
+    var v=(cur&&Array.isArray(cur.v))?cur.v:[]; var last=v[v.length-1]; if(last&&JSON.stringify(last.value)===JSON.stringify(prev))return;
+    v.push({at:new Date().toISOString(),by:(typeof me!=='undefined'&&me&&me.name)||'?',value:prev}); if(v.length>8)v=v.slice(v.length-8);
+    await sb.from('settings').upsert({key:k,value:{v:v},updated_at:new Date().toISOString()},{onConflict:'key'}); }catch(e){} }
+function _qtRowsSum(x){ var s=0; ((x&&x.rows)||[]).forEach(function(z){ if(!z||z.kind==='align')return; try{ s+=qtRowCalc(z).sum||0; }catch(e){} }); return s; }
+function _qtRowsN(x){ return ((x&&x.rows)||[]).filter(function(z){return z&&z.kind!=='align'&&(z.part||z.pat||z.work||qtNum(z.qty)||qtNum(z.unit)||qtNum(z.pamt)||qtNum(z.labor));}).length; }
+async function rsvTrashOpen(){
+  var box=document.getElementById('dlv-hist'), body=document.getElementById('dlv-hist-body'); if(!box)return; document.getElementById('dlv-hist-title').textContent='🗑 휴지통 — 지운 예약·견적서 (최근 60일)'; body.innerHTML='<div style="color:#64748b">읽는 중…</div>'; box.style.display='';
+  var since=new Date(Date.now()-60*86400000).toISOString(); var tr=[], hs=[];
+  try{ var q=await sb.from('tg_trash').select('id,table_name,row_id,row_json,deleted_by,deleted_at').in('table_name',['reservations','settings']).gte('deleted_at',since).order('deleted_at',{ascending:false}).limit(300); if(q.error)throw q.error; tr=q.data||[]; }catch(e){ body.innerHTML='<div style="color:#b91c1c">휴지통 읽기 실패: '+esc(e.message||e)+'</div>'; return; }
+  try{ var q2=await sb.from('settings').select('key,value,updated_at').like('key','qrsvh:%').gte('updated_at',since).order('updated_at',{ascending:false}).limit(200); hs=(q2&&q2.data)||[]; }catch(e){}
+  var alive={}; (reservations||[]).forEach(function(r){alive[r.id]=1;}); var ids=tr.filter(function(t){return t.table_name==='reservations';}).map(function(t){return t.row_id;}); if(ids.length){ try{ var q3=await sb.from('reservations').select('id').in('id',ids); ((q3&&q3.data)||[]).forEach(function(r){alive[r.id]=1;}); }catch(e){} }
+  var quotesTrash={}; tr.filter(function(t){return t.table_name==='settings'&&/^qrsv:/.test(String(t.row_id));}).forEach(function(t){ var rid=String(t.row_id).slice(5); if(!quotesTrash[rid])quotesTrash[rid]=t; });
+  var h='<div style="font-size:12px;color:#64748b;margin-bottom:8px">지운 것은 사라지지 않고 여기 남습니다(백업 파일에는 「큰 표 포함」을 골랐을 때 들어감). [복구]를 누르면 그대로 되살아나고, 그 기록도 남습니다.</div>';
+  var R=tr.filter(function(t){return t.table_name==='reservations';});
+  h+='<div style="font-weight:900;font-size:13.5px;margin:6px 0">🗓 지운 예약 '+R.length+'건</div>';
+  if(!R.length)h+='<div style="color:#94a3b8;font-size:12.5px">없음</div>';
+  R.forEach(function(t){ var r=t.row_json||{}; var qt=quotesTrash[t.row_id]; var is=alive[t.row_id]; h+='<div style="display:grid;grid-template-columns:1fr auto;gap:8px;padding:6px 0;border-bottom:1px solid #f1f5f9;font-size:12.5px;align-items:center"><div><b>'+esc(r.date_str||'')+' '+esc(r.time_slot||'')+'</b> · '+esc(r.customer_name||r.phone||'')+(r.car_no?' · '+esc(r.car_no):'')+' · '+esc(String(r.tire_spec||'').slice(0,40))+(r.qty?' ×'+esc(r.qty):'')+(r.status?' · '+esc(r.status):'')+'<div style="color:#94a3b8">지움: '+esc(t.deleted_by||'?')+' '+kstMDHMof(t.deleted_at)+(qt?' · 🧾 견적서도 같이 지워짐('+_qtRowsN(qt.row_json&&qt.row_json.value)+'줄)':'')+(r.user_name?' · 작성 '+esc(r.user_name):'')+'</div></div>'+(is?'<span class="stbadge" style="background:#94a3b8">이미 있음</span>':'<button class="dact" style="background:#15803d;color:#fff;border-color:#15803d;font-weight:800" onclick="rsvTrashRestore(\''+t.id+'\')">↩ 복구</button>')+'</div>'; });
+  var Q=Object.keys(quotesTrash).filter(function(rid){return alive[rid];});
+  if(Q.length){ h+='<div style="font-weight:900;font-size:13.5px;margin:12px 0 6px">🧾 예약은 있는데 지워진 견적서 '+Q.length+'건</div>'; Q.forEach(function(rid){ var t=quotesTrash[rid], v=(t.row_json&&t.row_json.value)||{}; var cur=(typeof _qrX!=='undefined')?_qrX[rid]:null; h+='<div style="display:grid;grid-template-columns:1fr auto;gap:8px;padding:6px 0;border-bottom:1px solid #f1f5f9;font-size:12.5px;align-items:center"><div><b>'+esc(v.no||'')+'</b> '+esc(v.name||'')+' · '+_qtRowsN(v)+'줄 · '+qtFmt(_qtRowsSum(v))+'원<div style="color:#94a3b8">지움: '+esc(t.deleted_by||'?')+' '+kstMDHMof(t.deleted_at)+(cur&&(cur.rows||[]).length?' · 지금 견적서 '+_qtRowsN(cur)+'줄 있음(덮어씀 주의)':'')+'</div></div><button class="dact" onclick="rsvTrashRestoreQuote(\''+t.id+'\')">↩ 견적서 복구</button></div>'; }); }
+  var H=[]; hs.forEach(function(s){ var rid=String(s.key).slice(6); var v=(s.value&&s.value.v)||[]; v.forEach(function(e,i){ H.push({rid:rid,i:i,at:e.at,by:e.by,value:e.value}); }); }); H.sort(function(a,b){return String(b.at).localeCompare(String(a.at));}); H=H.slice(0,80);
+  h+='<div style="font-weight:900;font-size:13.5px;margin:12px 0 6px">✂ 견적서를 고쳐 저장하기 전 내용 '+H.length+'벌 <span style="font-weight:600;color:#94a3b8">(줄을 지우고 저장했어도 여기서 되돌림 · 10/20부터 쌓임)</span></div>';
+  if(!H.length)h+='<div style="color:#94a3b8;font-size:12.5px">아직 없음</div>';
+  H.forEach(function(e){ var cur=(typeof _qrX!=='undefined')?_qrX[e.rid]:null; var r=(reservations||[]).find(function(x){return x.id===e.rid;}); h+='<div style="display:grid;grid-template-columns:1fr auto;gap:8px;padding:6px 0;border-bottom:1px solid #f1f5f9;font-size:12.5px;align-items:center"><div><b>'+esc((e.value&&e.value.no)||'')+'</b> '+esc((e.value&&e.value.name)||(r&&(r.customer_name||r.phone))||'')+(r?' · '+esc(r.date_str||''):' · <span style="color:#b91c1c">예약 없음</span>')+' · 그때 '+_qtRowsN(e.value)+'줄 '+qtFmt(_qtRowsSum(e.value))+'원'+(cur?' → 지금 '+_qtRowsN(cur)+'줄 '+qtFmt(_qtRowsSum(cur))+'원':'')+'<div style="color:#94a3b8">저장 전 내용 · '+esc(e.by||'?')+' '+kstMDHMof(e.at)+'</div></div>'+(r?'<button class="dact" onclick="rsvTrashRestoreVer(\''+e.rid+'\','+e.i+')">↩ 이 내용으로</button>':'')+'</div>'; });
+  body.innerHTML=h; }
+async function rsvTrashRestore(trashId){ var q=await sb.from('tg_trash').select('*').eq('id',trashId).maybeSingle(); var t=q&&q.data; if(!t||!t.row_json){ alert('휴지통에서 못 찾았어요'); return; } var r=t.row_json, id=r.id;
+  var ex=await sb.from('reservations').select('id').eq('id',id).maybeSingle(); if(ex&&ex.data){ alert('이미 있는 예약이에요'); return; }
+  if(!confirm('이 예약을 되살릴까요?\n'+(r.date_str||'')+' '+(r.time_slot||'')+' · '+(r.customer_name||r.phone||'')+' · '+String(r.tire_spec||'').slice(0,40)+'\n\n· 재고 연결은 "미차감" 상태로 돌아옵니다(지울 때 재고가 복구됐으므로) — 필요하면 다시 연결\n· 같이 지워진 견적서·추가연결도 되살립니다'))return;
+  var who=(me&&me.name)||'?'; var done=[]; var fail=[];
+  var row=Object.assign({},r); row.stock_done=false; delete row.updated_at; var ins=await sb.from('reservations').insert(row); if(ins.error){ alert('예약 복구 실패: '+ins.error.message); return; } done.push('예약');
+  try{ var tq=await sb.from('tg_trash').select('id,row_json,deleted_at').eq('table_name','settings').eq('row_id','qrsv:'+id).order('deleted_at',{ascending:false}).limit(1); var qt=tq&&tq.data&&tq.data[0]; if(qt&&qt.row_json){ var cur=await sb.from('settings').select('key').eq('key','qrsv:'+id).maybeSingle(); if(!(cur&&cur.data)){ var u=await sb.from('settings').upsert({key:'qrsv:'+id,value:qt.row_json.value,updated_at:new Date().toISOString()},{onConflict:'key'}); if(u.error)fail.push('견적서: '+u.error.message); else { done.push('견적서 '+_qtRowsN(qt.row_json.value)+'줄'); try{ _qrX[id]=qt.row_json.value; }catch(e){} } } } }catch(e){ fail.push('견적서: '+(e.message||e)); }
+  try{ var lq=await sb.from('tg_trash').select('id,row_json').eq('table_name','reservation_links').gte('deleted_at',new Date(new Date(t.deleted_at).getTime()-120000).toISOString()).lte('deleted_at',new Date(new Date(t.deleted_at).getTime()+120000).toISOString()); var L=((lq&&lq.data)||[]).map(function(x){return x.row_json;}).filter(function(x){return x&&x.reservation_id===id;}); var n=0; for(var i=0;i<L.length;i++){ var e2=await sb.from('reservation_links').select('id').eq('id',L[i].id).maybeSingle(); if(e2&&e2.data)continue; var lr=Object.assign({},L[i]); lr.stock_done=false; var li=await sb.from('reservation_links').insert(lr); if(!li.error)n++; } if(n)done.push('추가연결 '+n+'줄(미차감)'); }catch(e){}
+  try{ logAudit('🗑 휴지통에서 예약 복구', (r.date_str||'')+' '+(r.customer_name||r.phone||'')+' — '+done.join('·')+(fail.length?' · 실패 '+fail.join(','):'')); }catch(e){}
+  await loadReservations(); if(typeof stkToast==='function')stkToast('↩ 복구: '+done.join(' · ')+(fail.length?' · 실패 '+fail.join(','):'')); rsvTrashOpen(); }
+async function rsvTrashRestoreQuote(trashId){ var q=await sb.from('tg_trash').select('*').eq('id',trashId).maybeSingle(); var t=q&&q.data; if(!t||!t.row_json){ alert('못 찾았어요'); return; } var id=String(t.row_id).slice(5), v=t.row_json.value||{}; var cur=(typeof _qrX!=='undefined')?_qrX[id]:null;
+  if(!confirm('이 견적서를 되살릴까요? '+(v.no||'')+' '+(v.name||'')+' · '+_qtRowsN(v)+'줄'+((cur&&(cur.rows||[]).length)?'\n⚠ 지금 있는 견적서('+_qtRowsN(cur)+'줄)는 "저장 전 내용"에 남기고 덮어씁니다':'')))return;
+  try{ if(cur&&(cur.rows||[]).length)await qrHistPush(id,cur); await qrStoreX(id,v); try{ logAudit('🗑 휴지통에서 견적서 복구', (v.no||'')+' '+(v.name||'')); }catch(e){} if(typeof stkToast==='function')stkToast('↩ 견적서 복구됨'); if(typeof qtCur!=='undefined'&&qtCur&&qtCur.rsv&&qtCur.rsv.id===id){ qtCur=null; await qrOpen(id); } rsvTrashOpen(); }catch(e){ alert('복구 실패: '+(e.message||e)); } }
+async function rsvTrashRestoreVer(rid,i){ var q=await sb.from('settings').select('value').eq('key','qrsvh:'+rid).maybeSingle(); var v=(q&&q.data&&q.data.value&&q.data.value.v)||[]; var e=v[i]; if(!e||!e.value){ alert('못 찾았어요'); return; } var cur=(typeof _qrX!=='undefined')?_qrX[rid]:null;
+  if(!confirm('견적서를 이 내용으로 되돌릴까요?\n'+(e.value.no||'')+' · '+_qtRowsN(e.value)+'줄 '+qtFmt(_qtRowsSum(e.value))+'원 ('+(e.by||'?')+' '+kstMDHMof(e.at)+' 저장 전)\n지금 내용('+_qtRowsN(cur)+'줄)은 "저장 전 내용"에 남습니다'))return;
+  try{ if(cur&&(cur.rows||[]).length)await qrHistPush(rid,cur); await qrStoreX(rid,e.value); try{ logAudit('🗑 견적서 이전 내용으로', (e.value.no||'')+' ← '+kstMDHMof(e.at)); }catch(err){} if(typeof stkToast==='function')stkToast('↩ 견적서를 이전 내용으로 되돌렸어요'); if(typeof qtCur!=='undefined'&&qtCur&&qtCur.rsv&&qtCur.rsv.id===rid){ qtCur=null; await qrOpen(rid); } await loadReservations(); rsvTrashOpen(); }catch(err){ alert('되돌리기 실패: '+(err.message||err)); } }
 function qtAddRow(){if(!qtCur)return;qtCur.rows.push(qtBlankRow());qtRender();}
 function qtDelRow(i){if(!qtCur)return;qtCur.rows.splice(i,1);if(!qtCur.rows.length)qtCur.rows.push(qtBlankRow());qtRender();}
 function qtInfoHtml(d,edit){
@@ -20684,7 +20733,7 @@ function qtCardsHtml(d){
     h+='<div class="r1"><input value="'+esc(x.part||'')+'" placeholder="부품 (타이어·밸런스추…)" oninput="qtSetRow('+i+',\'part\',this.value)" style="flex:.8"><input value="'+esc(x.work||'')+'" placeholder="작업내용" oninput="qtSetRow('+i+',\'work\',this.value)"></div>';
     h+='<div class="r2"><input value="'+esc(x.pat||'')+'" placeholder="패턴 · 규격" oninput="qtSetRow('+i+',\'pat\',this.value)"><input value="'+esc(x.out||'')+'" placeholder="부품출고" style="flex:.45" oninput="qtSetRow('+i+',\'out\',this.value)"></div>';
     h+='<div class="r3"><label>수량<input inputmode="numeric" value="'+esc(x.qty||'')+'" oninput="qtSetRow('+i+',\'qty\',this.value)"></label><label>단가<input inputmode="numeric" value="'+esc(x.unit?qtFmt(qtNum(x.unit)):'')+'" oninput="qtSetRow('+i+',\'unit\',this.value)" onblur="this.value=this.value?qtFmt(qtNum(this.value)):\'\'"></label><label>기술료<input inputmode="numeric" value="'+esc(x.labor?qtFmt(qtNum(x.labor)):'')+'" oninput="qtSetRow('+i+',\'labor\',this.value)" onblur="this.value=this.value?qtFmt(qtNum(this.value)):\'\'"></label></div>';
-    h+='<div class="r4"><span>부품가 <span id="qt-pamt-'+i+'">'+qtFmt(c.pamt)+'</span></span><span>합계 <b id="qt-sum-'+i+'">'+qtFmt(c.sum)+'</b> <button class="del" onclick="qtDelRow('+i+')" title="행 삭제">✕</button></span></div>';
+    h+='<div class="r4"><span>부품가 <span id="qt-pamt-'+i+'">'+qtFmt(c.pamt)+'</span></span><span>합계 <b id="qt-sum-'+i+'">'+qtFmt(c.sum)+'</b> <button type="button" class="qr-neg" onclick="qtNegRow('+i+')" title="빼는 금액(매입·할인)으로 / 원래대로">±</button><button class="del" onclick="qtDelRow('+i+')" title="행 삭제">✕</button></span></div>';
     h+='</div>';
   });
   var t=qtTotals(d);
@@ -20726,7 +20775,7 @@ function qtTableHtml(d,edit){
       if(k==='unit'){ var uv=c.unit?qtFmt(c.unit):''; if(edit)h+='<td class="num"><input id="qt-unit-'+i+'" value="'+uv+'" inputmode="numeric" oninput="qtSetRow('+i+',\'unit\',this.value)" onblur="this.value=this.value?qtFmt(qtNum(this.value)):\'\'"></td>'; else h+='<td style="text-align:right">'+uv+'</td>'; return; }
       if(k==='lunit'){ var lv=c.lunit?qtFmt(c.lunit):''; if(edit)h+='<td class="num"><input id="qt-lunit-'+i+'" value="'+lv+'" inputmode="numeric" placeholder="1개당" title="1개당 기술료 × 수량 = 기술료" oninput="qtSetRow('+i+',\'lunit\',this.value)" onblur="this.value=this.value?qtFmt(qtNum(this.value)):\'\'"></td>'; else h+='<td style="text-align:right">'+lv+'</td>'; return; }
       if(k==='labor'){ var lt=c.labor?qtFmt(c.labor):''; if(edit)h+='<td class="num"><input id="qt-labor-'+i+'" value="'+lt+'" inputmode="numeric" title="기술료를 먼저 적고 수량을 적으면 1개당 기술료가 나눠집니다" oninput="qtSetRow('+i+',\'labor\',this.value)" onblur="this.value=this.value?qtFmt(qtNum(this.value)):\'\'"></td>'; else h+='<td style="text-align:right">'+lt+'</td>'; return; }
-      if(k==='sum'){ if(edit)h+='<td class="calc ed"><input id="qt-sum-'+i+'" value="'+(c.sum?qtFmt(c.sum):'')+'" inputmode="numeric" placeholder="총액" title="총액을 먼저 적고 수량을 적으면 단가가 나눠집니다 (기술료가 있으면 그만큼 뺀 것이 부품가)" oninput="qtSetRow('+i+',\'sum\',this.value)" onblur="this.value=this.value?qtFmt(qtNum(this.value)):\'\'"></td>'; else h+='<td class="calc" id="qt-sum-'+i+'">'+qtFmt(c.sum)+'</td>'; return; }   // (10/14) 합계에 직접 적기 = 총액
+      if(k==='sum'){ if(edit)h+='<td class="calc ed"><input id="qt-sum-'+i+'" value="'+(c.sum?qtFmt(c.sum):'')+'" inputmode="numeric" placeholder="총액" title="총액을 먼저 적고 수량을 적으면 단가가 나눠집니다 (기술료가 있으면 그만큼 뺀 것이 부품가)" oninput="qtSetRow('+i+',\'sum\',this.value)" onblur="this.value=this.value?qtFmt(qtNum(this.value)):\'\'"'+(c.sum<0?' style="color:#b91c1c;font-weight:800"':'')+'><button type="button" class="qr-neg" onclick="qtNegRow('+i+')" title="이 줄을 빼는 금액(매입·할인)으로 / 원래대로">±</button></td>'; else h+='<td class="calc" id="qt-sum-'+i+'"'+(c.sum<0?' style="color:#b91c1c;font-weight:800"':'')+'>'+qtFmt(c.sum)+'</td>'; return; }   // (10/14) 합계에 직접 적기 = 총액 · (10/20) ± 빼는 줄
       var num=(k==='qty'||k==='unit'||k==='labor');
       var v=row[k]==null?'':String(row[k]);
       if(edit&&!num)h+='<td><textarea class="qt-ta" rows="1" oninput="qtSetRow('+i+',\''+k+'\',this.value);qtTaFit(this)">'+esc(v).replace(/<br>/g,'\n')+'</textarea></td>';   // (10/15) 글자 칸은 길면 줄바꿈되는 칸
@@ -20868,6 +20917,7 @@ async function qrLoadX(id){
   return _qrX[id]||{};
 }
 async function qrStoreX(id,x){
+  try{ var _pv=(typeof _qrX!=='undefined')?_qrX[id]:null; if(_pv&&(_pv.rows||[]).length&&JSON.stringify(_pv.rows)!==JSON.stringify((x||{}).rows))await qrHistPush(id,_pv); }catch(e){}   /* (10/20) 저장 전 내용 보관 */
   var v=Object.assign({},x,{saved_at:kstNow().toISOString().slice(0,16).replace('T',' '),saved_by:(typeof me!=='undefined'&&me&&me.name)||''});
   var q=await sb.from('settings').upsert({key:qrKey(id),value:v,updated_at:new Date().toISOString()},{onConflict:'key'});
   if(q&&q.error)throw new Error(q.error.message||'저장 실패');
