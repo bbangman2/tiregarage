@@ -271,6 +271,7 @@ body.rb-on #app{padding-top:58px}
 #ledger-rt th,#ledger-rt td{white-space:nowrap}
 .stk-rt th.th-ch7{background:#cfddf7}.stk-rt td.ch-7{background:#eaf1fc}
 .stk-rt td.rt-ed{cursor:cell}
+.stk-rt td.rt-mo{box-shadow:inset 3px 0 #7c3aed}   /* (10/20) 마진 직접 지정된 줄 */
 .stk-rt td.rt-ed:hover{outline:1px solid #93b4ff;outline-offset:-1px}
 .stk-rt td.rt-ed:focus{outline:2px solid #2563eb;outline-offset:-2px;background:#fff !important;box-shadow:inset 0 0 0 1px #fff;font-weight:600}
 .rtsort{cursor:pointer;user-select:none}
@@ -2187,6 +2188,7 @@ tr.qr-align.off td input{color:#94a3b8}
   <div class="stk-pane" id="stk-pane3">
     <div id="stk-rtAddBar" style="margin-bottom:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
       <button onclick="stkRtAddRow()" style="padding:8px 13px;border:1px solid #b9e0c9;background:#eaf7ef;color:#15803d;border-radius:9px;font-size:13px;font-weight:800;cursor:pointer">➕ 행 추가</button>
+      <span id="stk-moBar" style="display:inline-flex;gap:5px;align-items:center;flex-wrap:wrap;margin-left:6px"></span>
       <span style="font-size:11px;color:#b91c1c;font-weight:600">⚠️ 재고표 수정 중에는 다른 직원이 같은 상품을 출고하지 않도록 주의 (가능하면 출고 끝난 뒤 정리)</span>
       <span id="stk-rtEditHint" style="font-size:11px;color:#888"></span>
     </div>
@@ -13326,7 +13328,7 @@ var STK_COST_DR_DOWN=2;
 // ── 계산식 설정 불러오기 (stock_settings: price_formula / ship_table) ──
 async function stkLoadFx(){
   try{
-    var r=await sb.from('stock_settings').select('*').in('key',['price_formula','ship_table','brand_groups']);
+    var r=await sb.from('stock_settings').select('*').in('key',['price_formula','ship_table','brand_groups','margin_override']);
     var rows=(r&&r.data)||[];
     var fx={}; for(var k in STK_FX_DEF)fx[k]=STK_FX_DEF[k];
     var pf=rows.filter(function(x){return x.key==='price_formula'})[0];
@@ -13339,6 +13341,7 @@ async function stkLoadFx(){
     STK_BG={ko:STK_BG_DEF.ko,cn:STK_BG_DEF.cn};
     var bgr=rows.filter(function(x){return x.key==='brand_groups'})[0];
     if(bgr&&bgr.value){ try{ var bo=JSON.parse(bgr.value); if(bo&&typeof bo==='object'){ if(typeof bo.ko==='string'&&bo.ko.trim())STK_BG.ko=bo.ko; if(typeof bo.cn==='string'&&bo.cn.trim())STK_BG.cn=bo.cn; } }catch(e){} }   // (10/14) 브랜드 묶음
+    STK_MO={}; var mor=rows.filter(function(x){return x.key==='margin_override'})[0]; if(mor&&mor.value){ try{ var mo=JSON.parse(mor.value); if(mo&&typeof mo==='object')STK_MO=mo; }catch(e){} }   /* (10/20) 상품별 마진 */
     var st=rows.filter(function(x){return x.key==='ship_table'})[0];
     STK_SHIP_CUSTOM=null;
     if(st&&st.value){
@@ -13661,12 +13664,29 @@ function stkCnWarn(p){   // 중국 브랜드인데 같은 사이즈 국산 최�
   return '<span title="같은 사이즈 국산 최저 택배가 '+stkEsc(ko.br+' '+ko.name)+' '+stkWon(ko.price)+' — 매입가 확인" style="display:inline-block;font-size:10.5px;font-weight:900;color:#b91c1c;background:#fee2e2;border:1px solid #fecaca;border-radius:6px;padding:1px 6px;margin-left:5px;vertical-align:middle">⚠ 국산보다 비쌈 ('+stkEsc(ko.br)+' '+stkWon(ko.price)+')</span>';
 }
 function stkMinMargin(r,size){   // (10/14 호준님 확정) 최소마진: 오프로드 > 소형(배송료 4,000) > 한국·넥센·금호 / 그 외 브랜드, 인치별
-  if(!r)return 0; size=size||r.size; var off=stkIsOffroad(r), br=String(r.br||r.brand||''), ko=stkIsKoBrand(br), cn=stkIsCnBrand(br);
+  if(!r)return 0; var _mid=(r.p&&r.p.id)||r.id; if(_mid&&STK_MO&&STK_MO[_mid]!=null&&STK_MO[_mid]!==''){ var _mv=parseInt(STK_MO[_mid],10); if(!isNaN(_mv))return _mv; }   /* (10/20) 상품별 직접 지정이 먼저 */ size=size||r.size; var off=stkIsOffroad(r), br=String(r.br||r.brand||''), ko=stkIsKoBrand(br), cn=stkIsCnBrand(br);
   var t=stkParseSize(size); var inch=t?t[2]:0; if(!inch)return 0;
   if(!off){ var ship=stkShipFee(size); if(ship!=null&&ship<=4000)return stkFxN('small'); }   // 소형(묶음)
   var p=off?'off':(ko?'ko':(cn?'cn':'fo'));
   if(inch<=17)return stkFxN(p+'17'); if(inch<=19)return stkFxN(p+'19'); if(inch<=21)return stkFxN(p+'21'); return stkFxN(p+'22');
 }
+
+/* ═══ (10/20) 📐 상품별 마진 직접 지정 ═══ */
+var STK_MO={};
+function stkMarginInfo(r){ var pid=(r&&r.p&&r.p.id)||(r&&r.id); var man=(pid&&STK_MO[pid]!=null&&STK_MO[pid]!=='')?parseInt(STK_MO[pid],10):null; var cur=stkMinMargin(r,r.size); var def=cur; if(man!=null){ var s=STK_MO[pid]; delete STK_MO[pid]; def=stkMinMargin(r,r.size); STK_MO[pid]=s; } return {m:cur,def:def,manual:man!=null}; }
+function stkMarginTitle(r,kind){ try{ var i=stkMarginInfo(r); var c=stkCostDisplay(r); var add=(kind==='price')?stkShipFee(r.size):stkInstallFee(r.size,stkIsOffroad(r)); var W=function(v){return (v==null||v==='')?'?':Number(v).toLocaleString();}; return '(원가 '+W(c)+' + '+(kind==='price'?'배송 ':'장착비 ')+W(add)+' + 마진 '+W(i.m)+(i.manual?' [직접 지정 · 기본 '+W(i.def)+']':'')+') ÷ '+stkFxN('fee1')+' ÷ '+stkFxN('fee2')+' → 100원 올림'; }catch(e){ return ''; } }
+function stkCanMargin(){ return !!(stkCanInline()||(typeof stkCanSeeRealcost==='function'&&stkCanSeeRealcost())); }
+async function stkMarginSet(pids,val,why){ if(!stkCanMargin()){ stkToast('마진 지정 권한이 없습니다'); return false; } if(stkLocked&&!stkIsAdmin()){ stkToast('🔒 잠겨 있어요 — 관리자만 해제 가능'); return false; }
+  var n=0, names=[], undo={}; pids.forEach(function(pid){ var p=stkP.find(function(x){return x.id===pid;}); if(!p)return; var before=STK_MO[pid]; if(val==null){ if(before==null)return; undo[pid]=before; delete STK_MO[pid]; } else { if(String(before)===String(val))return; undo[pid]=(before==null?null:before); STK_MO[pid]=val; } n++; if(names.length<6)names.push(p.br+' '+p.name+' '+p.size); });
+  if(!n){ stkToast('바뀐 줄이 없어요'); return false; }
+  var ok=await stkFxPut('margin_override',JSON.stringify(STK_MO)); if(!ok){ stkToast('⚠️ 저장 실패 — 다시 시도'); await stkLoadFx(); return false; }
+  await stkLog('📐마진지정',(val==null?'기본으로 되돌림':'마진 '+Number(val).toLocaleString()+'원 직접 지정')+' · '+n+'줄'+(why?' · '+why:'')+' — '+names.join(', ')+(n>names.length?' 외 '+(n-names.length):''),{qty:n,detail:JSON.stringify({val:val,before:undo})});
+  stkToast('📐 '+n+'줄 '+(val==null?'기본 마진으로':'마진 '+Number(val).toLocaleString()+'원')+' — 택배가·장착가 다시 계산됨'); if(typeof stkRenderTable==='function')stkRenderTable(); if(typeof stkRenderSearch==='function')stkRenderSearch(); return true; }
+function stkMarginPrompt(pid){ var p=stkP.find(function(x){return x.id===pid;}); if(!p)return; var i=stkMarginInfo(p); var s=prompt('📐 '+p.br+' '+p.name+' '+p.size+'\n이 상품의 마진(원) — 수식은 그대로, 이 숫자만 바뀝니다\n기본 '+Number(i.def).toLocaleString()+'원'+(i.manual?' · 지금 직접 지정 '+Number(i.m).toLocaleString()+'원':'')+'\n(비우고 확인 = 기본으로)', i.manual?String(i.m):''); if(s==null)return; s=String(s).replace(/[^0-9]/g,''); stkMarginSet([pid], s===''?null:parseInt(s,10), '관리 칸'); }
+function stkMoBarRender(R){ var el=document.getElementById('stk-moBar'); if(!el)return; if(!stkCanMargin()){ el.innerHTML=''; return; } var pids=[]; (R||[]).forEach(function(r){ var id=r.p&&r.p.id; if(id&&pids.indexOf(id)<0)pids.push(id); }); var manual=pids.filter(function(id){return STK_MO[id]!=null&&STK_MO[id]!=='';}).length; var allManual=Object.keys(STK_MO).length; var keep=(document.getElementById('stk-moVal')||{}).value||'';
+  el.innerHTML='<span style="font-size:12px;color:#5b21b6;font-weight:800">📐 마진 직접 지정</span><span style="font-size:11.5px;color:#64748b">보이는 '+pids.length+'상품 · 지정 '+manual+(allManual?' (전체 '+allManual+')':'')+'</span><input id="stk-moVal" inputmode="numeric" placeholder="마진(원)" value="'+stkEsc(keep)+'" style="width:86px;height:30px;border:1px solid #c4b5fd;border-radius:7px;padding:0 8px;font-size:13px"><button onclick="stkMoApplyVisible()" style="height:30px;padding:0 10px;border:1px solid #7c3aed;background:#7c3aed;color:#fff;border-radius:7px;font-weight:800;cursor:pointer;font-size:12px">보이는 줄 전부 적용</button><button onclick="stkMoClearVisible()" style="height:30px;padding:0 10px;border:1px solid #cbd5e1;background:#fff;border-radius:7px;font-weight:800;cursor:pointer;font-size:12px">보이는 줄 기본으로</button><span style="font-size:11px;color:#94a3b8">한 줄만 = 관리 칸 📐 · 지정된 줄은 택배가·장착가 왼쪽 보라 띠 · 마우스 올리면 계산 내역</span>'; el._pids=pids; }
+function stkMoApplyVisible(){ var el=document.getElementById('stk-moBar'); var pids=(el&&el._pids)||[]; var v=((document.getElementById('stk-moVal')||{}).value||'').replace(/[^0-9]/g,''); if(!v){ stkToast('마진 금액을 먼저 넣어 주세요'); return; } if(!pids.length){ stkToast('보이는 줄이 없어요'); return; } if(!confirm('보이는 '+pids.length+'개 상품의 마진을 '+Number(v).toLocaleString()+'원으로 지정할까요?\n· 수식은 그대로 — 택배가·장착가가 이 마진으로 다시 계산됩니다\n· 검색 탭·예약 가격에도 같이 반영\n· 언제든 [보이는 줄 기본으로]로 되돌림'))return; stkMarginSet(pids,parseInt(v,10),'보이는 줄 일괄'); }
+function stkMoClearVisible(){ var el=document.getElementById('stk-moBar'); var pids=((el&&el._pids)||[]).filter(function(id){return STK_MO[id]!=null&&STK_MO[id]!=='';}); if(!pids.length){ stkToast('보이는 줄 중 직접 지정된 것이 없어요'); return; } if(!confirm('보이는 줄 중 직접 지정된 '+pids.length+'개 상품을 기본 마진으로 되돌릴까요?'))return; stkMarginSet(pids,null,'보이는 줄 일괄'); }
 function stkCalcTaekbae(cost,size,r){
   var c=parseInt(cost); if(isNaN(c)||!c)return null;
   var ship=stkShipFee(size); if(ship==null)return null;
@@ -16459,8 +16479,8 @@ function stkRenderTable(){
       ed('ply',r.ply||'')+
       ed('spec',r.spec||'')+
       ed('dot',r.dot,(r.dot==='DOT누락'?' style="color:#dc2626"':''))+
-      edRC('price',stkPriceDisplay(r),(stkPriceIsManual(r)?' style="color:#dc2626;font-weight:700"':''))+
-      edRC('inst',stkInstDisplay(r),(stkInstIsManual(r)?' style="color:#dc2626;font-weight:700"':''))+
+      edRC('price',stkPriceDisplay(r),(stkPriceIsManual(r)?' style="color:#dc2626;font-weight:700"':'')+' title="'+stkEsc(stkMarginTitle(r,'price'))+'"'+(stkMarginInfo(r).manual?' class="rt-mo"':''))+
+      edRC('inst',stkInstDisplay(r),(stkInstIsManual(r)?' style="color:#dc2626;font-weight:700"':'')+' title="'+stkEsc(stkMarginTitle(r,'inst'))+'"'+(stkMarginInfo(r).manual?' class="rt-mo"':''))+
       ed('cost',stkCostDisplay(r),(stkCostIsManual(r)?' style="color:#dc2626;font-weight:700"':''))+
       (_canRC?ed('real_cost',stkRCdisplay(r),(stkRCisManual(r)?' style="color:#dc2626;font-weight:700"':'')):'')+
       (_canRC?ed('discount_rate',r.discount_rate===''||r.discount_rate==null?'':r.discount_rate):'')+
@@ -16473,7 +16493,7 @@ function stkRenderTable(){
       rows+='<td class="rtch ch-'+ci+'" style="cursor:pointer" title="클릭해서 '+chName+' 출고" onclick="stkRtOpenOut(\''+pid+'\',\''+dq(dotv)+'\','+ci+')">'+(v||'<span style="color:#ccc">+</span>')+'</td>';
     });
     if(canInline){
-      rows+='<td style="white-space:nowrap"><button onclick="stkRtDelRow(\''+pid+'\',\''+dq(dotv)+'\')" style="font-size:11px;padding:3px 7px;border:1px solid #f3c2c2;background:#fdf2f2;color:#c0392b;border-radius:6px;font-weight:800;cursor:pointer">🗑️</button></td>';
+      rows+='<td style="white-space:nowrap"><button onclick="stkMarginPrompt(\''+pid+'\')" title="이 상품 마진 직접 지정 (수식은 그대로)" style="font-size:11px;padding:3px 6px;border:1px solid #c4b5fd;background:#f5f3ff;color:#5b21b6;border-radius:6px;font-weight:800;cursor:pointer;margin-right:3px">📐</button><button onclick="stkRtDelRow(\''+pid+'\',\''+dq(dotv)+'\')" style="font-size:11px;padding:3px 7px;border:1px solid #f3c2c2;background:#fdf2f2;color:#c0392b;border-radius:6px;font-weight:800;cursor:pointer">🗑️</button></td>';
     }
     rows+='</tr>';
     return rows;
@@ -16503,6 +16523,7 @@ function stkRenderTable(){
     STK_CHANS.map(function(){return '<td></td>';}).join('')+(canInline?'<td></td>':'')+'</tr></tfoot>';
   var ncol=cabIdx+(canInline?1:0);
   stkRtVirtSetup(el,{R:R,rowHtml:rowHtml,th:th,addRow:addRow,foot:foot,ncol:ncol,canRC:_canRC,canInline:canInline});
+  try{ stkMoBarRender(R); }catch(e){}   /* (10/20) 📐 마진 막대 */
   // 셀 핸들러 부착 (contenteditable 셀에 focus/blur/keydown)
   if(canInline||(typeof stkCanSeeRealcost==='function'&&stkCanSeeRealcost())||stkCanTarget())stkRtAttachCellHandlers();
 }
@@ -16623,7 +16644,7 @@ function stkRenderSearch(){
       '<span>🔧 장착가 <b style="color:#c2410c">'+(stkCalcJangchak(stkCostDisplay(p),p.size,stkIsOffroad(p),p)?stkWon(stkCalcJangchak(stkCostDisplay(p),p.size,stkIsOffroad(p),p)):'미정')+'</b></span>'+
       '<span>📦 택배가 <b style="color:#0c447c">'+(stkCalcTaekbae(stkCostDisplay(p),p.size,p)?stkWon(stkCalcTaekbae(stkCostDisplay(p),p.size,p)):'미정')+'</b></span>'+
       ((stkCostDisplay(p)!=='')?'<span>💰 원가 <b style="color:#b45309">'+stkWon(stkCostDisplay(p))+'</b></span>':'')+
-      (p.factory_price?'<span>🏭 공장도 <b style="color:#555">'+stkWon(p.factory_price)+'</b></span>':'')+'</div>';
+      (p.factory_price?'<span>🏭 공장도 <b style="color:#555">'+stkWon(p.factory_price)+'</b></span>':'')+(stkMarginInfo(p).manual?'<span>📐 마진 <b style="color:#5b21b6">'+stkWon(stkMarginInfo(p).m)+'</b> 직접</span>':'')+'</div>';
     var memoLine=p.memo?'<div style="font-size:11px;color:#9a6b1f;padding:2px 0">📝 '+stkEsc(p.memo)+'</div>':'';
     var editBtn=(!stkLocked)?'<button class="lotbtn" style="background:#fffbe6;border-color:#f3e2a0;color:#7a5d00;margin-top:5px" onclick="event.stopPropagation();stkOpenEdit(\''+p.id+'\')">✏️ 정보 수정</button>':'';
     var histBtn='<button class="lotbtn" style="background:#eef2ff;border-color:#c7d2fe;color:#3730a3;margin-top:5px;margin-right:5px" onclick="event.stopPropagation();stkHistOpen(\''+p.id+'\')">📜 이력</button>';   // (10/14)
