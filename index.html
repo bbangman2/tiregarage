@@ -15606,6 +15606,7 @@ async function stkRtSaveNew(){
   }catch(e){stkToast('추가 실패: '+e.message);console.error('stkRtSaveNew',e);}
 }
 // 엑셀처럼: contenteditable 셀에 focus/blur/keydown 일괄 부착 (DOM 변경 없음, 가벼움)
+function stkRtWidenCell(td){ try{ if(!td||!td.parentElement)return; var tr=td.parentElement; var idx=Array.prototype.indexOf.call(tr.children,td); var tbl=document.getElementById('stk-rtTable'); var cols=tbl?tbl.querySelectorAll('colgroup col'):null; if(!cols||!cols[idx])return; var cv=stkRtColWidths._cv||(stkRtColWidths._cv=document.createElement('canvas').getContext('2d')); var fs=getComputedStyle(td); cv.font=(fs.fontWeight&&parseInt(fs.fontWeight,10)>=700?'bold ':'')+fs.fontSize+' '+fs.fontFamily; var w=Math.ceil(cv.measureText(String(td.textContent||'')).width)+13; var cur=parseInt(cols[idx].style.width,10)||0; if(w>cur){ cols[idx].style.width=w+'px'; if(STK_RTV&&STK_RTV.widths)STK_RTV.widths[idx]=w; var tot=0; for(var i=0;i<cols.length;i++)tot+=parseInt(cols[i].style.width,10)||0; tbl.style.width=tot+'px'; } }catch(e){} }   /* (10/21) 적는 중·저장 때 그 열 폭을 바로 — 가장 긴 글자 기준 규칙을 즉시 반영 */
 function stkRtAttachCellHandlers(){
   // ── 이벤트 위임 (테이블 1개에만 리스너 — 셀이 수천개여도 빠름) ──
   var tbl=document.getElementById('stk-rtTable');
@@ -15630,6 +15631,7 @@ function stkRtAttachCellHandlers(){
   tbl.addEventListener('input',function(e){
     var td=e.target;if(!isEd(td))return;
     td._stkTyped=true; // 내용을 고친 뒤에는 방향키=확정+이동 (엑셀식). 안 고쳤으면 방향키=글자 커서
+    stkRtWidenCell(td);
     // 수량 셀을 다 지우면 잔여 <br> 제거 → :empty 적용되어 흐린 0 표시
     if(td.getAttribute('data-field')==='qty' && td.textContent.trim()===''){ td.innerHTML=''; }
   });
@@ -15638,7 +15640,7 @@ function stkRtAttachCellHandlers(){
     var nv=td.textContent.trim();
     var old=td.getAttribute('data-old')||'';
     if(nv===old)return;
-    stkRtSaveFieldLight(td.getAttribute('data-pid'),td.getAttribute('data-dot')||'',td.getAttribute('data-field'),nv,old,td);
+    stkRtSaveFieldLight(td.getAttribute('data-pid'),td.getAttribute('data-dot')||'',td.getAttribute('data-field'),nv,old,td); stkRtWidenCell(td);
   });
   tbl.addEventListener('keydown',function(e){
     var td=e.target;if(!isEd(td))return;
@@ -15704,7 +15706,7 @@ function stkRtInline(td,pid,dot,field){
     if(save && nv!==old && !(nv===''&&old==='')){
       // 백그라운드 저장 — UI는 즉시 textContent 업데이트, 다른 셀 누름 안 막음
       td.textContent=nv;
-      stkRtSaveFieldLight(pid,dot,field,nv,old,td);
+      stkRtSaveFieldLight(pid,dot,field,nv,old,td); stkRtWidenCell(td);
     }else{
       td.textContent=old; // 변경 없으면 원복
     }
