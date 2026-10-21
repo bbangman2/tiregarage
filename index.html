@@ -21847,6 +21847,20 @@ function qrAlignRowHtml(row,i,edit,d){   // 얼라인 줄 = 기존 예약 폼과
 function qrSetAlign(i,st){ if(!qtCur||!qtCur.rows[i])return; qtCur.rows[i].state=st; qtRender(); }
 var QR_NO_ALIGN_ROW=true;   // 🧪 목업4: 고정 얼라인 줄 없음 — 얼라이는 보통 줄('얼라이먼트')로
 function qrAlgRowIdx(d){ var i=-1; (d.rows||[]).forEach(function(x,j){ if(i<0&&x&&x.kind!=='align'&&/얼라이|얼라인/.test(x.part||''))i=j; }); return i; }
+var QR_QUICK={inch:{part:'추가금',work:'20인치 이상 추가금',unit:5000,max:6,icon:'📏',label:'20인치 이상 추가금',hint:'×개 · 개당 5,000원 · 추가금 줄로 들어감 · 다시 누르면 빼기',re:/20인치|추가금/},
+  swap:{part:'위치교환',work:'타이어 위치교환 (앞뒤)',unit:10000,max:1,icon:'🔁',label:'타이어 위치교환',btn:'앞뒤 10,000',hint:'위치교환 줄로 들어감 · 다시 누르면 빼기',re:/위치교환|위치 교환/},
+  winter:{part:'보관',work:'타이어 보관 (윈터) 1년',unit:10000,max:6,icon:'❄️',label:'윈터 보관 1년',hint:'×개 · 1개당 10,000원 · 보관 줄로 들어감 · 다시 누르면 빼기',re:/보관|윈터/}};   /* (10/21) 금액 바뀌면 여기만 */
+function qrQuickIdx(d,k){ var Q=QR_QUICK[k], i=-1; (d.rows||[]).forEach(function(x,j){ if(i<0&&x&&x.kind!=='align'&&(Q.re.test(x.part||'')||Q.re.test(x.work||'')))i=j; }); return i; }
+function qrQuickHtml(d){ var h=''; Object.keys(QR_QUICK).forEach(function(k){ var Q=QR_QUICK[k]; var i=qrQuickIdx(d,k); var cur=(i>=0)?(parseInt(qtNum(d.rows[i].qty),10)||1):0;
+    h+='<div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;background:#fff7ed;border:1px solid #fcd9a8;border-radius:9px;padding:6px 8px;margin:6px 0"><span style="font-size:11.5px;font-weight:800;color:#8a4b12;margin-right:2px">'+Q.icon+' '+Q.label+'</span>';
+    if(Q.max===1)h+='<button type="button" class="rsv-algq'+(cur?' on':'')+'" onclick="qrQuickSet(\''+k+'\',1)">'+Q.btn+'</button>';
+    else for(var n=1;n<=Q.max;n++)h+='<button type="button" class="rsv-algq'+(cur===n?' on':'')+'" onclick="qrQuickSet(\''+k+'\','+n+')">'+n+'</button>';
+    h+='<span style="font-size:10.5px;color:#94a3b8;margin-left:2px">'+Q.hint+'</span></div>'; }); return h; }
+function qrQuickSet(k,n){ if(!qtCur)return; var Q=QR_QUICK[k]; var i=qrQuickIdx(qtCur,k); var cur=(i>=0)?(parseInt(qtNum(qtCur.rows[i].qty),10)||1):0;
+  if(cur===n){ qtCur.rows.splice(i,1); }
+  else if(i>=0){ var row=qtCur.rows[i]; row.qty=String(n); if(!qtNum(row.unit))row.unit=String(Q.unit); row.pamt=''; row.last=''; row.llast=''; }   /* 개수만 바꿈 — 단가를 고쳐 뒀으면 그대로 */
+  else { var blank=-1; qtCur.rows.forEach(function(x,j){ if(blank<0&&x&&x.kind!=='align'&&!(x.part||x.pat||x.work||x.qty||x.unit||x.labor))blank=j; }); var nr={part:Q.part,pat:'',out:'',work:Q.work,qty:String(n),unit:String(Q.unit),labor:''}; if(blank>=0)qtCur.rows[blank]=nr; else qtCur.rows.push(nr); }
+  if(!qrEditable()){ qrSave(); return; } qtRender(); }
 function qrAlgQuickHtml(d){   // 🧪 목업4: 합계 아래 얼라이 버튼 → '얼라이먼트' 보통 줄을 넣고 빼기
   var i=qrAlgRowIdx(d); var cur=(i>=0)?qtRowCalc(d.rows[i]).sum:0;
   var h='<div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;background:#fff7ed;border:1px solid #fcd9a8;border-radius:9px;padding:6px 8px;margin:6px 0"><span style="font-size:11.5px;font-weight:800;color:#8a4b12;margin-right:2px">🎯 얼라이 현장 추가</span>';
@@ -21919,6 +21933,7 @@ function qrRender(){
   if(ed)h+='<div class="qr-addrow"><button class="qt-addrow" onclick="qtAddRow()">＋ 행 추가</button></div>';
   h+='<div class="qt-total"><span style="font-weight:800;color:#5b6478">총 합계 <span style="font-size:11px;font-weight:700">(부가세 포함)</span></span><b id="qt-grand">'+(t.sum?t.sum.toLocaleString():'0')+'원</b></div>';
   h+=qrAlgQuickHtml(d);   // 🧪 목업7: 잠겨 있어도 얼라이 버튼은 항상 (누르면 바로 저장)
+  h+=qrQuickHtml(d);   /* (10/21) 20인치 추가금·위치교환·윈터 보관 */
   h+=qrPayHtml(d,t);
   h+='<div style="font-size:11.5px;font-weight:800;color:#5b6478;margin:10px 0 4px">👤 고객 · 공급자 <span style="font-weight:600;color:#94a3b8">(인쇄용 — 아래)</span></div>';
   h+=qtInfoHtml(d,ed);
