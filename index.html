@@ -17160,7 +17160,7 @@ var STK_RTV={R:[],rowHtml:null,th:'',addRow:'',foot:'',ncol:0,rowH:26,from:-1,to
 function stkRtVirtSetup(el,cfg){
   var wrap=el.closest('.stk-rtwrap')||el.parentElement;
   STK_RTV.el=el; STK_RTV.wrap=wrap; STK_RTV.R=cfg.R; STK_RTV.rowHtml=cfg.rowHtml; STK_RTV.th=cfg.th; STK_RTV.addRow=cfg.addRow; STK_RTV.foot=cfg.foot; STK_RTV.ncol=cfg.ncol;
-  STK_RTV.widths=stkRtColWidths(cfg);
+  STK_RTV.widths=stkRtColWidths(cfg).map(function(w){ return Math.ceil(w*1.06)+4; });   /* 추정치에 6%+4px 여유 */
   STK_RTV.from=-1; STK_RTV.to=-1;
   if(wrap&&!wrap._stkVirtScroll){ wrap._stkVirtScroll=true;
     var tick=false; wrap.addEventListener('scroll',function(){ if(tick)return; tick=true; setTimeout(function(){tick=false; stkRtVirtRender(false);},16); },{passive:true}); }
@@ -17195,7 +17195,12 @@ function stkRtColWidths(cfg){
   }
   return widths;
 }
-function stkRtVirtRender(force){
+function stkRtFixClip(){ try{ var tbl=document.getElementById('stk-rtTable'); if(!tbl)return; var cols=tbl.querySelectorAll('colgroup col'); if(!cols.length)return; var need={}; var scan=function(cells){ for(var i=0;i<cells.length;i++){ var c=cells[i]; if(c.colSpan&&c.colSpan>1)continue; var w=c.scrollWidth; if(w>c.clientWidth-1){ var want=w+14; if(!need[i]||need[i]<want)need[i]=want; } } };
+    tbl.querySelectorAll('thead tr').forEach(function(tr){ scan(tr.children); }); tbl.querySelectorAll('tbody tr').forEach(function(tr){ scan(tr.children); });
+    var ks=Object.keys(need); if(!ks.length)return; var chg=false; ks.forEach(function(k){ var i=+k; if(!cols[i])return; var cur=parseInt(cols[i].style.width,10)||0; if(need[k]>cur){ cols[i].style.width=need[k]+'px'; if(STK_RTV&&STK_RTV.widths)STK_RTV.widths[i]=need[k]; chg=true; } });
+    if(chg){ var tot=0; for(var j=0;j<cols.length;j++)tot+=parseInt(cols[j].style.width,10)||0; tbl.style.width=tot+'px'; } }catch(e){} }   /* (10/21) 그린 뒤 실제로 넘치는 칸이 있으면 그 열을 넓힘 — 어떤 폭이든 글자가 감춰지지 않게 */
+function stkRtVirtRender(force){ var _r=_stkRtVirtRenderCore(force); try{ stkRtFixClip(); }catch(e){} return _r; }
+function _stkRtVirtRenderCore(force){
   var V=STK_RTV, el=V.el, wrap=V.wrap; if(!el||!wrap||!V.rowHtml)return;
   var body=document.getElementById('stk-rtBody'); if(!body)return;
   var n=V.R.length, rowH=V.rowH||26;
