@@ -13086,7 +13086,7 @@ function v2ColsSave(){ if(!stkIsAdmin())return; _v2SaveP=_v2SaveP.then(async fun
 function v2ColOn(k){ if(STK_STORE!=='ping')return true; var m=v2ColsLoad(); if(String(k).indexOf('x_')===0)return !!m[k]; if(k==='real_cost'||k==='discount_rate')return m[k]!==0; return m[k]!==0; }   /* 기본 열은 켬, 마스터 열은 끔 */
 function v2ColSet(k,on){ if(!stkIsAdmin()){ stkToast('보이는 열은 대표만 바꿀 수 있어요'); v2GearRender(); return; } var m=v2ColsLoad(); if(String(k).indexOf('x_')===0){ if(on)m[k]=1; else delete m[k]; } else { if(on)delete m[k]; else m[k]=0; } v2ColsSave(); stkRenderTable(); }
 function v2ColsReset(all){ if(!stkIsAdmin()){ stkToast('보이는 열은 대표만 바꿀 수 있어요'); return; } var m={}; if(all)V2_X.forEach(function(c){ m[c[0]]=1; }); V2_COLS_ON=m; v2ColsSave(); stkRenderTable(); }
-function v2Cols(){ return V2_BASE.filter(function(c){return v2ColOn(c[0]);}).concat(V2_X.filter(function(c){return v2ColOn(c[0]);}).map(function(c){return [c[0],c[1]];})).concat(V2_TAIL.filter(function(c){return v2ColOn(c[0]);})); }
+function v2Cols(){ var tail=V2_TAIL.slice(); if(typeof stkCanSeeRealcost==='function'&&stkCanSeeRealcost()){ var ci=tail.findIndex(function(c){return c[0]==='cost';}); tail.splice(ci>=0?ci+1:3,0,['real_cost','실원가'],['discount_rate','할인율']); } return V2_BASE.filter(function(c){return v2ColOn(c[0]);}).concat(V2_X.filter(function(c){return v2ColOn(c[0]);}).map(function(c){return [c[0],c[1]];})).concat(tail.filter(function(c){return v2ColOn(c[0]);})); }
 function v2Def(k){ for(var i=0;i<V2_X.length;i++)if(V2_X[i][0]===k)return V2_X[i]; return null; }
 function v2ValKey(r,k){ var c=v2Def(k); if(!c||!r||!r.p)return ''; var name=k.slice(2); if(c[2]==='p'){ var x=r.p.extra||{}; return x[name]==null?'':x[name]; } var dk=r.dot; var l=(r.p.lots||[]).find(function(z){ return (z.dot||'DOT누락')===dk; }); var y=(l&&l.extra)||{}; return y[name]==null?'':y[name]; }
 function v2IsNum(k){ return /(가격|재고|최저가|최고가|판매점수|타이어ID)$/.test(k)&&!/DC율/.test(k); }
@@ -17016,7 +17016,7 @@ function stkRenderTable(){
   var cols=(STK_STORE==='ping')?v2Cols():[['cat','분류'],['source','출처'],['br','브랜드'],['name','패턴'],['code','패턴코드'],['size','사이즈'],['ply','P수'],['spec','재원'],['dot','DOT'],['price','택배가'],['inst','장착가'],['cost','원가'],['fprice','공장도가'],['target','목표수량'],['qty','수량'],['cur','변동재고']];   /* (10/21) V2는 핑 형식 열 이름·순서 */
   // 실원가 칼럼은 권한자(이호준·이정우·김다영 등)에게만 — 원가 다음에 끼워넣음
   var _canRC=(typeof stkCanSeeRealcost==='function'&&stkCanSeeRealcost());
-  if(_canRC){
+  if(_canRC&&STK_STORE!=='ping'){   /* V2는 v2Cols()가 실원가·할인율을 직접 넣음 */
     var _ci=cols.findIndex(function(c){return c[0]==='cost';});
     if(_ci>=0)cols.splice(_ci+1,0,['real_cost','실원가'],['discount_rate','할인율']);
   }
@@ -17085,7 +17085,7 @@ function stkRenderTable(){
       ed('source',r.source||'')+
       ed('br',r.br)+
       ed('name',r.name)+
-      (STK_STORE==='ping'?(ed('size',r.size)+ed('spec',r.spec||'',' style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:170px" title="'+stkEsc(r.spec||'')+'"')+ed('code',r.code,' style="white-space:nowrap"')+ed('dot',r.dot,(r.dot==='DOT누락'?' style="color:#dc2626"':''))+v2ExtraCells(r))   /* (10/21) V2: 사이즈·세부정보·제품번호·생산년도 (P수 칸 없음) */
+      (STK_STORE==='ping'?(ed('size',r.size)+ed('spec',r.spec||'',' style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:170px" title="'+stkEsc(r.spec||'')+'"')+ed('code',r.code,' style="white-space:nowrap"')+ed('dot',(r.dot==='DOT누락'?'':r.dot),(r.dot==='DOT누락'?' title="핑에 연식 정보가 없는 상품"':''))+v2ExtraCells(r))   /* (10/21) V2: 사이즈·세부정보·제품번호·생산년도 (P수 칸 없음) */
       :(ed('code',r.code,('피렐리'===r.br?' style="color:#c00;font-weight:800"':''))+
       ed('size',r.size)+
       ed('ply',r.ply||'')+
@@ -17169,6 +17169,8 @@ function stkRtColWidths(cfg){
   if(canRC)cols.push(function(r){return stkRCdisplay(r)},function(r){return r.discount_rate});
   cols.push(function(r){return r.fprice},function(r){return (r.target===''||r.target==null)?'':(String(r.target)+' (+000)')},function(r){return r.qty},function(r){return r.cur});
   STK_CHANS.forEach(function(c,ci){ cols.push(function(r){return r.ch[ci]||'+'}); });
+  if(STK_STORE==='ping'){ var G={cat:function(r){return String(r.cat||'')+'　　'},source:function(r){return r.source},br:function(r){return r.br},name:function(r){return r.name},size:function(r){return r.size},spec:function(r){return r.spec},code:function(r){return r.code},dot:function(r){return r.dot},price:function(r){return stkPriceDisplay(r)},inst:function(r){return stkInstDisplay(r)},cost:function(r){return stkCostDisplay(r)},real_cost:function(r){return stkRCdisplay(r)},discount_rate:function(r){return r.discount_rate},fprice:function(r){return r.fprice},target:function(r){return (r.target===''||r.target==null)?'':(String(r.target)+' (+000)')},qty:function(r){return r.qty},cur:function(r){return r.cur}};
+    cols=v2Cols().map(function(c){ var k=c[0]; if(G[k])return G[k]; if(k.indexOf('x_')===0)return function(r){ return v2Fmt(k,v2ValKey(r,k)); }; return function(r){return '';}; }); STK_CHANS.forEach(function(c,ci){ cols.push(function(r){return r.ch[ci]||'+'}); }); }   /* (10/21) V2는 보이는 열 순서대로 폭 재기 */
   var hdrs=[]; try{ var tmp=document.createElement('table'); tmp.innerHTML=cfg.th; tmp.querySelectorAll('th').forEach(function(t){ var c=t.cloneNode(true); var lab=c.querySelector('.colab'); if(lab)lab.remove(); hdrs.push(c.textContent.replace(/\s+/g,' ').trim()); }); }catch(_e){}
   var widths=[];
   for(var i=0;i<cfg.ncol;i++){
