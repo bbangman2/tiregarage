@@ -2190,6 +2190,7 @@ tr.qr-align.off td input{color:#94a3b8}
   <div class="stk-pane" id="stk-pane3">
     <div id="stk-rtAddBar" style="margin-bottom:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
       <button onclick="stkRtAddRow()" style="padding:8px 13px;border:1px solid #b9e0c9;background:#eaf7ef;color:#15803d;border-radius:9px;font-size:13px;font-weight:800;cursor:pointer">➕ 행 추가</button>
+      <button id="stk-upLockBtn2" onclick="stkTogUpLock()" style="display:none;padding:8px 13px;border:1px solid #fecaca;background:#fef2f2;color:#b91c1c;border-radius:9px;font-size:13px;font-weight:800;cursor:pointer" title="관리자: 업로드·행 추가·최종마스터 올리기 잠금/해제">🔒 업로드 잠김</button>
       <span id="stk-moBar" style="display:inline-flex;gap:5px;align-items:center;flex-wrap:wrap;margin-left:6px"></span>
       <span style="font-size:11px;color:#b91c1c;font-weight:600">⚠️ 재고표 수정 중에는 다른 직원이 같은 상품을 출고하지 않도록 주의 (가능하면 출고 끝난 뒤 정리)</span>
       <span id="stk-rtEditHint" style="font-size:11px;color:#888"></span>
@@ -7641,13 +7642,17 @@ async function dlvCancel(id){
   await loadDeliveries();
 }
 async function dlvUncancel(id){
-  if(!dlvGuardEdit())return;
+  var _adm=(typeof ADMIN_NAME!=='undefined'&&me&&me.name===ADMIN_NAME), _past=!dlvEditable();   /* (10/22 호준님) 대표는 지난 날짜도 복구 */
+  if(!_adm){ if(!dlvGuardEdit())return; }
+  else { var _n=kstNow(), _h=_n.getUTCHours(), _m=_n.getUTCMinutes(); if((_h===23&&_m>=59)||(_h===0&&_m<=1)){ alert('🌙 자정 이월 중이에요 (23:59~00:01).\n약 1분 후 다시 시도해주세요.'); return; } }
   const c=deliveriesCache.find(function(x){return x.id===id;});if(!c)return;
+  if(_adm&&_past&&!confirm('지난 날짜('+(c.date_str||'')+') 카드예요. 취소를 되돌릴까요?\n(기록에 남습니다)'))return;
   try{
     await sb.from('deliveries').update({cancelled:false}).eq('id',id);
     try{ if(c.src_kind&&(c.src_product_id||c.src_item_id)&&!c.stock_done){ await dlvStkSync(id,true); } }catch(_e){}
     tabLogAppend('dlv', String(c.origin_id||c.id), ((c.trade_client||c.recv||c.tire||'')+'').slice(0,40)||'(제목없음)', (me?me.name:'?')+'(취소되돌리기 '+_tlNow()+')', c.date_str||dlvDateStr());
-    await sb.from('delivery_logs').insert({room_id:curRoom.id,date_str:dlvDateStr(),text:(me?me.name:'?')+'님이 취소 되돌림 ('+(c.recv||c.tire||'')+') [#'+_dlvId8(c)+']',user_name:me?me.name:''});
+    await sb.from('delivery_logs').insert({room_id:curRoom.id,date_str:(c.date_str||dlvDateStr()),text:(me?me.name:'?')+'님이 취소 되돌림 ('+(c.recv||c.tire||'')+') [#'+_dlvId8(c)+']'+((_adm&&_past)?' · 지난 날짜 '+(c.date_str||'')+' 대표 복구':''),user_name:me?me.name:''});
+    if(_adm){ try{ var _root=c.origin_id||c.id; var _ch=await sb.from('deliveries').select('id,date_str').or('id.eq.'+_root+',origin_id.eq.'+_root).eq('cancelled',true).neq('id',id); var _ids=(_ch.data||[]).map(function(x){return x.id;}); if(_ids.length&&confirm('같은 카드의 다른 날짜 복사본 '+_ids.length+'장도 취소 상태예요 ('+(_ch.data||[]).map(function(x){return x.date_str;}).join(', ')+').\n같이 되돌릴까요?')){ await sb.from('deliveries').update({cancelled:false}).in('id',_ids); await sb.from('delivery_logs').insert({room_id:curRoom.id,date_str:(c.date_str||dlvDateStr()),text:(me?me.name:'?')+'님이 이월 복사본 '+_ids.length+'장도 취소 되돌림 [#'+_dlvId8(c)+'] · 대표 복구',user_name:me?me.name:''}); logAudit('직배송 취소 되돌림(이월 복사본 '+_ids.length+'장)',(c.trade_client||c.recv||c.tire||'')); } }catch(_e){} }   /* (10/22) 사슬 전체 취소였으면 같이 복구 */
     logAudit('직배송 취소 되돌림', (c.trade_client||c.recv||c.tire||''));
     if(c.channel==='trade'){ try{ var _iu=await dlvInbUncancelFor(c); if(_iu)dlvLog('입고방 연동: 복구 '+_iu+'건',c); }catch(_e){} }
   }catch(e){alert('실패: '+e.message);}
@@ -13782,14 +13787,14 @@ async function stkLoadUpLock(){
     if(r.data&&r.data.length){ stkUpLocked=(r.data[0].value!=='0'); }
     else { stkUpLocked=true; try{await sb.from('stock_settings').insert({key:'upload_locked',value:'1'});}catch(e){} } // 기본값 잠김
   }catch(e){}
-  var b=document.getElementById('stk-upLockBtn');
+  ['stk-upLockBtn','stk-upLockBtn2'].forEach(function(_id){ var b=document.getElementById(_id); if(b&&_id==='stk-upLockBtn2')b.style.display=(typeof stkIsAdmin==='function'&&stkIsAdmin())?'':'none';   /* (10/22) 재고표 탭 버튼은 관리자에게만 */
   if(b){
     b.textContent=stkUpLocked?'🔒 업로드 잠김':'🔓 업로드 가능';
     b.style.background=stkUpLocked?'#fef2f2':'#f0fdf4';
     b.style.borderColor=stkUpLocked?'#fecaca':'#bbf7d0';
     b.style.color=stkUpLocked?'#b91c1c':'#15803d';
     b.title=(typeof stkIsAdmin==='function'&&stkIsAdmin())?'클릭: 업로드 잠금/해제 (관리자)':'관리자만 변경할 수 있어요';
-  }
+  } });
 }
 function stkUpGuard(){
   if(stkUpLocked){stkToast('🔒 업로드가 잠겨 있습니다 — 관리자가 풀어야 합니다');return false}
@@ -14392,6 +14397,8 @@ function stkTq(p){return p.lots.reduce(function(s,l){return s+l.q},0)}
 function stkCellMap(){var m={};stkP.forEach(function(p){p.lots.forEach(function(l){if(!l.q)return;(m[l.loc]=m[l.loc]||[]).push({p:p,l:l})})});return m}
 function stkLotPrice(p,l){return l.price||p.price||0}
 function stkTopPrice(p){var ls=p.lots.filter(function(l){return l.q>0});return ls.length?Math.max.apply(null,ls.map(function(l){return stkLotPrice(p,l)})):(p.price||0)}
+var STK_KO_ALIAS={'벤투스':['ventus'],'다이나프로':['dynapro'],'키너지':['kinergy'],'옵티모':['optimo'],'아이셉트':['i*cept','icept'],'아이파이크':['i*pike','ipike'],'아이온':['ion'],'윈터':['winter','i*cept','i*pike','blizzak','winguard','wintrac','alpin','sottozero','scorpion winter','ice','snow','w3','w4','w6','rw'],'겨울':['winter'],'엔페라':["n'fera",'nfera','n fera'],'엔블루':["n'blue",'nblue','n blue'],'엔프리즈':["n'priz",'npriz'],'로디안':['roadian'],'윈가드':['winguard'],'슈프림':['supreme'],'엑스타':['ecsta'],'크루젠':['crugen'],'솔루스':['solus'],'포트란':['portran'],'마제스티':['majesty'],'윈터크래프트':['wintercraft'],'피제로':['p zero','pzero'],'친투라토':['cinturato'],'스콜피온':['scorpion'],'파일럿':['pilot'],'프라이머시':['primacy'],'크로스클라이밋':['crossclimate'],'아질리스':['agilis'],'래티튜드':['latitude'],'알파인':['alpin'],'이글':['eagle'],'어슈어런스':['assurance'],'이피션트':['efficient'],'블루어스':['bluearth'],'어드밴':['advan'],'지오랜더':['geolandar'],'투란자':['turanza'],'포텐자':['potenza'],'알렌자':['alenza'],'듀엘러':['dueler'],'에코피아':['ecopia'],'블리작':['blizzak'],'프리미엄컨택':['premiumcontact','premium contact'],'스포츠컨택':['sportcontact','sport contact'],'에코컨택':['ecocontact'],'울트라컨택':['ultracontact'],'올시즌':['all season','allseason','4season','a/s','as'],'사계절':['all season','allseason','4season'],'오프로드':['a/t','m/t','at','mt','r/t'],'인스파이어':['inspire'],'아트레조':['atrezzo'],'테라맥스':['terramax'],'아이스블레이저':['ice blazer','iceblazer'],'런플랫':['runflat','run flat','rft','ssr','zp'],'흡음':['sound absorber','soundabsorber','foam','silent']};
+function stkKoAlias(t){ var a=STK_KO_ALIAS[t]; if(a)return a; for(var k in STK_KO_ALIAS){ if(t.length>=2&&k.indexOf(t)===0)return STK_KO_ALIAS[k]; } return null; }   /* (10/22) 한글 패턴 이름→영어 별칭(앞글자 일치도) */
 function stkMatch(p,q){
   if(!q.trim())return true;
   // 소수점 상용형 통일: 5.00 12 = 500 12 (검색어·저장값 양쪽, X형 플로테이션은 보존 — 호준님 9/2)
@@ -14436,7 +14443,7 @@ function stkMatch(p,q){
     if(plyTok&&t===plyTok)return true;
     if(sd&&plyTok&&t===(sd+plyTok))return true; // (v129) 사이즈+P수 통짜 (145138p)
     // 3) 문자/혼합(넥센, lt235, 오프로드 등): 텍스트 검색
-    return hay.indexOf(t)>=0;
+    if(hay.indexOf(t)>=0)return true; var _al=stkKoAlias(t); if(_al&&_al.some(function(x){return hay.indexOf(x)>=0;}))return true;   /* (10/22) 한글 별칭 */ return false;
   });
 }
 // ── 탭/검색 렌더 ──
@@ -14445,6 +14452,8 @@ var STK_RATE_TAB_ON=true;   // 할인율 탭·말풍선 노출 (호준님 9/7: �
 var STK_RATE_HIDE_SUPS=['강남'];   // 격자에서 빼는 거래처 (호준님 9/7: 강남 필요 없음)
 // (9/7) 거래처 표시 합치기: 한국1(본사 전산 기본 DC)·한국2(본사 월간 프로모션 이미지)는 둘 다 '한국본사' — 한 열로, 프로모션이 있으면 그 값(전산 기본은 제목에)
 var STK_RATE_SUP_MERGE={'한국1':'한국본사','한국2':'한국본사','한국본사전산':'한국본사','한타프로모션':'한국본사'}; var STK_RATE_SUP_PRIO={'한국2':2,'한타프로모션':2,'한국1':1,'한국본사전산':1};
+function stkRuleMonth(r){ var m=String((r&&r.sub)||'').match(/(^|[^0-9])(\d{1,2})월/); return m?parseInt(m[2],10):0; }
+function stkRuleMonthOk(r){ var m=stkRuleMonth(r); if(!m)return true; if(!((STK_RATE_SUP_PRIO[r.sup]||0)>=2))return true; var now=new Date(Date.now()+9*3600000).getUTCMonth()+1; return m===now; }   /* (10/22) 'N월' 프로모션 규칙은 그 달에만 */
 function stkRateSupName(s){ return STK_RATE_SUP_MERGE[s]||s; }
 var STK_RATE={rules:null,ts:0,brand:'전체',brands:[],layer:'new',loading:false,lastOrder:[],lastSups:[],real:false};   // brands=[] → 전체
 /* (9/8 호준님) 할인율 탭 검색 = 재고표 요령: 띄어쓰기마다 조건(AND). 숫자 토막은 사이즈(145 70 13 / 145 13 / 235/55R18), 'NP'는 P수, 글자는 브랜드·패턴·코드·거래처·원산지·조건.
@@ -14590,13 +14599,14 @@ async function stkSafeCfgSave(){
     stkToast('안전 설정 저장'); stkSafeUiSync(); stkRateLayer(STK_RATE.layer);
   }catch(e){ stkToast('저장 실패: '+(e.message||e)); }
 }
+async function sbRulesAll(){ var all=[],from=0,SIZE=1000; while(true){ var r=await sb.from('price_rules').select('*').order('id',{ascending:true}).range(from,from+SIZE-1); if(r.error)throw r.error; var b=r.data||[]; all=all.concat(b); if(b.length<SIZE)break; from+=SIZE; if(from>50000)break; } return all; }   /* (10/22) 규칙 표 1,000줄 넘음 — 나눠 읽기 */
 async function stkRateLoad(force){
   if(STK_RATE.loading)return;
   if(STK_RATE.rules&&!force&&Date.now()-STK_RATE.ts<5*60*1000){ stkSafeUiSync(); stkRateRender(); return; }
   STK_RATE.loading=true;
   try{ if(!STK_SAFE_LOADED)await stkSafeLoad(); }catch(_e){}
   stkSafeUiSync();
-  try{ var r=await sb.from('price_rules').select('*').limit(5000); if(r.error)throw r.error; STK_RATE.rules=r.data||[]; STK_RATE.ts=Date.now(); }
+  try{ var _all=await sbRulesAll(); STK_RATE.rules=_all; STK_RATE.ts=Date.now(); }
   catch(e){ stkToast('할인율 규칙을 못 읽었습니다: '+(e.message||e)); STK_RATE.rules=STK_RATE.rules||[]; }
   STK_RATE.loading=false; stkRateRender();
 }
@@ -14649,7 +14659,7 @@ function stkRateRender(){
   var lay=STK_RATE.layer;
   function _hit(r){ return stkRateHit(r,q); }
   var qtyMap=stkRateQtyMap(rules), qtyLv=stkRateQtyLevel(); stkRateQtySync();
-  var list=rules.filter(function(r){ if(stkRateQtyIsBonus(r))return false; if(STK_RATE_HIDE_SUPS.indexOf(r.sup)>=0)return false; if(!stkRateBrandOk(r.brand))return false; if((lay==='old')!==stkRateIsOld(r))return false; return _hit(r); });
+  var list=rules.filter(function(r){ if(stkRateQtyIsBonus(r))return false; if(!stkRuleMonthOk(r))return false; if(STK_RATE_HIDE_SUPS.indexOf(r.sup)>=0)return false; if(!stkRateBrandOk(r.brand))return false; if((lay==='old')!==stkRateIsOld(r))return false; return _hit(r); });
   // (9/7) 검색어가 있으면 전체(모든 브랜드·신품/이월)를 기준으로 세어, 지금 보이는 탭 밖에 있는 것을 작게 알려 준다
   var elsewhere='';
   if(q){ var other={}; rules.forEach(function(r){ if(STK_RATE_HIDE_SUPS.indexOf(r.sup)>=0||!_hit(r))return; var l=stkRateIsOld(r)?'old':'new'; var inView=stkRateBrandOk(r.brand)&&(l===lay); if(inView)return; var k=r.brand+(l===lay?'':(l==='old'?' 이월':' 최신')); other[k]=(other[k]||0)+1; });
@@ -14674,7 +14684,7 @@ function stkRateRender(){
       sups.map(function(s){ var c=R.cells[s]; if(!c)return (stkSafeCanToggle()?'<td style="color:#ccc;cursor:pointer" title="누르면 이 거래처 할인율을 바로 넣습니다" onclick="stkRateBlankFill('+order.indexOf(k)+',\''+stkEsc(s)+'\')">—</td>':'<td style="color:#ccc">—</td>');   /* (10/22 호준님) 빈 칸 눌러 채우기 */ var ttl=(c.src&&STK_RATE_SUP_MERGE[c.src]?(c.src==='한국2'?'프로모션':'전산 기본')+' · ':'')+stkEsc(c.kind)+((c.alt&&c.alt.length)?' · 다른 값: '+stkEsc(c.alt.join(', ')):'')+(c.qtxt?' · '+stkEsc(c.qtxt)+(c.qadd?' (지금 +'+c.qadd+' 적용 중)':''):''); return '<td class="'+(c.disp===mn?'rate-min':(c.disp===mx?'rate-max':''))+'" title="'+ttl+'">'+(STK_RATE.real?'<input class="rate-in" value="'+c.rate+'" data-rid="'+c.id+'" data-old="'+c.rate+'" onchange="stkRateSave(this)">':'<span class="rate-safe">'+c.disp+'</span>')+(c.qadd?'<span style="color:#7c3aed;font-size:9px;font-weight:800" title="수량 가산 +'+c.qadd+'">+'+c.qadd+'</span>':'')+(c.src==='한국2'?'<span style="color:#c2410c;font-size:9px;font-weight:800" title="프로모션 값">P</span>':'')+(c.n>1?'<span style="color:#888;font-size:10px"> ('+c.n+')</span>':'')+'</td>'; }).join('')+'</tr>'; }).join('');
   el.innerHTML=th+'<tbody>'+body+'</tbody>'; el.style.tableLayout=''; el.style.width='';
   STK_RATE.lastOrder=order.map(function(k){return rows[k]}); STK_RATE.lastSups=sups;
-  var cnt=document.getElementById('stk-rateCnt'); if(cnt)cnt.innerHTML=order.length+'행 · 규칙 '+list.length+'개 · '+(lay==='new'?'최신':'이월')+(STK_RATE.rules?'':' (읽는 중)')+stkSafeCntTag()+elsewhere;
+  var _mh=rules.filter(function(r){return stkRuleMonth(r)&&!stkRuleMonthOk(r);}).length; var cnt=document.getElementById('stk-rateCnt'); if(cnt)cnt.innerHTML=order.length+'행 · 규칙 '+list.length+'개'+(_mh?' · <span title="세부에 N월이 적힌 프로모션 규칙은 그 달에만 보입니다">다른 달 프로모션 '+_mh+'개 숨김</span>':'')+' · '+(lay==='new'?'최신':'이월')+(STK_RATE.rules?'':' (읽는 중)')+stkSafeCntTag()+elsewhere;
 }
 async function stkRateDownload(){
   try{ await stkLoadXLSX(); }catch(e){ stkToast(e.message); return; }
@@ -14764,7 +14774,7 @@ function stkRateRulesFor(p){
   return hits.map(function(h){return h.r;});
 }
 function stkRateTipHtml(p){
-  var rsAll=stkRateRulesFor(p), rs=rsAll.filter(function(r){return !stkRateQtyIsBonus(r);}); if(!rs.length)return '<div style="color:#666">'+stkEsc(p.br+' '+(p.code||p.name))+' — 단가표에 규칙 없음</div>';
+  var rsAll=stkRateRulesFor(p), rs=rsAll.filter(function(r){return !stkRateQtyIsBonus(r)&&stkRuleMonthOk(r);}); if(!rs.length)return '<div style="color:#666">'+stkEsc(p.br+' '+(p.code||p.name))+' — 단가표에 규칙 없음</div>';
   var _qm=stkRateQtyMap(STK_RATE.rules||[]), _qtxt=[]; Object.keys(_qm).forEach(function(k){ if(k.indexOf(p.br+'|')===0)_qtxt.push(k.split('|')[1]+' '+stkRateQtyText(_qm,p.br,k.split('|')[1])); });
   rs.sort(function(a,b){ return (stkRateIsOld(a)?1:0)-(stkRateIsOld(b)?1:0) || String(a.sup).localeCompare(String(b.sup),'ko') || (parseFloat(a.rate)-parseFloat(b.rate)); });
   var cur=(p.discount_rate===''||p.discount_rate==null)?null:parseFloat(p.discount_rate);
@@ -28221,7 +28231,7 @@ async function pxLoadDB(force){
       if(!r.data||r.data.length<page) break;
       from+=page;
     }
-    var ru=await sb.from('price_rules').select('*');
+    var ru={data:null,error:null}; try{ ru.data=await sbRulesAll(); }catch(e){ ru.error=e; }   /* (10/22) 1,000줄 넘는 규칙 표 나눠 읽기 */
     if(ru.error) return {err:ru.error.message};
     PDT.length=0; all.forEach(function(x){PDT.push(pxRowFromDB(x))});
     PRULES.length=0;
