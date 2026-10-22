@@ -2260,7 +2260,7 @@ tr.qr-align.off td input{color:#94a3b8}
       <div style="color:#888;margin-top:4px">저장하면 종합방 단가표 규칙에 바로 들어가고, 이 탭·재고표 말풍선에 즉시 보입니다. 연식을 적으면 이월 탭으로 갑니다. 지우려면 칸에 0을 넣지 말고 저에게 말씀하세요.</div>
     </div>
     <div id="stk-rateBrands" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px"></div>
-    <div style="font-size:11px;color:#666;margin-bottom:6px">칸을 고치면 바로 저장(종합방 단가표와 같은 값) · <span style="background:#fee2e2;padding:0 6px;border-radius:4px">빨강</span> = 그 줄에서 가장 낮은 율 · <span style="background:#dcfce7;padding:0 6px;border-radius:4px">초록</span> = 가장 높은 율 · 값 뒤 괄호 = 같은 칸에 규칙이 여러 개 · 한국본사 칸의 <b style="color:#c2410c">P</b> = 이번 달 프로모션 값(없으면 전산 기본), 마우스 올리면 둘 다</div>
+    <div style="font-size:11px;color:#666;margin-bottom:6px">칸을 고치면 바로 저장(종합방 단가표와 같은 값) · 빈 칸(—)은 누르면 바로 넣기 · <span style="background:#fee2e2;padding:0 6px;border-radius:4px">빨강</span> = 그 줄에서 가장 낮은 율 · <span style="background:#dcfce7;padding:0 6px;border-radius:4px">초록</span> = 가장 높은 율 · 값 뒤 괄호 = 같은 칸에 규칙이 여러 개 · 한국본사 칸의 <b style="color:#c2410c">P</b> = 이번 달 프로모션 값(없으면 전산 기본), 마우스 올리면 둘 다</div>
     <div class="stk-rtwrap" style="max-height:calc(100vh - 300px)"><table class="stk-rt" id="stk-rateTable"></table></div>
   </div>
 </div>
@@ -10428,7 +10428,7 @@ var OM_PLAT_CH={'핑':'ping','스팜':'online','11번가':'online','전화':'onl
 var JH_SRC_ALIAS=[[/^창고/,'창고'],[/^(타이어\s*에?\s*[미메]치다|[미메]치다)/,'타이어에미치다'],[/^극동/,'극동'],[/^황제/,'황제'],[/^그랜드/,'그랜드타이어'],
   [/^매일(타이어)?\s*\(?\s*오후/,'매일오후'],[/^매일(타이어)?\s*\(?\s*오전/,'매일오전'],[/^매일(타이어)?\s*\(?\s*화성/,'매일(화성)'],[/^매일/,'매일'],
   [/^[사싸]일룬/,'사일룬'],[/^하나/,'하나타이어'],[/^대구/,'대구'],[/^퇴계원/,'퇴계원'],[/^(한타\s*(물류|sfp)|양주\s*sfp|강릉\s*sfp|한국\s*물류)/i,'한타물류'],[/^(한타|한국)/,'한타주문'],
-  [/^넥센\s*택배/,'넥센택배'],[/^넥센/,'넥센물류'],[/^(천안\s*)?미쉐린/,'천안미쉐린'],[/^안나이트/,'안나이트'],[/^레이다/,'레이다'],[/^하빌리드/,'하빌리드'],[/^아파치/,'아파치'],[/^흥원/,'흥원'],[/^핑/,'핑'],[/넥센/,'넥센물류']];   /* (10/22 호준님) 넥센이 어디든 들어 있으면 넥센물류 */
+  [/^넥센\s*택배/,'넥센택배'],[/^넥센/,'넥센물류'],[/^(천안\s*)?미쉐린/,'천안미쉐린'],[/^안나이트/,'안나이트'],[/^레이다/,'레이다'],[/^하빌리드/,'하빌리드'],[/^아파치/,'아파치'],[/^흥원/,'흥원'],[/^핑/,'핑'],[/넥센/,'넥센물류'],[/핑/,'핑']];   /* (10/22 호준님) 핑이 어디든 들어 있으면 핑 */   /* (10/22 호준님) 넥센이 어디든 들어 있으면 넥센물류 */
 function jhSrcSplit(t){ var out=[], cur='', dep=0; for(var i=0;i<t.length;i++){ var ch=t[i]; if(ch==='('||ch==='[')dep++; else if(ch===')'||ch===']')dep=Math.max(0,dep-1); if(dep===0&&(ch===','||ch==='，'||(ch==='/'&&!(/\d/.test(t[i-1]||'')&&/\d/.test(t[i+1]||''))))){ out.push(cur); cur=''; continue; } cur+=ch; } out.push(cur); return out.map(function(x){return x.trim();}).filter(Boolean); }
 function jhSrcParse(raw){   // → {raw, parts:[{name,kind:'stock'|'supplier'|'unknown',qty,note}], cancel, nostock, ordered, empty, unk}
   raw=String(raw||'').trim(); var R={raw:raw,parts:[],cancel:false,nostock:false,ordered:false,empty:!raw,unk:false}; if(!raw)return R;
@@ -12949,7 +12949,7 @@ function dlvInbParseOut(srcRaw,cardQty,opt){ // 출고 칸 해석 (10/8): '매�
   var s=String(srcRaw||'').trim(); if(!s)return {segs:[],why:'출고처 빈칸'};
   s=s.replace(/\(\s*\d+\s*일\s*(출고|입고|주문)\s*\)/g,' ').replace(/\d+\s*일\s*(출고|입고|주문)/g,' ').replace(/\d{1,3}\s*%/g,' ').replace(/\d+\s*년\s*출고/g,' ').replace(/(^|\s)\d{2,4}\s*년(?=\s|$)/g,' ').replace(/\(\s*\)/g,' ').replace(/\s+/g,' ').trim();   // (10/16) "(15일출고)"·"26년출고"·"26년" 같은 날짜·연식 메모는 출고지가 아님 — 걷어내고 읽음
   if(!s)return {segs:[],why:'출고처 빈칸(메모만 있음: '+String(srcRaw).slice(0,30)+')'};
-  var _pre=[]; s=s.split(/[,，\/+&]/).map(function(seg){ seg=seg.trim(); if(!seg||!/넥센/.test(seg))return seg; var keep=[]; var core=seg.replace(/(^|\s)([^\s\d]*?)(\d{1,2})(?=\s|$)/g,function(m,a,nm,q){ if(!nm||/넥센/.test(nm))return m; keep.push(nm+q); return ' '; }).replace(/\s+/g,' ').trim(); var last=core.split(/\s*(?:->|→|＞|>)\s*/).filter(Boolean).pop()||core; var nm=/미치다/.test(last)?'타이어에미치다':(/퇴계원/.test(last)?'퇴계원':(/넥센/.test(last)?'넥센물류':null)); if(!nm)return seg; var qm=core.match(/(\d{1,2})\s*(?:개|본)?\s*\)?\s*$/)||core.match(/넥센[가-힣]*\s*(\d{1,2})(?!\d)/); _pre.push({name:nm,qty:qm?parseInt(qm[1],10):null}); return keep.join(' '); }).filter(Boolean).join(',');   /* (10/22 호준님) 넥센이 든 조각은 넥센물류(미치다·퇴계원 우선) · 같은 조각의 다른 거래처(극동3 등)는 원래 길로 */
+  var _pre=[]; s=s.split(/[,，\/+&]/).map(function(seg){ seg=seg.trim(); if(!seg||!(/넥센/.test(seg)||(opt&&opt.ping&&/핑/.test(seg))))return seg; var keep=[]; var core=seg.replace(/(^|\s)([^\s\d]*?)(\d{1,2})(?=\s|$)/g,function(m,a,nm,q){ if(!nm||/넥센/.test(nm))return m; keep.push(nm+q); return ' '; }).replace(/\s+/g,' ').trim(); var last=core.split(/\s*(?:->|→|＞|>)\s*/).filter(Boolean).pop()||core; var nm=/미치다/.test(last)?'타이어에미치다':(/퇴계원/.test(last)?'퇴계원':(/넥센/.test(last)?'넥센물류':((opt&&opt.ping&&/핑/.test(last))?'핑':null))); if(!nm)return seg; var qm=core.match(/(\d{1,2})\s*(?:개|본)?\s*\)?\s*$/)||core.match(/(?:넥센|핑)[가-힣]*\s*(\d{1,2})(?!\d)/); _pre.push({name:nm,qty:qm?parseInt(qm[1],10):null,ping:(nm==='핑')}); return keep.join(' '); }).filter(Boolean).join(',');   /* (10/22 호준님) 넥센이 든 조각은 넥센물류(미치다·퇴계원 우선) · 같은 조각의 다른 거래처(극동3 등)는 원래 길로 */
   var re=/([^\d,，\/+&\s]+)\s*(\d+)?/g, m, segs=_pre.slice(), wh=[];
   while((m=re.exec(s))){ var nm=m[1].trim(), q=(m[2]!=null)?parseInt(m[2],10):null; if(!nm)continue; if(opt&&opt.ping&&/^핑/.test(nm)){ segs.push({name:nm,qty:q,ping:true}); continue; }   /* (10/21) 주문방·택배방: 핑택배·핑주문 = 핑에 주문한 입고 */ if(/창고|재고|회수|택배|핑/.test(nm))wh.push(nm+(q!=null?q:'')); else segs.push({name:nm,qty:q}); }
   if(!segs.length)return {segs:[],why:(wh.length?wh.join(' '):s)};
@@ -14654,7 +14654,7 @@ function stkRateRender(){
   // 행 키 = 브랜드|패턴(코드 우선)|조건 · 열 = 거래처
   var rows={}, order=[], sups=[];
   list.forEach(function(r){ var pat=(r.code||r.pattern_name||'').toString(); var cond=stkRateCond(r)+(r.dot_cond?(' · '+r.dot_cond):''); var k=r.brand+'|'+pat+'|'+cond;
-    if(!rows[k]){ rows[k]={brand:r.brand,pat:pat,name:r.pattern_name||'',cond:cond,cells:{}}; order.push(k); }
+    if(!rows[k]){ rows[k]={brand:r.brand,pat:pat,name:r.pattern_name||'',cond:cond,cells:{},ref:r}; order.push(k); }   /* (10/22) ref = 빈 칸 채울 때 조건 복사용 */
     var rate=parseFloat(r.rate); if(isNaN(rate))return;
     var sn=stkRateSupName(r.sup), pr=STK_RATE_SUP_PRIO[r.sup]||0;
     var c=rows[k].cells[sn];
@@ -14668,7 +14668,7 @@ function stkRateRender(){
   var body=order.map(function(k){ var R=rows[k]; Object.keys(R.cells).forEach(function(s){ var c=R.cells[s]; c.qadd=stkRateQtyAdd(qtyMap,R.brand,s,qtyLv); c.qtxt=stkRateQtyText(qtyMap,R.brand,s); c.disp=(STK_RATE.real?c.rate:stkSafeRateFor(c.rate,R.brand))+c.qadd; }); var vals=Object.keys(R.cells).map(function(s){return R.cells[s].disp}); var mn=vals.length?Math.min.apply(null,vals):null; var mx=vals.length?Math.max.apply(null,vals):null; if(mx===mn)mx=null;
     var _isCode=/^[A-Za-z0-9\-\/+]+$/.test(R.pat);
     return '<tr><td>'+stkEsc(R.brand)+'</td><td style="text-align:left;white-space:normal;max-width:360px">'+(_isCode?('<b>'+stkEsc(R.pat)+'</b>'+(R.name&&R.name!==R.pat?' <span style="color:#666">'+stkEsc(R.name)+'</span>':'')):('<span style="color:#7c2d12;font-weight:800">'+stkEsc(R.pat)+'</span>'+(R.name&&R.name!==R.pat?' <span style="color:#666">'+stkEsc(R.name)+'</span>':'')))+'</td>'+(function(){ var cd=stkRateCondDisp(R.cond,q); var folded=cd.full&&cd.full!==cd.txt.replace(/<[^>]+>/g,''); return '<td style="'+(R.cond?'color:#1d4ed8':'color:#aaa')+';max-width:230px;overflow:hidden;text-overflow:ellipsis'+(folded?';cursor:pointer':'')+'"'+(folded?' data-short="'+stkEsc(cd.txt)+'" data-full="'+stkEsc(stkEsc(cd.full))+'" onclick="stkRateCondToggle(this)"':'')+'>'+(cd.full?cd.txt:'기본')+'</td>'; })()+
-      sups.map(function(s){ var c=R.cells[s]; if(!c)return '<td style="color:#ccc">—</td>'; var ttl=(c.src&&STK_RATE_SUP_MERGE[c.src]?(c.src==='한국2'?'프로모션':'전산 기본')+' · ':'')+stkEsc(c.kind)+((c.alt&&c.alt.length)?' · 다른 값: '+stkEsc(c.alt.join(', ')):'')+(c.qtxt?' · '+stkEsc(c.qtxt)+(c.qadd?' (지금 +'+c.qadd+' 적용 중)':''):''); return '<td class="'+(c.disp===mn?'rate-min':(c.disp===mx?'rate-max':''))+'" title="'+ttl+'">'+(STK_RATE.real?'<input class="rate-in" value="'+c.rate+'" data-rid="'+c.id+'" data-old="'+c.rate+'" onchange="stkRateSave(this)">':'<span class="rate-safe">'+c.disp+'</span>')+(c.qadd?'<span style="color:#7c3aed;font-size:9px;font-weight:800" title="수량 가산 +'+c.qadd+'">+'+c.qadd+'</span>':'')+(c.src==='한국2'?'<span style="color:#c2410c;font-size:9px;font-weight:800" title="프로모션 값">P</span>':'')+(c.n>1?'<span style="color:#888;font-size:10px"> ('+c.n+')</span>':'')+'</td>'; }).join('')+'</tr>'; }).join('');
+      sups.map(function(s){ var c=R.cells[s]; if(!c)return (stkSafeCanToggle()?'<td style="color:#ccc;cursor:pointer" title="누르면 이 거래처 할인율을 바로 넣습니다" onclick="stkRateBlankFill('+order.indexOf(k)+',\''+stkEsc(s)+'\')">—</td>':'<td style="color:#ccc">—</td>');   /* (10/22 호준님) 빈 칸 눌러 채우기 */ var ttl=(c.src&&STK_RATE_SUP_MERGE[c.src]?(c.src==='한국2'?'프로모션':'전산 기본')+' · ':'')+stkEsc(c.kind)+((c.alt&&c.alt.length)?' · 다른 값: '+stkEsc(c.alt.join(', ')):'')+(c.qtxt?' · '+stkEsc(c.qtxt)+(c.qadd?' (지금 +'+c.qadd+' 적용 중)':''):''); return '<td class="'+(c.disp===mn?'rate-min':(c.disp===mx?'rate-max':''))+'" title="'+ttl+'">'+(STK_RATE.real?'<input class="rate-in" value="'+c.rate+'" data-rid="'+c.id+'" data-old="'+c.rate+'" onchange="stkRateSave(this)">':'<span class="rate-safe">'+c.disp+'</span>')+(c.qadd?'<span style="color:#7c3aed;font-size:9px;font-weight:800" title="수량 가산 +'+c.qadd+'">+'+c.qadd+'</span>':'')+(c.src==='한국2'?'<span style="color:#c2410c;font-size:9px;font-weight:800" title="프로모션 값">P</span>':'')+(c.n>1?'<span style="color:#888;font-size:10px"> ('+c.n+')</span>':'')+'</td>'; }).join('')+'</tr>'; }).join('');
   el.innerHTML=th+'<tbody>'+body+'</tbody>'; el.style.tableLayout=''; el.style.width='';
   STK_RATE.lastOrder=order.map(function(k){return rows[k]}); STK_RATE.lastSups=sups;
   var cnt=document.getElementById('stk-rateCnt'); if(cnt)cnt.innerHTML=order.length+'행 · 규칙 '+list.length+'개 · '+(lay==='new'?'최신':'이월')+(STK_RATE.rules?'':' (읽는 중)')+stkSafeCntTag()+elsewhere;
@@ -14718,6 +14718,18 @@ async function stkRateAddSave(){
     ['stk-ra-code','stk-ra-name','stk-ra-rate','stk-ra-inch','stk-ra-size','stk-ra-org','stk-ra-dot','stk-ra-sub'].forEach(function(id){document.getElementById(id).value='';});
     if(STK_RATE.brands.length&&STK_RATE.brands.indexOf(brand)<0)STK_RATE.brands=[];
     stkRateLayer(dot?'old':'new');
+  }catch(e){ stkToast('추가 실패: '+(e.message||e)); }
+}
+async function stkRateBlankFill(ri,supName){   /* (10/22) 할인율 탭 빈 칸 → 숫자 넣으면 그 줄 조건을 복사한 규칙 추가 */
+  if(!stkSafeCanToggle()){ stkToast('할인율 관리 권한이 없습니다 (관리자에게 요청)'); return; }
+  var R=(STK_RATE.lastOrder||[])[ri]; if(!R||!R.ref){ stkToast('줄 정보를 못 찾았어요 — 탭을 다시 열어 주세요'); return; }
+  var sup=(supName==='한국본사')?'한국1':supName; var ref=R.ref;
+  var v=prompt(supName+' · '+R.brand+' '+(R.name||R.pat)+(R.cond?' ('+R.cond+')':'')+'\n할인율 % (실제 값, 0~100)',''); if(v===null)return; v=parseFloat(String(v).replace(/[^0-9.]/g,'')); if(isNaN(v)||v<0||v>100){ stkToast('0~100 사이 숫자만'); return; }
+  var row={brand:R.brand,sup:sup,sub:'',code:ref.code||'',pattern_name:ref.pattern_name||'',size_cond:ref.size_cond||'',org_cond:ref.org_cond||'',inch_cond:ref.inch_cond||'',dot_cond:ref.dot_cond||'',rate:v,apply_kind:ref.apply_kind||(ref.dot_cond?'조건부(연식)':'기본')};
+  try{ var mx=await sb.from('price_rules').select('id').order('id',{ascending:false}).limit(1); var nid=((mx.data&&mx.data[0]&&parseInt(mx.data[0].id))||0)+1; row.id=nid;
+    var r=await sb.from('price_rules').insert(row).select(); if(r.error)throw r.error; (STK_RATE.rules=STK_RATE.rules||[]).push(r.data[0]);
+    try{ await stkLog('%할인율추가',R.brand+' '+sup+' '+(row.code||row.pattern_name)+' '+v+'%'+(row.dot_cond?' ('+row.dot_cond+')':'')+' (빈 칸 채움)',{detail:JSON.stringify(row)},true); }catch(_e){}
+    stkToast('할인율 넣음: '+supName+' '+R.brand+' '+(row.code||row.pattern_name)+' '+v+'%'); stkRateRender();
   }catch(e){ stkToast('추가 실패: '+(e.message||e)); }
 }
 async function stkRateSave(inp){
@@ -16070,6 +16082,7 @@ async function stkRtSaveFieldLight(pid,dot,field,nv,old,td){
             if(!cell)return;
             if(cell===_act)return;   // ★ 지금 커서가 들어간 칸은 덮어쓰지 않는다 (Tab 이동이 튀는 것 방지)
             var sv=(val===''||val==null)?'':String(val); cell.textContent=sv; cell.setAttribute('data-old',sv); cell.style.color=manual?'#dc2626':''; cell.style.fontWeight=manual?'700':'';
+            try{ if(typeof stkRtWidenCell==='function')stkRtWidenCell(cell); }catch(_w){}   /* (10/22) 바뀐 숫자가 열보다 길면 그 열 넓힘 */
           };
           // 상품 객체(p)는 fprice 가 없고 factory_price 만 갖는다 → 실원가 계산 함수가 읽지 못하므로 채워서 넘긴다
           var _pv={}; for(var _pk in p)_pv[_pk]=p[_pk];
