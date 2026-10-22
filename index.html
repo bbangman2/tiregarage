@@ -4341,8 +4341,8 @@ async function selectRoom(room){
     if(typeof stkLoadLogTab==='function')stkLoadLogTab();
     if(typeof stkOutTypesRender==='function')stkOutTypesRender();   // 중고방 = 출고 채널 [장착/배송]만
     if(STK_STORE==='ping'&&typeof pingSettingsInit==='function'){ try{ await pingSettingsInit(); }catch(e){ console.error('V2 설정 복사',e); } }   /* (10/21) V2 처음이면 재고방 설정 복사 */
-    try{ var _so=document.getElementById('stk-rtSoldOut'); if(_so)_so.checked=(STK_STORE==='ping'); }catch(e){}
-    try{ var _fz=document.getElementById('stk-fZero'); if(_fz)_fz.checked=(STK_STORE==='ping'); var _fp=document.getElementById('stk-fPos'); if(_fp&&STK_STORE==='ping')_fp.checked=true; }catch(e){}   /* V2 검색 탭도 품절(수량 0) 카드 보이게 */
+    try{ var _so=document.getElementById('stk-rtSoldOut'); if(_so&&STK_STORE==='ping')_so.checked=false; }catch(e){}   /* (10/22) 품절 기본 해제 (호준님) */
+    try{ var _fz=document.getElementById('stk-fZero'); if(_fz&&STK_STORE==='ping')_fz.checked=false; var _fp=document.getElementById('stk-fPos'); if(_fp&&STK_STORE==='ping')_fp.checked=true; }catch(e){}   /* (10/22) V2 검색 탭도 품절 기본 해제 · 재고있음만 */
     if(STK_STORE==='ping'&&typeof v2ColsFetch==='function'){ try{ await v2ColsFetch(); }catch(e){} }   /* 대표가 정한 보이는 열 */   /* V2는 수량이 비어 있으니 품절포함 기본 켬 */
     if(typeof stkLoadHiddenTabs==='function')await stkLoadHiddenTabs(); // 탭 표시 설정(방마다 별도)
     stockSub=sb.channel('stock-live-'+STK_STORE)
@@ -10428,7 +10428,7 @@ var OM_PLAT_CH={'핑':'ping','스팜':'online','11번가':'online','전화':'onl
 var JH_SRC_ALIAS=[[/^창고/,'창고'],[/^(타이어\s*에?\s*[미메]치다|[미메]치다)/,'타이어에미치다'],[/^극동/,'극동'],[/^황제/,'황제'],[/^그랜드/,'그랜드타이어'],
   [/^매일(타이어)?\s*\(?\s*오후/,'매일오후'],[/^매일(타이어)?\s*\(?\s*오전/,'매일오전'],[/^매일(타이어)?\s*\(?\s*화성/,'매일(화성)'],[/^매일/,'매일'],
   [/^[사싸]일룬/,'사일룬'],[/^하나/,'하나타이어'],[/^대구/,'대구'],[/^퇴계원/,'퇴계원'],[/^(한타\s*(물류|sfp)|양주\s*sfp|강릉\s*sfp|한국\s*물류)/i,'한타물류'],[/^(한타|한국)/,'한타주문'],
-  [/^넥센\s*택배/,'넥센택배'],[/^넥센/,'넥센물류'],[/^(천안\s*)?미쉐린/,'천안미쉐린'],[/^안나이트/,'안나이트'],[/^레이다/,'레이다'],[/^하빌리드/,'하빌리드'],[/^아파치/,'아파치'],[/^흥원/,'흥원'],[/^핑/,'핑']];
+  [/^넥센\s*택배/,'넥센택배'],[/^넥센/,'넥센물류'],[/^(천안\s*)?미쉐린/,'천안미쉐린'],[/^안나이트/,'안나이트'],[/^레이다/,'레이다'],[/^하빌리드/,'하빌리드'],[/^아파치/,'아파치'],[/^흥원/,'흥원'],[/^핑/,'핑'],[/넥센/,'넥센물류']];   /* (10/22 호준님) 넥센이 어디든 들어 있으면 넥센물류 */
 function jhSrcSplit(t){ var out=[], cur='', dep=0; for(var i=0;i<t.length;i++){ var ch=t[i]; if(ch==='('||ch==='[')dep++; else if(ch===')'||ch===']')dep=Math.max(0,dep-1); if(dep===0&&(ch===','||ch==='，'||(ch==='/'&&!(/\d/.test(t[i-1]||'')&&/\d/.test(t[i+1]||''))))){ out.push(cur); cur=''; continue; } cur+=ch; } out.push(cur); return out.map(function(x){return x.trim();}).filter(Boolean); }
 function jhSrcParse(raw){   // → {raw, parts:[{name,kind:'stock'|'supplier'|'unknown',qty,note}], cancel, nostock, ordered, empty, unk}
   raw=String(raw||'').trim(); var R={raw:raw,parts:[],cancel:false,nostock:false,ordered:false,empty:!raw,unk:false}; if(!raw)return R;
@@ -12947,9 +12947,10 @@ function fmtTel(raw){
 var DLV_INB_ALIAS={'미치다':'타이어에미치다','타이어에미치다':'타이어에미치다','하나':'하나타이어','한타':'한타주문'};
 function dlvInbParseOut(srcRaw,cardQty,opt){ // 출고 칸 해석 (10/8): '매일2창고2' → [{src:'매일',qty:2}] — 창고·재고·회수·택배·핑 몫은 제외, 숫자 없는 한 곳이면 카드 수량
   var s=String(srcRaw||'').trim(); if(!s)return {segs:[],why:'출고처 빈칸'};
-  s=s.replace(/\(\s*\d+\s*일\s*출고\s*\)/g,' ').replace(/\d+\s*일\s*출고/g,' ').replace(/\d+\s*년\s*출고/g,' ').replace(/(^|\s)\d{2,4}\s*년(?=\s|$)/g,' ').replace(/\(\s*\)/g,' ').replace(/\s+/g,' ').trim();   // (10/16) "(15일출고)"·"26년출고"·"26년" 같은 날짜·연식 메모는 출고지가 아님 — 걷어내고 읽음
+  s=s.replace(/\(\s*\d+\s*일\s*(출고|입고|주문)\s*\)/g,' ').replace(/\d+\s*일\s*(출고|입고|주문)/g,' ').replace(/\d{1,3}\s*%/g,' ').replace(/\d+\s*년\s*출고/g,' ').replace(/(^|\s)\d{2,4}\s*년(?=\s|$)/g,' ').replace(/\(\s*\)/g,' ').replace(/\s+/g,' ').trim();   // (10/16) "(15일출고)"·"26년출고"·"26년" 같은 날짜·연식 메모는 출고지가 아님 — 걷어내고 읽음
   if(!s)return {segs:[],why:'출고처 빈칸(메모만 있음: '+String(srcRaw).slice(0,30)+')'};
-  var re=/([^\d,，\/+&\s]+)\s*(\d+)?/g, m, segs=[], wh=[];
+  var _pre=[]; s=s.split(/[,，\/+&]/).map(function(seg){ seg=seg.trim(); if(!seg||!/넥센/.test(seg))return seg; var keep=[]; var core=seg.replace(/(^|\s)([^\s\d]*?)(\d{1,2})(?=\s|$)/g,function(m,a,nm,q){ if(!nm||/넥센/.test(nm))return m; keep.push(nm+q); return ' '; }).replace(/\s+/g,' ').trim(); var last=core.split(/\s*(?:->|→|＞|>)\s*/).filter(Boolean).pop()||core; var nm=/미치다/.test(last)?'타이어에미치다':(/퇴계원/.test(last)?'퇴계원':(/넥센/.test(last)?'넥센물류':null)); if(!nm)return seg; var qm=core.match(/(\d{1,2})\s*(?:개|본)?\s*\)?\s*$/)||core.match(/넥센[가-힣]*\s*(\d{1,2})(?!\d)/); _pre.push({name:nm,qty:qm?parseInt(qm[1],10):null}); return keep.join(' '); }).filter(Boolean).join(',');   /* (10/22 호준님) 넥센이 든 조각은 넥센물류(미치다·퇴계원 우선) · 같은 조각의 다른 거래처(극동3 등)는 원래 길로 */
+  var re=/([^\d,，\/+&\s]+)\s*(\d+)?/g, m, segs=_pre.slice(), wh=[];
   while((m=re.exec(s))){ var nm=m[1].trim(), q=(m[2]!=null)?parseInt(m[2],10):null; if(!nm)continue; if(opt&&opt.ping&&/^핑/.test(nm)){ segs.push({name:nm,qty:q,ping:true}); continue; }   /* (10/21) 주문방·택배방: 핑택배·핑주문 = 핑에 주문한 입고 */ if(/창고|재고|회수|택배|핑/.test(nm))wh.push(nm+(q!=null?q:'')); else segs.push({name:nm,qty:q}); }
   if(!segs.length)return {segs:[],why:(wh.length?wh.join(' '):s)};
   if(segs.length===1&&segs[0].qty==null)segs[0].qty=cardQty||null;
