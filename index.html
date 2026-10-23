@@ -7076,7 +7076,7 @@ function dlvSummaryCard(c,idx,list){
     h+='<button class="dact copy-btn" onclick="event.stopPropagation();dlvCopy(\''+c.id+'\')">📋 복사</button>';
     h+='<button class="dact" onclick="event.stopPropagation();dlvHistOpen(\''+c.id+'\')" title="이 카드의 모든 기록(누가·언제·무엇을)">🕘 이력</button>';
     h+='<button class="dact edit-btn" onclick="event.stopPropagation();dlvEdit(\''+c.id+'\')">✏️ 수정</button>';
-    h+='<button class="dact del-btn" onclick="event.stopPropagation();dlvCancel(\''+c.id+'\')">취소</button>';
+    h+='<button class="dact del-btn" onclick="event.stopPropagation();dlvCancel(\''+c.id+'\')">취소</button>'+(dlvIsBoss()?'<button class="dact del-btn" style="background:#7f1d1d;color:#fff;border-color:#7f1d1d" onclick="event.stopPropagation();dlvDeleteCard(\''+c.id+'\')" title="대표만 · 비밀번호 · 카드와 이월 복사본을 완전히 지움 (휴지통 보관 · 복구 가능)">🗑 삭제</button>':'');
   }
   h+='</div></div></div>';
   return h;
@@ -7149,7 +7149,7 @@ function dlvCardHtml(c,idx,list){
     h+='<button class="dact" onclick="event.stopPropagation();dlvHistOpen(\''+c.id+'\')" title="이 카드의 모든 기록(누가·언제·무엇을)">🕘 이력</button>';
       h+=(window.DLV_PARCEL_ROOM&&!DLV_ROOM_MOVE)?'':dlvDestButtons(c);   // 🧪 택배방: 방 사이 이동은 숨김
       h+='<button class="dact edit-btn" onclick="event.stopPropagation();dlvEdit(\''+c.id+'\')">✏️ 수정</button>';
-      h+='<button class="dact del-btn" onclick="event.stopPropagation();dlvCancel(\''+c.id+'\')">취소</button>';
+      h+='<button class="dact del-btn" onclick="event.stopPropagation();dlvCancel(\''+c.id+'\')">취소</button>'+(dlvIsBoss()?'<button class="dact del-btn" style="background:#7f1d1d;color:#fff;border-color:#7f1d1d" onclick="event.stopPropagation();dlvDeleteCard(\''+c.id+'\')" title="대표만 · 비밀번호 · 카드와 이월 복사본을 완전히 지움 (휴지통 보관 · 복구 가능)">🗑 삭제</button>':'');
     }
   }
   h+='</div></div>';
@@ -7336,6 +7336,7 @@ function _renderDeliveryCore(){
   if(dlvSearchQuery)list=list.filter(dlvMatchSearch);
   if(typeof DLV_CH!=='undefined'&&DLV_CH!=='all')list=list.filter(dlvChipPass);
   let html=dutyBarHtml(dlvDateStr());
+  if(dlvIsBoss())html+='<div style="text-align:right;margin:0 0 4px"><button class="item-add-btn ghost" onclick="dlvTrashOpen()" title="🗑 삭제로 지운 카드 — 최근 60일, 복구 가능">🗑 지운 카드(휴지통)</button></div>';   /* (10/23) */
   if(!_editable)html+=dlvPastAdmin()?'<div class="dlv-viewonly" style="background:#fef3c7;color:#92400e;border-color:#fcd34d">👁 과거 날짜 — 대표는 취소·확인·완료·발송예정 조작 가능 (모든 조작이 \'지난 날짜 대표 조작\'으로 기록됨)</div>':'<div class="dlv-viewonly">👁 과거 날짜 — 보기 전용 (복사 버튼만 가능)</div>';
   if(curDlvTab==='parcel')html+='<div style="margin:2px 0 8px;display:flex;align-items:center;gap:6px;flex-wrap:wrap"><span style="flex:1"></span>'+((typeof stkIsAdmin==='function'&&stkIsAdmin())?'<button class="item-add-btn ghost" onclick="dlvEditModeToggle()" style="'+(dlvEditModeOn()?'background:#fef3c7;border-color:#f59e0b;color:#92400e':'')+'" title="확인 되돌리기 등 되돌리기성 조작은 수정모드에서만 (비밀번호)">'+(dlvEditModeOn()?'🔧 수정모드 ON · 끄기':'🔧 수정모드')+'</button>':'')+'<button class="item-add-btn ghost" onclick="dlvParcelXlsx()">📥 택배 엑셀 다운로드</button></div>';
   if(curDlvTab==='summary'||curDlvTab==='car2'){
@@ -29770,6 +29771,59 @@ async function dlvSetHold(id){
     if(typeof stkToast==='function')stkToast(until?'⏳ '+until+'부터 보입니다':'발송예정 해제');
   }catch(e){ alert('저장 실패: '+(e&&e.message||e)); }
   await loadDeliveries();
+}
+</script><script>
+/* ═══ (10/23) 직배송방 🗑 삭제(대표·비밀번호) + 휴지통 복구 ═══ */
+async function dlvMasterPw(){ var pw='tg1234'; try{ var r=await sb.from('stock_settings').select('value').eq('key','master_pw'); if(r.data&&r.data[0]&&r.data[0].value)pw=String(r.data[0].value); }catch(e){} return pw; }
+async function dlvDeleteCard(id){
+  if(!dlvIsBoss()){ alert('카드 삭제는 대표만 할 수 있어요 (직원은 "취소"를 쓰세요)'); return; }
+  if(!dlvGuardEdit())return;
+  var c=deliveriesCache.find(function(x){return x.id===id;}); if(!c)return;
+  var root=c.origin_id||c.id, lbl=(c.trade_client||c.recv||c.tire||'').toString().slice(0,40)||'(제목없음)';
+  var ch=await sb.from('deliveries').select('*').or('id.eq.'+root+',origin_id.eq.'+root); if(ch.error){ alert('카드를 못 읽었어요: '+ch.error.message); return; } var rows=ch.data||[];
+  var pw=await dlvMasterPw();
+  var inp=prompt('🗑 완전 삭제 — 비밀번호 (재고방 잠금 해제와 같은 비밀번호)\n\n'+lbl+' · 카드 '+rows.length+'장(이월 복사본 포함)을 지웁니다.\n휴지통에 보관되어 [🗑 지운 카드]에서 복구할 수 있습니다.'); if(inp===null)return;
+  if(String(inp).trim()!==pw){ alert('비밀번호가 다릅니다'); try{ logAudit('🗑 직배송 삭제 비밀번호 틀림',lbl); }catch(e){} return; }
+  if(!confirm('정말 지울까요?\n'+lbl+' · '+rows.length+'장\n\n· 연결된 재고는 복원됩니다\n· 거래처 카드면 입고방 연동 줄은 취소됩니다\n· 기록에 남습니다'))return;
+  try{
+    for(var i=0;i<rows.length;i++){ try{ await dlvStkRestoreRow(rows[i]); }catch(e){ console.error('재고 복원',e); } }
+    if(c.channel==='trade'){ try{ await dlvInbCancelFor(c); }catch(e){} }
+    var del=await sb.from('deliveries').delete().or('id.eq.'+root+',origin_id.eq.'+root); if(del&&del.error)throw new Error(del.error.message);
+    try{ tabLogAppend('dlv',String(root),lbl,(me?me.name:'?')+'(삭제 '+_tlNow()+')',c.date_str||dlvDateStr()); }catch(e){}
+    await sb.from('delivery_logs').insert({room_id:curRoom.id,date_str:dlvDateStr(),text:(me?me.name:'?')+'님이 🗑 완전 삭제 ('+lbl+') [#'+_dlvId8(c)+'] · '+rows.length+'장 휴지통 보관'+dlvPastTag(c),user_name:me?me.name:''});
+    try{ logAudit('🗑 직배송 카드 삭제',lbl,rows.length+'장','휴지통 보관'); }catch(e){}
+    if(typeof stkToast==='function')stkToast('🗑 '+rows.length+'장 지움 — 휴지통에서 복구 가능');
+  }catch(e){ alert('삭제 실패: '+(e&&e.message||e)); }
+  await loadDeliveries();
+}
+async function dlvTrashOpen(){
+  if(!dlvIsBoss()){ alert('대표만'); return; }
+  var box=document.getElementById('dlv-hist'), body=document.getElementById('dlv-hist-body'), ttl=document.getElementById('dlv-hist-title');
+  if(!box||!body){ alert('이력 창을 못 찾았어요'); return; } box.style.display='';
+  if(ttl)ttl.textContent='🗑 지운 직배송 카드 — 최근 60일 (복구 가능)'; body.innerHTML='<div style="color:#64748b">읽는 중…</div>';
+  var since=new Date(Date.now()-60*86400000).toISOString(); var tr=[];
+  try{ var q=await sb.from('tg_trash').select('id,row_id,row_json,deleted_by,deleted_at').eq('table_name','deliveries').gte('deleted_at',since).order('deleted_at',{ascending:false}).limit(500); if(q.error)throw q.error; tr=q.data||[]; }catch(e){ body.innerHTML='<div style="color:#b91c1c">휴지통 읽기 실패: '+esc(e.message||e)+'</div>'; return; }
+  var G={}; tr.forEach(function(t){ var r=t.row_json||{}; if(r.room_id&&curRoom&&r.room_id!==curRoom.id)return; var root=r.origin_id||r.id; var k=root+'|'+String(t.deleted_at).slice(0,16); (G[k]=G[k]||{root:root,at:t.deleted_at,by:t.deleted_by,rows:[]}).rows.push(r); });
+  var keys=Object.keys(G).sort(function(a,b){return String(G[b].at).localeCompare(String(G[a].at));});
+  if(!keys.length){ body.innerHTML='<div style="color:#64748b;padding:10px">최근 60일 안에 지운 직배송 카드가 없어요.</div>'; return; }
+  var h='<div style="font-size:12px;color:#64748b;margin-bottom:6px">복구하면 카드가 지웠을 때의 날짜로 돌아옵니다. 재고 연결은 미연결 상태로 돌아오니 필요하면 다시 연결하세요.</div>';
+  keys.forEach(function(k){ var g=G[k]; var r=g.rows.slice().sort(function(a,b){return String(a.date_str).localeCompare(String(b.date_str));})[0]||{}; var last=g.rows.slice().sort(function(a,b){return String(b.date_str).localeCompare(String(a.date_str));})[0]||{};
+    h+='<div style="border:1px solid #e5e7eb;border-radius:9px;padding:8px 10px;margin:6px 0;background:#fff"><div><b>'+esc(r.trade_client||r.recv||r.tire||'(제목없음)')+'</b> <span style="color:#64748b;font-size:12px">'+esc(r.tire||'')+(r.spec?' · '+esc(r.spec):'')+(r.qty?' · '+esc(r.qty)+'개':'')+'</span></div><div style="font-size:12px;color:#64748b">'+esc(r.date_str||'')+(last.date_str&&last.date_str!==r.date_str?' ~ '+esc(last.date_str):'')+' · '+g.rows.length+'장 · 지운 사람 '+esc(g.by||'?')+' '+esc(String(g.at).slice(0,16).replace('T',' '))+'</div><div style="margin-top:5px"><button class="dact" onclick="dlvTrashRestore(\''+esc(g.root)+'\',\''+esc(g.at)+'\')">↩ 복구</button></div></div>'; });
+  body.innerHTML=h;
+}
+async function dlvTrashRestore(root,at){
+  if(!dlvIsBoss())return;
+  var q=await sb.from('tg_trash').select('row_json').eq('table_name','deliveries').eq('deleted_at',at); var rows=((q&&q.data)||[]).map(function(t){return t.row_json;}).filter(function(r){return r&&(r.origin_id||r.id)===root;});
+  if(!rows.length){ alert('휴지통에서 못 찾았어요'); return; }
+  var ex=await sb.from('deliveries').select('id').in('id',rows.map(function(r){return r.id;})); if(ex&&ex.data&&ex.data.length){ alert('이미 돌아와 있는 카드예요 ('+ex.data.length+'장)'); return; }
+  var lbl=(rows[0].trade_client||rows[0].recv||rows[0].tire||'').toString().slice(0,40);
+  if(!confirm('복구할까요?\n'+lbl+' · '+rows.length+'장\n\n· 재고 연결은 미연결로 돌아옵니다(지울 때 재고가 복원됐으므로)\n· 기록에 남습니다'))return;
+  var ins=rows.map(function(r){ var x=Object.assign({},r); delete x.updated_at; x.stock_done=false; x.src_kind=null; x.src_product_id=null; x.src_item_id=null; x.src_dot=null; x.src_qty=null; x.src_label=null; return x; });
+  var r1=await sb.from('deliveries').insert(ins); if(r1&&r1.error){ alert('복구 실패: '+r1.error.message); return; }
+  try{ await sb.from('delivery_logs').insert({room_id:curRoom.id,date_str:dlvDateStr(),text:(me?me.name:'?')+'님이 🗑 휴지통에서 복구 ('+lbl+') · '+rows.length+'장 · 재고 연결은 미연결',user_name:me?me.name:''}); }catch(e){}
+  try{ logAudit('🗑 직배송 카드 복구',lbl,'휴지통',rows.length+'장'); }catch(e){}
+  if(typeof stkToast==='function')stkToast('↩ '+rows.length+'장 복구');
+  await loadDeliveries(); try{ dlvTrashOpen(); }catch(e){}
 }
 </script>
 </body>
