@@ -5587,6 +5587,7 @@ function dlvDateStr(){return getSelectedRange().from;}
 
 async function loadDeliveries(){
   if(!curRoom)return;
+  try{ await dlvHoldLoad(); }catch(e){}   /* (10/23) 발송예정 표 */
   const sel=getSelectedRange();
   const isRange=(rangeMode&&sel.to&&sel.to!==sel.from);
   const ds=sel.from;
@@ -5630,7 +5631,11 @@ function dlvEditable(){
   if(rangeMode){var s=getSelectedRange();if(s.to&&s.to!==s.from)return false;}
   return getSelectedRange().from===getTodayISO();
 }
+function dlvIsBoss(){ return !!(typeof ADMIN_NAME!=='undefined'&&me&&me.name===ADMIN_NAME); }
+function dlvPastAdmin(){ if(!dlvIsBoss()||dlvEditable())return false; if(rangeMode){ var _s=getSelectedRange(); if(_s.to&&_s.to!==_s.from)return false; } return true; }   /* (10/23 호준님) 대표는 지난 날짜(하루 보기)에서도 조작 — 범위 보기는 제외 */
+function dlvPastTag(c){ return dlvPastAdmin()?(' · 지난 날짜 '+((c&&c.date_str)||dlvDateStr())+' 대표 조작'):''; }
 function dlvGuardEdit(){
+  if(!dlvEditable()&&dlvPastAdmin()){ var _n0=kstNow(), _h0=_n0.getUTCHours(), _m0=_n0.getUTCMinutes(); if((_h0===23&&_m0>=59)||(_h0===0&&_m0<=1)){ alert('🌙 자정 이월 중이에요 (23:59~00:01).\n약 1분 후 다시 시도해주세요.'); return false; } return true; }
   if(!dlvEditable()){
     alert('과거 날짜는 보기 전용입니다.\n오늘 날짜에서만 조작할 수 있어요.\n(복사 버튼으로 클립보드에 담아 오늘 새로 등록하세요.)');
     return false;
@@ -7012,6 +7017,7 @@ function dlvSummaryCard(c,idx,list){
   h+='<span class="dsnum">'+(c.cancelled?'✕':(idx+1))+'</span><span class="dtag '+(c.channel||'spam')+'">'+(DCH_LABEL[c.channel]||'스팜')+'</span> ';
   // 꼭배송 칸의 실제 문구("반품회수" 등)를 접힌 줄에서도 그대로 — 1·2호차 카드와 동일 표시(9/4 호준님 "옮기면 꼭배송으로 바뀌는 것 같다" = 라벨만 달랐던 것)
   if(c.due_date&&!c.done&&!c.cancelled)h+='<span class="ddue-badge urgent" style="margin-right:4px">⚠️ '+esc(String(c.due_date).slice(0,14))+'</span> ';
+  if(dlvHoldOf(c))h+='<span class="ddue-badge" style="margin-right:4px;background:#fef3c7;color:#92400e;border-color:#fcd34d">⏳ '+esc(dlvHoldOf(c).until.slice(5).replace('-','/'))+' 발송예정</span> ';
   h+='<span class="dsaddr">'+_addrMain+'</span>';
   h+='<span class="dssub">'+_subHtml+'</span>';
   var _dsm=[c.note,(c.channel==='trade'?c.trade_memo:'')].filter(function(x){return x&&String(x).trim();}).join(' · ');   /* (10/19) 메모도 접힌 줄에 */
@@ -7023,7 +7029,8 @@ function dlvSummaryCard(c,idx,list){
   if(c.cancelled)_bdg+='<span class="dcancel-badge">취소</span>';
   else if(c.need_done&&!c.done)_bdg+='<span class="dneed-badge">완료필요</span>';
   if(!c.done&&!c.cancelled){var sdold=dlvDaysOld(c);if(sdold>=2)_bdg+='<span class="dold-badge'+(sdold>=3?' hot':'')+'">'+sdold+'일째</span>';}
-  if(c.due_date&&!c.done&&!c.cancelled)_bdg+='<span class="ddue-badge urgent">⚠️ '+esc(String(c.due_date).slice(0,20))+'</span>'; // 고정 라벨 '꼭배송' 대신 실제 문구(9/4)
+  if(c.due_date&&!c.done&&!c.cancelled)_bdg+='<span class="ddue-badge urgent">⚠️ '+esc(String(c.due_date).slice(0,20))+'</span>';
+  if(dlvHoldOf(c))_bdg+='<span class="ddue-badge" style="background:#fef3c7;color:#92400e;border-color:#fcd34d">⏳ '+esc(dlvHoldOf(c).until)+' 발송예정 · '+esc(dlvHoldOf(c).by||'')+'</span>'; // 고정 라벨 '꼭배송' 대신 실제 문구(9/4)
   if(_bdg)h+='<div class="dsbadges">'+_bdg+'</div>';
   if(c.channel==='trade'){
     h+='<div class="dsd-line">🏭 출고: <b>'+esc(c.src||'-')+'</b> · 거래처: <b>'+esc(c.trade_client||'-')+'</b></div>';
@@ -7064,6 +7071,7 @@ function dlvSummaryCard(c,idx,list){
       }
     }
     h+='<button class="dact due-btn" onclick="event.stopPropagation();dlvSetDue(\''+c.id+'\')">📅 꼭배송</button>';
+        h+=dlvHoldOf(c)?'<button class="dact" style="background:#fef3c7;color:#92400e;border-color:#fcd34d" onclick="event.stopPropagation();dlvSetHold(\''+c.id+'\')" title="날짜 바꾸기 · 비우면 해제">⏳ '+esc(dlvHoldOf(c).until.slice(5).replace('-','/'))+' 발송예정</button>':'<button class="dact" onclick="event.stopPropagation();dlvSetHold(\''+c.id+'\')" title="타이어가 나중에 들어오는 건 — 정한 날짜까지 접어 두고 그 날부터 보이게">⏳ 발송예정</button>';
     h+=dlvDestButtons(c);
     h+='<button class="dact copy-btn" onclick="event.stopPropagation();dlvCopy(\''+c.id+'\')">📋 복사</button>';
     h+='<button class="dact" onclick="event.stopPropagation();dlvHistOpen(\''+c.id+'\')" title="이 카드의 모든 기록(누가·언제·무엇을)">🕘 이력</button>';
@@ -7132,6 +7140,7 @@ function dlvCardHtml(c,idx,list){
       if(c.tab==='deliv'){
         h+='<button class="dact done-btn" onclick="event.stopPropagation();dlvToggleDone(\''+c.id+'\')">✓ 완료</button>';
         h+='<button class="dact due-btn" onclick="event.stopPropagation();dlvSetDue(\''+c.id+'\')">📅 꼭배송</button>';
+        h+=dlvHoldOf(c)?'<button class="dact" style="background:#fef3c7;color:#92400e;border-color:#fcd34d" onclick="event.stopPropagation();dlvSetHold(\''+c.id+'\')" title="날짜 바꾸기 · 비우면 해제">⏳ '+esc(dlvHoldOf(c).until.slice(5).replace('-','/'))+' 발송예정</button>':'<button class="dact" onclick="event.stopPropagation();dlvSetHold(\''+c.id+'\')" title="타이어가 나중에 들어오는 건 — 정한 날짜까지 접어 두고 그 날부터 보이게">⏳ 발송예정</button>';
       }else if(c.tab==='parcel'){
         h+=c.confirmed?'<button class="dact confirmed" onclick="event.stopPropagation();dlvToggleConfirm(\''+c.id+'\')" title="되돌리기는 관리자가 🔧 수정모드에서만">✓ 확인됨'+(c.confirmed_by?' · '+esc(c.confirmed_by):'')+'</button>':'<button class="dact confirm-btn" onclick="event.stopPropagation();dlvToggleConfirm(\''+c.id+'\')">확인</button>';
       }
@@ -7155,13 +7164,15 @@ function dlvCardHtml(c,idx,list){
 var dlvShowDone={deliv:false,summary:false,car2:false};
 var dlvShowCancel={deliv:false,summary:false,car2:false};
 function dlvToggleDoneView(tab){dlvShowDone[tab]=!dlvShowDone[tab];renderDelivery();}
+var dlvShowHold={}; function dlvToggleHoldView(tab){dlvShowHold[tab]=!dlvShowHold[tab];renderDelivery();}   /* (10/23) 발송예정 묶음 */
 var dlvShowConfirm={};   // 택배전환 '확인됨' 묶음 펼침 상태 (호준님 9/11: 확인된 카드는 완료·취소처럼 아래로)
 function dlvToggleConfirmView(tab){dlvShowConfirm[tab]=!dlvShowConfirm[tab];renderDelivery();}
 function dlvToggleCancelView(tab){dlvShowCancel[tab]=!dlvShowCancel[tab];renderDelivery();}
 // 목록을 진행/완료/취소로 나눠 렌더 (완료·취소는 접기)
 function dlvRenderList(arr,tab,cardFn){
   const isParcel=(tab==='parcel');
-  const live=arr.filter(function(c){return !c.done&&!c.cancelled&&!(isParcel&&c.confirmed);});
+  const held=arr.filter(function(c){return !c.done&&!c.cancelled&&!(isParcel&&c.confirmed)&&!!dlvHoldOf(c);}).sort(function(a,b){return String(dlvHoldOf(a).until).localeCompare(String(dlvHoldOf(b).until));});   /* (10/23) 발송예정(입고 대기) */
+  const live=arr.filter(function(c){return !c.done&&!c.cancelled&&!(isParcel&&c.confirmed)&&!dlvHoldOf(c);});
   const confd=isParcel?arr.filter(function(c){return c.confirmed&&!c.done&&!c.cancelled;}).sort(function(a,b){return ((b.confirmed_at||'').localeCompare(a.confirmed_at||''))||((a.sort_order||0)-(b.sort_order||0));}):[];
   const done=arr.filter(function(c){return c.done&&!c.cancelled;}).sort(function(a,b){return (b.done_at||'').localeCompare(a.done_at||'');});
   const cancel=arr.filter(function(c){return c.cancelled;}).sort(function(a,b){return (b.cancelled_at||'').localeCompare(a.cancelled_at||'');});
@@ -7171,6 +7182,11 @@ function dlvRenderList(arr,tab,cardFn){
     h+='<div class="dlv-sortable" data-tab="'+tab+'">';
     h+=live.map(function(c,i){return '<div class="dlv-drag" data-did="'+c.id+'">'+cardFn(c,i,live)+'</div>';}).join('');
     h+='</div>';
+  }
+  if(held.length){
+    const openH=dlvShowHold[tab];
+    h+='<button class="ddone-toggle" style="border-color:#f59e0b;color:#92400e;background:#fffbeb" onclick="dlvToggleHoldView(\''+tab+'\')">'+(openH?'▲ ⏳ 발송예정 '+held.length+'건 접기':'▼ ⏳ 발송예정 '+held.length+'건 보기 (타이어 입고 기다리는 중 · 날짜 되면 자동으로 올라옴)')+'</button>';
+    if(openH)h+=held.map(function(c,i){return cardFn(c,i,held);}).join('');
   }
   if(confd.length){
     const openK=dlvShowConfirm[tab];
@@ -7320,7 +7336,7 @@ function _renderDeliveryCore(){
   if(dlvSearchQuery)list=list.filter(dlvMatchSearch);
   if(typeof DLV_CH!=='undefined'&&DLV_CH!=='all')list=list.filter(dlvChipPass);
   let html=dutyBarHtml(dlvDateStr());
-  if(!_editable)html+='<div class="dlv-viewonly">👁 과거 날짜 — 보기 전용 (복사 버튼만 가능)</div>';
+  if(!_editable)html+=dlvPastAdmin()?'<div class="dlv-viewonly" style="background:#fef3c7;color:#92400e;border-color:#fcd34d">👁 과거 날짜 — 대표는 취소·확인·완료·발송예정 조작 가능 (모든 조작이 \'지난 날짜 대표 조작\'으로 기록됨)</div>':'<div class="dlv-viewonly">👁 과거 날짜 — 보기 전용 (복사 버튼만 가능)</div>';
   if(curDlvTab==='parcel')html+='<div style="margin:2px 0 8px;display:flex;align-items:center;gap:6px;flex-wrap:wrap"><span style="flex:1"></span>'+((typeof stkIsAdmin==='function'&&stkIsAdmin())?'<button class="item-add-btn ghost" onclick="dlvEditModeToggle()" style="'+(dlvEditModeOn()?'background:#fef3c7;border-color:#f59e0b;color:#92400e':'')+'" title="확인 되돌리기 등 되돌리기성 조작은 수정모드에서만 (비밀번호)">'+(dlvEditModeOn()?'🔧 수정모드 ON · 끄기':'🔧 수정모드')+'</button>':'')+'<button class="item-add-btn ghost" onclick="dlvParcelXlsx()">📥 택배 엑셀 다운로드</button></div>';
   if(curDlvTab==='summary'||curDlvTab==='car2'){
     const carNo=(curDlvTab==='car2')?2:3;
@@ -7466,7 +7482,7 @@ async function dlvSetDue(id){
     await sb.from('deliveries').update({due_date:val||null}).eq('id',id);
     var _lbl=(c.trade_client||c.recv||c.tire||'');
     var _txt=cur?(val?('꼭배송 표시 변경: "'+cur+'" → "'+val+'"'):('꼭배송 해제 (이전: "'+cur+'")')):('꼭배송 표시: '+val);
-    await sb.from('delivery_logs').insert({room_id:curRoom.id,date_str:dlvDateStr(),text:(me?me.name:'?')+'님이 '+_txt+' ('+_lbl+')',user_name:me?me.name:''});
+    await sb.from('delivery_logs').insert({room_id:curRoom.id,date_str:dlvDateStr(),text:(me?me.name:'?')+'님이 '+_txt+' ('+_lbl+')'+dlvPastTag(c),user_name:me?me.name:''});
     try{ logAudit('⚠️꼭배송 변경', _lbl, cur||'(없음)', val||'(해제)'); }catch(_e){}
   }catch(e){alert('실패: '+e.message);}
   await loadDeliveries();
@@ -7571,7 +7587,7 @@ async function dlvToggleDone(id){
     await sb.from('deliveries').update(_upd).or('id.eq.'+root+',origin_id.eq.'+root);
     // 감사기록: 누가·언제·무엇을 (완료/취소)
     var _lbl=(c.trade_client||c.recv||c.tire||'').toString().slice(0,40);
-    await sb.from('delivery_logs').insert({room_id:curRoom.id,date_str:dlvDateStr(),text:whoN+'님이 배송완료'+(willDone?'':' 취소')+' — '+_lbl+((typeof c!=='undefined'&&c&&c.id)?' [#'+_dlvId8(c)+']':''),user_name:whoN});
+    await sb.from('delivery_logs').insert({room_id:curRoom.id,date_str:dlvDateStr(),text:whoN+'님이 배송완료'+(willDone?'':' 취소')+' — '+_lbl+((typeof c!=='undefined'&&c&&c.id)?' [#'+_dlvId8(c)+']':'')+dlvPastTag(c),user_name:whoN});
     logAudit(willDone?'배송완료':'배송완료 취소', _lbl);
     tabLogAppend('dlv', String(root), _lbl||'(제목없음)', whoN+'('+(willDone?'완료':'완료취소')+' '+_tlNow()+')', c.date_str||dlvDateStr());
   }catch(e){alert('실패: '+e.message);}
@@ -7583,7 +7599,7 @@ async function dlvToggleConfirm(id){
   const willConfirm=!c.confirmed;
   if(!willConfirm){   // 확인 되돌리기 — 관리자 + 수정모드 (10/8 호준님)
     if(!(typeof stkIsAdmin==='function'&&stkIsAdmin())){ alert('확인 되돌리기는 관리자만 할 수 있습니다'); return; }
-    if(!dlvEditModeOn()){ alert('🔧 수정모드에서만 되돌릴 수 있습니다.\n'+(window.DLV_PARCEL_ROOM?'택배 탭':'택배전환 탭')+' 위의 [🔧 수정모드] 버튼을 눌러 비밀번호를 넣으세요.'); return; }
+    if(!dlvEditModeOn()&&!dlvIsBoss()){ alert('🔧 수정모드에서만 되돌릴 수 있습니다.\n'+(window.DLV_PARCEL_ROOM?'택배 탭':'택배전환 탭')+' 위의 [🔧 수정모드] 버튼을 눌러 비밀번호를 넣으세요.'); return; }
     if(!confirm('"'+(c.recv||c.tire||'')+'" 확인을 되돌릴까요? (택배양식에 다시 담깁니다)'))return;
   }else{   // 확인 — 파일에 한 번도 안 담긴 카드면 한 번 물어봄 (10/8)
     try{ var _exp=await dlvParcelExpLoad(); var _root0=c.origin_id||c.id; var _in=_exp.indexOf(c.id)>=0||_exp.indexOf(_root0)>=0;
@@ -7596,7 +7612,7 @@ async function dlvToggleConfirm(id){
     var _r=await sb.from('deliveries').update(_u).or('id.eq.'+root+',origin_id.eq.'+root);
     if(_r&&_r.error&&/confirmed_(at|by)/.test(String(_r.error.message||''))){ _r=await sb.from('deliveries').update({confirmed:willConfirm}).or('id.eq.'+root+',origin_id.eq.'+root); }   // 누가·언제 컬럼이 없으면 확인 표시만
     if(_r&&_r.error)throw _r.error;
-    try{ await sb.from('delivery_logs').insert({room_id:curRoom.id,date_str:dlvDateStr(),text:whoN+'님이 택배 확인'+(willConfirm?'':' 되돌림')+' ('+(c.recv||c.tire||'')+') [#'+_dlvId8(c)+']',user_name:whoN}); }catch(_e){}
+    try{ await sb.from('delivery_logs').insert({room_id:curRoom.id,date_str:dlvDateStr(),text:whoN+'님이 택배 확인'+(willConfirm?'':' 되돌림')+' ('+(c.recv||c.tire||'')+') [#'+_dlvId8(c)+']'+dlvPastTag(c),user_name:whoN}); }catch(_e){}
   }catch(e){alert('실패: '+e.message);}
   await loadDeliveries();
 }
@@ -7620,7 +7636,7 @@ async function dlvMoveTab(id,to,carNo){
   const destName=(to==='deliv')?(carLabel[targetCar]||'직배송'):(to==='hold'?'미출고':'택배');
   try{
     await sb.from('deliveries').update(upd).eq('id',id);
-    if(c)await sb.from('delivery_logs').insert({room_id:curRoom.id,date_str:dlvDateStr(),text:(me?me.name:'?')+'님이 '+destName+'(으)로 이동 ('+(c.recv||c.tire||'')+') [#'+_dlvId8(c)+']',user_name:me?me.name:''});
+    if(c)await sb.from('delivery_logs').insert({room_id:curRoom.id,date_str:dlvDateStr(),text:(me?me.name:'?')+'님이 '+destName+'(으)로 이동 ('+(c.recv||c.tire||'')+') [#'+_dlvId8(c)+']'+dlvPastTag(c),user_name:me?me.name:''});
   }catch(e){alert('실패: '+e.message);}
   dlvSelectedId=null;await loadDeliveries();
 }
@@ -7636,7 +7652,7 @@ async function dlvCancel(id){
       for(var _ci=0;_ci<_chRows.length;_ci++){ await dlvStkRestoreRow(_chRows[_ci]); }
     }catch(_e){}
     tabLogAppend('dlv', String(root), ((c.trade_client||c.recv||c.tire||'')+'').slice(0,40)||'(제목없음)', (me?me.name:'?')+'(취소 '+_tlNow()+')', c.date_str||dlvDateStr());
-    await sb.from('delivery_logs').insert({room_id:curRoom.id,date_str:dlvDateStr(),text:(me?me.name:'?')+'님이 취소함 ('+(c.recv||c.tire||'')+') [#'+_dlvId8(c)+']',user_name:me?me.name:''});
+    await sb.from('delivery_logs').insert({room_id:curRoom.id,date_str:dlvDateStr(),text:(me?me.name:'?')+'님이 취소함 ('+(c.recv||c.tire||'')+') [#'+_dlvId8(c)+']'+dlvPastTag(c),user_name:me?me.name:''});
     logAudit('직배송 취소', (c.trade_client||c.recv||c.tire||''));
     if(c.channel==='trade'){ try{ var _ic=await dlvInbCancelFor(c); if(_ic.done||_ic.blocked){ dlvLog('입고방 연동: 취소 '+_ic.done+'건'+(_ic.blocked?' · 이미 처리돼 못 취소 '+_ic.blocked+'건':''),c); if(_ic.blocked)alert('입고방에서 이미 실물입고·출고 처리된 줄 '+_ic.blocked+'건은 취소하지 않았어요 — 입고방에서 확인해주세요'); } }catch(_e){} }
   }catch(e){alert('취소 실패: '+e.message);}
@@ -21369,7 +21385,7 @@ function qtSet(k,v){if(!qtCur)return;qtCur[k]=v;if(k==='date')qrCustDateSync();i
 function qrCustDateTxt(d){ d=d||qtCur; if(!d||!d.rsv)return (d&&d.date)||''; return (d.date||'')+(d.rsv.time?' '+d.rsv.time+' '+qrEndTxt(d.rsv):''); }
 function qrCustDateSync(){ var e=document.getElementById('qr-cust-date'); if(e)e.textContent=qrCustDateTxt(qtCur); }   // (10/15) 맨 위에서 고르는 즉시 고객 칸 날짜도
 function qtSetRow(i,k,v){if(!qtCur||!qtCur.rows[i])return;var row=qtCur.rows[i];
-  if(k==='sum'){ var _c=qtRowCalc(row), _t=qtNum(v); row.pamt=_t?String(_t-_c.labor):''; row.last='pamt'; qtRecalc(); return; }   /* (10/20) 0 아래도 */   // (10/14) 합계(총액) 적으면 부품가 = 총액 − 기술료, 단가 = 부품가 ÷ 수량
+  if(k==='sum'){ var _c=qtRowCalc(row), _t=qtNum(v), _z=(String(v==null?'':v).trim()==='0'); row.pamt=_t?String(_t-_c.labor):(_z?'0':''); row.last='pamt'; qtRecalc(); return; }   /* (10/23) 합계 칸에 0을 적으면 부품가 '0' = 작성된 줄 */   /* (10/20) 0 아래도 */   // (10/14) 합계(총액) 적으면 부품가 = 총액 − 기술료, 단가 = 부품가 ÷ 수량
   row[k]=v;if(k==='unit')row.last='unit';if(k==='pamt')row.last='pamt';if(k==='lunit')row.llast='unit';if(k==='labor')row.llast='total';if(k==='qty'||k==='unit'||k==='labor'||k==='pamt'||k==='lunit')qtRecalc();}
 function qtRecalc(){
   if(!qtCur)return;
@@ -29729,6 +29745,32 @@ function stkxIngest(files){
   }catch(e){}
 })();
 
+</script><script>
+/* ═══ (10/23) 직배송방 ⏳ 발송예정 — 타이어 입고를 기다리는 카드를 날짜까지 접어 둠 ═══ */
+var DLV_HOLD={map:{},at:0};
+async function dlvHoldLoad(){ try{ var r=await sb.from('settings').select('value').eq('key','dlv_hold').maybeSingle(); DLV_HOLD.map=(r&&r.data&&r.data.value&&r.data.value.map)||{}; DLV_HOLD.at=Date.now(); }catch(e){ console.error('발송예정 표 읽기',e); } return DLV_HOLD.map; }
+function dlvHoldRoot(c){ return (c&&(c.origin_id||c.id))||''; }
+function dlvHoldOf(c){ if(!c||c.done||c.cancelled)return null; var e=DLV_HOLD.map[dlvHoldRoot(c)]; if(!e||!e.until)return null; var view=(typeof getSelectedRange==='function')?(getSelectedRange().from||getTodayISO()):getTodayISO(); return (e.until>view)?e:null; }   /* 보는 날짜가 예정일 전이면 접힘, 예정일부터는 보통 카드 */
+function dlvHoldParse(v){ v=String(v||'').trim(); if(!v)return ''; var y=new Date(Date.now()+9*3600000).getUTCFullYear(); var m=v.match(/^(\d{4})[-./](\d{1,2})[-./](\d{1,2})$/)||v.match(/^(\d{1,2})[-./](\d{1,2})$/); if(!m)return null; var Y=m.length===4?+m[1]:y, M=+(m.length===4?m[2]:m[1]), D=+(m.length===4?m[3]:m[2]); if(M<1||M>12||D<1||D>31)return null; var s=Y+'-'+(M<10?'0':'')+M+'-'+(D<10?'0':'')+D; if(m.length===3&&s<getTodayISO()){ s=(Y+1)+s.slice(4); } return s; }
+async function dlvSetHold(id){
+  if(!dlvGuardEdit())return;
+  var c=deliveriesCache.find(function(x){return x.id===id;}); if(!c)return; var root=dlvHoldRoot(c); var cur=DLV_HOLD.map[root]||null;
+  var v=prompt('⏳ 발송예정 — 타이어가 들어오는 날짜 (그 날부터 카드가 보통 자리로 올라옵니다)\n모양: 10/28 또는 2026-10-28'+(cur?'\n\n※ 지금: '+cur.until+' ('+(cur.by||'')+') — 비우고 확인하면 해제됩니다.':''),cur?cur.until:'');
+  if(v===null)return; var until=dlvHoldParse(v); if(until===null){ alert('날짜 모양이 아니에요 — 10/28 또는 2026-10-28'); return; }
+  if(until&&until<=getTodayISO()){ alert('오늘이거나 지난 날짜예요 — 오늘 보낼 거면 발송예정 없이 그냥 두세요'); return; }
+  if(cur&&!until&&!confirm('발송예정('+cur.until+')을 해제하고 지금 보이게 할까요?'))return;
+  var lbl=(c.trade_client||c.recv||c.tire||'');
+  try{
+    var map=await dlvHoldLoad(); if(until)map[root]={until:until,by:(me?me.name:'?'),at:new Date().toISOString(),card:id}; else delete map[root];
+    var up=await sb.from('settings').upsert({key:'dlv_hold',value:{map:map},updated_at:new Date().toISOString()},{onConflict:'key'}); if(up&&up.error)throw new Error(up.error.message);
+    DLV_HOLD.map=map;
+    var txt=until?(cur?('발송예정 날짜 변경: '+cur.until+' → '+until):('발송예정 '+until+' — 그 날까지 접어 둠')):('발송예정 해제 (이전: '+cur.until+')');
+    await sb.from('delivery_logs').insert({room_id:curRoom.id,date_str:dlvDateStr(),text:(me?me.name:'?')+'님이 '+txt+' ('+lbl+') [#'+_dlvId8(c)+']'+dlvPastTag(c),user_name:me?me.name:''});
+    try{ logAudit('⏳발송예정',lbl,cur?cur.until:'(없음)',until||'(해제)'); }catch(e){}
+    if(typeof stkToast==='function')stkToast(until?'⏳ '+until+'부터 보입니다':'발송예정 해제');
+  }catch(e){ alert('저장 실패: '+(e&&e.message||e)); }
+  await loadDeliveries();
+}
 </script>
 </body>
 </html>
