@@ -5885,8 +5885,9 @@ var DLV_BUNDLE=(function(){var m={};
   '185 55 15|185 60 14|185 60 15|185 65 14|185 65 15|185 80 14|195 40 17|195 45 15|195 45 16|195 50 15|195 50 16|195 55 15|195 55 16|195 60 14|195 60 15|195 65 15|195 70 14'.split('|').forEach(function(k){m[k]=9000;});
   return m;})();
 var DLV_OFF_FEE={'235 75 15':6000,'265 65 17':7000,'265 50 20':7000,'265 70 17':7000}; // 오프로드 전용 운임 — 호준님 8/28 지정(추가 사이즈는 여기에)
-function _dlvSizeStr(c){return String(c.spec||c.tire||'').replace(/\b\d{1,2}\s*[pP](?![A-Za-z])/g,' ');} // P수가 사이즈 파싱을 오염하지 않게 제거
-function dlvShipFee(c){var f=stkShipFee(_dlvSizeStr(c));return (f==null?'':f);}
+function _dlvSizeStr(c){return String(c.spec||c.tire||'').replace(/DOT ?([0-9]{4}|[0-9]{2})(?![0-9])/gi,' ').replace(/[0-9]{2,4} ?년식?/g,' ').replace(/\b\d{1,2}\s*[pP](?![A-Za-z])/g,' ');} // P수가 사이즈 파싱을 오염하지 않게 제거
+function dlvFeeOverride(txt){ var t=String(txt||'').toUpperCase().replace(/[^0-9A-Z]/g,''); if(t.indexOf('AH11S')>=0&&t.indexOf('2058516')>=0)return 6000; return null; }   /* (10/26 호준님) 특정 상품 운임 고정 — AH11S 205 85 16 12P = 개당 6,000 */
+function dlvShipFee(c){var o=dlvFeeOverride((c.tire||'')+' '+(c.spec||''));if(o)return o;var f=stkShipFee(_dlvSizeStr(c));return (f==null?'':f);}
 function _dlvSrcAbbr1(seg){ // 출처 한 조각 → 약어(+숫자 = 그 출처에서 나가는 수량: '창고1'·'핑1개' → 창1·핑1, 연식 'NN년'은 제외)
   seg=String(seg||'').replace(/^[^0-9가-힣A-Za-z]+/,'').trim(); if(!seg)return '';
   var base;
@@ -14363,7 +14364,7 @@ function stkFxoClearVisible(){ var el=document.getElementById('stk-moBar'); var 
 function stkCalcTaekbae(cost,size,r){
   var c=parseInt(cost); if(isNaN(c)||!c)return null;
   var _fo=(r&&r.id!=='__nofx')?stkFxOverride(r):null; if(_fo&&stkFxExprOf(_fo,'price')){ var _fv=stkFxApply(_fo,r,'price'); if(_fv!=null)return _fv; }   /* (10/20) ƒ 상품별 식 */
-  var ship=stkShipFee(size); if(ship==null)return null;
+  var ship=(r&&typeof dlvFeeOverride==='function')?dlvFeeOverride((r.name||'')+' '+(r.code||'')+' '+(r.size||size||'')):null; if(ship==null)ship=stkShipFee(size); if(ship==null)return null;   /* (10/26) AH11S 205 85 16 = 배송비 6,000 */
   return Math.ceil((c+ship+stkMinMargin(r,size))/stkFxN('fee1')/stkFxN('fee2')/100)*100;
 }
 function stkCalcJangchak(cost,size,offroad,r){
@@ -29891,8 +29892,9 @@ function kdLabelPcToggle(){ var on=!kdLabelIsPc(); if(on&&!confirm('이 컴퓨�
 function kdLabelNote(msg,kind){ var box=document.getElementById('kd-label-note'); if(!box){ box=document.createElement('div'); box.id='kd-label-note'; box.style.cssText='position:fixed;right:12px;bottom:12px;z-index:99999;max-width:min(420px,calc(100vw - 24px));display:flex;flex-direction:column;gap:6px'; document.body.appendChild(box); }
   var it=document.createElement('div'); var bg=kind==='ok'?'#dcfce7':(kind==='bad'?'#fee2e2':(kind==='warn'?'#fef3c7':'#f1f5f9')), bd=kind==='ok'?'#86efac':(kind==='bad'?'#fca5a5':(kind==='warn'?'#fcd34d':'#cbd5e1'));
   it.style.cssText='background:'+bg+';border:1px solid '+bd+';border-radius:10px;padding:10px 32px 10px 12px;font-size:13px;line-height:1.45;color:#0f172a;box-shadow:0 4px 14px rgba(0,0,0,.15);position:relative;white-space:pre-wrap;word-break:break-all';
+  Array.from(box.children).forEach(function(c){ if(c.dataset&&c.dataset.msg===String(msg))c.remove(); }); it.dataset.msg=String(msg); while(box.children.length>=4)box.removeChild(box.firstChild);   /* (10/26) 같은 알림 쌓임 방지 */
   it.textContent=msg; var x=document.createElement('button'); x.textContent='✕'; x.style.cssText='position:absolute;right:6px;top:6px;border:0;background:none;font-size:14px;cursor:pointer;color:#475569'; x.onclick=function(){ it.remove(); }; it.appendChild(x); box.appendChild(it);
-  if(kind==='ok'||!kind)setTimeout(function(){ try{ it.remove(); }catch(e){} },12000); }
+  if(kind==='ok'||!kind)setTimeout(function(){ try{ it.remove(); }catch(e){} },12000); else if(kind==='warn')setTimeout(function(){ try{ it.remove(); }catch(e){} },6000); }
 function kdLabelScript(src){ return new Promise(function(res,rej){ var s=document.createElement('script'); s.src=src; s.onload=res; s.onerror=function(){rej(new Error('불러오기 실패 '+src));}; document.head.appendChild(s); }); }
 async function kdLabelLoadSdk(){ if(KD_LABEL.loaded)return; await kdLabelScript('bxl/euc-kr.js'); await kdLabelScript('bxl/bxlcommon.js'); await kdLabelScript('bxl/bxllabel.js'); if(typeof checkResult!=='function'||typeof getServerURL!=='function'||typeof directDrawHex!=='function'||typeof encodingToEucKr!=='function'||typeof getLabelData!=='function')throw new Error('빅솔론 스크립트가 안 올라옴(bxl 폴더 확인)'); KD_LABEL.loaded=true; }
 async function kdSdkAlive(){ try{ var ctl=new AbortController(); var t=setTimeout(function(){ctl.abort();},2000); await fetch(KD_LABEL.sdk+KD_LABEL.printer+'/checkStatus',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'{"RequestID":0,"ResponseID":"0","Timeout":1}',signal:ctl.signal}); clearTimeout(t); return true; }catch(e){ return false; } }
@@ -29998,14 +30000,14 @@ function kdPrBadge(w){ var e=kdPrInfo(w), L=e.last, P=e.printed, s='display:inli
 function kdPrCheck(w){ return '<input type="checkbox" class="kd-pr-ck" data-wb="'+esc(w)+'" '+(KD_PR.sel[w]?'checked ':'')+'onchange="kdPrSel(this)" style="width:17px;height:17px;margin-right:6px;cursor:pointer;flex:none;accent-color:#0f766e" title="여러 장 출력용 체크">'; }
 function kdPrSel(cb){ if(cb.checked)KD_PR.sel[cb.dataset.wb]=1; else delete KD_PR.sel[cb.dataset.wb]; kdPrBarCount(); }
 function kdPrSelList(){ return Object.keys(KD_PR.sel).filter(function(w){return KD_PR.sel[w];}); }
-function kdPrBarCount(){ var n=kdPrSelList().length; document.querySelectorAll('.kd-pr-n').forEach(function(x){ x.textContent=n; }); }
+function kdPrBarCount(){ var n=kdPrSelList().length; document.querySelectorAll('.kd-pr-n').forEach(function(x){ x.textContent=n; }); document.querySelectorAll('.kd-pr-go').forEach(function(x){ x.style.opacity=n?'1':'.45'; }); }
 function kdPrBar(list){ var live=(list||[]).filter(function(r){return r.status!=='삭제됨';}); var done=live.filter(function(r){return !!kdPrInfo(r.waybill_no).printed;}).length;
   var b='height:30px;padding:0 10px;border-radius:8px;border:1px solid #cbd5e1;background:#fff;font-size:12.5px;font-weight:700;cursor:pointer;';
   return '<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:2px 0 10px;padding:8px 10px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px">'
     +'<span style="font-size:12.5px;font-weight:800;color:#0f172a">🖨 출력 <span style="color:#166534">출력됨 '+done+'</span> · <span style="color:#b45309">미출력 '+(live.length-done)+'</span></span><span style="flex:1"></span>'
     +'<button style="'+b+'" onclick="kdPrSelNot()">☑ 보이는 미출력 전부 체크</button>'
     +'<button style="'+b+'" onclick="kdPrSelClear()">체크 해제</button>'
-    +'<button style="'+b+'background:#0f766e;color:#fff;border-color:#0f766e" onclick="kdPrPrintSel()">🖨 체크한 것 출력 (<span class="kd-pr-n">'+kdPrSelList().length+'</span>)</button>'
+    +'<button style="'+b+'background:#0f766e;color:#fff;border-color:#0f766e;'+(kdPrSelList().length?'':'opacity:.45;')+'" class="kd-pr-go" onclick="kdPrPrintSel()">🖨 체크한 것 출력 (<span class="kd-pr-n">'+kdPrSelList().length+'</span>)</button>'
     +'<button style="'+b+'" onclick="kdPrMarkSel()" title="경동 사이트 F4 등으로 이미 뽑은 송장을 출력됨으로 표시(인쇄는 안 함)">✓ 체크한 것 출력됨으로 표시</button>'
     +'<button style="'+b+(KD_PR.onlyNot?'background:#fef3c7;border-color:#fcd34d':'')+'" onclick="KD_PR.onlyNot=!KD_PR.onlyNot;kdRender()">'+(KD_PR.onlyNot?'✓ 미출력만 보는 중':'미출력만 보기')+'</button></div>'; }
 function kdPrVisible(){ return Array.from(document.querySelectorAll('#kd-list .kd-pr-ck')).map(function(c){return c.dataset.wb;}); }
@@ -30076,19 +30078,19 @@ function kdRcptRowMap(C,R){ function nz(x){ return String(x==null?'':x).split(' 
 function kdRcptPreview(){ var C=KD_RCPT.cur, sh=C.sheet, R=sh.rowData; C.rowMap=kdRcptRowMap(C,R); var bad=R.filter(function(r){ return String(r.wrong==null?'':r.wrong).trim()!==''; }).length; var noBr=R.filter(function(r){ return !String(r['도착영업소']==null?'':r['도착영업소']).trim(); }).length; var tot=R.reduce(function(s,r){ return s+kdRcptNum(r['운임합계']); },0); var mis=!C.rowMap;
   var h='<div style="font-weight:900;font-size:15px;margin-bottom:4px">📮 경동 접수 미리보기 <span style="font-size:12px;color:#64748b;font-weight:600">(엑셀등록까지만 됨 — 아직 접수 아님)</span></div>'
    +'<div style="font-size:13px;margin-bottom:8px">전체 <b>'+R.length+'</b>줄 · 정상 <b style="color:#166534">'+(R.length-bad)+'</b> · 주소오류 <b style="color:#b91c1c">'+bad+'</b> · 도착영업소 없음 <b style="color:#b91c1c">'+noBr+'</b> · 총 운임 <b>'+tot.toLocaleString()+'</b>원 · 표준운임 자동계산 <b>해제</b></div>'
-   +(mis?'<div style="color:#b91c1c;font-weight:800;margin-bottom:6px">⚠ 우리 엑셀 '+C.rows.length+'줄과 경동이 읽은 '+R.length+'줄이 받는분 순서까지 맞지 않아요 — 송장이 엉뚱한 카드에 붙을 수 있어 접수를 막습니다</div>':(R.length!==C.rows.length?'<div style="color:#0f766e;font-weight:700;margin-bottom:6px">경동이 수량대로 나눠 '+C.rows.length+'줄 → '+R.length+'줄로 읽었어요(상자마다 송장 1장). 받는분 순서가 모두 맞아 그대로 접수됩니다</div>':''))
+   +(mis?'<div style="color:#b91c1c;font-weight:800;margin-bottom:6px">⚠ 우리 엑셀 '+C.rows.length+'줄과 경동이 읽은 '+R.length+'줄이 받는분 순서까지 맞지 않아요 — 접수·출력은 그대로 되고, 송장을 카드에 자동으로 붙이는 것만 건너뜁니다</div>':(R.length!==C.rows.length?'<div style="color:#0f766e;font-weight:700;margin-bottom:6px">경동이 수량대로 나눠 '+C.rows.length+'줄 → '+R.length+'줄로 읽었어요(상자마다 송장 1장). 받는분 순서가 모두 맞아 그대로 접수됩니다</div>':''))
    +'<div style="overflow:auto;max-height:52vh"><table style="border-collapse:collapse;width:100%;font-size:12px"><tr style="background:#f1f5f9;position:sticky;top:0"><th>#</th><th>받는분</th><th>주소</th><th>품목</th><th>수량</th><th>도착영업소</th><th>운임합계</th><th>상태</th></tr>'
    +R.map(function(r,i){ var w=String(r.wrong==null?'':r.wrong).trim(); var nb=!String(r['도착영업소']==null?'':r['도착영업소']).trim(); return '<tr style="'+((w||nb)?'background:#fef2f2':'')+'"><td>'+(i+1)+'</td><td>'+esc(r['받는분']||'')+'</td><td>'+esc([r['주소'],r['상세주소']].filter(Boolean).join(' '))+'</td><td>'+esc(r['품목명']||'')+'</td><td style="text-align:right">'+esc(r['수량']||'')+'</td><td>'+esc(r['도착영업소']||'')+'</td><td style="text-align:right">'+kdRcptNum(r['운임합계']).toLocaleString()+'</td><td style="color:'+((w||nb)?'#b91c1c':'#166534')+';font-weight:800">'+(w?'주소오류':(nb?'영업소 없음':'정상'))+'</td></tr>'; }).join('')+'</table></div>'
    +((bad||noBr)?'<div style="color:#b91c1c;font-size:12.5px;margin-top:6px">빨간 줄은 카드의 주소·우편번호를 고친 뒤 다시 📮 경동 접수를 눌러 주세요(이번 엑셀등록은 버려도 접수되지 않습니다)</div>':'');
-  var block=mis?'경동이 읽은 줄이 우리 엑셀과 맞지 않아 접수할 수 없어요':((bad||noBr)?'빨간 줄을 고친 뒤 다시':'');
+  var block=(bad||noBr)?'빨간 줄을 고친 뒤 다시(경동이 접수를 거부하는 줄)':'';   /* (10/26) 줄 순서가 달라도 접수·출력은 진행 — 송장 자동 붙이기만 건너뜀 */
   kdRcptModal(h,[{t:'📮 이대로 접수 ('+R.length+'줄)',main:true,dis:block,f:function(close,btn){ kdRcptSave(close,btn); }},{t:'닫기 (접수 안 함)',f:function(close){ close(); kdLabelNote('접수하지 않았어요','');}}]); }
-async function kdRcptSave(close,btn){ var C=KD_RCPT.cur; if(!C)return; if(!confirm('경동에 '+C.sheet.rowData.length+'줄을 실제로 접수합니다. 계속할까요? (접수 뒤 취소는 경동 사이트에서)'))return; btn.disabled=true; btn.textContent='접수 중…';
+async function kdRcptSave(close,btn){ var C=KD_RCPT.cur; if(!C)return; if(!confirm('경동에 '+C.sheet.rowData.length+'줄을 실제로 접수합니다. 계속할까요? (접수 뒤 취소는 경동 사이트에서)'+(C.rowMap?'':' — 줄 순서가 달라 송장은 카드에 자동으로 붙지 않고 결과 창에 모아 보여 드려요')))return; btn.disabled=true; btn.textContent='접수 중…';
   var form=Object.assign({},C.form,{channel:'0022'}); var grid=C.sheet.rowData.map(function(r,i){ return Object.assign({},r,{rowKey:i,_attributes:{rowNum:i+1,checked:true,disabled:false,checkDisabled:false}}); });
   var res=null; try{ res=await kdRcptPost({act:'save',formData:form,gridData:grid}); }catch(e){ res={ok:false,error:String(e&&e.message||e)}; }
   if(!res||!res.ok){ btn.disabled=false; btn.textContent='📮 다시 접수'; kdLabelNote('⚠ 경동 접수 실패: '+((res&&(res.error||(res.resp&&res.resp.message)||res.text))||'응답 없음')+' — 경동 사이트 발송 목록에서 접수됐는지 꼭 확인하세요','bad'); try{ logAudit('📮 경동 접수 실패',C.items.map(function(x){return x.label;}).join(', '),'',String((res&&(res.error||res.text))||'').slice(0,200)); }catch(e){} return; }
   var resp=res.resp||{}; var byItem={}; var km=resp.keyMap||{}; var used=0;
-  Object.keys(km).forEach(function(k){ var ri=parseInt(k,10); var it=C.rmap[C.rowMap?C.rowMap[ri]:ri]; var no=km[k]&&(km[k].PROD_CODE||km[k].prodCode); if(it==null||!no)return; (byItem[it]=byItem[it]||[]).push(String(no)); used++; });
-  var pcs=(resp.prodCodes||[]).map(String); if(!used&&pcs.length===C.sheet.rowData.length){ pcs.forEach(function(no,ri){ var it=C.rmap[C.rowMap?C.rowMap[ri]:ri]; (byItem[it]=byItem[it]||[]).push(no); }); used=pcs.length; }
+  Object.keys(km).forEach(function(k){ var ri=parseInt(k,10); var it=C.rowMap?C.rmap[C.rowMap[ri]]:null; var no=km[k]&&(km[k].PROD_CODE||km[k].prodCode); if(it==null||!no)return; (byItem[it]=byItem[it]||[]).push(String(no)); used++; });
+  var pcs=(resp.prodCodes||[]).map(String); if(!used&&C.rowMap&&pcs.length===C.sheet.rowData.length){ pcs.forEach(function(no,ri){ var it=C.rowMap?C.rmap[C.rowMap[ri]]:null; (byItem[it]=byItem[it]||[]).push(no); }); used=pcs.length; }
   var who=me.name, now=new Date().toISOString(); var done=await kdRcptDoneMap(); var out=[];
   for(var i=0;i<C.items.length;i++){ var it=C.items[i], nos=byItem[i]||[]; out.push({kind:it.kind,id:it.id,label:it.label,nos:nos});
     if(!nos.length)continue;
