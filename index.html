@@ -802,7 +802,7 @@ body.rb-on #app{padding-top:58px}
 #dlv-tseg-row .ts-out,#dlv-tseg-row .ts-client,#dlv-tseg-row .ts-pat{flex:0 0 33.33%}
 #dlv-tseg-row .ts-size{flex:0 0 60%}
 #dlv-tseg-row .ts-qty{flex:0 0 40%}
-#dlv-tseg-row .ts-price{flex:0 0 50%}
+#dlv-tseg-row .ts-price{flex:0 0 50%}#dlv-tseg-row .ts-ship{flex:0 0 50%}
 #dlv-tseg-row .ts-memo{flex:0 0 50%}
 #dlv-tseg-row .ts-recv{flex:0 0 50%}#dlv-tseg-row .ts-tel{flex:0 0 50%}#dlv-tseg-row .ts-zip{flex:0 0 30%}#dlv-tseg-row .ts-addr{flex:0 0 70%;min-width:0}#dlv-tseg-row .ts-memo{flex:0 0 100%}
 /* (10/2) 거래처 양식 중 입고방에도 기록되는 칸(출고·패턴·사이즈·수량) 강조 */
@@ -2025,6 +2025,7 @@ tr.qr-align.off td input{color:#94a3b8}
     </div>
     <div class="sb-rooms" id="sb-rooms"></div>
     <div class="sb-foot">
+      <button class="admin-btn" onclick="tbOpen()" title="거래처 주소 찾기·추가·수정 (모두 사용)">📒 거래처 주소록</button>
       <div id="admin-sidebar-btn" style="display:none">
         <button class="admin-btn" onclick="dlvShopOpen()">📒 장착점 주소록</button>
         <button class="admin-btn" onclick="stkChangeMasterPw()">🔒 잠금/삭제 비번</button>
@@ -2806,14 +2807,17 @@ table.pm-g.ot-b tr.pm-flt{display:none}table.pm-g.ot-b.fltOn tr.pm-flt{display:t
             <div class="seg f-spec ts-size inb-link"><span class="seg-label">사이즈</span><input id="t-size" placeholder="235 60 18 8P"></div>
             <div class="seg ts-qty inb-link"><span class="seg-label">수량</span><input id="t-qty" placeholder="4" inputmode="numeric"></div>
             <div class="seg ts-price"><span class="seg-label">출고가</span><input id="t-price" placeholder="개당" inputmode="numeric"></div>
+            <div class="seg ts-ship"><span class="seg-label">배송료(개당)</span><input id="t-ship" placeholder="(안 적으면 규칙대로)" inputmode="numeric"></div>
             <div class="seg ts-recv"><span class="seg-label">받는분</span><input id="t-recv" placeholder="(선택)"></div>
             <div class="seg ts-tel"><span class="seg-label">전화</span><input id="t-tel" placeholder="(선택)" inputmode="tel"></div>
             <div class="seg ts-zip"><span class="seg-label">우편번호</span><input id="t-zip" placeholder="(선택)" inputmode="numeric" maxlength="7"></div>
             <div class="seg f-spec ts-addr"><span class="seg-label">주소</span><input id="t-addr" placeholder="(선택 · 띄어쓰기 자유)"></div>
             <div class="seg ts-memo"><span class="seg-label">메모</span><input id="t-memo" placeholder="(선택)"></div>
           </div>
+          <div id="tb-hint" style="font-size:12px;margin:5px 2px 2px;line-height:1.6;color:#334155"></div>
           <div class="dlv-inb-note">📦 보라 테두리 칸(출고·패턴·사이즈·수량)은 등록하는 순간 <b>입고방에도 기록</b>됩니다. 출고처가 창고·빈칸이면 입고방엔 안 들어갑니다. 출고를 <b>매일2창고2</b>처럼 적으면 창고 몫은 빼고 "매일 2개"만 입고방에 들어갑니다(여러 거래처면 줄이 여러 개). 연식은 사이즈 뒤에 "26년"처럼 적으면 같이 넘어갑니다.</div>
           <div class="item-add-row">
+            <button class="item-add-btn ghost" onclick="tbOpen()" title="거래처 주소록 — 찾기·추가·수정">📒 주소록</button>
             <button class="item-add-btn ghost" onclick="dlvTradeClear()">지우기</button>
             <button class="item-add-btn" onclick="dlvTradeAddPreview()">＋ 미리보기 추가</button>
           </div>
@@ -6012,6 +6016,9 @@ function dlvZipTag(c){ // 카드·상세·미리보기용 우편번호 표시 [0
 }
 function dlvZip5(v){ // 우편번호 5자리 보정 — 엑셀에서 숫자로 복사되며 앞 0이 빠진 4자리(3699)는 0을 붙여 03699로 (호준님 9/11)
   var d=String(v==null?'':v).replace(/\D/g,''); if(d.length===4)return '0'+d; return d; }
+function dlvShipTagGet(m){ var x=String(m||'').match(/배송료 ?([0-9][0-9,]*)/); if(!x)return null; var n=parseInt(x[1].split(',').join(''),10); return (n>0&&n<200000)?n:null; }   /* (10/26) 거래처양식 배송료(개당) — 메모 끝 '· 배송료 6,000원' */
+function dlvShipTagStrip(m){ return String(m||'').replace(/ ?· ?배송료 ?[0-9][0-9,]*원?/g,'').replace(/^배송료 ?[0-9][0-9,]*원? ?·? ?/,'').trim(); }
+function dlvShipTagAdd(m,n){ m=dlvShipTagStrip(m); n=parseInt(String(n||'').split(',').join('').trim(),10); if(!(n>0))return m; return (m?m+' ':'')+'· 배송료 '+n.toLocaleString()+'원'; }
 function dlvParcelRows(list){ // 행 생성(순수함수) — 택배사 바로 업로드 양식(호준님 8/28 확정: 택배업로드파일과 동일)
   var rows=[];
   list.forEach(function(c){
@@ -6025,6 +6032,7 @@ function dlvParcelRows(list){ // 행 생성(순수함수) — 택배사 바로 �
       else if(fee!==''&&fee!=null)fee=fee+1000;
       if(bundle)bundle+=1000;
     }
+    var _cf=(c.channel==='trade'||c.trade_client)?dlvShipTagGet(c.trade_memo):null; if(_cf){ fee=_cf; bundle=null; }   /* (10/26) 거래처양식 배송료(개당) 우선 */
     var nm=dlvParcelName(c);
     var zip=dlvZip5(c.zipcode||'');
     if(!zip&&c.shop_name&&typeof dlvShopFind==='function'){ var _sb=dlvShopFind(c.shop_name); if(_sb&&_sb.zip)zip=dlvZip5(_sb.zip); } // 협력점 건은 주소록 우편번호로 보충
@@ -7730,7 +7738,7 @@ function dlvEdit(id){
   document.getElementById('dlv-paste').value=dlvCardToText(c);
   if(c.channel==='trade'){
     // 거래처: 칸 폼에 각 값 복원 + 미리보기(새 필드)
-    var _fill=function(){ var set=function(id,v){var e=document.getElementById(id);if(e){e.value=(v==null?'':String(v));e.classList.remove('ghosted');}}; set('t-out',c.src);set('t-client',c.trade_client);set('t-pat',c.tire);set('t-size',c.spec);set('t-qty',c.qty);set('t-price',c.unit_price);set('t-memo',c.trade_memo);set('t-recv',c.recv);set('t-tel',c.tel);set('t-zip',c.zipcode);set('t-addr',c.addr); };
+    var _fill=function(){ var set=function(id,v){var e=document.getElementById(id);if(e){e.value=(v==null?'':String(v));e.classList.remove('ghosted');}}; set('t-out',c.src);set('t-client',c.trade_client);set('t-pat',c.tire);set('t-size',c.spec);set('t-qty',c.qty);set('t-price',c.unit_price);set('t-memo',dlvShipTagStrip(c.trade_memo));set('t-ship',dlvShipTagGet(c.trade_memo)||'');set('t-recv',c.recv);set('t-tel',c.tel);set('t-zip',c.zipcode);set('t-addr',c.addr); try{ if(typeof tbHint==='function')tbHint(true); }catch(_e){} };
     _fill(); setTimeout(_fill,60);
     dlvParsed=[{channel:'trade',code:'',src:c.src||'',trade_client:c.trade_client||'',tire:c.tire||'',spec:c.spec||'',year:'',brand:'',qty:c.qty||'',unit_price:c.unit_price||'',trade_memo:c.trade_memo||'',zipcode:(typeof dlvZip5==='function'?dlvZip5(c.zipcode||''):(c.zipcode||'')),addr:c.addr||'',recv:c.recv||'',tel:c.tel||'',multiline:false}];
   }else{
@@ -8041,7 +8049,7 @@ function pickDlvFmt(f){
   document.querySelectorAll('.dlv-fmt-btn').forEach(function(b){b.classList.toggle('on',b.dataset.fmt===f);});
   document.getElementById('dlv-fmt-desc').innerHTML=DLV_FMT_DESC[f];
   var tf=document.getElementById('dlv-trade-form'), pz=document.getElementById('dlv-paste-zone');
-  if(f==='trade'){ if(tf)tf.style.display='block'; if(pz)pz.style.display='none'; setTimeout(function(){var e=document.getElementById('t-out');if(e)e.focus();},60); }
+  if(f==='trade'){ if(tf)tf.style.display='block'; if(pz)pz.style.display='none'; setTimeout(function(){var e=document.getElementById('t-out');if(e)e.focus();},60); try{ if(typeof tbInitForm==='function'){ tbInitForm(); tbHint(true); } }catch(_e){} }
   else{ if(tf)tf.style.display='none'; if(pz)pz.style.display='block'; var ta=document.getElementById('dlv-paste'); if(ta)ta.placeholder=(f==='bunjang')?'유현상\n(02246) 서울특별시 중랑구 면목로21길 43 (면목동), 1층\n010-7290-0545\n한국타이어 Dynapro HP3 (RA55) 245/65R17':'스프레드시트에서 복사한 내용을 붙여넣으세요 (여러 줄 = 여러 건)'; }
   dlvClearPreview();
 }
@@ -8430,7 +8438,7 @@ function dlvClearPreview(){dlvParsed=[];dlvAutoErrs=[];const a=document.getEleme
 async function dlvPasteRegister(){
   if(SDV&&SDV.mode==='new'){   // 재고표 → 당일배송 새 카드
     if(dlvPasteFmt==='trade'){
-      var _tf2=['t-out','t-client','t-pat','t-size','t-qty','t-price','t-recv','t-tel','t-zip','t-addr','t-memo'];
+      var _tf2=['t-out','t-client','t-pat','t-size','t-qty','t-price','t-ship','t-recv','t-tel','t-zip','t-addr','t-memo'];
       var _ty2=_tf2.some(function(id){ var e=document.getElementById(id); return !!(e&&(e.value||'').trim()&&!e.classList.contains('ghosted')); });
       if(_ty2&&typeof dlvTradeAddPreview==='function')dlvTradeAddPreview();
     }
@@ -8444,7 +8452,7 @@ async function dlvPasteRegister(){
   }
   if(!dlvGuardEdit())return;
   if(!dlvEditId&&dlvPasteFmt==='trade'){   // 미리보기 추가를 안 눌렀어도 새로 입력한 값은 등록에 포함(수정 모드 제외)
-    var _tf=['t-out','t-client','t-pat','t-size','t-qty','t-price','t-recv','t-tel','t-zip','t-addr','t-memo'];
+    var _tf=['t-out','t-client','t-pat','t-size','t-qty','t-price','t-ship','t-recv','t-tel','t-zip','t-addr','t-memo'];
     var _typed=_tf.some(function(id){ var e=document.getElementById(id); return !!(e&&(e.value||'').trim()&&!e.classList.contains('ghosted')); });
     if(_typed&&typeof dlvTradeAddPreview==='function')dlvTradeAddPreview();
   }
@@ -12947,7 +12955,7 @@ function segPrev(ids,pos){if(pos>0){const p=document.getElementById(ids[pos-1]);
 function updateFilled(){['i-src','i-model','i-spec','i-qty','i-use','i-chg'].forEach(function(id){const el=document.getElementById(id);if(el)el.classList.toggle('filled',el.value.trim().length>0);});}
 // ===== 거래처 칸 입력 (띄어쓰기 칸이동: 사이즈만 2번, 메모는 이동없음) =====
 (function initTradeSegs(){
-  var TIDS=['t-out','t-client','t-pat','t-size','t-qty','t-price','t-recv','t-tel','t-zip','t-addr','t-memo'];
+  var TIDS=['t-out','t-client','t-pat','t-size','t-qty','t-price','t-ship','t-recv','t-tel','t-zip','t-addr','t-memo'];
   TIDS.forEach(function(id,pos){
     var input=document.getElementById(id); if(!input)return;
     var isDbl=(id==='t-size'); var isMemo=(id==='t-memo'||id==='t-addr'); var isTel=(id==='t-tel');   // 주소·메모는 띄어쓰기 자유(칸 이동 없음)
@@ -12981,7 +12989,7 @@ function updateFilled(){['i-src','i-model','i-spec','i-qty','i-use','i-chg'].for
     });
   });
 })();
-function dlvTradeClearInputs(){['t-out','t-client','t-pat','t-size','t-qty','t-price','t-recv','t-tel','t-zip','t-addr','t-memo'].forEach(function(id){var e=document.getElementById(id);if(e){e.value='';e.classList.remove('ghosted');e.dataset.ghostVal='';}});}
+function dlvTradeClearInputs(){['t-out','t-client','t-pat','t-size','t-qty','t-price','t-ship','t-recv','t-tel','t-zip','t-addr','t-memo'].forEach(function(id){var e=document.getElementById(id);if(e){e.value='';e.classList.remove('ghosted');e.dataset.ghostVal='';}});}
 function dlvTradeClear(){ dlvTradeClearInputs(); var e=document.getElementById('t-out'); if(e)e.focus(); }
 function fmtTel(raw){
   var d=(raw||'').replace(/\D/g,''); if(!d)return '';
@@ -13080,7 +13088,7 @@ async function dlvInbSyncEdit(card,d){ // 카드 수정 → 처리 전 줄 갱�
 }
 function dlvTradeAddPreview(){
   function gv(id){var e=document.getElementById(id);return e?(e.value||'').trim():'';}
-  var out=gv('t-out'),client=gv('t-client'),pat=gv('t-pat'),size=gv('t-size'),qty=gv('t-qty'),price=gv('t-price'),memo=gv('t-memo'),recv=gv('t-recv'),tel=gv('t-tel'),addr=gv('t-addr'),zip=gv('t-zip');
+  var out=gv('t-out'),client=gv('t-client'),pat=gv('t-pat'),size=gv('t-size'),qty=gv('t-qty'),price=gv('t-price'),memo=gv('t-memo'),recv=gv('t-recv'),tel=gv('t-tel'),addr=gv('t-addr'),zip=gv('t-zip'),ship=gv('t-ship'); memo=dlvShipTagAdd(memo,ship);
   if(!out&&!client&&!pat&&!size&&!qty&&!price&&!memo&&!recv&&!tel&&!addr&&!zip)return; // 완전히 빈 건 무시
   if(!Array.isArray(dlvParsed))dlvParsed=[];
   var _row={channel:'trade',code:'',src:out,trade_client:client,tire:pat,spec:size,brand:'',qty:qty,unit_price:price,tel:tel?fmtTel(tel):'',zipcode:(typeof dlvZip5==='function'?dlvZip5(zip):zip),addr:addr,trade_memo:memo,recv:recv,multiline:false};
@@ -13090,7 +13098,7 @@ function dlvTradeAddPreview(){
   if(window._dlvEditingBack){ _row._edited=true; dlvParsed.unshift(_row); window._dlvEditingBack=false; } // 수정분: 맨 위 + 수정됨
   else{ dlvParsed.push(_row); }
   // (가)방식: 출고·거래처·전화·우편·주소는 유지(불투명), 타이어칸만 비움
-  var GHOST=['t-out','t-client','t-pat','t-size','t-qty','t-price','t-recv','t-tel','t-zip','t-addr','t-memo'];   // 직전 값 전부 흐릿하게 유지
+  var GHOST=['t-out','t-client','t-pat','t-size','t-qty','t-price','t-ship','t-recv','t-tel','t-zip','t-addr','t-memo'];   // 직전 값 전부 흐릿하게 유지
   var CLEARF=[];
   CLEARF.forEach(function(id){var e=document.getElementById(id);if(e){e.value='';e.classList.remove('ghosted');e.dataset.ghostVal='';}});
   GHOST.forEach(function(id){var e=document.getElementById(id);if(e){e.classList.add('ghosted'); e.dataset.ghostVal=e.value;}});
@@ -30058,8 +30066,18 @@ async function kdRcptDlv(){ if(!me){ kdLabelNote('먼저 로그인해 주세요'
   var done=await kdRcptDoneMap(); kdRcptRun(list.map(function(c){ return {kind:'dlv',id:c.id,card:c,label:(c.recv||c.tire||'?')+(c.qty?' ×'+c.qty:''),done:done[c.id]||null}; })); }
 async function kdRcptPm(){ if(!me){ kdLabelNote('먼저 로그인해 주세요','warn'); return; } var L=pmRows().filter(function(o){return PM.chk[o.id]&&pmTabs(o).indexOf('tb')>=0&&o.status!=='done';}); if(!L.length){ kdLabelNote('경동에 접수할 택배 줄을 체크해 주세요','warn'); return; }
   kdRcptRun(L.map(function(o){ var w=pmWb(o); return {kind:'pm',id:o.id,ref:o,card:pmPseudoCard(o),label:(o.recv||'?')+' '+(o.size||'')+(o.qty?' ×'+o.qty:''),done:w.length?{nos:w}:null}; })); }
+async function kdRcptCheckDeleted(items){   /* (10/26 호준님) 경동에서 지우고 다시 접수 — 예전 송장이 경동에서 '삭제됨'이면 접수 안 한 것으로 */
+  var withDone=items.filter(function(x){ return x.done&&Array.isArray(x.done.nos)&&x.done.nos.length; }); if(!withDone.length)return {freed:[],alive:[]};
+  var nos=[]; withDone.forEach(function(x){ x.done.nos.forEach(function(n){ if(nos.indexOf(String(n))<0)nos.push(String(n)); }); });
+  async function stat(){ var m={}; try{ for(var i=0;i<nos.length;i+=200){ var r=await sbKd.from('kd_waybills').select('waybill_no,status').in('waybill_no',nos.slice(i,i+200)); (r.data||[]).forEach(function(w){ m[String(w.waybill_no)]=w.status||''; }); } }catch(e){} return m; }
+  var m=await stat(); var need=nos.some(function(n){ return m[n]!=='삭제됨'; });
+  if(need){ try{ var u=await kdRefreshUrl(); if(u){ var ds=withDone.map(function(x){ return String(x.done.at||'').slice(0,10); }).filter(Boolean).sort(); var from=ds[0]||getTodayISO(); kdLabelNote('📮 예전 접수 송장이 경동에서 지워졌는지 확인 중…',''); await fetch(u+'&from='+from+'&to='+getTodayISO()); m=await stat(); } }catch(e){} }
+  var freed=[], alive=[]; withDone.forEach(function(x){ var all=x.done.nos.every(function(n){ return m[String(n)]==='삭제됨'; }); if(all){ x.done=null; x.reReg=true; freed.push(x); } else alive.push(x); });
+  if(freed.length)kdLabelNote('📮 이전 송장이 경동에서 삭제됨 확인 — '+freed.map(function(x){return x.label;}).join(', ')+' 다시 접수합니다','ok');
+  return {freed:freed,alive:alive}; }
 async function kdRcptRun(items){ if(KD_RCPT.busy){ kdLabelNote('경동 접수가 진행 중이에요','warn'); return; } KD_RCPT.busy=true;
   try{ var cfg=KD_RCPT.cfg||await kdRcptCfgLoad(); if(!cfg){ cfg=await kdRcptSetup(); if(!cfg)return; }
+    try{ await kdRcptCheckDeleted(items); }catch(e){ console.error('삭제 확인 실패',e); }
     var dup=items.filter(function(x){return !!x.done;}); if(dup.length){ if(!confirm(dup.length+'건은 이미 경동에 접수했거나 송장이 있어요: '+dup.slice(0,5).map(function(x){return x.label;}).join(', ')+(dup.length>5?' 외':'')+' — 이것은 빼고 진행할까요? (취소 = 중단)'))return; items=items.filter(function(x){return !x.done;}); if(!items.length){ kdLabelNote('새로 접수할 카드가 없어요','warn'); return; } }
     try{ await stkLoadXLSX(); }catch(e){ kdLabelNote(String(e&&e.message||e),'bad'); return; } try{ if(typeof rzLoadPatBrand==='function')await rzLoadPatBrand(); }catch(e){}
     var rows=[], rmap=[]; items.forEach(function(it,i){ dlvParcelRows([it.card]).forEach(function(r){ rows.push(r); rmap.push(i); }); });
@@ -30145,6 +30163,72 @@ function kdLabelPcLine(list){ if(!list.length)return {ok:false,txt:'⚠ 아직 �
   if(!v.sdk)return {ok:false,txt:'⚠ 라벨기 컴퓨터('+(v.name||'')+')는 켜져 있는데 빅솔론 인쇄 프로그램이 응답하지 않아요 (신호 '+ago+')'};
   return {ok:true,txt:'🖥 라벨기 컴퓨터('+(v.name||'')+') 정상 · 신호 '+ago}; }
 setTimeout(function(){ try{ kdLabelPcPaint(); kdLabelPoll(); }catch(e){} },4000);
+</script><script>
+/* ═══ (10/26) 📒 거래처 주소록 ═══ */
+var TRADE_BOOK=[], TRADE_BOOK_LOADED=false, TB_UI={q:'',edit:null};
+async function tbLoad(){ try{ var r=await sb.from('settings').select('value').eq('key','trade_book').maybeSingle(); if(r&&!r.error){ TRADE_BOOK=(r.data&&Array.isArray(r.data.value))?r.data.value:[]; TRADE_BOOK_LOADED=true; } }catch(e){} return TRADE_BOOK_LOADED; }
+async function tbEnsure(){ if(!TRADE_BOOK_LOADED)await tbLoad(); return TRADE_BOOK_LOADED; }
+function tbNz(s){ return String(s==null?'':s).replace(/[ .()\[\]\/,·_-]/g,'').toUpperCase(); }
+function tbKeys(e){ return [e.name].concat(e.aliases||[]).map(tbNz).filter(function(x){return x.length>=2;}); }
+function tbFind(txt){ var k=tbNz(txt); if(k.length<2)return null; var i,j,e,best=null,bl=0;
+  for(i=0;i<TRADE_BOOK.length;i++){ e=TRADE_BOOK[i]; if(tbKeys(e).indexOf(k)>=0)return e; }
+  for(i=0;i<TRADE_BOOK.length;i++){ e=TRADE_BOOK[i]; var ks=tbKeys(e); for(j=0;j<ks.length;j++){ var a=ks[j]; if(a.length>=3&&(k.indexOf(a)>=0||a.indexOf(k)>=0)&&a.length>bl){ best=e; bl=a.length; } } }
+  return best; }
+function tbSearch(q,lim){ var toks=String(q||'').trim().split(' ').map(tbNz).filter(Boolean); if(!toks.length)return TRADE_BOOK.slice(0,lim||500);
+  var out=[]; TRADE_BOOK.forEach(function(e){ var hay=tbNz([e.name].concat(e.aliases||[]).concat([e.addr,e.tel,e.zip,e.memo]).join(' ')); if(!toks.every(function(t){return hay.indexOf(t)>=0;}))return;
+    var nm=tbNz(e.name), s=0; toks.forEach(function(t){ if(nm===t)s+=100; else if(nm.indexOf(t)===0)s+=60; else if(tbKeys(e).some(function(k){return k.indexOf(t)>=0;}))s+=40; else s+=10; }); out.push({e:e,s:s}); });
+  out.sort(function(a,b){ return (b.s-a.s)||String(a.e.name).localeCompare(String(b.e.name),'ko'); }); return out.slice(0,lim||500).map(function(x){return x.e;}); }
+function tbIsBoss(){ return !!(me&&typeof ADMIN_NAME!=='undefined'&&me.name===ADMIN_NAME); }
+async function tbWrite(mut,what){ var r=await sb.from('settings').select('value').eq('key','trade_book').maybeSingle(); if(r&&r.error)throw new Error('주소록을 못 읽어 저장을 멈췄어요: '+r.error.message);
+  var cur=(r&&r.data&&Array.isArray(r.data.value))?r.data.value:[]; try{ await sb.from('settings').upsert({key:'trade_book_prev',value:cur,updated_at:new Date().toISOString()},{onConflict:'key'}); }catch(e){}
+  var next=mut(cur.slice()); var w=await sb.from('settings').upsert({key:'trade_book',value:next,updated_at:new Date().toISOString()},{onConflict:'key'}); if(w&&w.error)throw new Error(w.error.message);
+  var chk=await sb.from('settings').select('value').eq('key','trade_book').maybeSingle(); if(!(chk&&chk.data&&tbStable(chk.data.value)===tbStable(next)))throw new Error('저장 뒤 다시 읽은 값이 달라요 — 다시 해 주세요');
+  TRADE_BOOK=next; TRADE_BOOK_LOADED=true; try{ logAudit('📒 거래처 주소록',what,'',''); }catch(e){} return next; }
+function tbStable(v){ if(Array.isArray(v))return '['+v.map(tbStable).join(',')+']'; if(v&&typeof v==='object')return '{'+Object.keys(v).sort().map(function(k){ return JSON.stringify(k)+':'+tbStable(v[k]); }).join(',')+'}'; return JSON.stringify(v===undefined?null:v); }   /* DB(jsonb)가 칸 순서를 바꿔 돌려줘도 같게 비교 */
+function tbNewId(){ return 'tb'+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
+async function tbSaveEntry(e){ e.name=String(e.name||'').trim(); if(!e.name){ alert('거래처 이름을 적어 주세요'); return false; }
+  e.aliases=(e.aliases||[]).map(function(a){return String(a).trim();}).filter(function(a,i,arr){return a&&arr.indexOf(a)===i&&a!==e.name;}); e.zip=(typeof dlvZip5==='function'?dlvZip5(e.zip):String(e.zip||'').trim()); e.addr=String(e.addr||'').trim(); e.tel=String(e.tel||'').trim(); e.memo=String(e.memo||'').trim();
+  var dup=TRADE_BOOK.filter(function(x){ return x.id!==e.id&&tbNz(x.name)===tbNz(e.name); })[0]; if(dup&&!confirm('같은 이름 "'+dup.name+'"이 이미 있어요. 그래도 따로 저장할까요?'))return false;
+  e.by=(me&&me.name)||'?'; e.at=new Date().toISOString(); var isNew=!e.id; if(isNew)e.id=tbNewId();
+  try{ await tbWrite(function(cur){ var i=cur.findIndex(function(x){return x.id===e.id;}); if(i>=0)cur[i]=e; else cur.push(e); return cur; },(isNew?'추가 ':'수정 ')+e.name+(e.zip?' ['+e.zip+']':'')+' '+e.addr); }catch(err){ alert('저장 실패: '+err.message); return false; }
+  if(typeof stkToast==='function')stkToast('📒 '+e.name+' '+(isNew?'추가':'수정')+'됨'); return true; }
+async function tbDelete(id){ if(!tbIsBoss()){ alert('삭제는 대표만 할 수 있어요'); return; } var e=TRADE_BOOK.filter(function(x){return x.id===id;})[0]; if(!e||!confirm('"'+e.name+'"을 주소록에서 지울까요?'))return;
+  try{ await tbWrite(function(cur){ return cur.filter(function(x){return x.id!==id;}); },'삭제 '+e.name); }catch(err){ alert('삭제 실패: '+err.message); return; } tbRender(); }
+async function tbOpen(pre){ await tbEnsure(); var el=document.getElementById('tb-wrap');
+  if(!el){ el=document.createElement('div'); el.id='tb-wrap'; el.style.cssText='position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:9100;display:flex;align-items:flex-end;justify-content:center';
+    el.innerHTML='<div style="background:#fff;width:100%;max-width:760px;max-height:92vh;border-radius:14px 14px 0 0;display:flex;flex-direction:column"><div style="display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid #e5e1d8;flex-wrap:wrap"><b style="font-size:15px">📒 거래처 주소록</b><span id="tb-cnt" style="font-size:11px;color:#64748b"></span><span style="flex:1"></span><button class="dact" onclick="tbEdit(null)" style="background:#1e3a5f;color:#fff;border-color:#1e3a5f;font-weight:800">＋ 새 거래처</button><button class="dact" onclick="tbClose()">닫기</button></div><div style="padding:8px 12px;border-bottom:1px solid #f1f5f9"><input id="tb-q" placeholder="찾기 — 거래처 이름 · 같이 쓰는 이름 · 주소 · 전화 · 우편번호 (띄어 쓰면 모두 포함)" oninput="TB_UI.q=this.value;tbRender()" style="width:100%;height:36px;border:1.5px solid #cbd5e1;border-radius:8px;padding:0 10px;font-size:14px;font-family:inherit"></div><div id="tb-body" style="overflow:auto;padding:10px 12px;flex:1"></div></div>';
+    el.addEventListener('click',function(ev){ if(ev.target===el)tbClose(); }); document.body.appendChild(el); }
+  el.style.display='flex'; TB_UI.edit=null; var qi=document.getElementById('tb-q'); if(qi){ qi.value=TB_UI.q||''; }
+  if(pre){ tbEdit(null,pre); } else tbRender(); setTimeout(function(){ var q=document.getElementById('tb-q'); if(q&&!pre)q.focus(); },50); tbLoad().then(function(){ if(!TB_UI.edit)tbRender(); }); }
+function tbClose(){ var el=document.getElementById('tb-wrap'); if(el)el.style.display='none'; TB_UI.edit=null; }
+function tbRender(){ var b=document.getElementById('tb-body'); if(!b)return; var L=tbSearch(TB_UI.q,400); var c=document.getElementById('tb-cnt'); if(c)c.textContent='('+TRADE_BOOK.length+'곳'+(TB_UI.q?' · 찾음 '+L.length:'')+(TRADE_BOOK_LOADED?'':' · ⚠ 서버에서 아직 못 읽음')+')';
+  var chip='display:inline-block;background:#f7f6f3;border:1px solid #e5e1d8;border-radius:11px;padding:0 8px;font-size:11px;font-weight:700;margin:2px 3px 0 0';
+  b.innerHTML=(L.length?'':'<div style="text-align:center;color:#94a3b8;padding:24px">'+(TB_UI.q?'찾는 거래처가 없어요 — ＋ 새 거래처로 추가하세요':'아직 등록된 거래처가 없어요')+'</div>')+L.map(function(e){ return '<div style="border:1px solid #e5e1d8;border-radius:10px;padding:8px 11px;margin-bottom:7px"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b style="font-size:14px">'+esc(e.name)+'</b>'+(e.zip?'<span style="font-size:12px;color:#0f766e;font-weight:800">['+esc(e.zip)+']</span>':'<span style="font-size:11px;color:#b45309">우편번호 없음</span>')+'<span style="flex:1"></span><button class="dact" data-id="'+esc(e.id)+'" onclick="tbEdit(this.dataset.id)">수정</button>'+(tbIsBoss()?'<button class="dact" style="color:#b91c1c;border-color:#fca5a5" data-id="'+esc(e.id)+'" onclick="tbDelete(this.dataset.id)">삭제</button>':'')+'</div><div style="font-size:12.5px;color:#334155;margin-top:3px">📍 '+esc(e.addr||'(주소 없음)')+(e.tel?' · ☎ '+esc(e.tel):'')+'</div>'+((e.aliases||[]).length?'<div style="margin-top:3px"><span style="font-size:10.5px;color:#64748b;font-weight:800;margin-right:4px">같이 쓰는 이름</span>'+(e.aliases||[]).map(function(a){return '<span style="'+chip+'">'+esc(a)+'</span>';}).join('')+'</div>':'')+(e.memo?'<div style="font-size:11.5px;color:#64748b;margin-top:2px">📝 '+esc(e.memo)+'</div>':'')+'</div>'; }).join(''); }
+function tbEdit(id,pre){ var e=id?TRADE_BOOK.filter(function(x){return x.id===id;})[0]:null; var v=e?JSON.parse(JSON.stringify(e)):Object.assign({id:'',name:'',aliases:[],zip:'',addr:'',tel:'',memo:''},pre||{}); TB_UI.edit=v;
+  var b=document.getElementById('tb-body'); if(!b)return; var inp='width:100%;height:34px;border:1.5px solid #cbd5e1;border-radius:8px;padding:0 9px;font-size:13.5px;font-family:inherit;box-sizing:border-box';
+  function row(lab,key,ph){ return '<div style="margin-bottom:7px"><div style="font-size:11.5px;font-weight:800;color:#475569;margin-bottom:2px">'+lab+'</div><input id="tbe-'+key+'" value="'+esc(key==='aliases'?(v.aliases||[]).join(', '):(v[key]||''))+'" placeholder="'+esc(ph||'')+'" style="'+inp+'"></div>'; }
+  b.innerHTML='<div style="font-weight:900;margin-bottom:8px">'+(e?'✏️ '+esc(e.name)+' 수정':'＋ 새 거래처')+'</div>'+row('거래처 이름','name','예: 안산미덕정비')+row('같이 쓰는 이름 (쉼표로 여러 개)','aliases','예: 미덕정비, 안산미덕')+'<div style="display:flex;gap:8px"><div style="flex:0 0 120px">'+row('우편번호','zip','15245')+'</div><div style="flex:1">'+row('주소','addr','경기 안산시 단원구 선부로 257')+'</div></div>'+row('전화','tel','(선택)')+row('메모','memo','(선택)')
+   +'<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:6px"><button class="dact" onclick="TB_UI.edit=null;tbRender()">취소</button><button class="dact" style="background:#1e3a5f;color:#fff;border-color:#1e3a5f;font-weight:800" onclick="tbEditSave()">저장</button></div>'
+   +(e&&e.by?'<div style="font-size:11px;color:#94a3b8;margin-top:6px">마지막 수정 '+esc(e.by)+' · '+esc(String(e.at||'').slice(0,16).replace('T',' '))+'</div>':''); setTimeout(function(){ var n=document.getElementById('tbe-name'); if(n)n.focus(); },30); }
+async function tbEditSave(){ var v=TB_UI.edit; if(!v)return; function g(k){ var x=document.getElementById('tbe-'+k); return x?x.value:''; } v.name=g('name'); v.aliases=g('aliases').split(',').map(function(a){return a.trim();}).filter(Boolean); v.zip=g('zip'); v.addr=g('addr'); v.tel=g('tel'); v.memo=g('memo');
+  if(await tbSaveEntry(v)){ TB_UI.edit=null; TB_UI.q=v.name; var q=document.getElementById('tb-q'); if(q)q.value=v.name; tbRender(); try{ tbHint(true); }catch(e){} } }
+/* 거래처 양식 칸과 연결: 후보·자동 채움·안내 */
+function tbFormVal(id){ var e=document.getElementById(id); return e?(e.value||'').trim():''; }
+function tbFormSet(id,v,force){ var e=document.getElementById(id); if(!e)return; var empty=!(e.value||'').trim()||e.classList.contains('ghosted'); if(!force&&!empty)return; e.value=(v==null?'':String(v)); e.classList.remove('ghosted'); e.dataset.ghostVal=''; }
+function tbAddrTyped(){ var a=document.getElementById('t-addr'); return !!(a&&(a.value||'').trim()&&!a.classList.contains('ghosted')); }   /* (10/26 호준님) 주소를 직접 적었으면 자동 채움 안 함 */
+function tbApply(id,force){ var e=TRADE_BOOK.filter(function(x){return x.id===id;})[0]; if(!e)return; tbFormSet('t-client',e.name,true); if(!force&&tbAddrTyped()){ tbHint(true); return; } tbFormSet('t-recv',e.name,force); if(e.tel)tbFormSet('t-tel',e.tel,force); if(e.zip)tbFormSet('t-zip',e.zip,force); if(e.addr)tbFormSet('t-addr',e.addr,force); tbHint(true); var p=document.getElementById('t-pat'); if(p&&force)p.focus(); }
+async function tbHint(settled){ var box=document.getElementById('tb-hint'); if(!box)return; await tbEnsure(); var cl=tbFormVal('t-client'); var ghost=(document.getElementById('t-client')||{classList:{contains:function(){return false;}}}).classList.contains('ghosted');
+  if(!cl||cl.length<2){ box.innerHTML='<span style="color:#94a3b8">📒 거래처 칸에 두 글자 이상 치면 주소록에서 찾아 드려요</span> <a href="#" onclick="tbOpen();return false" style="font-weight:800">주소록 열기</a>'; return; }
+  var hit=tbFind(cl); var b='border:1px solid #cbd5e1;background:#fff;border-radius:7px;padding:2px 8px;font-size:12px;font-weight:700;cursor:pointer;margin:2px 4px 2px 0;font-family:inherit';
+  if(hit&&(settled||tbNz(hit.name)===tbNz(cl)||(hit.aliases||[]).some(function(a){return tbNz(a)===tbNz(cl);}))){
+    var addr=tbFormVal('t-addr'), zip=tbFormVal('t-zip'); var diff=(addr&&hit.addr&&tbNz(addr)!==tbNz(hit.addr))||(zip&&hit.zip&&zip!==hit.zip);
+    box.innerHTML='📒 주소록: <b>'+esc(hit.name)+'</b> '+(hit.zip?'['+esc(hit.zip)+'] ':'')+esc(hit.addr||'(주소 없음)')+(hit.tel?' · '+esc(hit.tel):'')+' '+(diff?'<span style="color:#b91c1c;font-weight:800">— 지금 칸의 주소와 달라요</span> <button style="'+b+'" data-id="'+esc(hit.id)+'" onclick="tbApply(this.dataset.id,true)">주소록 값으로 바꾸기</button>':'<button style="'+b+'" data-id="'+esc(hit.id)+'" onclick="tbApply(this.dataset.id,true)">다시 채우기</button>')+'<button style="'+b+'" data-id="'+esc(hit.id)+'" onclick="tbOpen();tbEdit(this.dataset.id)">주소록 수정</button>'; return; }
+  var L=tbSearch(cl,6); var pre=JSON.stringify({name:cl,zip:tbFormVal('t-zip'),addr:tbFormVal('t-addr'),tel:tbFormVal('t-tel')});
+  box.innerHTML=(L.length?'📒 혹시 이 거래처? '+L.map(function(e){ return '<button style="'+b+'" data-id="'+esc(e.id)+'" onclick="tbApply(this.dataset.id,true)">'+esc(e.name)+(e.zip?' ['+esc(e.zip)+']':'')+'</button>'; }).join(''):'📒 주소록에 "'+esc(cl)+'" 없음 ')+'<button style="'+b+';border-color:#1e3a5f;color:#1e3a5f" data-pre="'+esc(pre)+'" onclick="tbOpen(JSON.parse(this.dataset.pre))">＋ 주소록에 저장</button>'; }
+function tbRecvApply(){ var v=tbFormVal('t-recv'); if(v.length<2)return; var hit=tbFind(v); if(!hit)return; var k=tbNz(v); if(!(tbNz(hit.name)===k||(hit.aliases||[]).some(function(a){return tbNz(a)===k;})))return; if(tbAddrTyped())return; if(hit.tel)tbFormSet('t-tel',hit.tel,false); if(hit.zip)tbFormSet('t-zip',hit.zip,false); if(hit.addr)tbFormSet('t-addr',hit.addr,false); var box=document.getElementById('tb-hint'); if(box)box.innerHTML='📒 받는분 주소록: <b>'+esc(hit.name)+'</b> '+(hit.zip?'['+esc(hit.zip)+'] ':'')+esc(hit.addr||'(주소 없음)')+' — 빈 칸을 채웠어요'; }   /* (10/26) 도매몰(거래처)과 받는 곳이 다를 때: 받는분으로도 주소록 찾기 */
+function tbInitForm(){ var rv=document.getElementById('t-recv'); if(rv&&!rv.dataset.tb){ rv.dataset.tb='1'; rv.addEventListener('blur',function(){ setTimeout(function(){ tbEnsure().then(tbRecvApply); },150); }); }
+  var c=document.getElementById('t-client'); if(!c||c.dataset.tb)return; c.dataset.tb='1'; c.addEventListener('input',function(){ tbHint(false); }); c.addEventListener('blur',function(){ setTimeout(function(){ tbHint(true); var hit=tbFind(tbFormVal('t-client')); if(hit&&(tbNz(hit.name)===tbNz(tbFormVal('t-client'))||(hit.aliases||[]).some(function(a){return tbNz(a)===tbNz(tbFormVal('t-client'));})))tbApply(hit.id,false); },120); }); ['t-addr','t-zip'].forEach(function(id){ var x=document.getElementById(id); if(x)x.addEventListener('change',function(){ tbHint(true); }); }); }
+setTimeout(function(){ try{ tbInitForm(); }catch(e){} },1500);
 </script>
 </body>
 </html>
