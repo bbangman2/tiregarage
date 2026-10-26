@@ -3386,14 +3386,30 @@ async function bkSaveUsers(){ var r=await sb.from('settings').upsert({key:'backu
 
 // ===== 🔐 통합 권한 관리 매트릭스 (관리자 패널, 접힘식) =====
 // 저장 위치는 전부 기존 키 그대로 — 명단을 고치는 곳은 이 표 하나뿐 (두 군데 수정 금지 원칙)
+/* (10/26) 재고 권한은 방마다 명단이 따로(9/2 '편집권한 별도 관리') — 권한 표 칸을 방별로 고정: V2=ping_settings · 중고=used_settings */
+var PERM_SL={};   // 'ping:inline_editors' → 명단 배열 (권한 표 전용 사본)
+var PERM_SL_TBL={ping:'ping_settings',used:'used_settings'};
+function permSL(store,key){ var k=store+':'+key; if(!PERM_SL[k])PERM_SL[k]=[]; return PERM_SL[k]; }
+async function permSLLoad(store,key){ var arr=permSL(store,key); var r=await sb.from(PERM_SL_TBL[store]).select('value').eq('key',key).maybeSingle(); if(r&&r.error)throw new Error(r.error.message);
+  var v=[]; try{ v=r&&r.data&&r.data.value?JSON.parse(r.data.value):[]; }catch(e){ v=[]; } arr.length=0; (Array.isArray(v)?v:[]).forEach(function(n){ if(n&&arr.indexOf(n)<0)arr.push(n); }); return arr; }
+async function permSLSave(store,key){ var tb=PERM_SL_TBL[store], val=JSON.stringify(permSL(store,key)); var ex=await sb.from(tb).select('key').eq('key',key); if(ex&&ex.error)throw new Error(ex.error.message);
+  var r=(ex.data&&ex.data.length)?await sb.from(tb).update({value:val}).eq('key',key):await sb.from(tb).insert({key:key,value:val}); if(r&&r.error)throw new Error(r.error.message||'저장 실패');
+  if(STK_STORE===store){ try{ if(key==='inline_editors'&&typeof stkLoadEditors==='function')await stkLoadEditors(); if(key==='realcost_viewers'&&typeof stkLoadRealcostViewers==='function')await stkLoadRealcostViewers(); if(key==='em_users'&&typeof stkLoadEmUsers==='function')await stkLoadEmUsers(); }catch(e){} } }
+async function permRateLoad(){ var arr=permSL('ping','rate_users'); var r=await sb.from('ping_settings').select('value').eq('key','safe_cost_cfg').maybeSingle(); if(r&&r.error)throw new Error(r.error.message); var o={}; try{ o=r&&r.data&&r.data.value?JSON.parse(r.data.value):{}; }catch(e){ o={}; } arr.length=0; (Array.isArray(o.users)?o.users:['이호준']).forEach(function(n){ if(n&&arr.indexOf(n)<0)arr.push(n); }); return arr; }
+async function permRateSave(){ var r=await sb.from('ping_settings').select('value').eq('key','safe_cost_cfg').maybeSingle(); if(r&&r.error)throw new Error(r.error.message); var o={}; try{ o=r&&r.data&&r.data.value?JSON.parse(r.data.value):{}; }catch(e){ throw new Error('할인율 설정을 못 읽어 저장을 멈춤'); }
+  var users=permSL('ping','rate_users').slice(); if(users.indexOf(ADMIN_NAME)<0)users.push(ADMIN_NAME); o.users=users; var val=JSON.stringify(o);
+  var w=(r&&r.data)?await sb.from('ping_settings').update({value:val}).eq('key','safe_cost_cfg'):await sb.from('ping_settings').insert({key:'safe_cost_cfg',value:val}); if(w&&w.error)throw new Error(w.error.message||'저장 실패');
+  if(STK_STORE==='ping'&&typeof stkSafeLoad==='function'){ try{ await stkSafeLoad(); }catch(e){} } }
 var PERM_DEFS=[
-  {key:'stock', label:'재고 수정', hint:'재고표 셀 수정·행추가·상품추가·삭제', list:function(){return STK_INLINE_EDITORS;}, save:function(){return stkSaveEditors();}, color:'#2563eb'},
-  {key:'rc', label:'실원가·할인율', hint:'재고표 실원가·할인율 칸 열람/수정', list:function(){return STK_REALCOST_VIEWERS;}, save:function(){return stkSaveRcViewers();}, color:'#0891b2'},
+  {key:'stock', store:'ping', label:'재고 수정 (V2)', hint:'재고방 V2 — 재고표 셀 수정·행추가·상품추가·삭제', list:function(){return permSL('ping','inline_editors');}, save:function(){return permSLSave('ping','inline_editors');}, color:'#2563eb'},
+  {key:'stock_used', store:'used', label:'재고 수정 (중고)', hint:'중고타이어방 — 재고표 셀 수정·행추가·상품추가·삭제', list:function(){return permSL('used','inline_editors');}, save:function(){return permSLSave('used','inline_editors');}, color:'#4f46e5'},
+  {key:'rc', store:'ping', label:'실원가 (V2)', hint:'재고방 V2 — 재고표 실원가·할인율 칸 열람/수정', list:function(){return permSL('ping','realcost_viewers');}, save:function(){return permSLSave('ping','realcost_viewers');}, color:'#0891b2'},
+  {key:'rc_used', store:'used', label:'실원가 (중고)', hint:'중고타이어방 — 재고표 실원가 칸 열람/수정', list:function(){return permSL('used','realcost_viewers');}, save:function(){return permSLSave('used','realcost_viewers');}, color:'#0e7490'},
   {key:'trade', label:'거래처방', hint:'거래처 종합방 표시 (대표는 항상)', list:function(){return tradeViewers;}, save:function(){return tradeSaveViewers();}, color:'#b45309'},
   {key:'backup', label:'백업·복구', hint:'일일백업·감사로그 다운로드', list:function(){return backupUsers;}, save:function(){return bkSaveUsers();}, color:'#0d9488'},
-  {key:'em', label:'편집모드', hint:'재고표 엑셀형 대량편집 (PC 전용)', list:function(){return STK_EM_USERS;}, save:function(){return stkSaveEmUsers();}, color:'#7c3aed'},
+  {key:'em', store:'ping', label:'편집모드 (V2)', hint:'재고방 V2 — 재고표 엑셀형 대량편집 (PC 전용)', list:function(){return permSL('ping','em_users');}, save:function(){return permSLSave('ping','em_users');}, color:'#7c3aed'},
   {key:'tablet', label:'태블릿 손님 모드', hint:'이 계정으로 로그인하면 예약 명단과 👤 손님 화면 버튼만 보임(매장 태블릿용)', list:function(){return TABLET_USERS;}, save:function(){return tabletSaveUsers();}, color:'#0f766e'},
-  {key:'rate', label:'할인율 관리', hint:'할인율 탭에서 🛡 실 데이터 보기 · ➕ 규칙 추가 · 율 수정 (탭 자체는 모두에게 안전값으로 공개)', list:function(){return STK_SAFE.users;}, save:function(){return stkSafeUsersSave();}, color:'#9a3412'}
+  {key:'rate', store:'ping', label:'할인율 관리 (V2)', hint:'재고방 V2 할인율 탭에서 🛡 실 데이터 보기 · ➕ 규칙 추가 · 율 수정 (탭 자체는 모두에게 안전값으로 공개)', list:function(){return permSL('ping','rate_users');}, save:function(){return permRateSave();}, color:'#9a3412'}
 ];
 var _permNames=[];
 async function permMatrixToggle(){
@@ -3402,13 +3418,12 @@ async function permMatrixToggle(){
   if(!me||me.name!==ADMIN_NAME){ alert('관리자 전용입니다'); return; }
   // 펼칠 때마다 4개 명단 + 직원 목록을 DB에서 새로 읽음 (다른 기기 변경 반영)
   try{ await usersEnsureSeed(); }catch(e){}
-  try{ await Promise.all([
-    (typeof stkLoadEditors==='function'?stkLoadEditors():null),
-    (typeof stkLoadRealcostViewers==='function'?stkLoadRealcostViewers():null),
-    (typeof stkLoadEmUsers==='function'?stkLoadEmUsers():null),
-    (typeof stkSafeLoad==='function'?stkSafeLoad():null),
+  var _permErr=[];   // (10/26) 재고 칸은 방별 명단을 직접 읽음 — 못 읽으면 표를 열지 않음(빈 명단을 저장해 권한이 날아가는 것 방지)
+  await Promise.all([
+    permSLLoad('ping','inline_editors'), permSLLoad('used','inline_editors'), permSLLoad('ping','realcost_viewers'), permSLLoad('used','realcost_viewers'), permSLLoad('ping','em_users'), permRateLoad(),
     tradeLoadViewers(), bkLoadUsers()
-  ]); }catch(e){}
+  ].map(function(p){ return Promise.resolve(p).catch(function(e){ _permErr.push(String(e&&e.message||e)); }); }));
+  if(_permErr.length){ alert('권한 명단을 못 읽었어요 — 잠시 뒤 다시 열어 주세요\n'+_permErr.join('\n')); return; }
   await permLoadNames();
   permMatrixRender();
   wrap.style.display='block';
@@ -3506,8 +3521,8 @@ async function permMatrixSet(name,key,on,box){
     alert('저장 실패: '+e.message); return;
   }
   try{ logAudit('🔐권한변경', p.label+' — '+name+(on?' 부여':' 회수'), before, arr.slice().join(', ')||'(없음)'); }catch(e){}
-  try{ if((key==='stock'||key==='rc')&&typeof stkLog==='function')stkLog('👥권한변경',name+' '+p.label+(on?' 권한 부여':' 권한 회수'),{},true); }catch(e){}
-  try{ if((key==='stock'||key==='rc'||key==='em')&&typeof stkRenderTable==='function')stkRenderTable(); }catch(e){}   // ★ 편집모드도 즉시 반영(버튼 표시 갱신)
+  try{ if(p.store&&p.store===STK_STORE&&typeof stkLog==='function')stkLog('👥권한변경',name+' '+p.label+(on?' 권한 부여':' 권한 회수'),{},true); }catch(e){}   /* (10/26) 그 방 재고 기록에만 */
+  try{ if(p.store&&p.store===STK_STORE&&typeof stkRenderTable==='function')stkRenderTable(); }catch(e){}   // ★ 편집모드도 즉시 반영(버튼 표시 갱신)
   permMatrixRefreshIfOpen();
 }
 async function permEmpAdd(){
@@ -14505,7 +14520,7 @@ function stkRateInchOf(nums){ if(!nums.length)return null; var last=parseInt(num
 function stkRateSizeOk(r,nums){   // 이 규칙이 검색한 사이즈에 해당하는가 (조건 없으면 전 사이즈)
   if(!nums.length)return true;
   var ic=String(r.inch_cond||'').trim(), sc=String(r.size_cond||'').trim(), inch=stkRateInchOf(nums);
-  if(ic&&ic!=='전사이즈'){ var m=ic.match(/(\d{2})\s*(이상|이하)/); if(m){ if(inch==null)return false; var n=parseInt(m[1]); if(m[2]==='이상'&&inch<n)return false; if(m[2]==='이하'&&inch>n)return false; } }
+  if(ic&&ic!=='전사이즈'){ var _ex=ic.match(/^(\d{2})\s*(?:인치)?$/), _rg=ic.match(/^(\d{2})\s*[~-]\s*(\d{2})$/); if(_ex){ if(inch==null||inch!==parseInt(_ex[1]))return false; } else if(_rg){ if(inch==null||inch<parseInt(_rg[1])||inch>parseInt(_rg[2]))return false; }   /* (10/23) '17' = 그 인치만 · '17~18' 범위 */ var m=ic.match(/(\d{2})\s*(이상|이하)/); if(m){ if(inch==null)return false; var n=parseInt(m[1]); if(m[2]==='이상'&&inch<n)return false; if(m[2]==='이하'&&inch>n)return false; } }
   if(sc&&/\d{2}/.test(sc)){ var ok=sc.split(/[,，]/).some(function(one){ var g=stkRateSizeGroups(one); if(!g.length)return false;
       if(nums.length===1)return g.indexOf(nums[0])>=0; return nums.every(function(n){return g.indexOf(n)>=0;}); }); if(!ok)return false; }
   return true;
@@ -26207,6 +26222,7 @@ function dupDotOk(dt,year){
   return false}
 function dupInOk(cond,inch){
   if(!cond||cond==='전사이즈')return true; if(!inch)return false;
+  var _ex=cond.match(/^(\d+)\s*(?:인치)?$/); if(_ex)return inch===parseInt(_ex[1],10); var _rg=cond.match(/^(\d+)\s*[~-]\s*(\d+)$/); if(_rg)return inch>=parseInt(_rg[1],10)&&inch<=parseInt(_rg[2],10);   /* (10/23) '17' = 그 인치만 · '17~18' 범위 */
   var m=cond.match(/^(\d+)(이상|이하|미만)$/); if(!m)return false;
   var n=parseInt(m[1],10);
   return m[2]==='이상'?inch>=n:(m[2]==='이하'?inch<=n:inch<n)}
