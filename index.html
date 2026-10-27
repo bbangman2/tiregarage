@@ -2430,7 +2430,7 @@ table.pm-g.ot-b tr.pm-flt{display:none}table.pm-g.ot-b.fltOn tr.pm-flt{display:t
       <button class="dact" style="background:#0f172a;color:#fff;border-color:#0f172a;font-weight:800" onclick="pmXlsx()" title="체크한 줄로 택배 업로드 파일(직배송방과 같은 양식)">📄 택배양식 (체크한 줄)</button>
       <button class="dact" style="background:#1d4ed8;color:#fff;border-color:#1d4ed8;font-weight:800" onclick="kdRcptPm()" title="체크한 택배 줄을 경동에 바로 엑셀등록 → 미리보기 → 접수 → 송장 → 출력">📮 경동 접수 (체크한 줄)</button>
       <button class="dact" style="background:#0f766e;color:#fff;border-color:#0f766e;font-weight:800" onclick="pmSendChecked()">➡ 직배송방으로 (체크한 줄)</button>
-      <button class="dact" onclick="pmPingXlsx()" title="송장이 들어간 줄 → 엑셀 (핑 양식 확정 전 임시)">↗ 송장 엑셀</button>
+      <button class="dact" onclick="pmPingXlsx()" title="송장이 들어간 핑 줄 → 핑 택배용 양식(.xls, 15칸) 그대로 — 핑 송장 일괄등록에 올리는 파일">↗ 핑 송장 엑셀</button>
       <button class="dact" onclick="kdLabelPrintChecked()" title="체크한 줄의 경동 송장 라벨을 뽑습니다 — 어느 자리에서 눌러도 라벨기 컴퓨터가 뽑음">🖨 라벨 인쇄 (체크한 줄)</button>
       <button class="dact" id="kd-labelpc-btn" onclick="kdLabelPcToggle()" title="이 컴퓨터에 빅솔론 라벨기(SLP-DL410)가 연결돼 있으면 켜 두세요 — 다른 자리에서 보낸 인쇄 요청을 20초마다 받아 뽑습니다">🖥 라벨기 컴퓨터</button>
       <button class="dact" onclick="kdLabelLogOpen()" title="라벨 인쇄 요청·결과 (최근 3일) — 실패·확인 필요는 다시 넣기">🖨 인쇄 기록</button>
@@ -11481,9 +11481,17 @@ async function pmXlsx(){ var L=pmRows().filter(function(o){return PM.chk[o.id]&&
   var HDR=['받는분','주소','상세주소','운송장번호','고객사주문번호','우편번호','도착영업소','전화번호','기타전화번호','선불후불','품목명','수량','포장상태','가로','세로','높이','무게','개별단가','배송운임','기타운임','별도운임','할증운임','도서운임','메모']; var rows=dlvParcelRows(L.map(pmPseudoCard));
   var ws=window.XLSX.utils.aoa_to_sheet([HDR].concat(rows)); ws['!cols']=HDR.map(function(t,i){return {wch:(i===1?34:(i===10?24:12))};}); var wb=window.XLSX.utils.book_new(); window.XLSX.utils.book_append_sheet(wb,ws,'시트1'); window.XLSX.writeFile(wb,'택배업로드파일_'+getTodayISO()+'.xlsx');
   var who=(me&&me.name)||'?', now=new Date().toISOString(); for(var i=0;i<L.length;i++){ await pmLogPush(L[i],{t:'택배양식',by:who,at:now,n:rows.length}); } try{ logAudit('택배방 택배양식', L.length+'건 · '+rows.length+'줄'); }catch(e){} PM.chk={}; if(typeof stkToast==='function')stkToast('📄 택배양식 '+L.length+'건 · '+rows.length+'줄 — 단계가 "양식 만듦"으로'); pmRender(); }
-async function pmPingXlsx(){ var L=pmRows().filter(function(o){return pmWb(o).length&&(Object.keys(PM.chk).length?PM.chk[o.id]:true);}); if(!L.length){ alert('송장이 들어간 줄이 없어요'); return; } try{ await stkLoadXLSX(); }catch(e){ alert(e.message); return; }
-  var HDR=['판매처','주문번호','받는분','송장번호(첫 장)','송장 전체','장수']; var rows=L.map(function(o){ var w=pmWb(o); return [o.platform||'',o.order_no||'',o.recv||'',w[0]||'',w.join(' '),w.length]; });
-  var ws=window.XLSX.utils.aoa_to_sheet([HDR].concat(rows)); var wb=window.XLSX.utils.book_new(); window.XLSX.utils.book_append_sheet(wb,ws,'송장'); window.XLSX.writeFile(wb,'송장입력_'+getTodayISO()+'.xlsx'); if(typeof stkToast==='function')stkToast('↗ 송장 엑셀 '+L.length+'건 (임시 양식 — 핑 양식 확정 전)'); }
+var PM_PING_HDR=['주문일','주문번호','처리상태','제조사','품명','사이즈','세부정보','DOT','수량','우편번호','배송지','받는분 이름','배송지 연락처','요청사항','운송장번호'];
+function pmPingRow(o){ var rc=Array.isArray(o.raw_cols)?o.raw_cols:null; function g(i){ return rc&&rc[i]!=null?String(rc[i]).trim():''; } function n(v){ var t=String(v==null?'':v).replace(/[^0-9.\-]/g,''); return (t!==''&&!isNaN(+t))?+t:(v==null?'':String(v)); }
+  var w=pmWb(o); var size=g(8)||String(o.size||''); var dot=g(10)||pmNote(o,'DOT'); var det=g(9)||pmNote(o,'비고'); var zip=g(13)||pmNote(o,'우편');
+  return [n(g(1)||String(o.date_str||'').replace(/-/g,'')), n(g(2)||o.order_no||''), '', g(11)||o.brand||'', g(7)||o.name||'', size, det, n(dot), n(g(12)||o.qty||''), n(zip), g(14)||o.addr||'', g(15)||o.recv||'', g(16)||o.tel||'', g(17)||'', w.join(', ')]; }
+async function pmPingXlsx(){ var L=pmRows().filter(function(o){return o.platform==='핑'&&pmWb(o).length&&(Object.keys(PM.chk).length?PM.chk[o.id]:true);}); if(!L.length){ alert('송장이 들어간 핑 줄이 없어요 (🔗 경동 송장 채우기를 먼저 · 체크했으면 체크한 줄 중에서)'); return; } try{ await stkLoadXLSX(); }catch(e){ alert(e.message); return; }
+  var multi=L.filter(function(o){return pmWb(o).length>1;}).length;
+  var rows=L.map(pmPingRow); var ws=window.XLSX.utils.aoa_to_sheet([PM_PING_HDR].concat(rows)); var wb=window.XLSX.utils.book_new(); window.XLSX.utils.book_append_sheet(wb,ws,'타이어핑_판매내역_택배용');
+  var d=new Date(Date.now()+9*3600000), p=function(x){return (x<10?'0':'')+x;}, stamp=''+d.getUTCFullYear()+p(d.getUTCMonth()+1)+p(d.getUTCDate())+p(d.getUTCHours())+p(d.getUTCMinutes())+p(d.getUTCSeconds());
+  try{ window.XLSX.writeFile(wb,'tireping_sell_delivery_list_'+stamp+'.xls',{bookType:'biff8'}); }catch(e){ window.XLSX.writeFile(wb,'tireping_sell_delivery_list_'+stamp+'.xlsx'); }
+  try{ logAudit('핑 송장 엑셀',L.length+'건'+(multi?' · 송장 여러 장 '+multi+'건(쉼표로 이어 적음)':'')); }catch(e){}
+  if(typeof stkToast==='function')stkToast('↗ 핑 송장 엑셀 '+L.length+'건'+(multi?' · 송장 여러 장 '+multi+'건은 쉼표로 이어 적음':'')); }
 
 /* ── (10/20) 🔄 시트 최신화 = 경동 방식: 웹 앱 주소(?k=열쇠)를 바로 불러 시트→DB → 카드 ── */
 var _jhPushCfg=undefined;
