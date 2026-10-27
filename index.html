@@ -5998,7 +5998,7 @@ function dlvParcelName(c){
   // 연식 — 26년(올해)은 생략, 과년만 '24년'
   var yy=''; var ys=String((c.brand||'')+' '+tire+' '+spec);
   var my=c.dot_year_set?(c.dot_year?[null,String(c.dot_year)]:null):(ys.match(/20(\d{2})/)||ys.match(/(\d{2})\s*년/));   /* (10/27) 택배방 줄은 정해 둔 연식만 — 상품코드 숫자를 연도로 오인하지 않게 */
-  if(my){ var y4='20'+my[1]; if(y4!==String(new Date().getFullYear()))yy=my[1]+'년'; }
+  if(my){ yy=my[1]+'년'; }   /* (10/27 호준님) 연식을 알면 올해(26년)도 항상 적음 — 모르면 비움 */
   var tag=/이월/.test(tire+' '+spec)?'이월':(/행사/.test(tire+' '+spec)?'행사':'');
   var total=String(c.qty||'').trim();
   var ab=dlvSrcAbbr(c.src);
@@ -10786,7 +10786,7 @@ async function omSend(id,quiet){   // 주문방 줄 → 직배송방 카드 (택
   else{
     var mx=await sb.from('deliveries').select('sort_order').eq('room_id',dr.id).eq('date_str',today).eq('tab',tab).order('sort_order',{ascending:false}).limit(1); var so=((mx.data&&mx.data[0]&&mx.data[0].sort_order)||0)+1;
     var zip=(String(o.use_note||'').match(/우편:(\d{4,5})/)||[])[1]||''; var site=(String(o.use_note||'').match(/사이트:([^·]+)/)||[])[1]||'';
-    var row={room_id:dr.id,date_str:today,tab:tab,channel:OM_PLAT_CH[o.platform]||'online',code:o.code||'',car:1,note:(o.use_note||'')+(site?' · '+site.trim():''),raw_line:key,src:o.src||'',tire:[o.brand,o.name,o.size,o.ply].filter(Boolean).join(' '),spec:o.size||'',brand:o.brand||'',qty:String(o.qty||1),addr:o.addr||'',recv:o.recv||'',tel:o.tel||'',zipcode:(typeof dlvZip5==='function'?dlvZip5(zip):zip)||undefined,first_date:today,sort_order:so,user_name:who,need_done:(tab==='deliv'),done:false,cancelled:false,confirmed:false,ship_type:(o.dtype==='taekbae')?'tb':'dv',shop_name:site.trim()||undefined};
+    var _pl=String(o.ply||'').trim(); if(/^\d{1,2}$/.test(_pl))_pl=_pl+'P'; var _yy=(typeof pmYear==='function')?pmYear(o):''; var row={room_id:dr.id,date_str:today,tab:tab,channel:OM_PLAT_CH[o.platform]||'online',code:o.code||'',car:1,note:(o.use_note||'')+(site?' · '+site.trim():''),raw_line:key,src:o.src||'',tire:[o.brand,o.name,o.size,_pl,(_yy?_yy+'년':'')].filter(Boolean).join(' '),   /* (10/27) 카드 글자에 P수·연식 — 직배송방 경동 접수 품목명도 같은 글자에서 읽음 */spec:o.size||'',brand:o.brand||'',qty:String(o.qty||1),addr:o.addr||'',recv:o.recv||'',tel:o.tel||'',zipcode:(typeof dlvZip5==='function'?dlvZip5(zip):zip)||undefined,first_date:today,sort_order:so,user_name:who,need_done:(tab==='deliv'),done:false,cancelled:false,confirmed:false,ship_type:(o.dtype==='taekbae')?'tb':'dv',shop_name:site.trim()||undefined};
     if(o.inbound_item_id){ var _sg=jhInbSegs(o)[0]; row.src_kind='inbound'; row.src_item_id=o.inbound_item_id; row.src_product_id=null; row.src_qty=_sg?_sg.qty:(parseInt(o.qty,10)||1); row.stock_done=false; }   /* (10/21) 입고분에 바로 연결 */
     var _sk=omStkLink(o); if(_sk&&!o.inbound_item_id){ row.src_kind='rt'; row.src_product_id=_sk.pid; row.src_item_id=null; row.src_dot=_sk.dot||''; row.src_qty=_sk.qty; row.src_label=DLV_ALREADY_TAG; row.stock_done=true; }   /* (10/21) 주문방에서 이미 뺀 재고 → 카드엔 연결만 */
     var ins=await sb.from('deliveries').insert(row).select('id'); if(ins.error){ if(!quiet)alert('직배송방 등록 실패: '+ins.error.message); return 'fail'; } dlvId=ins.data[0].id;
