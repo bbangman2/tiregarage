@@ -5912,7 +5912,7 @@ function dlvSrcAbbr(src){ // 출처 약어 (호준님 8/28 확정: 기본은 숫
 }
 var DLV_ORIGINS=['한국','중국','베트남','인도네시아','인니','태국','일본','헝가리','유럽','미국','대만','세르비아','폴란드','포르투갈','독일','루마니아'];
 function _dlvFindSize(s){
-  var RES=[/\d{2,3}\s*[\/]\s*\d{2,3}\s*[Rr]?\s*\d{2}C?/, /\b\d{2}\s*[xX\u00d7]\s*\d{1,2}(?:\.\d+)?\s*[Rr]?\s*\d{2}\b/, /\b\d{3}\s+\d{2,3}\s+\d{2}\b/, /\b\d{2}\s+\d{1,2}(?:\.\d+)?\s+\d{2}\b/, /\b\d{3}\s*[Rr]\s*\d{2}C?\b/, /\b\d{3}\s+\d{2}\b/];
+  var RES=[/\d{2,3}\s*[\/]\s*\d{2,3}\s*[Rr]?\s*\d{2}C?/, /(?<!\d)\d{2}\s*[xX\u00d7]\s*\d{1,2}(?:\.\d+)?\s*[Rr]?\s*\d{2}\b/, /(?<!\d)\d{3}\s+\d{2,3}\s+\d{2}\b/, /(?<!\d)\d{2}\s+\d{1,2}(?:\.\d+)?\s+\d{2}\b/, /(?<!\d)\d{3}\s*[Rr]\s*\d{2}C?\b/, /(?<!\d)\d{3}\s+\d{2}\b/];   /* (10/27) LT235 75 15 처럼 글자가 붙어도 사이즈로 */
   var best=null;
   RES.forEach(function(re){var m=s.match(re); if(m){var st=m.index,en=m.index+m[0].length; if(!best||st<best.st||(st===best.st&&en>best.en))best={st:st,en:en};}});
   return best;
@@ -5985,7 +5985,7 @@ function _dlvPatName(c,tire,spec){   // 사이즈 앞 이름 — 브랜드·이�
   return ws.slice(0,4).join(' ');
 }
 function dlvParcelName(c){
-  var tire=String(c.tire||'').replace(/\s+/g,' ').trim(), spec=String(c.spec||'').replace(/\s+/g,' ').trim();
+  var tire=String(c.tire||'').replace(/\bLT(?=\d{3})/g,'').replace(/\s+/g,' ').trim(), spec=String(c.spec||'').replace(/\bLT(?=\d{3})/g,'').replace(/\s+/g,' ').trim();   /* (10/27) LT235 → 235 (LT가 패턴코드로 잡히지 않게) */
   // 사이즈 — 공백 표기(245 45 20). tire에 없으면 spec에서.
   var size='';
   var bt=_dlvFindSize(tire); var raw=bt?tire.slice(bt.st,bt.en):'';
@@ -10389,7 +10389,7 @@ function jhSheetRow(plat,H,c){   // 시트 한 줄 → 종합방 파서가 내�
 function jhRawLine(c){ var a=(c||[]).map(function(x){return String(x==null?'':x);}); var n=a.length; while(n>0&&!a[n-1].trim())n--; return a.slice(0,n).join('\t'); }   // 뒤쪽 빈칸 떼고 탭으로
 function jhRawNorm(s){ return String(s||'').replace(/[\t\s]+$/,''); }
 function jhDbKey(plat,o){ var pno=''; if(plat==='스팜'){ var m=String(o.use_note||'').match(/상품주문:(\d+)/); if(m)pno=m[1]; } return jhOrderKey(plat,o.order_no,o.size,o.qty,o.date_str,o.recv,o.name,pno); }   /* (10/20) DB 줄의 열쇠 — 스팜은 상품주문번호 */
-function jhOrderKey(plat,order,size,qty,date,recv,name,pno){ var nz=function(x){return String(x||'').toLowerCase().replace(/\s+/g,'');}; if(plat==='스팜'&&pno)return plat+'|p'+nz(pno);   /* (10/20) 스팜 = 상품주문번호(줄마다 고유 — 같은 주문의 두 줄이 합쳐지지 않게) */ if(plat==='핑'&&order)return plat+'|'+nz(order);   /* (10/20) 핑 = 주문번호 하나(같은 번호가 또 나오면 같은 주문을 고쳐 적은 것) */ return plat+'|'+(order?nz(order):(nz(date)+'|'+nz(recv)+'|'+nz(name)))+'|'+nz(size)+'|'+(parseInt(qty,10)||1); }   // 한 주문번호에 상품 여러 줄 → 사이즈·수량까지 열쇠
+function jhOrderKey(plat,order,size,qty,date,recv,name,pno){ var nz=function(x){return String(x||'').toLowerCase().replace(/\s+/g,'');}; if(plat==='스팜'&&pno)return plat+'|p'+nz(pno);   /* (10/20) 스팜 = 상품주문번호(줄마다 고유 — 같은 주문의 두 줄이 합쳐지지 않게) */ if(plat==='핑'&&order)return plat+'|'+nz(order);   /* (10/20) 핑 = 주문번호 하나(같은 번호가 또 나오면 같은 주문을 고쳐 적은 것) */ return plat+'|'+(order?nz(order):(nz(date)+'|'+nz(recv)+'|'+nz(name)))+'|'+nz(size)+'|'+(parseInt(qty,10)||1)+(plat==='11번가'?'|'+nz(name).slice(0,30):''); }   /* (10/27 호준님) 11번가 한 주문 두 상품은 따로 — 상품명까지 열쇠 */   // 한 주문번호에 상품 여러 줄 → 사이즈·수량까지 열쇠
 function jhSheetDone(plat,u){ var st=String(u.sheet_state||''); if(plat==='스팜'||plat==='전화')return /완료|취소|처리/.test(st); if(plat==='11번가')return /완료|임의출고|취소/.test(st); return false; }   // 핑은 '확정'이 날짜라 처리 여부로 안 봄(7일 규칙만)
 function jhSheetNote(u){ var n=jhPackNote(u); var ex=[]; if(u.site&&u.site!=='핑')ex.push('사이트:'+u.site); if(u.order2&&u.order2!==u.order)ex.push('상품주문:'+u.order2); if(u.zip)ex.push('우편:'+u.zip); if(u.amount)ex.push('금액:'+u.amount); if(u.settle)ex.push('정산:'+u.settle); if(u.cost)ex.push('원가:'+u.cost); if(u.parcel)ex.push('택배비:'+u.parcel); if(u._ord&&u._proc&&u._ord!==u._proc)ex.push('주문일:'+u._ord); if(u._est)ex.push('처리일추정'); if(u.sheet_state)ex.push('시트상태:'+u.sheet_state); return [n].concat(ex).filter(Boolean).join(' · '); }
 /* (10/19) 처리일 도우미 */
@@ -11460,17 +11460,18 @@ function pmManualWb(id){ var o=pmRow(id); if(!o)return; var s=prompt('송장번�
 function pmPickCand(id){ var nos=Array.prototype.slice.call(document.querySelectorAll('#pm-tbd .pm-cand:checked')).map(function(c){return c.dataset.no;}); if(!nos.length){ alert('이 주문 것인 송장을 체크해 주세요'); return; } pmSetWb(id,nos,'후보에서 고름'); }
 function pmCopyWb(id){ var o=pmRow(id); if(!o)return; var t=pmWb(o).join('\n'); try{ navigator.clipboard.writeText(t); if(typeof stkToast==='function')stkToast('📋 복사했어요: '+t.replace(/\n/g,', ')); }catch(e){ prompt('복사해 주세요',t); } }
 /* ── 🔗 경동 송장 채우기 ── */
-async function pmFillWaybills(){ var L=pmBase().filter(function(o){ return pmTabs(o).indexOf('tb')>=0&&o.status!=='done'&&!pmWb(o).length; }); if(!L.length){ if(typeof stkToast==='function')stkToast('송장을 채울 택배 줄이 없어요'); return; }
+function pmMovedToDlv(o){ var d=PM.mirror&&PM.mirror[o.id]; return o.status==='sent'&&!!d&&!d.missing&&!d.cancelled&&d.tab!=='parcel'; }   /* (10/27) 택배였는데 직배송방에서 직배송으로 바뀐 줄 */
+async function pmFillWaybills(){ var L=pmBase().filter(function(o){ return pmTabs(o).indexOf('tb')>=0&&o.status!=='done'&&!pmWb(o).length&&!pmMovedToDlv(o); }); var _dvL=pmPool().filter(function(o){ return pmKind(o)==='dv'&&o.status!=='done'&&!pmWb(o).length&&!pmMovedToDlv(o); }); _dvL.forEach(function(o){ o._dvTry=true; }); L=L.concat(_dvL);   /* (10/27 호준님) 직배송 줄도 경동에 송장이 있으면 택배로 바뀐 것 — 붙임, 없으면 조용히 */ if(!L.length){ if(typeof stkToast==='function')stkToast('송장을 채울 택배 줄이 없어요'); return; }
   var ds=L.map(function(o){return o.date_str;}).sort(); var from=jhAddDay(ds[0],-1), to=jhAddDay(ds[ds.length-1],4); var kd=[];
   try{ kd=await sbFetchAll(function(){ return sbKd.from('kd_waybills').select('waybill_no,date_str,recv_name,recv_tel,recv_etc_tel,prod_name,qty').gte('date_str',from).lte('date_str',to).order('waybill_no',{ascending:true}); })   /* (10/21) 나눠 읽기 고유 정렬 */; }catch(e){ alert('경동 송장 읽기 실패: '+(e&&e.message||e)); return; }
   var used={}; PM.rows.forEach(function(o){ pmWb(o).forEach(function(n){ used[n]=o.id; }); });
   try{ var _ur=await sbFetchAll(function(){ return sb.from('jonghap_orders').select('id,logs').gte('date_str',jhAddDay(from,-7)).lte('date_str',to).order('id',{ascending:true}); }); _ur.forEach(function(x){ pmWb(x).forEach(function(n){ if(!used[n])used[n]=x.id; }); }); }catch(e){ alert('이미 쓴 송장 확인 실패 — 송장 채우기를 멈춥니다: '+(e&&e.message||e)); return; }   /* (10/27) 화면 밖(다른 날) 주문에 이미 붙은 송장도 '이미 씀' */
   var nt=function(t){return String(t||'').replace(/\D/g,'').slice(-8);}, nn=function(s){return String(s||'').replace(/\s+/g,'');}; var byTel={}; kd.forEach(function(w){ var seen={}; [w.recv_tel,w.recv_etc_tel].forEach(function(t){ var k=nt(t); if(k.length>=7&&!seen[k]){ seen[k]=1; (byTel[k]=byTel[k]||[]).push(w); } }); });
   var who=(me&&me.name)||'?', now=new Date().toISOString(); var filled=0,cand=0,none=0,fails=0;
-  for(var i=0;i<L.length;i++){ var o=L[i]; var tel=nt(o.tel); var pool=(byTel[tel]||[]).filter(function(w){ return w.date_str>=o.date_str&&w.date_str<=jhAddDay(o.date_str,4)&&!used[w.waybill_no]; }); if(!pool.length){ none++; continue; }
+  for(var i=0;i<L.length;i++){ var o=L[i]; var tel=nt(o.tel); var pool=(byTel[tel]||[]).filter(function(w){ return w.date_str>=o.date_str&&w.date_str<=jhAddDay(o.date_str,4)&&!used[w.waybill_no]; }); if(!pool.length){ if(!o._dvTry)none++; continue; }
     var sz=jhSzDigits(o.size); var bySz=sz?pool.filter(function(w){ return String(w.prod_name||'').replace(/\D/g,'').indexOf(sz)>=0; }):[]; var cs=bySz.length?bySz:pool; var nm=cs.filter(function(w){return nn(w.recv_name)===nn(o.recv);}); if(nm.length)cs=nm; var _pt=(String(o.name||'')+' '+String(o.code||'')).toUpperCase().match(/[A-Z]{1,3}\d{2,3}[A-Z]?/g)||[]; if(_pt.length){ var _pp=cs.filter(function(w){ var pn=String(w.prod_name||'').toUpperCase(); return _pt.some(function(t){return pn.indexOf(t)>=0;}); }); if(_pp.length)cs=_pp; }   /* (10/27) 경동 품목명에 이 주문 패턴(KC55 등)이 있으면 그 송장 우선 */ cs.sort(function(a,b){return String(a.waybill_no).localeCompare(String(b.waybill_no));});
     var q=parseInt(o.qty,10)||1; var rivals=L.filter(function(x){ return x!==o&&nt(x.tel)===tel&&jhSzDigits(x.size)===sz; });
-    if(bySz.length&&cs.length<=q&&!rivals.length){ var nos=cs.map(function(w){return w.waybill_no;}); nos.forEach(function(n){used[n]=o.id;}); if(await pmLogPush(o,{t:'송장',nos:nos,by:who,at:now,how:'경동 자동'}))filled++; else fails++; }
+    if(bySz.length&&cs.length<=q&&!rivals.length){ var nos=cs.map(function(w){return w.waybill_no;}); nos.forEach(function(n){used[n]=o.id;}); if(await pmLogPush(o,{t:'송장',nos:nos,by:who,at:now,how:(o._dvTry?'경동 자동(직배송→택배)':'경동 자동')}))filled++; else fails++; }
     else { var cl=cs.slice(0,12).map(function(w){return w.waybill_no+' | '+w.date_str+' | '+String(w.prod_name||'').slice(0,40);}); if(await pmLogPush(o,{t:'송장 후보',nos:cl,by:who,at:now,why:(!bySz.length?'사이즈 안 맞음':(rivals.length?'같은 사람·사이즈 주문 여러 건':'송장이 수량보다 많음'))}))cand++; else fails++; } }
   try{ logAudit('택배방 경동 송장 채우기', '채움 '+filled+' · 후보 '+cand+' · 없음 '+none+(fails?' · 실패 '+fails:'')); }catch(e){}
   alert('🔗 경동 송장 채우기\n자동으로 채움 '+filled+'건\n❓ 후보라서 골라야 함 '+cand+'건\n아직 경동에 없음 '+none+'건'+(fails?'\n저장 실패 '+fails+'건':'')); pmRender(); }
@@ -13054,7 +13055,55 @@ function fmtTel(raw){
 }
 // ═══ (10/2) 거래처 양식 → 입고방 자동 등록 ═══
 var DLV_INB_ALIAS={'미치다':'타이어에미치다','타이어에미치다':'타이어에미치다','하나':'하나타이어','한타':'한타주문'};
-function dlvInbParseOut(srcRaw,cardQty,opt){ // 출고 칸 해석 (10/8): '매일2창고2' → [{src:'매일',qty:2}] — 창고·재고·회수·택배·핑 몫은 제외, 숫자 없는 한 곳이면 카드 수량
+
+/* ═══ (10/27 v3) 출고지 읽기 — 거래처명·연식·수량 어떤 순서/띄어쓰기든 · 창고는 우리 재고 ═══ */
+var TG_SRC_NOISE=/^(주문중|주문완료|주문함|주문|입고예정|입고|출고예정|출고|확인중|확인|재고확인중|택배|택배요청|착불|착불택배|무상|무상택배|공장|공장재고|이월|예정|요청|발송|완료|선주문|선주문중|대체|대체출고|지방|퀵|관할|전산|이벤트|물류|오전|오후|내일|당일|금주|다음주|직접수령|수령|진행|안내|가능|개|본|장|짝|로|으로|에서|주|주차|년식|년도|생산|입고분|재출고|RDC|DOT|재고없음|실재고없음|고객취소|취소|부분취소|고객췻호|제품|타제품|상품|이월로|재출고|재고|대체|전환|받음|발송예정)$/i;
+var TG_SRC_CANON=[
+  [/^(매일|메일)(타이어)?(오전|내일오전)$/,'매일오전'],[/^(매일|메일)(타이어)?오후$/,'매일오후'],[/^(매일|메일)(타이어)?화성$/,'매일화성'],[/^(매일|메일)(타이어)?$/,'매일'],
+  [/^(넥센)?긴급양주$/,'긴급(양주)'],[/^(넥센)?긴급$/,'퇴계원'],[/^(넥센)?퇴계원$/,'퇴계원'],
+  [/^(타이어)?(에)?\s?(미|메)치다$|^타이어에치미다$/,'타이어에미치다'],[/^(부산)?그랜드(타이어)?$/,'그랜드타이어'],[/^하나(타이어)?$/,'하나타이어'],
+  [/^(천안)?미쉐린$|^천안$/,'천안미쉐린'],[/^핑$/,'핑'],[/^황제(지방)?$/,'황제'],[/^극동$/,'극동'],[/^사일룬$/,'사일룬'],[/^대구$/,'대구'],[/^하빌리드$/,'하빌리드'],
+  [/^(한타|한국|한국타이어|한타sfp|한타물류|한타전산|한타착불|한타무상)$/i,'한타주문'],[/^(넥센|넥센타이어|양지|시흥|광주|양산|대전|울산|양지RDC|시흥RDC)$/i,'넥센'],
+  [/^(창고|우리창고|의정부창고)$/,'창고'],[/^bf(마스타|마스터)?$/i,'BF마스타'],[/^(안나이트|아파치|레이다|선베이|카라몰|아이타이어|강남|의정부|윈런)$/,null]
+];
+function tgSrcCanon(w){ var raw=w, base=w.replace(/\s+/g,'');
+  var paren=''; var pm=base.match(/\(([^)]*)\)$/); if(pm){ paren=pm[1]; base=base.replace(/\([^)]*\)$/,''); }
+  base=base.replace(/\[[^\]]*\]/g,'');
+  for(var k=0;k<4;k++){ var b2=base.replace(/(주문중|주문완료|주문함|주문|입고예정|입고|출고|확인중|확인|재고|택배|물류|지방|발송|수령|RDC|주문상품|으로|에서|대체|전환)$/i,''); if(b2===base&&base.length>=3&&/로$/.test(base))b2=base.slice(0,-1); if(b2===base||!b2)break; base=b2; }
+  base=base.replace(/^한타\s*(?=.+(sfp|SFP|물류))/,'');
+  if(/^[A-Za-z]{1,2}$/.test(base)||/취소$|재고없음$|췻호$/.test(base))return null;   /* 상품코드 조각·취소 */
+  if(/sfp$/i.test(base))return {src:base.toUpperCase().replace('SFP','SFP'),raw:raw,note:paren};   /* 양주SFP 등 지점은 그대로(출처 사전에서 묶음) */
+  for(var i=0;i<TG_SRC_CANON.length;i++){ if(TG_SRC_CANON[i][0].test(base))return {src:TG_SRC_CANON[i][1]||base,raw:raw,note:paren}; }
+  if(TG_SRC_NOISE.test(base))return null;
+  if(/(으로|에서|예정|안내|부재|가능|소요|정도|기다|문자|답변|확인후|드림|하심|함$|됨$|음$|요청$)/.test(base))return null;   /* 문장 조각 */
+  return {src:base,raw:raw,note:paren};
+}
+function tgSrcParse(srcRaw,cardQty,opt){ opt=opt||{}; var s=String(srcRaw||'').trim(); if(!s)return {segs:[],stock:[],why:'출고처 빈칸'};
+  var _arr=s.split(/->|→|＞|>/); if(_arr.length>1){ var _last=_arr[_arr.length-1].trim(); if(/취소|재고없음|췻호/.test(_last))return {segs:[],stock:[],why:'취소·재고없음'}; if(_last&&/[가-힣A-Za-z]/.test(_last))s=_last; else s=_arr[0]; }   /* 'A->B' = B로 바뀜 */
+  s=s.replace(/의정부\s*창고/g,'창고');
+  s=s.replace(/\[[^\]]*\]/g,' ').replace(/\d{1,3}\s*%/g,' ').replace(/(^|\s)(1[0-2]|0?[1-9])\s*\/\s*(3[01]|[12]\d|0?[1-9])(?!\d)/g,'$1 ').replace(/\(?\d{1,2}\s*일\s*(출고|입고|주문|이후|쯤)?\)?/g,' ').replace(/->|→|＞|>/g,' ').replace(/\s+\(/g,'(').replace(/\b(?!SFP|RDC|DOT)[A-Za-z]{1,4}\d{1,5}[A-Za-z]?\b/gi,' ').replace(/\d{1,2}\s*주차?(?![가-힣])/g,' ');   /* 상품코드(z7·W340·KC55)·'50주차' 제거, 괄호 붙이기 */
+  s=s.replace(/(매일|메일)\s*(타이어)?\s*\(?\s*(오전|오후|화성|내일오전)\s*\)?/g,'매일$3').replace(/타이어\s*에\s*(미|메)\s*치다/g,'타이어에미치다').replace(/천안\s+미쉐린/g,'천안미쉐린').replace(/한타\s+(물류|sfp|SFP)/g,'한타$1').replace(/([가-힣]+)\s+(SFP|sfp)/g,'$1SFP').replace(/긴급\s*\(\s*양주\s*\)/g,'긴급양주');
+  var re=/DOT\s*:?\s*(?:20)?(\d{2})(?!\d)|(?:20)?(\d{2})\s*년(?:식|도|생산)?|(?<!\d)20([1-3]\d)(?!\d)|(\d{1,3})\s*(?:개|본|장|짝)?|([가-힣A-Za-z][가-힣A-Za-z]*(?:\([^)]*\))?)/g;
+  var segs=[], stock=[], cur=null, pend={yr:'',n:null}, m;
+  function newSeg(c){ var g={name:c.raw,src:c.src,qty:null,year:'',note:c.note||'',stock:(c.src==='창고'),ping:(c.src==='핑')}; if(pend.yr&&!g.year)g.year=pend.yr; if(pend.n!=null&&g.qty==null)g.qty=pend.n; pend={yr:'',n:null}; (g.stock?stock:segs).push(g); return g; }
+  while((m=re.exec(s))){
+    var yr=m[1]||m[2]||m[3]; if(yr){ yr=yr.slice(-2); if(+yr<15||+yr>39)continue; if(cur&&!cur.year)cur.year=yr; else if(cur&&cur.year&&cur.qty!=null){ cur=newSeg({src:cur.src,raw:cur.name,note:cur.note}); cur.year=yr; } else pend.yr=yr; continue; }
+    if(m[4]!=null){ var n=parseInt(m[4],10); if(!n||n>60)continue; if(cur&&cur.qty==null)cur.qty=n; else if(cur&&cur.qty!=null&&cur.year&&false){} else pend.n=n; continue; }
+    if(m[5]){ var c=tgSrcCanon(m[5]); if(!c)continue; if(c.src==='핑'&&!opt.ping){ continue; }
+      if(cur&&cur.qty==null){ var sp=(cur.src==='한타주문'&&/SFP$/.test(c.src))||(cur.src==='넥센'&&/^(퇴계원|긴급\(양주\))$/.test(c.src)); var loc=(cur.src==='넥센'&&/^(양지|시흥|광주|양산|대전|울산|대구|양주|기흥|칠곡)$/.test(c.raw.replace(/(물류|RDC|택배|입고)$/i,''))); if(loc){ cur.note=cur.note||c.raw; continue; } if(c.src===cur.src||sp){ if(sp)cur.src=c.src; if(c.note&&!cur.note)cur.note=c.note; continue; } }   /* 넥센+양지물류 · 한타+양주SFP · 넥센+퇴계원 = 한 조각 */
+      cur=newSeg(c); }
+  }
+  if(pend.n!=null&&cur&&cur.qty==null)cur.qty=pend.n;
+  var all=segs.concat(stock); if(!all.length)return {segs:[],stock:[],why:s};
+  var q=parseInt(cardQty,10)||0; var noQ=all.filter(function(g){return g.qty==null;});
+  if(noQ.length===1){ var rest=all.reduce(function(a,g){return a+(g.qty||0);},0); noQ[0].qty=(q>rest)?(q-rest):(all.length===1?(q||null):null); }
+  else if(noQ.length>1&&all.length===noQ.length&&all.length===1){ all[0].qty=q||null; }
+  var miss=all.filter(function(g){return !g.qty;}); if(miss.length)return {segs:[],stock:[],why:'수량 없는 곳('+miss.map(function(g){return g.src;}).join(',')+')'};
+  segs.forEach(function(g){ var n=g.src; if(!/^매일|^퇴계원$|^긴급\(양주\)$/.test(n)){ var al=DLV_INB_ALIAS[n.replace(/\s+/g,'')]; if(al)n=al; try{ if(typeof srcCanon==='function')n=srcCanon(n); }catch(_e){} } g.src=n; });
+  return {segs:segs,stock:stock,why:'',amb:segs.some(function(g){return g.src==='매일';})};
+}
+function dlvInbParseOut(srcRaw,cardQty,opt){ return tgSrcParse(srcRaw,cardQty,opt); }   /* (10/27 v3) */
+function dlvInbParseOut_v1(srcRaw,cardQty,opt){ // 출고 칸 해석 (10/8): '매일2창고2' → [{src:'매일',qty:2}] — 창고·재고·회수·택배·핑 몫은 제외, 숫자 없는 한 곳이면 카드 수량
   var s=String(srcRaw||'').trim(); if(!s)return {segs:[],why:'출고처 빈칸'};
   s=s.replace(/\[[^\]]*\]/g,' ').replace(/\(\s*\d+\s*일\s*(출고|입고|주문)\s*\)/g,' ').replace(/\d+\s*일\s*(출고|입고|주문)/g,' ').replace(/\d{1,3}\s*%/g,' ').replace(/\d+\s*년\s*출고/g,' ').replace(/(^|\s)\d{2,4}\s*년(?=\s|$)/g,' ').replace(/\(\s*\)/g,' ').replace(/\s+/g,' ').trim();   // (10/16) "(15일출고)"·"26년출고"·"26년" 같은 날짜·연식 메모는 출고지가 아님 — 걷어내고 읽음
   if(!s)return {segs:[],why:'출고처 빈칸(메모만 있음: '+String(srcRaw).slice(0,30)+')'};
