@@ -751,6 +751,8 @@ body.rb-on #app{padding-top:58px}
 .isrc-group{margin-bottom:16px}
 .isrc-title{font-size:12px;font-weight:800;color:#fff;background:var(--navy);display:inline-block;padding:3px 10px;border-radius:5px;margin-bottom:8px}
 .isrc-title.order{background:#5b35b0}.isrc-title.arr{background:#1d4ed8}.isrc-title.unknown{background:#6b7280}
+.inb-headbar{display:none;align-items:center;gap:6px;flex:0 1 auto;min-width:0;overflow-x:auto;margin:0 10px;white-space:nowrap;scrollbar-width:thin}.inb-headbar button{border:1px solid #cbd5e1;background:#fff;border-radius:7px;padding:4px 9px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap;color:#1e293b}.inb-headbar button small{color:#94a3b8;font-weight:600}.inb-owner{display:inline-flex;align-items:center;gap:4px;font-size:12px;color:#475569;font-weight:700}.inb-owner button{padding:3px 8px;background:#f8fafc}
+@media(max-width:900px){.chat-head:has(#inb-headbar[style*="flex"]){flex-wrap:wrap}.chat-head:has(#inb-headbar[style*="flex"]) .inb-headbar{order:9;flex-basis:100%;margin:6px 0 0}}
 .icardB{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:7px}
 .icardB.cancelled{opacity:.55;background:#fafaf8}
 .icardB.cancelled .icb-model,.icardB.cancelled .icb-spec{text-decoration:line-through}
@@ -2043,6 +2045,7 @@ tr.qr-align.off td input{color:#94a3b8}
         <div class="ch-name" id="ch-name">채팅방</div>
         <div class="ch-desc" id="ch-desc"></div>
       </div>
+      <div class="inb-headbar" id="inb-headbar"><button id="inb-sheetbtn" onclick="window._jhForceAll=false;jhSheetRefresh()" title="구글 시트를 지금 바로 가져와 주문방·택배방 카드에 반영 (끝나면 결과 알림)">🔄 시트 최신화</button><span id="inb-ownerbtn" class="inb-owner"></span></div>
       <div class="head-right">
         <div class="date-picker-wrap" id="date-picker-wrap" style="display:none">
           <button class="range-toggle" id="today-btn" onclick="goToday()">오늘</button>
@@ -2072,11 +2075,11 @@ tr.qr-align.off td input{color:#94a3b8}
     <!-- ===== 입고방 전용 화면 ===== -->
     <div class="items-screen" id="items-screen" style="display:none">
       <div class="item-tabs">
-        <button class="item-tab" id="inb-sheetbtn" style="margin-left:auto" onclick="window._jhForceAll=false;jhSheetRefresh()" title="구글 시트를 지금 바로 가져와 주문방·택배방 카드와 입고방 자동 등록까지 (끝나면 결과 알림)">🔄 시트 최신화</button>
+        
         <button class="item-tab active" data-tab="list" onclick="switchItemTab('list')">📋 입고예정</button>
         <button class="item-tab" data-tab="analysis" onclick="switchItemTab('analysis')">📊 종합 / 👤 작성자 / 🚚 용도</button>
         <button class="item-tab" data-tab="outlog" onclick="switchItemTab('outlog')">📦 출고기록</button>
-        <button class="item-tab" data-tab="memo" onclick="switchItemTab('memo')">↩️ 반품/특이사항</button>
+        <button class="item-tab" data-tab="memo" onclick="switchItemTab('memo')">↩️ 반품</button>
         <button class="item-tab" data-tab="ledger" onclick="switchItemTab('ledger')">📑 입고표</button>
         <button class="item-tab" data-tab="recon" onclick="switchItemTab('recon')">🚚 출고대조</button>
       </div>
@@ -2100,13 +2103,6 @@ tr.qr-align.off td input{color:#94a3b8}
         <div class="item-add-row">
           <button class="item-add-btn" onclick="addItemRow()">➕ 추가</button>
           <button class="item-add-btn purple" onclick="openPaste()">📋 여러 줄</button>
-        </div>
-      </div>
-      <!-- 메모 입력 -->
-      <div class="item-input-zone" id="item-memo-zone" style="display:none">
-        <div class="item-add-row">
-          <input class="item-memo-input" id="i-memo" placeholder="메모 입력 (Enter 전송)" onkeydown="if(event.key==='Enter'){event.preventDefault();sendMsg();}">
-          <button class="item-add-btn" onclick="sendMsg()">전송</button>
         </div>
       </div>
     </div>
@@ -4309,7 +4305,7 @@ async function selectRoom(room){
   const isTrade=(m.mode==='trade');
   const isSpecial=isItems||isDelivery||isStock||isReserve||isJonghap||isTrade||isKd||isOrders||isParcel;
   // 입고방/직배송방/재고방/예약장착방: 전용 화면. 그 외: 기존 채팅
-  document.getElementById('items-screen').style.display=isItems?'flex':'none';
+  document.getElementById('items-screen').style.display=isItems?'flex':'none'; try{ var _ihb=document.getElementById('inb-headbar'); if(_ihb)_ihb.style.display=isItems?'flex':'none'; if(isItems&&typeof jhInbOwnerLoad==='function')jhInbOwnerLoad(); }catch(e){}   /* (10/27) 입고방 머리줄 */
   document.getElementById('delivery-screen').style.display=isDelivery?'flex':'none';
   document.getElementById('stock-screen').style.display=isStock?'flex':'none';
   var rsv=document.getElementById('reserve-screen');if(rsv)rsv.style.display=isReserve?'flex':'none';
@@ -5458,8 +5454,8 @@ async function loadItems(){
     let carryReturns=[];
     if(!fullMode && !isRangeActive()&&sel.from===todayDs){
       try{
-        const cr=await sb.from('items').select('*').eq('room_id',curRoom.id).lt('date_str',todayDs).or('return_done.is.null,return_done.eq.false,return_done_date.eq.'+todayDs);
-        carryReturns=(cr.data||[]).filter(function(it){return isReturnItem(it)&&(!it.return_done||it.return_done_date===todayDs);});
+        const _crd=await sbFetchAll(function(){ return sb.from('items').select('*').eq('room_id',curRoom.id).lt('date_str',todayDs).or('is_return.eq.true,src.ilike.*반품*').order('id',{ascending:true}); });   /* (10/27) 반품만 골라 전부 — 전엔 미완료 전체를 읽다 1,000줄에서 잘려 반품 0개 */
+        carryReturns=(_crd||[]).filter(function(it){return isReturnItem(it)&&(!it.return_done||it.return_done_date===todayDs);});
       }catch(e){carryReturns=[];}
     }
     const seenIds={};
@@ -8810,7 +8806,7 @@ function switchItemTab(tab){
   document.querySelectorAll('.item-tab').forEach(function(t){t.classList.toggle('active',t.dataset.tab===tab);});
   var _ib=document.getElementById('item-body'); if(_ib)_ib.classList.toggle('ledger-wide',tab==='ledger'||tab==='outlog'||tab==='recon');
   document.getElementById('item-input-zone').style.display=(tab==='memo'||tab==='ledger'||tab==='outlog'||tab==='recon')?'none':'block';
-  document.getElementById('item-memo-zone').style.display=(tab==='memo')?'block':'none';
+  var _mz=document.getElementById('item-memo-zone'); if(_mz)_mz.style.display='none';   /* (10/27) 메모 칸 없앰 */
   if(tab==='list'||tab==='analysis'){
     // 우측 상단 날짜는 건드리지 않고, 내부적으로만 전체 조회
     if(typeof loadItems==='function'){ loadItems(); return; }
@@ -10487,6 +10483,11 @@ async function jhSyncRows(sheetName,rows,opt){   // 2차원 줄(머리줄 포함
 function jhSheetCancelled(u){ try{ var P=jhSrcParse(u.src||''); return !!(P.cancel||P.nostock); }catch(e){ return false; } }   /* (10/20) 시트에 취소·재고없음이라 적힌 줄 */
 function jhFoldPlan(latest,u,who){ var now=new Date().toISOString(); var sc=jhSheetCancelled(u); var fr=(typeof jhFoldReason==='function')?jhFoldReason(latest):''; if(!latest.cancelled&&sc)return {set:{cancelled:true},log:{t:'시트 취소',by:who,at:now,src:u.src||''},kind:'fold'}; if(latest.cancelled&&!sc&&(fr==='시트에서 지워짐'||fr==='시트 취소'||fr==='중복 정리'||fr==='시트에서 사라짐 → 취소'))return {set:{cancelled:false},log:{t:'시트에 다시 나타남',by:who,at:now},kind:'unfold'}; return null; }
 function jhSyncSummary(list){ return list.map(function(R){ if(R.same)return R.sheet+': 변화 없음(건너뜀)'; return R.sheet+': +'+R.added+' 갱신 '+R.updated+' 처리 '+R.done+' 접힘 '+(R.gone+(R.folded||0))+(R.unfolded?' 다시 '+R.unfolded:'')+(R.goneBlocked?' ⚠한꺼번에 사라짐 '+R.goneBlocked+'(보류)':'')+(R.dupList&&R.dupList.length?' 같은열쇠 '+R.dupList.length:'')+(R.dupClean?' 중복정리 '+R.dupClean:'')+(R.redated?' 날짜맞춤 '+R.redated:'')+(R.rekeyed?' 사이즈고침 '+R.rekeyed:'')+(R.sizeDup?' 사이즈중복접음 '+R.sizeDup:'')+(R.skipped?' 건너뜀 '+R.skipped+'(빈줄 '+(R.skipEmpty||0)+'·중복 '+(R.skipDup||0)+')':'')+(R.errors.length?' ⚠'+R.errors.join('; '):''); }).join(' / '); }
+/* (10/27) 시트 담당 — 테스트와 같은 값(settings inb_owner) */
+var INB_OWNER_DEF={'핑':'김다영','스팜':'임예지','11번가':'임예지','전화':'임예지'}, INB_OWNER=null;
+async function jhInbOwnerLoad(){ try{ var r=await sb.from('settings').select('value').eq('key','inb_owner').maybeSingle(); INB_OWNER=(r&&r.data&&r.data.value&&typeof r.data.value==='object')?Object.assign({},INB_OWNER_DEF,r.data.value):Object.assign({},INB_OWNER_DEF); }catch(e){ INB_OWNER=Object.assign({},INB_OWNER_DEF); } try{ jhInbOwnerPaint(); }catch(e){} return INB_OWNER; }
+async function jhInbOwnerEdit(k){ if(!me){ alert('먼저 이름을 고르세요'); return; } await jhInbOwnerLoad(); var ks=['핑','스팜','11번가','전화']; if(ks.indexOf(k)<0)k='핑'; var v=prompt(k+' 시트 담당 — 오늘 이 시트 주문을 입고방에 적는 사람 (자동 등록도 이 이름으로 들어가고, 실물입고 경고도 이 사람에게)',INB_OWNER[k]||''); if(v===null)return; v=v.trim(); var cur={}; try{ var r0=await sb.from('settings').select('value').eq('key','inb_owner').maybeSingle(); cur=(r0&&r0.data&&r0.data.value&&typeof r0.data.value==='object')?r0.data.value:{}; }catch(e){ alert('담당을 못 읽었어요 — 저장 안 함'); return; } var out={}; ks.forEach(function(x){ out[x]=(cur[x]!=null?cur[x]:(INB_OWNER[x]||'')); }); var before=out[k]; out[k]=v; var up=await sb.from('settings').upsert({key:'inb_owner',value:out,updated_at:new Date().toISOString()},{onConflict:'key'}); if(up&&up.error){ alert('저장 실패: '+up.error.message); return; } INB_OWNER=Object.assign({},INB_OWNER_DEF,out); try{ logAudit('입고 담당 변경',k+': '+(before||'-')+' → '+(v||'-')); }catch(e){} if(typeof stkToast==='function')stkToast(k+' 시트 담당 = '+(v||'(비움)')); try{ jhInbOwnerPaint(); }catch(e){} if(typeof jhInbWatch==='function')jhInbWatch(true); }   /* (10/27) 하나씩 — 읽고 그 칸만 바꿔 저장 */
+function jhInbOwnerPaint(){ var b=document.getElementById('inb-ownerbtn'); if(!b||!INB_OWNER)return; b.innerHTML='👤 시트 담당 '+['핑','스팜','11번가','전화'].map(function(k){return '<button onclick="jhInbOwnerEdit(\''+k+'\')" title="'+k+' 시트 담당만 바꾸기">'+k+'='+esc(INB_OWNER[k]||'?')+'</button>';}).join(''); }   /* (10/27) 4개 따로 */
 async function jhSheetRefresh(){   // (10/19 v2) 구글 스크립트가 settings 'sheet_raw:*'에 밀어 넣은 시트 원문을 읽어 동기화 — 웹 앱 배포·공개 주소 없음
   if(!me){ alert('로그인 뒤에 눌러 주세요'); return; }   /* (10/21 호준님) 누구나 */
   var info=window._jhAutoRun?null:document.getElementById('jh-syncinfo'); if(info)info.textContent='DB에 들어온 시트 읽는 중…';
@@ -12638,6 +12639,11 @@ function itemPurposeBody(active){
   return html;
 }
 
+function retMetaHtml(it){ try{ var L=Array.isArray(it.logs)?it.logs:[], who='', rd=it.return_date||'';   /* (10/27 호준님) 반품 올린 날짜·사람 + 입고방 등록한 사람·때 */
+    for(var i=L.length-1;i>=0;i--){ var t=String(L[i]&&L[i].text||''); if(/반품/.test(t)&&!/반품취소|반품완료/.test(t)){ if(/자동/.test(t))who='자동(시트에 반품)'; else { var m=t.match(/—\s*([^\s(·]+)/); who=m?m[1]:''; } break; } }
+    if(!rd&&typeof isReturnSrc==='function'&&isReturnSrc(it.src)){ rd=it.date_str||''; if(!who)who=it.user_name||''; }
+    var reg=(it.created_at&&typeof kstMDHMof==='function')?kstMDHMof(it.created_at):fmtDateLabel(it.date_str||'');
+    return '<span class="ret-meta" style="display:block;font-size:10.5px;color:#64748b;margin-top:3px;line-height:1.5">'+(rd?'↩️ 반품 <b style="color:#b91c1c">'+esc(fmtDateLabel(rd))+'</b>'+(who?' · '+esc(who):'')+' &nbsp; ':'')+'📥 입고방 등록 '+esc(reg)+(it.user_name?' · '+esc(it.user_name):'')+'</span>'; }catch(e){ return ''; } }
 function returnArea(){
   if(!returnsCache.length)return '';
   let h='<div class="recv-banner grp-return">반품 ('+returnsCache.length+')</div>';
@@ -12648,7 +12654,7 @@ function returnArea(){
       +'<span class="ret-src">'+esc(it.src)+'</span>'
       +(!done&&dN>0?'<span style="background:#dc2626;color:#fff;font-size:10px;font-weight:800;padding:1px 6px;border-radius:7px;margin-right:5px">D+'+dN+'</span>':'')
       +'<span class="ret-info"><span class="ret-model">'+esc(it.model)+'</span> <span class="ret-spec">'+esc(it.spec)+'</span> · '+it.qty+'개'
-      +(it.use_note&&it.use_note!=='미기입'?' <span style="color:var(--text3);font-size:10px">'+esc(it.use_note)+'</span>':'')+'</span>'
+      +(it.use_note&&it.use_note!=='미기입'?' <span style="color:var(--text3);font-size:10px">'+esc(it.use_note)+'</span>':'')+retMetaHtml(it)+'</span>'
       +(done
         ? '<span class="ret-done-tag">✓ 완료'+(it.return_done_date?' ('+fmtDateLabel(it.return_done_date)+')':'')+'</span>'
         : '<button class="ret-btn" onclick="markReturnDone(\''+it.id+'\')">반품완료</button><button class="ret-btn" onclick="unmarkReturn(\''+it.id+'\')" style="background:#eef4ff;color:#2563eb;margin-left:4px">반품취소</button>')
@@ -12720,26 +12726,10 @@ async function markReturnDone(id){
   if(typeof stkLog==='function') stkLog('✅입고반품완료',(it&&it.model?(it.src?'['+it.src+'] ':'')+(it.model||'')+' '+(it.spec||''):'')+' · 반품완료 ('+me.name+')',{qty:(it?it.qty:0), channel:'반품완료', item_id:id});
   await loadItems();
 }
-function renderItemMemo(){
+function renderItemMemo(){   /* (10/27 호준님) 반품 탭 — 작동 안 하던 자유 메모(저장된 적 0건)는 없앰 */
   const el=document.getElementById('item-body');
-  let html='<div class="iguide">자유 대화/메모. 타이어 데이터와 별개로 보관됩니다.</div>';
-  html+=returnArea();
-  if(!itemMemos.length){el.innerHTML=html+'<div class="iempty" style="padding:12px">메모 없음</div>';return;}
-  function memoHtml(m){
-    const t=kstTime(m.created_at);   // 서울 기준
-    return '<div class="imemo-item"><div class="who">'+esc(m.user_name)+'<span class="t">'+t+'</span></div><div>'+esc(m.content)+'</div></div>';
-  }
-  if(isRangeActive()){
-    const byDate={};
-    itemMemos.forEach(function(m){const ds=kstDateStr(m.created_at);(byDate[ds]=byDate[ds]||[]).push(m);});
-    Object.keys(byDate).sort().reverse().forEach(function(ds){
-      html+='<div class="date-divider">'+fmtDateLabel(ds)+' ('+byDate[ds].length+')</div>';
-      byDate[ds].forEach(function(m){html+=memoHtml(m);});
-    });
-  }else{
-    itemMemos.forEach(function(m){html+=memoHtml(m);});
-  }
-  el.innerHTML=html;
+  const h=returnArea();
+  el.innerHTML=h||'<div class="iempty" style="padding:20px">처리할 반품이 없어요</div>';
 }
 
 async function addItemRow(){
