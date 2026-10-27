@@ -22738,11 +22738,11 @@ function kdRender(){
   var cnt={}; kdCache.forEach(function(r){ var k=r.status||'(상태 없음)'; cnt[k]=(cnt[k]||0)+1; });
   function kdChk(r){ var v=String(r.cust_chk||'').trim().toUpperCase(); return v==='Y'?'Y':(v==='N'?'N':'(없음)'); }   // (10/16) 경동 화면 '거래처 체크' 열 = raw.moProdScanYn
   var acnt={}; live.forEach(function(r){ var k=kdChk(r); acnt[k]=(acnt[k]||0)+1; });
-  var anyOn=Object.keys(KD_CHIPS.st).length+Object.keys(KD_CHIPS.acct).length+Object.keys(KD_CHIPS.ch||{}).length; var chcnt={'핑':0,'온라인':0,'거래처':0,'모름':0}; live.forEach(function(r){ var g=kdChOf(r.waybill_no).g||'모름'; chcnt[g]=(chcnt[g]||0)+1; });
+  var anyOn=Object.keys(KD_CHIPS.st).length+Object.keys(KD_CHIPS.acct).length+Object.keys(KD_CHIPS.ch||{}).length; var chcnt={'핑':0,'온라인':0,'거래처':0,'그외':0}; live.forEach(function(r){ var g=kdChOf(r.waybill_no).g||'그외'; chcnt[g]=(chcnt[g]||0)+1; });
   var chips='<button class="'+(!anyOn?'on':'')+'" onclick="kdSetChip(\'all\')">전체 '+live.length+'</button>'+Object.keys(cnt).sort().map(function(k){ return '<button class="'+(KD_CHIPS.st[k]?'on':'')+'" onclick="kdSetChip(\'st\',this.dataset.v)" data-v="'+esc(k)+'">'+esc(k)+' '+cnt[k]+'</button>'; }).join('');
   var akeys=['Y','N','(없음)'].filter(function(k){return k!=='(없음)'||acnt[k];}); ['Y','N'].forEach(function(k){ if(!acnt[k])acnt[k]=0; });   // Y·N은 0건이어도 항상
   chips+='<span style="font-size:11px;color:#64748b;font-weight:800;align-self:center;margin-left:6px">거래처 체크</span>'+akeys.map(function(k){ return '<button class="'+(KD_CHIPS.acct[k]?'on':'')+'" onclick="kdSetChip(\'acct\',this.dataset.v)" data-v="'+esc(k)+'" title="경동 발송자료 목록의 거래처 체크 열">'+(k==='Y'?'✓ 체크 Y':(k==='N'?'✗ 체크 N':'체크 없음'))+' '+acnt[k]+'</button>'; }).join('');
-  chips+='<span style="font-size:11px;color:#64748b;font-weight:800;align-self:center;margin-left:6px">판매처</span>'+['핑','온라인','거래처','모름'].map(function(k){ return '<button class="'+((KD_CHIPS.ch||{})[k]?'on':'')+'" onclick="kdSetChip(\'ch\',this.dataset.v)" data-v="'+k+'" title="송장 → 택배방 송장 기록 → 직배송방 접수 기록 → 받는분 전화번호 순으로 찾음 · 모름 = 우리 기록에 없음">'+(k==='핑'?'🛒 핑':(k==='온라인'?'🛍 온라인':(k==='거래처'?'🏭 거래처':'❔ 모름')))+' '+(chcnt[k]||0)+'</button>'; }).join('');   /* (10/27) 판매처 칩 */
+  chips+='<span style="font-size:11px;color:#64748b;font-weight:800;align-self:center;margin-left:6px">판매처</span>'+['핑','온라인','거래처','그외'].map(function(k){ return '<button class="'+((KD_CHIPS.ch||{})[k]?'on':'')+'" onclick="kdSetChip(\'ch\',this.dataset.v)" data-v="'+k+'" title="송장 → 택배방 송장 기록 → 직배송방 접수 기록 → 받는분 전화번호 순으로 찾음 · 그외 = 메신저로 접수한 기록이 없는 송장(경동 직접 등록 등)">'+(k==='핑'?'🛒 핑':(k==='온라인'?'🛍 온라인':(k==='거래처'?'🏭 거래처':'📎 그외')))+' '+(chcnt[k]||0)+'</button>'; }).join('');   /* (10/27) 판매처 칩 */
   var ce=document.getElementById('kd-chips'); if(ce)ce.innerHTML=chips;
   var last=kdCache.length?kdCache.map(function(r){return r.fetched_at||'';}).sort().pop():'';
   var pay={}, payTot=0; live.forEach(function(r){ var k=r.pay_type||'(구분 없음)'; if(!pay[k])pay[k]={n:0,v:0}; pay[k].n++; var v=Number(r.total_pay)||0; pay[k].v+=v; payTot+=v; });
@@ -22751,14 +22751,14 @@ function kdRender(){
   var _stOn=Object.keys(KD_CHIPS.st).length, _acOn=Object.keys(KD_CHIPS.acct).length;
   var list=kdCache.filter(function(r){ var st=(r.status||'(상태 없음)'); if(_stOn){ if(!KD_CHIPS.st[st])return false; } else if(st==='삭제됨')return false;   // (10/16) 상태 칩 여러 개 '또는' · 안 고르면 삭제됨은 숨김
     if(_acOn&&!KD_CHIPS.acct[kdChk(r)])return false;   // 거래처 체크 칩 '또는' · 상태와는 '그리고'
-    var _chOn=Object.keys(KD_CHIPS.ch||{}).length; if(_chOn&&!KD_CHIPS.ch[kdChOf(r.waybill_no).g||'모름'])return false;   /* (10/27) 판매처 칩 */
+    var _chOn=Object.keys(KD_CHIPS.ch||{}).length; if(_chOn&&!KD_CHIPS.ch[kdChOf(r.waybill_no).g||'그외'])return false;   /* (10/27) 판매처 칩 */
     if(!q)return true; var hay=[r.waybill_no,r.recv_name,r.recv_tel,r.recv_addr,r.recv_zip,r.prod_name,r.sender_name,r.sender_tel,r.memo,r.status,r.acct_name,r.send_branch,r.arrive_branch,r.pickup_driver].filter(Boolean).join(' ').toLowerCase(); return q.split(/\s+/).every(function(t){return hay.indexOf(t)>=0;}); });
   if(typeof KD_PR!=='undefined'&&KD_PR.onlyNot)list=list.filter(function(r){ return !kdPrInfo(r.waybill_no).printed; });   /* (10/26) 미출력만 */
   var prBar=(typeof kdPrBar==='function')?kdPrBar(list):'';
   if(!list.length){ el.innerHTML=prBar+'<div style="text-align:center;color:#aaa;padding:24px 0;font-size:13px">'+(kdCache.length?'조건에 맞는 송장이 없습니다':'이 날짜에 송장이 없습니다')+'</div>'; return; }
   el.innerHTML=prBar+list.map(function(r){
     var t=(r.reg_dt||'').replace('T',' ').slice(5,16);
-    return '<div class="kd-card" data-kd="'+esc(r.waybill_no)+'"><div class="l1">'+((typeof kdPrCheck==='function')?kdPrCheck(r.waybill_no):'')+'<b>'+esc(r.recv_name||'(받는분 없음)')+'</b>'+(function(){ var c=kdChOf(r.waybill_no); var col={'핑':'#7c3aed','온라인':'#2563eb','거래처':'#0f766e'}[c.g]||'#94a3b8'; return '<span class="kd-ch" style="background:'+col+'" title="'+esc(c.how||'')+'">'+esc(c.g||'모름')+'</span>'; })()+(r.recv_tel?'<span style="color:#64748b">'+esc(r.recv_tel)+'</span>':'')+kdStChips(r)+'<span style="margin-left:auto;font-size:11px;color:#94a3b8">'+esc(t)+'</span></div>'+
+    return '<div class="kd-card" data-kd="'+esc(r.waybill_no)+'"><div class="l1">'+((typeof kdPrCheck==='function')?kdPrCheck(r.waybill_no):'')+'<b>'+esc(r.recv_name||'(받는분 없음)')+'</b>'+(function(){ var c=kdChOf(r.waybill_no); var col={'핑':'#7c3aed','온라인':'#2563eb','거래처':'#0f766e'}[c.g]||'#94a3b8'; return '<span class="kd-ch" style="background:'+col+'" title="'+esc(c.how||'')+'">'+esc(c.g||'그외')+'</span>'; })()+(r.recv_tel?'<span style="color:#64748b">'+esc(r.recv_tel)+'</span>':'')+kdStChips(r)+'<span style="margin-left:auto;font-size:11px;color:#94a3b8">'+esc(t)+'</span></div>'+
       (r.recv_addr?'<div class="l2">📍 '+esc(r.recv_addr)+(r.recv_zip?' ['+esc(r.recv_zip)+']':'')+'</div>':'')+
       '<div class="l3">'+esc([r.prod_name?r.prod_name+(r.qty?' ×'+r.qty:''):'',r.sender_name?'보내는분 '+r.sender_name:'',r.acct_name?'거래처 '+r.acct_name:'',r.pay_type?r.pay_type+(r.total_pay?' '+Number(r.total_pay).toLocaleString()+'원':''):'',r.arrive_branch?'도착 '+r.arrive_branch:'',r.pickup_driver?'픽업 '+r.pickup_driver:''].filter(Boolean).join(' · '))+'</div>'+
       (r.memo?'<div class="l3" style="color:#b45309">📝 '+esc(r.memo)+'</div>':'')+
@@ -22777,9 +22777,9 @@ async function kdChLoad(from,to){ var key=from+'~'+to; var m={}; try{
     var need=[]; kdCache.forEach(function(r){ var n=String(r.waybill_no); if(!byNo[n]&&cardNos[n]&&need.indexOf(cardNos[n])<0)need.push(cardNos[n]); }); var cardCh={}; for(var i=0;i<need.length;i+=100){ var dr=await sb.from('deliveries').select('id,channel').in('id',need.slice(i,i+100)); (dr.data||[]).forEach(function(d){ cardCh[d.id]=d.channel; }); }
     kdCache.forEach(function(r){ var n=String(r.waybill_no); if(byNo[n]&&byNo[n].g){ m[n]=byNo[n]; return; } if(cardNos[n]&&cardCh[cardNos[n]]){ var g2=kdChGroup(cardCh[cardNos[n]]); if(g2){ m[n]={g:g2,how:'직배송방 접수 기록'}; return; } }
       var t=nt(r.recv_tel)||nt(r.recv_etc_tel); var L=(byTel[t]||[]).filter(function(x){ return x.d<=r.date_str&&x.d>=jhAddDay(r.date_str,-30); }); if(L.length){ L.sort(function(a,b){ return a.d<b.d?1:-1; }); var gs={}; L.forEach(function(x){ if(x.g)gs[x.g]=1; }); var ks=Object.keys(gs); if(ks.length===1){ m[n]={g:ks[0],how:'받는분 전화번호로 추정'}; return; } if(ks.length>1){ m[n]={g:L[0].g,how:'전화번호로 추정(여러 판매처 — 가장 최근 주문)'}; return; } }
-      m[n]={g:'모름',how:'우리 기록에 없음 (경동 직접 등록 등)'}; });
+      m[n]={g:'그외',how:'메신저로 접수한 기록 없음 (경동 사이트 직접 등록 등)'}; });
   }catch(e){ console.error('판매처 찾기',e); } KD_CH=m; KD_CH_RANGE=key; return m; }   /* (10/27 호준님) 송장 → 판매처 */
-function kdChOf(no){ return KD_CH[String(no)]||{g:'모름',how:''}; }
+function kdChOf(no){ return KD_CH[String(no)]||{g:'그외',how:''}; }
 function kdSetChip(g,v){ if(g==='all'){ KD_CHIPS={st:{},acct:{},ch:{}}; kdChip='all'; } else { if(!KD_CHIPS[g])KD_CHIPS[g]={}; if(KD_CHIPS[g][v])delete KD_CHIPS[g][v]; else KD_CHIPS[g][v]=1; kdChip=(Object.keys(KD_CHIPS.st).length+Object.keys(KD_CHIPS.acct).length+Object.keys(KD_CHIPS.ch||{}).length)?'on':'all'; } kdRender(); }
 function kdCopy(no){ try{ navigator.clipboard.writeText(no); if(typeof stkToast==='function')stkToast('운송장 '+no+' 복사'); }catch(e){ prompt('운송장번호',no); } }
 /* 예약 연결 */
