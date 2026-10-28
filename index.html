@@ -2427,7 +2427,7 @@ table.pm-g.ot-b tr.pm-flt{display:none}table.pm-g.ot-b.fltOn tr.pm-flt{display:t
 </style>
 <div id="returns-screen" style="display:none;flex-direction:column;flex:1;min-height:0;overflow:auto;background:#f8fafc">
   <div style="max-width:720px;margin:18px auto;padding:0 16px;font-size:14px;color:#334155;line-height:1.6">
-    <div style="font-size:20px;font-weight:900;color:#0f172a">↩️ 교환&반품방 <span style="font-size:12px;font-weight:700;color:#b45309;background:#fef3c7;border-radius:6px;padding:2px 8px;vertical-align:middle">자리만 만들어 둠 · 10/28</span></div>
+    <div style="font-size:20px;font-weight:900;color:#0f172a">↩️ 반품교환방 <span style="font-size:12px;font-weight:700;color:#b45309;background:#fef3c7;border-radius:6px;padding:2px 8px;vertical-align:middle">자리만 만들어 둠 · 10/28</span></div>
     <div style="margin-top:8px">반품·교환을 한 곳에 모읍니다. 안쪽 화면은 목업(<b>시험_교환반품방_목업_20261028.html</b>)으로 먼저 확인한 뒤 만듭니다.</div>
     <ul style="margin:10px 0 0 18px;padding:0">
       <li><b>시트 교환&반품 한 벌 가져오기</b> — 판매처·순번·연도·주문날짜·반품접수날짜·주소(전화 포함)·제품명·사이즈·수량·반품비·반품사유·출고지·입고날짜·완료·비고(거래처 반품).</li>
@@ -4072,7 +4072,7 @@ const ROOM_META={
   '입고방':{icon:'📦',ai:true,mode:'items',desc:'받아오기 · 거래처 발주 · 물류차 입고'},
   '직배송방':{icon:'🚚',ai:false,mode:'delivery',desc:'직배송 · 미출고 · 택배전환'},
   '택배방':{icon:'📮',ai:false,mode:'parcel2',desc:'핑·온라인 택배 — 시트 한 벌 · 송장 · 택배양식'},   // (10/20) 새 택배방(가상 방). 옛 붙여넣기 택배방(parcel)은 잠듦   // 🧪 (10/15) 직배송 표의 택배 탭을 방으로
-  '교환&반품방':{icon:'↩️',ai:false,mode:'returns',desc:'교환·반품 접수 — 시트 교환&반품 한 벌 + 손입력 · 다른 방 [반품] 버튼이 여기로'},   /* (10/28) 자리만 — 목업 확인 뒤 구현 */
+  '반품교환방':{icon:'↩️',ai:false,mode:'returns',desc:'반품·교환 접수 — 시트 교환&반품 한 벌 + 손입력 · 다른 방 [반품] 버튼이 여기로'},   /* (10/28) 자리만 — 목업 확인 뒤 구현 */
   '재고방':{icon:'🗺',ai:false,mode:'stock',desc:'재고 검색 · 창고지도'},
   '중고타이어방':{icon:'♻️',ai:false,mode:'stock',desc:'중고 재고 검색 · 재고표 (데이터 분리)'},
   '재고방 V2':{icon:'🛞',ai:false,mode:'stock',desc:'핑 최종마스터 기반 재고표 — 분류·출처 + 제조사·제품정보·사이즈·세부정보·제품번호·생산년도 (데이터 분리)'},   /* (10/21) */
@@ -4251,7 +4251,7 @@ async function bootApp(){
   if(data&&!data.some(r=>r.name==='경동택배방'))data.splice(5,0,{id:'kd-virtual',name:'경동택배방'});   // (10/14) 경동택배방
   if(data&&!data.some(r=>r.name==='주문방'))data.splice(6,0,{id:'orders-virtual',name:'주문방'});   // 🧪 (10/18) 주문방
   if(data&&!data.some(r=>r.name==='택배방'))data.splice(7,0,{id:'parcel-virtual',name:'택배방'});
-  if(data&&!data.some(r=>r.name==='교환&반품방')&&me&&me.name===ADMIN_NAME)data.splice(8,0,{id:'returns-virtual',name:'교환&반품방'});   /* (10/28) 교환&반품방 자리 — 안이 만들어지기 전엔 대표만 */   // (10/20) 택배방(가상)
+  if(data&&!data.some(r=>r.name==='반품교환방')&&me&&me.name===ADMIN_NAME)data.splice(8,0,{id:'returns-virtual',name:'반품교환방'});   /* (10/28) 교환&반품방 자리 — 안이 만들어지기 전엔 대표만 */   // (10/20) 택배방(가상)
   if(data){ var _pi=data.findIndex(function(r){return r.name==='택배방';}), _di=data.findIndex(function(r){return r.name==='직배송방';}); if(_pi>=0&&_di>=0&&_pi!==_di+1){ var _pr=data.splice(_pi,1)[0]; var _di2=data.findIndex(function(r){return r.name==='직배송방';}); data.splice(_di2+1,0,_pr); } }   // 🧪 택배방 = rooms 표의 자기 방(자기 id, 자료 분리) — 직배송방 바로 아래로만 옮김. DB에 줄이 없으면 안 보임
   await tradeLoadViewers();
   await bkLoadUsers();
