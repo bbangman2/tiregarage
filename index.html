@@ -16055,12 +16055,13 @@ function stkRtInlineCat(td,pid){
   inp.onkeydown=function(e){if(e.key==='Enter'||e.key==='Tab'){e.preventDefault();inp.blur();}else if(e.key==='Escape'){saved=true;td.textContent=cur;}};
 }
 // 가벼운 저장: 메모리(stkP)만 즉시 업데이트, DB는 백그라운드, 전체 재렌더 안 함
-async function stkRtSplitRow(p,rowDot,field,nv){ return false; /* v127: 자동 분리 영구 제거 — 다른 행에 영향 주는 기능 금지(호준님) */ // (v20) 이 연식 줄만 새 상품으로 분리해 값 적용 — "줄이 다르면 다른 타이어"
+async function stkRtSplitRow(p,rowDot,field,nv,pre){ /* (10/28 호준님 "확인창 말고 무조건 별개로") v127에서 꺼 둔 것을 되살림 — 이 연식 줄만 새 상품으로 떼어 값 적용, 다른 연식 줄은 그대로. pre=true면 nv는 이미 해석된 값 */ // (v20) 이 연식 줄만 새 상품으로 분리해 값 적용 — "줄이 다르면 다른 타이어"
   try{
     var colMap={cat:'category',source:'source',br:'brand',name:'name',code:'code',size:'size',ply:'ply',spec:'spec',fprice:'factory_price',cost:'cost',real_cost:'real_cost',discount_rate:'discount_rate',price:'price',inst:'inst_price'};
     var col=colMap[field]; if(!col)return false;
     var v=nv;
-    if(field==='fprice'||field==='cost'||field==='real_cost'||field==='price'||field==='inst')v=parseInt(String(nv).replace(/[^0-9]/g,''))||null;
+    if(pre){ /* 호출한 쪽(stkRtSaveFieldLight·정보수정)에서 이미 숫자로 해석한 값 */ }
+    else if(field==='fprice'||field==='cost'||field==='real_cost'||field==='price'||field==='inst')v=parseInt(String(nv).replace(/[^0-9]/g,''))||null;
     else if(field==='discount_rate')v=(String(nv).trim()===''?null:(parseFloat(String(nv).replace(/[^0-9.]/g,''))||0));
     else if(field==='size'&&typeof stkNormSize==='function')v=stkNormSize(nv);
     if(field==='cat'&&v&&stkCategories.indexOf(v)<0){stkCategories.push(v);saveCategories(stkCategories);}
@@ -16088,10 +16089,15 @@ async function stkRtSplitRow(p,rowDot,field,nv){ return false; /* v127: 자동 �
     if(field==='cat')p2.cat=v; else if(field==='source')p2.source=v; else if(field==='br')p2.br=v; else if(field==='name')p2.name=v; else if(field==='code')p2.code=v; else if(field==='size')p2.size=v; else if(field==='ply')p2.ply=v; else if(field==='spec')p2.spec=v; else if(field==='fprice')p2.factory_price=v; else if(field==='cost')p2.cost=v; else if(field==='real_cost')p2.real_cost=v; else if(field==='discount_rate')p2.discount_rate=v; else if(field==='price')p2.price=v; else if(field==='inst')p2.inst=v;
     if(field==='discount_rate'){ try{ var _c=stkCalcRC(p2); if(_c!=null){p2.real_cost=_c; await sb.from('stock_products').update({real_cost:_c}).eq('id',newId);} }catch(_e){} }
     var _pi=stkP.indexOf(p); stkP.splice(_pi>=0?_pi+1:stkP.length,0,p2);
-    stkLog('🔀상품분리(일반표)',p.br+' '+p.name+' '+p.size+' ('+(rowDot||'DOT누락')+') '+field+' 수정',{product_id:newId});
-    stkToast('이 줄만 저장됨 · 다른 연식 줄 영향 없음');
+    /* (10/28) 이 연식에 걸린 예약·직배송·추가연결·재고기록은 새 상품 번호로 따라감 — 안 그러면 취소 복구 때 옛 상품에 로트가 다시 생김 */
+    var _rmFail=[]; var _rmT=[['reservations','src_product_id','src_dot'],['deliveries','src_product_id','src_dot'],['reservation_links','product_id','dot']];
+    for(var _ri=0;_ri<_rmT.length;_ri++){ try{ var _ro={}; _ro[_rmT[_ri][1]]=newId; var _ru=await sb.from(_rmT[_ri][0]).update(_ro).eq(_rmT[_ri][1],p.id).eq(_rmT[_ri][2],_rd).select('id'); if(_ru&&_ru.error)_rmFail.push(_rmT[_ri][0]+': '+_ru.error.message); }catch(_re){ _rmFail.push(_rmT[_ri][0]+': '+(_re.message||_re)); } }
+    try{ var _rlg=await sb.from('stock_logs').update({product_id:newId}).eq('product_id',p.id).eq('dot',_rd); if(_rlg&&_rlg.error)_rmFail.push('기록: '+_rlg.error.message); }catch(_re2){ _rmFail.push('기록: '+(_re2.message||_re2)); }
+    try{ if(typeof STK_FXO!=='undefined'&&STK_FXO&&STK_FXO[p.id]){ STK_FXO[newId]=JSON.parse(JSON.stringify(STK_FXO[p.id])); if(typeof stkFxoSave==='function')await stkFxoSave(); } }catch(_fx){}
+    stkLog('🔀상품분리(일반표)',p.br+' '+p.name+' '+p.size+' ('+(rowDot||'DOT누락')+') '+(typeof stkFldKo==='function'?stkFldKo(field):field)+' 수정 → 이 연식만 별개 상품'+(_rmFail.length?' · 연결 옮기기 실패: '+_rmFail.join(', '):''),{product_id:newId,detail:JSON.stringify({from:p.id,dot:_rd,field:field,value:v,link_fail:_rmFail}).slice(0,1500)});
+    stkToast(_rmFail.length?('⚠ 이 연식만 별개 상품으로 저장됐지만 연결 옮기기 실패: '+_rmFail.join(', ')):'이 연식만 별개 상품으로 저장됨 · 다른 연식 줄은 그대로');
     if(typeof stkRenderSearch==='function')stkRenderSearch();
-    return true;
+    return newId;
   }catch(e){ stkToast('⚠️ 분리 실패: '+(e.message||e)); return false; }
 }
 // ═══ (9/30) 입력값 해석·검증 공통 — 재고표 직접 수정·편집모드·업로드가 전부 같은 규칙을 쓴다 ═══
@@ -16266,12 +16272,13 @@ async function stkRtSaveFieldLight(pid,dot,field,nv,old,td){
       // ── (v20.1) 연식이 여러 줄이어도 수정은 그냥 수정 — 묻지 않고 그 줄만 저장 (다른 연식 줄 영향 없음) ──
       /* v117(08-13 호준님): 자동 상품분리 제거 — 연식 줄이 여러 개여도 그냥 값 수정(상품 공통). 나누기는 자동으로 하지 않는다 */
       if((field==='price'||field==='inst')&&!(typeof stkCanSeeRealcost==='function'&&stkCanSeeRealcost())){ if(td)td.textContent=old; stkToast('택배가·장착가 수정 권한이 없습니다'); return; }
-      if(['fprice','cost','real_cost','discount_rate','price','inst'].indexOf(field)>=0&&!window._stkMultiDotOk){ var _dsx={}; (p.lots||[]).forEach(function(l){ _dsx[String(l.dot==null||l.dot===''?'DOT누락':l.dot)]=1; }); var _dkx=Object.keys(_dsx).sort(); if(_dkx.length>1&&!confirm('⚠ 이 상품은 연식 '+_dkx.length+'개('+_dkx.join(' · ')+')가 '+stkFldKo(field)+' 칸 하나를 같이 씁니다.\n지금 저장하면 '+_dkx.length+'개 연식 모두 '+stkValKo(old)+' → '+(String(nv).trim()===''?'(비움)':nv)+' 로 바뀝니다.\n\n이 연식만 다르게 하려면 [취소] — 저장 안 합니다.\n(연식별 가격은 따로 준비 중)\n\n모든 연식을 같이 바꿀까요?')){ if(td)td.textContent=old; stkToast('저장 안 함 — 다른 연식 그대로'); return false; } }   /* (10/27 호준님 "작성했을 때 다른 연식에 영향 안 가게") */
       var v=nv;
       if(field==='fprice'||field==='cost'||field==='real_cost'||field==='price'||field==='inst'){ var _np=stkNumParse(nv,{min:0}); if(_np.bad){ if(td)td.textContent=old; stkToast(stkFldKo(field)+'은(는) 숫자만 — 입력 "'+nv+'" 저장 안 됨 (1,234 · 12만 형태는 됨)'); return false; } v=_np.empty?null:(_np.v||null); }
       else if(field==='discount_rate'){ var _dp=stkNumParse(nv,{dec:true,min:0,max:100}); if(_dp.bad){ if(td)td.textContent=old; stkToast('할인율은 0~100 숫자만 — 입력 "'+nv+'" 저장 안 됨'); return false; } v=_dp.empty?null:_dp.v; }
       else if(field==='size'&&typeof stkNormSize==='function')v=stkNormSize(nv);
       if(field==='br'||field==='name'||field==='code'||field==='size'||field==='ply'){ var _dup=stkDupProduct(p,field,v,dot); if(_dup&&!confirm('같은 연식의 같은 상품이 이미 있습니다:\n'+_dup+'\n\n그래도 바꿀까요? (재고표에 같은 상품·같은 연식이 두 줄이 됩니다)')){ if(td)td.textContent=old; return false; } }
+      /* (10/28 호준님 "확인창 말고 무조건 별개로") 가격 칸인데 이 상품에 연식이 여럿이면 묻지 않고 이 연식 줄만 떼어 별개 상품으로 저장 — 다른 연식 줄 값은 그대로 */
+      if(['fprice','cost','real_cost','discount_rate','price','inst'].indexOf(field)>=0){ var _dsx={}; (p.lots||[]).forEach(function(l){ _dsx[String(l.dot==null||l.dot===''?'DOT누락':l.dot)]=1; }); var _dk0=String(dot==null||dot===''?'DOT누락':dot); if(Object.keys(_dsx).length>1&&_dsx[_dk0]){ var _spl=await stkRtSplitRow(p,_dk0,field,v,true); if(!_spl){ if(td)td.textContent=old; return false; } if(typeof stkRenderTable==='function')stkRenderTable(); return true; } }
       // 분류 자동 등록 — 새 분류면 stkCategories에 추가
       if(field==='cat'&&v&&stkCategories.indexOf(v)<0){stkCategories.push(v);saveCategories(stkCategories);}
       // 메모리 동기화 먼저 (DB 저장보다 앞 — 방 전환 등으로 재렌더돼도 값 안 사라지게)
@@ -18493,7 +18500,7 @@ async function stkDoEdit(){
     }
   }
   if(!changes.length&&!qtyChanged){stkToast('변경된 내용이 없습니다');return}
-  if(((p.price||null)!==np||(p.inst||null)!==ni)){ var _dsy={}; (p.lots||[]).forEach(function(l){ _dsy[String(l.dot==null||l.dot===''?'DOT누락':l.dot)]=1; }); var _dky=Object.keys(_dsy).sort(); if(_dky.length>1&&!confirm('⚠ 이 상품은 연식 '+_dky.length+'개('+_dky.join(' · ')+')가 택배가·장착가를 같이 씁니다.\n저장하면 '+_dky.length+'개 연식 모두 바뀝니다.\n\n모든 연식을 같이 바꿀까요? ([취소] = 저장 안 함)'))return; }   /* (10/27) */
+  if(((p.price||null)!==np||(p.inst||null)!==ni)){ var _dsy={}; (p.lots||[]).forEach(function(l){ _dsy[String(l.dot==null||l.dot===''?'DOT누락':l.dot)]=1; }); if(Object.keys(_dsy).length>1){ var _lotY=(stkEditLotId&&(p.lots||[]).find(function(l){return l.id===stkEditLotId;}))||null; var _dkY=_lotY?String(_lotY.dot==null||_lotY.dot===''?'DOT누락':_lotY.dot):null; if(!_dkY){ stkToast('연식이 여러 줄인 상품이라 어느 연식인지 몰라요 — 택배가·장착가는 재고표의 그 연식 줄에서 고쳐 주세요'); return; } var _spY=await stkRtSplitRow(p,_dkY,'price',np,true); if(!_spY)return; var _pY=stkP.find(function(x){return x.id===_spY;}); if(_pY){ p=_pY; stkEditPid=_pY.id; } } }   /* (10/28 호준님 "확인창 말고 무조건 별개로") 열린 재고 줄의 연식만 떼어 그 상품에 저장 */
   try{
     stkChk(await sb.from('stock_products').update({brand:nbr,name:nname,code:ncode,size:nsize,price:np,inst_price:ni,memo:nmemo,category:ncat}).eq('id',p.id),'상품수정');
     if(qtyChanged){stkChk(await sb.from('stock_lots').update({qty:nq,updated_at:new Date().toISOString()}).eq('id',stkEditLotId),'상품수정');}
