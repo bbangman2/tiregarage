@@ -63,6 +63,8 @@ body.rb-on #app{padding-top:58px}
 .room-pin{margin-left:auto;flex-shrink:0;font-size:12px;opacity:.2;cursor:pointer;padding:2px 5px;border-radius:6px;transition:opacity .15s,background .15s}
 .room-pin:hover{opacity:.6;background:rgba(255,255,255,.12)}
 .room-pin.on{opacity:1}
+/* (10/29) 불러오는 중 창 */
+#tg-busy{position:fixed;top:10px;left:50%;transform:translateX(-50%);z-index:99999;background:#0f172a;color:#fff;font-size:13px;font-weight:800;padding:7px 14px;border-radius:999px;box-shadow:0 4px 14px rgba(0,0,0,.25);display:none;align-items:center;gap:8px;pointer-events:none;white-space:nowrap}.tg-busy-spin{width:12px;height:12px;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:tgspin .8s linear infinite;flex:none}@keyframes tgspin{to{transform:rotate(360deg)}}
 /* (10/29 호준님) 방 줄에 마우스 올리면 대표 도구(👁/🙈·▲·▼)·📌이 또렷하게 */
 .room-tools{display:inline-flex;align-items:center;gap:1px;margin-left:4px;opacity:.3;transition:opacity .15s}.room-btn:hover .room-tools,.room-btn:hover .room-pin{opacity:1}.room-tools span{font-size:13px!important;opacity:1!important;padding:1px 5px!important;border-radius:6px;line-height:1}.room-tools span:hover{background:rgba(255,255,255,.2)}
 .sb-foot{padding:10px;border-top:1px solid rgba(255,255,255,.07);display:flex;flex-direction:column;gap:6px}
@@ -4313,7 +4315,14 @@ function toggleHomeRoom(i){
   else{ tgLsSet(key,name); }
   renderSidebar();
 }
-async function selectRoom(room){
+/* (10/29 호준님) 방 바꾸기·찾아가기 중 '불러오는 중' 작은 창 — 눌렀는데 반응이 없어 두 번 누르는 일 방지. 20초 지나면 저절로 닫힘(멈춘 채 남지 않게) */
+var TG_BUSY={n:0,t:null};
+function tgBusy(text){ TG_BUSY.n++; var el=document.getElementById('tg-busy'); if(!el){ el=document.createElement('div'); el.id='tg-busy'; document.body.appendChild(el); } el.innerHTML='<span class="tg-busy-spin"></span><span>'+esc(text||'불러오는 중…')+'</span>'; el.style.display='flex'; clearTimeout(TG_BUSY.t); TG_BUSY.t=setTimeout(function(){ TG_BUSY.n=0; el.style.display='none'; },20000); }
+function tgBusyOff(){ TG_BUSY.n=Math.max(0,TG_BUSY.n-1); if(TG_BUSY.n)return; var el=document.getElementById('tg-busy'); if(el)el.style.display='none'; clearTimeout(TG_BUSY.t); }
+var _SR_INFLIGHT=null;
+async function selectRoom(room){ if(!room)return; if(_SR_INFLIGHT&&_SR_INFLIGHT.id===room.id&&_SR_INFLIGHT.name===room.name)return _SR_INFLIGHT.p;   /* 같은 방을 여는 중이면 또 돌지 않고 그 결과를 기다림 */
+  tgBusy((room.name||'')+' 여는 중…'); var p=(async function(){ try{ return await _selectRoomCore(room); } finally{ tgBusyOff(); if(_SR_INFLIGHT&&_SR_INFLIGHT.p===p)_SR_INFLIGHT=null; } })(); _SR_INFLIGHT={id:room.id,name:room.name,p:p}; return p; }
+async function _selectRoomCore(room){
   curRoom=room;
   closeSidebar();
   const m=ROOM_META[room.name]||{icon:'💬',ai:false,desc:''};
@@ -4408,7 +4417,7 @@ async function selectRoom(room){
   if(isItems){
     initDatePicker();
     await loadRecvKeywords();
-    switchItemTab('list');
+    switchItemTab('list',true);   /* (10/29) 여기서는 그리기만 — 바로 아래 loadItems가 읽음(같은 조회 2번 돌던 것) */
     await loadItems();
     await loadItemMemos();
     // 실시간 구독 (items + messages 메모)
@@ -5783,6 +5792,9 @@ async function dlvRolloverLinkRepair(dry){
   try{ logAudit('직배송 이월 연결 수리', '옮김 '+out.moved+'건 · 실패 '+out.failed.length+' · 이중 '+out.double.length); }catch(_e){}
   return out;
 }
+/* (10/29 호준님) 이월 검사 범위 — 전엔 카드 전체 역사(정본 4,880장·5MB)를 방 열 때·실시간 사건마다 받았음. 이월 대상은 '뿌리별 가장 최근 카드'인데 이월이 날마다 돌면 그 카드는 늘 최근 며칠 안에 있으므로 14일(하루 첫 번은 90일 — 긴 휴무 뒤 대비)만 보면 같은 결과. 칸도 판정에 쓰는 것만 읽고, 복사할 카드가 생기면 그때 전체 칸을 따로 읽음 */
+var _rolloverScanDay={};
+var DLV_ROLL_COLS='id,origin_id,date_str,created_at,tab,done,cancelled,confirmed,car,sort_order,channel,tire,recv,tel,qty,addr,trade_client,spec,trade_memo,src_kind,src_product_id,src_item_id,stock_done';
 async function rolloverDeliveries(today, roomId){
   // 과거 날짜를 들여다볼 때는 이월하지 않음 (실제 오늘일 때만)
   if(today!==getTodayISO())return;
@@ -5791,7 +5803,9 @@ async function rolloverDeliveries(today, roomId){
   _rollingOver=true;
   try{
     // 오늘 것 + 이전 것 모두 조회
-    const data=await sbFetchAll(function(){ return sb.from('deliveries').select('*').eq('room_id',roomId).lte('date_str',today).order('date_str',{ascending:true}); }); // 1000행 잘림 시 과거 미배송분이 이월에서 누락되는 사고 방지
+    const _first=(_rolloverScanDay[roomId]!==today); const _from=jhAddDay(today,_first?-90:-7);
+    const data=await sbFetchAll(function(){ return sb.from('deliveries').select(DLV_ROLL_COLS).eq('room_id',roomId).gte('date_str',_from).lte('date_str',today).order('date_str',{ascending:true}); }); // (10/29) 14일·필요한 칸만 (1000행 잘림은 sbFetchAll이 나눠 읽음)
+    _rolloverScanDay[roomId]=today;
     if(!data||!data.length)return;
     const todayRows=data.filter(function(d){return d.date_str===today;});
     const pastRows=data.filter(function(d){return d.date_str<today;});
@@ -5821,13 +5835,14 @@ async function rolloverDeliveries(today, roomId){
       else { if(!d.done)byOrigin[org]=d; }                          // 직배송/미출고: 완료 안 한 것
     });
     // 오늘에 아직 없는 것만 복사 (뿌리 기준 AND 내용지문 기준 둘 다 통과)
-    const toCopy=Object.keys(byOrigin).map(function(org){return byOrigin[org];})
+    let toCopy=Object.keys(byOrigin).map(function(org){return byOrigin[org];})
       .filter(function(d){
         if(todayOrigins[d.origin_id||d.id])return false;   // 같은 뿌리 이미 있음
         if(todayFps[dlvFingerprint(d)])return false;        // 같은 내용 이미 있음(수동입력 포함)
         return true;
       });
     if(!toCopy.length)return;
+    { var _fr=await sb.from('deliveries').select('*').in('id',toCopy.map(function(d){return d.id;})); if(_fr&&_fr.error)throw _fr.error; var _fm={}; ((_fr&&_fr.data)||[]).forEach(function(x){_fm[x.id]=x;}); toCopy=toCopy.map(function(d){return _fm[d.id]||d;}); }   /* (10/29) 복사할 카드만 전체 칸 읽기 */
     // 어제 짜둔 동선 순서 유지: 호차(car) → 어제 sort_order 순으로 정렬 후 이월
     toCopy.sort(function(a,b){
       var ca=(a.tab==='deliv')?(a.car||1):0, cb=(b.tab==='deliv')?(b.car||1):0;
@@ -8968,7 +8983,7 @@ function rerenderCurItemTab(){
   else if(curItemTab==='memo')renderItemMemo();
 }
 
-function switchItemTab(tab){
+function switchItemTab(tab,noLoad){
   curItemTab=tab; try{ if(!INB_OWNER)jhInbOwnerLoad(); else jhInbOwnerPaint(); }catch(e){}
   document.querySelectorAll('.item-tab').forEach(function(t){t.classList.toggle('active',t.dataset.tab===tab);});
   var _ib=document.getElementById('item-body'); if(_ib)_ib.classList.toggle('ledger-wide',tab==='ledger'||tab==='outlog'||tab==='recon');
@@ -8976,7 +8991,7 @@ function switchItemTab(tab){
   var _mz=document.getElementById('item-memo-zone'); if(_mz)_mz.style.display='none';   /* (10/27) 메모 칸 없앰 */
   if(tab==='list'||tab==='analysis'){
     // 우측 상단 날짜는 건드리지 않고, 내부적으로만 전체 조회
-    if(typeof loadItems==='function'){ loadItems(); return; }
+    if(typeof loadItems==='function'){ if(!noLoad)loadItems(); return; }
   }
   if(tab==='list')renderItemList();
   if(tab==='analysis')renderItemAnalysis();
@@ -10891,7 +10906,8 @@ function otSrcTxt(o){ var P=omSrc(o), q=parseInt(o.qty,10)||1; if(P.empty)return
 function omMirrorText(d){ if(!d)return ''; if(d.missing)return '<span class="ot-lk me"><i></i>직배송방 카드 없음</span>'; if(d.cancelled)return '<span class="ot-lk me"><i></i>취소됨</span>'; var t=d.tab==='parcel'?(d.confirmed?'택배 확인':'택배전환'):(d.tab==='hold'?'미출고':((d.car||1)===3?'1호차':((d.car||1)===2?'2호차':'대기'))); return '<span class="ot-kn" title="직배송방 '+esc(d.date_str||'')+'">📤 '+t+(d.done?' · 완료':'')+'</span>'; }
 var OT_LINK_S={rsvneed:'예약에서',need:'연결 필요',stock:'연결됨',inb:'입고 등록',inbman:'손 입고',inbarr:'도착함',inbdone:'입고됨',inbwait:'입고 예정',pingwait:'핑 주문중',dvsent:'직배송방',dvmiss:'카드 없음',x:'취소',none:'출고지?',unk:'출고지?',done:'끝',etc:'—'};   /* 폰 짧은 이름 */
 function otLinkTxt(o,short){ var L=otLink(o), w=otWho(o), t=otStrip(OT_LINK[L][0]); if(short)t=OT_LINK_S[L]||t.split('(')[0].trim(); return '<span class="ot-lk '+w+'"><i></i>'+t+'</span>'+((L==='dvsent'||L==='dvmiss')&&!short?' '+omMirrorText(OM.mirror[o.id]):''); }
-async function jhInbGo(id,model){ var rm=(rooms||[]).find(function(x){return x.name==='입고방';}); if(!rm){ alert('입고방을 못 찾았어요'); return; } if(!curRoom||curRoom.id!==rm.id)await selectRoom(rm); setTimeout(function(){ if(typeof jhInbFind==='function'){ jhInbFind(id,model||''); return; } try{ listSearchInput(model||''); }catch(e){} var el=document.querySelector('.icardB[data-iid="'+id+'"]'); if(el&&typeof gsFlash==='function')gsFlash(el); else if(typeof stkToast==='function')stkToast('입고방 목록에서 이 줄을 못 찾았어요'); },700); }   /* (10/21) 주문방·택배방 상세 → 연결된 입고분 카드 */
+async function jhInbGo(id,model){ tgBusy('입고방으로 이동 중…'); try{ return await _jhInbGoCore(id,model); } finally{ tgBusyOff(); } }   /* (10/29) 불러오는 중 창 */
+async function _jhInbGoCore(id,model){ var rm=(rooms||[]).find(function(x){return x.name==='입고방';}); if(!rm){ alert('입고방을 못 찾았어요'); return; } if(!curRoom||curRoom.id!==rm.id)await selectRoom(rm); setTimeout(function(){ if(typeof jhInbFind==='function'){ jhInbFind(id,model||''); return; } try{ listSearchInput(model||''); }catch(e){} var el=document.querySelector('.icardB[data-iid="'+id+'"]'); if(el&&typeof gsFlash==='function')gsFlash(el); else if(typeof stkToast==='function')stkToast('입고방 목록에서 이 줄을 못 찾았어요'); },700); }   /* (10/21) 주문방·택배방 상세 → 연결된 입고분 카드 */
 function otChkToggle(el){ if(el.checked)OM.chk[el.dataset.id]=1; else delete OM.chk[el.dataset.id]; var fb=document.getElementById('ot-fbar'); if(fb)fb.innerHTML=otFbar(); otBulkBar(); }   /* 체크 칸은 td가 전파를 막아 문서 리스너에 안 닿음 → 직접 */
 function pmChkToggle(el){ if(el.checked)PM.chk[el.dataset.id]=1; else delete PM.chk[el.dataset.id]; var fb=document.getElementById('pm-fbar'); if(fb)fb.innerHTML=pmFbar(); pmBulkBar(); }
 function otBulkBar(L){ var os=document.getElementById('orders-screen'); if(!os)return; var el=document.getElementById('ot-bulk'); if(!el){ el=document.createElement('div'); el.id='ot-bulk'; el.className='ot-bulk'; os.appendChild(el); } L=L||otRows(); var n=L.filter(function(o){return OM.chk[o.id];}).length; if(!n){ el.style.display='none'; el.innerHTML=''; return; } el.style.display='flex'; el.innerHTML='<b style="font-size:14px">☑ '+n+'건 선택</b><button class="dact" style="background:#0f766e;color:#fff;border-color:#0f766e;font-weight:800" onclick="omBulk(\'send\')">➡ 직배송방으로</button><button class="dact" style="background:#f0fdf4;color:#15803d;border-color:#86efac;font-weight:800" onclick="omBulk(\'done\')">✓ 완료</button><button class="dact" style="color:#b91c1c" onclick="omBulk(\'cancel\')">🚫 취소(접기)</button><button class="dact" onclick="omBulk(\'copy\')">📋 복사</button><span style="flex:1"></span><button class="dact" onclick="OM.chk={};omDrawBody()">✕ 선택 해제</button>'; }
@@ -22776,7 +22792,7 @@ async function rtLoad(){ var r=await sb.from('returns').select('*').neq('status'
 /* 시트 → DB 줄 맞추기: 시트 줄 번호(sheet_row) 열쇠. 메신저에서 고쳐 아직 시트에 안 쓴 줄(sheet_dirty)은 건드리지 않음 */
 async function rtSyncSheet(){ if(RT._sync)return RT._sync; RT._sync=_rtSyncSheetCore(); try{ return await RT._sync; }finally{ RT._sync=null; } }   /* 동시에 두 번 돌면 같은 시트 줄이 두 번 생김 → 한 번에 하나만 */
 async function rtDedupe(){ var by={}; RT.rows.forEach(function(o){ if(!o.sheet_row||o.status==='hidden')return; (by[o.sheet_row]=by[o.sheet_row]||[]).push(o); }); var n=0; for(var k in by){ var L=by[k]; if(L.length<2)continue; L.sort(function(a,b){ return String(a.created_at)<String(b.created_at)?-1:1; }); for(var i=1;i<L.length;i++){ var d=L[i]; if(d.sheet_dirty&&!L[0].sheet_dirty)continue; var r=await sb.from('returns').update({status:'hidden',logs:(Array.isArray(d.logs)?d.logs:[]).concat([{t:'중복 정리',by:'자동',at:new Date().toISOString(),txt:'시트 '+k+'줄이 두 번 들어와 접음'}])}).eq('id',d.id); if(!r.error){ d.status='hidden'; n++; } } } return n; }
-async function _rtSyncSheetCore(){ var R={made:0,edited:0,gone:0,skip:0,rows:0,err:''}; var raw=null; try{ await rtLoad(); }catch(e){ R.err=String(e&&e.message||e); return R; } try{ var q=await sb.from('settings').select('key,value,updated_at').like('key','sheet_raw:%'); (q.data||[]).forEach(function(x){ if(/반품|교환/.test(String(x.key))&&x.value&&Array.isArray(x.value.rows))raw=x.value; }); }catch(e){ R.err='시트 원본 읽기 실패 '+(e&&e.message||e); return R; } if(!raw){ R.err='시트 원본이 아직 안 들어옴 — 반품교환_코드.gs 설치·실행 필요'; return R; } RT.sheetAt=raw.at||'';
+async function _rtSyncSheetCore(){ var R={made:0,edited:0,gone:0,skip:0,rows:0,err:''}; var raw=null; try{ await rtLoad(); }catch(e){ R.err=String(e&&e.message||e); return R; } try{ var q=await sb.from('settings').select('key,value,updated_at').like('key','sheet_raw:%교환%'); (q.data||[]).forEach(function(x){ if(/반품|교환/.test(String(x.key))&&x.value&&Array.isArray(x.value.rows))raw=x.value; }); }catch(e){ R.err='시트 원본 읽기 실패 '+(e&&e.message||e); return R; } if(!raw){ R.err='시트 원본이 아직 안 들어옴 — 반품교환_코드.gs 설치·실행 필요'; return R; } RT.sheetAt=raw.at||'';
   var rows=raw.rows; var hi=-1,map=null; for(var i=0;i<Math.min(rows.length,15);i++){ var m=rtHeadMap(rows[i]||[]); if(Object.keys(m).length>=5){ hi=i; map=m; break; } } if(hi<0){ R.err='시트 머리줄(판매처·순번·제품명…)을 못 찾음'; return R; }
   var byRow={}; RT.rows.forEach(function(o){ if(o.sheet_row)byRow[o.sheet_row]=o; }); var seen={}; var who='시트'; var toIns=[];
   for(var r=hi+1;r<rows.length;r++){ var row=rows[r]||[]; if(!row.some(function(c){return String(c||'').trim()!=='';}))continue; var sr=r+1;
@@ -23011,7 +23027,8 @@ function gsRender(){
 function gsFlash(el){ if(!el)return; try{ el.scrollIntoView({block:'center',behavior:'smooth'}); }catch(e){ el.scrollIntoView(); } el.classList.remove('gs-flash'); void el.offsetWidth; el.classList.add('gs-flash'); }
 async function gsWaitFor(fn,ms){ var t0=Date.now(); while(Date.now()-t0<(ms||4000)){ var el=fn(); if(el)return el; await new Promise(function(r){setTimeout(r,150);}); } return null; }
 function gsSetDate(ds){ var f=document.getElementById('date-from'), t=document.getElementById('date-to'); try{ if(typeof rangeMode!=='undefined'&&rangeMode){ rangeMode=false; var rt=document.getElementById('range-toggle'); if(rt)rt.classList.remove('on'); var sp=document.getElementById('date-sep'); if(sp)sp.style.display='none'; if(t)t.style.display='none'; } }catch(e){} if(f)f.value=ds; if(t)t.value=ds; }   // (10/14) 조용히(onDateChange로 또 불러오지 않게)
-async function gsGo(key,id){   // 결과 누르면 그 자리로
+async function gsGo(key,id){ if(GS._going)return; GS._going=1; tgBusy('찾아가는 중…'); try{ return await _gsGoCore(key,id); } finally{ GS._going=0; tgBusyOff(); } }   /* (10/29) 불러오는 중 창 + 두 번 누름 막기 */
+async function _gsGoCore(key,id){   // 결과 누르면 그 자리로
   var src=GS_SRC.filter(function(s){return s.key===key;})[0], r=GS.res[key], row=(r&&r.rows||[]).find(function(z){return String(z.id||z.key||z.waybill_no)===String(id);}); if(!src||!row)return;
   gsClose();
   function roomBy(f){ return (rooms||[]).find(f); }
