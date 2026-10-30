@@ -23494,6 +23494,29 @@ function pmOldHtml(){ var n=PM.oldWait||0; return '<span style="font-size:12px;c
 async function pmOldCount(){ try{ var r=pmRange(); if(PM.period==='old'){ PM.oldWait=PM.rows.filter(function(o){return o.status==='wait';}).length; return; } var c=await sb.from('jonghap_orders').select('id',{count:'exact',head:true}).eq('status','wait').gte('date_str',jhOldSince()).lt('date_str',r[0]).or('cancelled.is.null,cancelled.eq.false'); PM.oldWait=c.count||0; }catch(e){ PM.oldWait=0; } }
 /* 주문방 '직배송방 카드 X' 줄 표시: 카드 취소 / 카드 삭제 */
 function otDvmissLabel(o){ var d=OM.mirror&&OM.mirror[o.id]; return (d&&d.cancelled)?'🚚 직배송방 카드 취소':'🚚 직배송방 카드 삭제'; }
+/* ── (10/30 호준님 2차) 칩 정리 — 두 방 같은 순서: 전체 → ⏳미처리 → 🔗재고연결 안 됨 → ❓출고지 빈칸·모름 → [택배방: 송장 나옴 · ❓송장 확인 필요(있을 때)] → 🚚직배송방 보냄(택배전환 포함) → ✓완료 → 있을 때만 🔔변동사항 · 🚚직배송방 카드 X
+   뺀 것: 📥입고방 등록됨 · 🔗재고 연결됨 · 🛒핑 주문중(줄 표시만 '🛒 주문해 둠(입고 대기)') · 양식 만듦 · 택배전환(직배송방 보냄에 묶고 줄엔 '🚚→📦 직배송에서 택배로') ── */
+OT_STEPS=[['todo','⏳ 미처리','me'],['nolink','🔗 재고연결 안 됨','me'],['unk','❓ 출고지 빈칸·모름','me'],['dvsent','🚚 직배송방 보냄','auto'],['done','✓ 완료','done']];
+OT_STEPS_X=[['chg','🔔 변동사항 추가','me'],['dvmiss','🚚 직배송방 카드 X','me']];
+if(typeof OT_LINK!=='undefined'&&OT_LINK.pingwait)OT_LINK.pingwait[0]='🛒 주문해 둠(입고 대기)';
+if(typeof PM_STEP!=='undefined'){ PM_STEP.tconv='🚚→📦 직배송에서 택배로'; PM_STEP.cand='❓ 송장 확인 필요'; }
+function pmChipPass(o,k){ if(!k)return true; if(k==='nolink')return pmNoLink(o); if(k==='unk')return pmUnk(o); if(k==='wait')return o.status==='wait'; if(k==='sent')return o.status==='sent'; if(k==='chg')return !!(typeof omChgLog==='function'&&omChgLog(o)); if(k==='dvmiss')return otLink(o)==='dvmiss'; return pmStepKey(o)===k; }
+pmRows=function(){ var L=pmBase().filter(function(o){ return pmMain(o)&&pmChipPass(o,PM.step)&&pmPass(o); });
+  if(PM.multi){ var cnt={}; pmBase().forEach(function(o){ cnt[pmRecvKey(o)]=(cnt[pmRecvKey(o)]||0)+1; }); L=L.filter(function(o){return cnt[pmRecvKey(o)]>1;}); L.sort(function(a,b){return pmRecvKey(a).localeCompare(pmRecvKey(b));}); }
+  if(PM.sort[0]){ var c=pmCol(PM.sort[0]); if(c)L=L.slice().sort(function(a,b){ var x=c[3](a),y=c[3](b); if(PM.sort[0]==='qty')return ((+x)-(+y))*PM.sort[1]; return String(x).localeCompare(String(y),'ko')*PM.sort[1]; }); }
+  return L; };
+pmSteps=function(){ var B=pmBase().filter(pmMain); var c=function(k){ return B.filter(function(o){return pmChipPass(o,k);}).length; }; var chip=function(k,lab,col,title){ return '<span class="pm-step'+(PM.step===k?' on':'')+'" onclick="PM.step=PM.step===\''+k+'\'?\'\':\''+k+'\';pmRender()"'+(title?' title="'+title+'"':'')+'><i style="background:'+col+'"></i>'+lab+' '+c(k)+'</span>'; };
+  var h='<span class="pm-step'+(!PM.step?' on':'')+'" onclick="PM.step=\'\';pmRender()">전체 '+B.length+'</span>'+chip('wait','⏳ 미처리','#f59e0b','완료·보냄이 아닌 줄 전부')+chip('nolink','🔗 재고연결 안 됨','#dc2626','미처리인데 재고·입고분에 연결 안 된 줄만')+chip('unk','❓ 출고지 빈칸·모름','#d97706','미처리인데 시트 출고지가 비었거나 거래처를 못 읽은 줄')+chip('wb','송장 나옴','#3b82f6','');
+  if(c('cand'))h+=chip('cand','❓ 송장 확인 필요','#dc2626','송장 후보가 여럿이라 사람이 골라야 하는 줄');
+  h+=chip('sent','🚚 직배송방 보냄','#0f766e','직배송방으로 보낸 줄 — 줄마다 직배송 대기/1호차 또는 🚚→📦 직배송에서 택배로'); if(PM.showDone)h+=chip('done','✓ 완료','#22c55e','');
+  if(c('chg'))h+=chip('chg','🔔 변동사항 추가','#dc2626','처리한 뒤 시트 줄이 바뀐 것'); if(c('dvmiss'))h+=chip('dvmiss','🚚 직배송방 카드 X','#dc2626','직배송방으로 보냈는데 그쪽 카드가 취소·삭제된 줄');
+  return h; };
+/* ── (10/30 호준님) 택배방 [📄 택배양식] 버튼은 평소 숨김 — 경동 접수가 실패하면(스크립트·로그인 오류) "택배양식이 필요한가요?" 묻고, 예를 누르면 그날만 켜짐(다음 날 다시 숨김) ── */
+function pmFormDay(){ try{ return localStorage.getItem('pm_form_day')||''; }catch(e){ return ''; } }
+function pmFormApply(){ try{ document.body.classList.toggle('pm-form-on',pmFormDay()===getTodayISO()); }catch(e){} }
+function pmFormEnable(){ try{ localStorage.setItem('pm_form_day',getTodayISO()); }catch(e){} pmFormApply(); if(typeof stkToast==='function')stkToast('📄 택배양식 버튼을 오늘만 켰어요 — 내일은 다시 숨겨집니다'); }
+document.head.insertAdjacentHTML('beforeend','<style>body:not(.pm-form-on) #parcel-screen [onclick="pmXlsx()"]{display:none!important}</style>'); pmFormApply(); try{ setInterval(pmFormApply,60000); }catch(e){}
+var _pmFormTimer=setInterval(function(){ /* kdLabelNote는 뒤쪽 스크립트에서 나중에 정의됨(파싱 직후엔 없음 — 10/30 실측) → 생길 때까지 기다렸다 감쌈 */ if(typeof kdLabelNote!=='function')return; clearInterval(_pmFormTimer); if(window._kdNoteFormWrapped)return; window._kdNoteFormWrapped=true; var _n=kdLabelNote; kdLabelNote=function(msg,kind){ var r=_n.apply(this,arguments); try{ if(kind==='bad'&&/경동 (엑셀등록 실패|접수 오류)/.test(String(msg||''))&&pmFormDay()!==getTodayISO()){ var ps=document.getElementById('parcel-screen'); if(ps&&ps.style.display!=='none'){ setTimeout(function(){ if(confirm('경동 접수가 실패했어요.\n'+String(msg||'').slice(0,120)+'\n\n비상용 [📄 택배양식](경동 업로드 파일)을 오늘만 켤까요?'))pmFormEnable(); },50); } } }catch(e){} return r; }; },500);
 /* 방 읽을 때 시작일 먼저 */
 (function(){ if(typeof omLoad==='function'&&!window._omLoadOldWrapped){ window._omLoadOldWrapped=true; var _o=omLoad; omLoad=async function(){ await jhOldSinceLoad(); return _o.apply(this,arguments); }; } if(typeof pmLoad==='function'&&!window._pmLoadOldWrapped){ window._pmLoadOldWrapped=true; var _p=pmLoad; pmLoad=async function(){ await jhOldSinceLoad(); var r=await _p.apply(this,arguments); try{ await pmOldCount(); var re=document.getElementById('pm-range'); if(re&&!PM.loading){ var rg=pmRange(); re.innerHTML=esc(rg[0]===rg[1]?jhDayLabel(rg[0]):rg[0]+' ~ '+rg[1])+(PM.period==='old'?' <b style="color:#dc2626">⏳ 지난 미처리만 '+(PM.oldWait||0)+'건 — 오래된 순</b>':pmOldHtml()); } }catch(e){} return r; }; } if(typeof jhAutoSync==='function'&&!window._jhSyncOldWrapped){ window._jhSyncOldWrapped=true; var _s=jhAutoSync; jhAutoSync=async function(){ try{ await jhOldSinceLoad(); }catch(e){} return _s.apply(this,arguments); }; } })();
 
