@@ -815,6 +815,7 @@ body.rb-on #app{padding-top:58px}
 /* (10/2) 거래처 양식 중 입고방에도 기록되는 칸(출고·패턴·사이즈·수량) 강조 */
 #dlv-tseg-row .seg.inb-link{border:2px solid #7c3aed;background:#f5f3ff}
 #dlv-tseg-row .seg.inb-link .seg-label{color:#6d28d9;font-weight:800}
+.kd-need{border:2px solid #111}.kd-need .seg-label{color:#111;font-weight:900}   /* (11/2 호준님) 택배 필수 칸 — 검정 굵은 선 */
 .dlv-inb-note{font-size:10.5px;color:#6d28d9;margin:4px 2px 2px;font-weight:700;line-height:1.5}
 .dlv-pv-inb{display:inline-block;font-size:10px;font-weight:800;padding:1px 7px;border-radius:8px;margin-left:4px;white-space:nowrap}
 .dlv-pv-inb.ok{background:#ede9fe;color:#6d28d9}.dlv-pv-inb.no{background:#f1f5f9;color:#64748b}
@@ -2946,14 +2947,14 @@ table.tsr-em td.auto{background:#f8fafc;color:#15803d;font-weight:800;padding:7p
             <div class="seg ts-qty inb-link"><span class="seg-label">수량</span><input id="t-qty" placeholder="4" inputmode="numeric"></div>
             <div class="seg ts-price"><span class="seg-label">출고가</span><input id="t-price" placeholder="개당" inputmode="numeric"></div>
             <div class="seg ts-ship"><span class="seg-label">배송료(개당)</span><input id="t-ship" placeholder="예: 6000 (안 적으면 사이즈 규칙대로)" inputmode="numeric"></div>
-            <div class="seg ts-recv"><span class="seg-label">받는분</span><input id="t-recv" placeholder="(선택)"></div>
-            <div class="seg ts-tel"><span class="seg-label">전화</span><input id="t-tel" placeholder="(선택)" inputmode="tel"></div>
-            <div class="seg ts-zip"><span class="seg-label">우편번호</span><input id="t-zip" placeholder="(선택)" inputmode="numeric" maxlength="7"></div>
-            <div class="seg f-spec ts-addr"><span class="seg-label">주소</span><input id="t-addr" placeholder="(선택 · 띄어쓰기 자유)"></div>
+            <div class="seg ts-recv kd-need"><span class="seg-label">받는분</span><input id="t-recv" placeholder="(택배면 꼭)"></div>
+            <div class="seg ts-tel kd-need"><span class="seg-label">전화</span><input id="t-tel" placeholder="(택배면 꼭)" inputmode="tel"></div>
+            <div class="seg ts-zip kd-need"><span class="seg-label">우편번호</span><input id="t-zip" placeholder="(택배면 꼭)" inputmode="numeric" maxlength="7"></div>
+            <div class="seg f-spec ts-addr kd-need"><span class="seg-label">주소</span><input id="t-addr" placeholder="(택배면 꼭 · 띄어쓰기 자유)"></div>
             <div class="seg ts-memo"><span class="seg-label">메모</span><input id="t-memo" placeholder="(선택)"></div>
           </div>
           <div id="tb-hint" style="font-size:12px;margin:5px 2px 2px;line-height:1.6;color:#334155"></div>
-          <div class="dlv-inb-note">📦 보라 테두리 칸(출고·패턴·사이즈·수량)은 등록하는 순간 <b>입고방에도 기록</b>됩니다. 출고처가 창고·빈칸이면 입고방엔 안 들어갑니다. 출고를 <b>매일2창고2</b>처럼 적으면 창고 몫은 빼고 "매일 2개"만 입고방에 들어갑니다(여러 거래처면 줄이 여러 개). 연식은 사이즈 뒤에 "26년"처럼 적으면 같이 넘어갑니다.</div>
+          <div class="dlv-inb-note" style="margin-bottom:4px">📮 <b style="color:#111">검정 굵은 칸(받는분·전화·우편번호·주소)</b> = 택배로 보낼 때 꼭 필요 · 품목은 패턴·사이즈·수량으로 만들어요.</div><div class="dlv-inb-note">📦 보라 테두리 칸(출고·패턴·사이즈·수량)은 등록하는 순간 <b>입고방에도 기록</b>됩니다. 출고처가 창고·빈칸이면 입고방엔 안 들어갑니다. 출고를 <b>매일2창고2</b>처럼 적으면 창고 몫은 빼고 "매일 2개"만 입고방에 들어갑니다(여러 거래처면 줄이 여러 개). 연식은 사이즈 뒤에 "26년"처럼 적으면 같이 넘어갑니다.</div>
           <div class="item-add-row">
             <button class="item-add-btn ghost" onclick="tbOpen()" title="거래처 주소록 — 찾기·추가·수정">📒 주소록</button>
             <button class="item-add-btn ghost" onclick="dlvTradeClear()">지우기</button>
@@ -6164,7 +6165,9 @@ function _dlvYearTxt(c,tire,spec){ // 연식: 올해는 '2026', 과년은 '[2024
 var _DLV_TOKNOISE={'EV':1,'XL':1,'OE':1,'AS':1,'MT':1,'RF':1,'TL':1,'PR':1,'NCS':1,'GOE':1,'MOE':1,'KS':1,'DOT':1};
 function _dlvCodeTok(txt){   // 텍스트에서 패턴코드 후보 뽑기 (영문+숫자, 3자 이상) — '엑스타PS71EV'처럼 한글에 붙어 있어도 잡는다
   var out=[], re=/[A-Za-z]{1,5}\d{1,4}[A-Za-z0-9+]*/g, m;
-  while((m=re.exec(String(txt||'')))){
+  var _s=String(txt||'');
+  while((m=re.exec(_s))){
+    if(m.index>0&&/[A-Za-z]/.test(_s.charAt(m.index-1)))continue;   /* (11/2) 낱말 중간부터 떼지 않음 — 'SERIES1'→'ERIES1', 'ContiPremiumContact6'→'NTACT6'로 송장에 찍히던 것 */
     var t=m[0].toUpperCase();
     if(t.length<3)continue;
     if(/^\d/.test(t))continue;
@@ -24175,10 +24178,10 @@ function ahWbFromNote(o){ var m=String((o&&o.use_note)||'').match(/시트송장:
    방식: 화면 안에서 찾는 방은 "찾을 글"에 사전의 다른 표기를 덧붙여 비교(tgAliasHay) · 전체 검색(DB)은 검색어를 표기마다 '또는'으로(tgGsOr). */
 var TG_ALIAS_EXTRA=[
   ['hankook','한국','한국타이어','한타'],['kumho','금호','금호타이어'],['nexen','넥센','넥센타이어'],['michelin','미쉐린','미쉘린'],['pirelli','피렐리'],
-  ['continental','콘티넨탈','콘티'],['bridgestone','브리지스톤','브릿지스톤'],['goodyear','굿이어'],['yokohama','요코하마'],['dunlop','던롭'],['toyo','토요'],
+  ['continental','콘티넨탈','콘티','conti'],['bridgestone','브리지스톤','브릿지스톤'],['goodyear','굿이어'],['yokohama','요코하마'],['dunlop','던롭'],['toyo','토요'],
   ['sailun','사일룬'],['laufenn','라우펜'],['bfgoodrich','비에프굿리치','bfg'],['radar','레이다'],['falken','팔켄'],['nitto','니토'],['linglong','링롱'],
   ['roadstone','로드스톤'],['marshal','마샬'],['triangle','트라이앵글'],
-  ['alpin','알핀','알파인'],['pilot','파일럿'],['sport','스포츠'],['winter','윈터'],['summer','썸머','서머'],['all season','올시즌','사계절']
+  ['alpin','알핀','알파인'],['premium','프리미엄'],['contact','콘택트','콘텍트'],['contact6','콘택트6','콘텍트6'],['pilot','파일럿'],['sport','스포츠'],['winter','윈터'],['summer','썸머','서머'],['all season','올시즌','사계절']
 ];
 var TG_ALIAS_CAT={'윈터':1,'올시즌':1,'사계절':1,'오프로드':1,'런플랫':1,'흡음':1,'겨울':1};
 var TG_ALIAS=null, _tgAliasIdx=null, _tgAliasCache=new Map();
