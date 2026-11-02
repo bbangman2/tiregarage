@@ -3827,7 +3827,7 @@ function tradeEsc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/
 function tradeMatch(r){
   var q=(document.getElementById('trade-search-input')&&document.getElementById('trade-search-input').value||'').trim().toLowerCase();
   if(!q)return true;
-  return ['out_src','client','pattern','spec','memo','payer'].some(function(k){return String(r[k]||'').toLowerCase().indexOf(q)>=0;});
+  return tgAliasHay(['out_src','client','pattern','spec','memo','payer'].map(function(k){return String(r[k]||'');}).join(' ').toLowerCase()).indexOf(q)>=0;   /* (11/2) 검색 사전 */
 }
 function tradeRender(){
   var el=document.getElementById('trade-body'); if(!el)return;
@@ -8945,7 +8945,7 @@ function tgSizeKeys(canon){ // 정규화 문장 속 숫자 연속 토막에서 �
 }
 function tgSearchHit(hay,q){
   var Q=String(q||''); if(!Q.trim())return true;
-  var h=tgSearchCanon(hay);
+  var h=tgAliasHay(tgSearchCanon(hay));
   function _bd(t){ return new RegExp('(^| )'+t.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'( |$)').test(h); }
   if(!/\s/.test(Q.trim())){ // 붙여쓴 검색어
     var qc=tgSearchCanon(Q), qd=qc.replace(/[^0-9]/g,'');
@@ -10952,7 +10952,7 @@ function otStepPass(o,k){ if(!k)return true; if(k==='todo')return jhPending(o); 
 function otPool(){ return OM.rows.filter(function(o){ return !OM.f.plat||o.platform===OM.f.plat; }); }   /* 판매처 칩을 누르면 모든 숫자가 그 판매처 기준 */
 function otBase(){ return otPool().filter(function(o){ return !OM.tab||(o.dtype||'etc')===OM.tab; }); }
 function otMain(o){ return OM.showDone||!omIsDone(o)||OM.f.st==='완료'||OM.step; }
-function otPass(o,skip){ var q=((document.getElementById('om-q')||{}).value||'').trim().toLowerCase(); if(q){ var hay=[o.recv,o.tel,o.brand,o.name,o.code,o.size,o.order_no,o.src,o.addr,o.use_note].join(' ').toLowerCase(); var hd=hay.replace(/[\/\-\s]/g,''); if(!q.split(/\s+/).every(function(t){return hay.indexOf(t)>=0||hd.indexOf(t.replace(/[\/\-\s]/g,''))>=0;}))return false; }
+function otPass(o,skip){ var q=((document.getElementById('om-q')||{}).value||'').trim().toLowerCase(); if(q){ var hay=tgAliasHay([o.recv,o.tel,o.brand,o.name,o.code,o.size,o.order_no,o.src,o.addr,o.use_note].join(' ').toLowerCase()); var hd=hay.replace(/[\/\-\s]/g,''); if(!q.split(/\s+/).every(function(t){return hay.indexOf(t)>=0||hd.indexOf(t.replace(/[\/\-\s]/g,''))>=0;}))return false; }
   for(var k in OM.f){ if(k===skip)continue; var v=OM.f[k]; if(!v)continue; var c=otCol(k); if(!c)continue; var x=c[3](o); if(c[2]==='sel'){ if(x!==v)return false; } else if(c[2]==='size'){ if(jhSzDigits(x).indexOf(jhSzDigits(v))<0)return false; } else { var ws=String(v).toLowerCase().split(/\s+/).filter(Boolean), hx=String(x).toLowerCase(); if(!ws.every(function(w){return hx.indexOf(w)>=0;}))return false; } } return true; }
 function otRows(){ var L=otBase().filter(function(o){ return otMain(o)&&otStepPass(o,OM.step)&&otPass(o); });
   if(OM.multi){ var cnt={}; otBase().forEach(function(o){ cnt[pmRecvKey(o)]=(cnt[pmRecvKey(o)]||0)+1; }); L=L.filter(function(o){return cnt[pmRecvKey(o)]>1;}); L.sort(function(a,b){return pmRecvKey(a).localeCompare(pmRecvKey(b));}); return L; }
@@ -11742,7 +11742,7 @@ function pmNoteKv(o){ return String(o.use_note||'').split(' · ').map(function(s
 function pmPool(){ return PM.rows.filter(function(o){ return !PM.f.plat||o.platform===PM.f.plat; }); }
 function pmBase(){ return pmPool().filter(function(o){ return !PM.tab||pmTabs(o).indexOf(PM.tab)>=0; }); }   /* (10/30) [전체] 칩 */
 function pmMain(o){ if(PM.tab==='in')return o.status!=='done'||PM.showDone; if(o.status==='done')return PM.showDone; if(o.status==='sent')return PM.showDone||pmIsParcelSent(o); return true; }   /* (10/21) 직배송방 보낸 줄도 그 분류 탭에 '처리됨'으로 */
-function pmPass(o,skip){ var q=((document.getElementById('pm-q')||{}).value||'').trim().toLowerCase(); if(q){ var hay=[o.recv,o.tel,o.brand,o.name,o.code,o.size,o.order_no,o.src,o.addr,o.use_note,pmWb(o).join(' ')].join(' ').toLowerCase(); var hd=hay.replace(/[\/\-\s]/g,''); if(!q.split(/\s+/).every(function(t){return hay.indexOf(t)>=0||hd.indexOf(t.replace(/[\/\-\s]/g,''))>=0;}))return false; }   /* (10/21) 택배방 찾기 칸 */ for(var k in PM.f){ if(k===skip)continue; var v=PM.f[k]; if(!v)continue; var c=pmCol(k); if(!c)continue; var x=c[3](o); if(c[2]==='sel'){ if(x!==v)return false; } else if(c[2]==='size'){ if(jhSzDigits(x).indexOf(jhSzDigits(v))<0)return false; } else { var ws=String(v).toLowerCase().split(/\s+/).filter(Boolean), hx=String(x).toLowerCase(); if(!ws.every(function(w){return hx.indexOf(w)>=0;}))return false; } } return true; }
+function pmPass(o,skip){ var q=((document.getElementById('pm-q')||{}).value||'').trim().toLowerCase(); if(q){ var hay=tgAliasHay([o.recv,o.tel,o.brand,o.name,o.code,o.size,o.order_no,o.src,o.addr,o.use_note,pmWb(o).join(' ')].join(' ').toLowerCase()); var hd=hay.replace(/[\/\-\s]/g,''); if(!q.split(/\s+/).every(function(t){return hay.indexOf(t)>=0||hd.indexOf(t.replace(/[\/\-\s]/g,''))>=0;}))return false; }   /* (10/21) 택배방 찾기 칸 */ for(var k in PM.f){ if(k===skip)continue; var v=PM.f[k]; if(!v)continue; var c=pmCol(k); if(!c)continue; var x=c[3](o); if(c[2]==='sel'){ if(x!==v)return false; } else if(c[2]==='size'){ if(jhSzDigits(x).indexOf(jhSzDigits(v))<0)return false; } else { var ws=String(v).toLowerCase().split(/\s+/).filter(Boolean), hx=String(x).toLowerCase(); if(!ws.every(function(w){return hx.indexOf(w)>=0;}))return false; } } return true; }
 function pmRecvKey(o){ var t=String(o.tel||'').replace(/\D/g,'').slice(-8); return t.length>=7?'t'+t:'n'+String(o.recv||'').replace(/\s+/g,''); }
 function pmNoLink(o){ return (o.status==='wait'||o.status==='done')&&jhNoLink(o); }   /* (10/30 밤 호준님) 완료돼도 미연결은 미연결 */
 function pmUnk(o){ var P=omSrc(o); return o.status==='wait'&&!!(P.empty||P.unk); }   /* (10/29 호준님) 택배방에도 출고지 빈칸·모름 칩 — 주문방 '❓'와 같은 기준 */   /* (10/28 호준님) 재고연결 안 됨 = 주문방과 같은 기준 */
@@ -15068,7 +15068,7 @@ function stkLotPriceHtml(p,l){   /* (10/26) 연식 줄: 택배가 · 장착가 �
     +(c.cost?'<small style="'+sm+'color:#b45309">원가 '+stkWon(c.cost)+'</small>':'')
     +(fp?'<small style="'+sm+'color:#555">공장도 '+stkWon(fp)+'</small>':'')
     +(c.how==='연식'&&!l.price?'<small style="'+sm+'font-size:10px;font-weight:800;color:#7c3aed">연식 '+c.rate+'%</small>':'')+'</span>'; }
-var STK_KO_ALIAS={'벤투스':['ventus'],'다이나프로':['dynapro'],'키너지':['kinergy'],'옵티모':['optimo'],'아이셉트':['i*cept','icept'],'아이파이크':['i*pike','ipike'],'아이온':['ion'],'윈터':['winter','i*cept','i*pike','blizzak','winguard','wintrac','alpin','sottozero','scorpion winter','ice','snow','w3','w4','w6','rw'],'겨울':['winter'],'엔페라':["n'fera",'nfera','n fera'],'엔블루':["n'blue",'nblue','n blue'],'엔프리즈':["n'priz",'npriz'],'로디안':['roadian'],'윈가드':['winguard'],'슈프림':['supreme'],'엑스타':['ecsta'],'크루젠':['crugen'],'솔루스':['solus'],'포트란':['portran'],'마제스티':['majesty'],'윈터크래프트':['wintercraft'],'피제로':['p zero','pzero'],'친투라토':['cinturato'],'스콜피온':['scorpion'],'파일럿':['pilot'],'프라이머시':['primacy'],'크로스클라이밋':['crossclimate'],'아질리스':['agilis'],'래티튜드':['latitude'],'알파인':['alpin'],'이글':['eagle'],'어슈어런스':['assurance'],'이피션트':['efficient'],'블루어스':['bluearth'],'어드밴':['advan'],'지오랜더':['geolandar'],'투란자':['turanza'],'포텐자':['potenza'],'알렌자':['alenza'],'듀엘러':['dueler'],'에코피아':['ecopia'],'블리작':['blizzak'],'프리미엄컨택':['premiumcontact','premium contact'],'스포츠컨택':['sportcontact','sport contact'],'에코컨택':['ecocontact'],'울트라컨택':['ultracontact'],'올시즌':['all season','allseason','4season','a/s','as'],'사계절':['all season','allseason','4season'],'오프로드':['a/t','m/t','at','mt','r/t'],'인스파이어':['inspire'],'아트레조':['atrezzo'],'테라맥스':['terramax'],'아이스블레이저':['ice blazer','iceblazer'],'런플랫':['runflat','run flat','rft','ssr','zp'],'흡음':['sound absorber','soundabsorber','foam','silent']};
+var STK_KO_ALIAS={'벤투스':['ventus'],'다이나프로':['dynapro'],'키너지':['kinergy'],'옵티모':['optimo'],'아이셉트':['i*cept','icept'],'아이파이크':['i*pike','ipike'],'아이온':['ion'],'윈터':['winter','i*cept','i*pike','blizzak','winguard','wintrac','alpin','sottozero','scorpion winter','ice','snow','w3','w4','w6','rw'],'겨울':['winter'],'엔페라':["n'fera",'nfera','n fera'],'엔블루':["n'blue",'nblue','n blue'],'엔프리즈':["n'priz",'npriz'],'로디안':['roadian'],'윈가드':['winguard'],'슈프림':['supreme'],'엑스타':['ecsta'],'크루젠':['crugen'],'솔루스':['solus'],'포트란':['portran'],'마제스티':['majesty'],'윈터크래프트':['wintercraft'],'피제로':['p zero','pzero'],'친투라토':['cinturato'],'스콜피온':['scorpion'],'파일럿':['pilot'],'프라이머시':['primacy'],'크로스클라이밋':['crossclimate'],'아질리스':['agilis'],'래티튜드':['latitude'],'알파인':['alpin'],'알핀':['alpin'],'이글':['eagle'],'어슈어런스':['assurance'],'이피션트':['efficient'],'블루어스':['bluearth'],'어드밴':['advan'],'지오랜더':['geolandar'],'투란자':['turanza'],'포텐자':['potenza'],'알렌자':['alenza'],'듀엘러':['dueler'],'에코피아':['ecopia'],'블리작':['blizzak'],'프리미엄컨택':['premiumcontact','premium contact'],'스포츠컨택':['sportcontact','sport contact'],'에코컨택':['ecocontact'],'울트라컨택':['ultracontact'],'올시즌':['all season','allseason','4season','a/s','as'],'사계절':['all season','allseason','4season'],'오프로드':['a/t','m/t','at','mt','r/t'],'인스파이어':['inspire'],'아트레조':['atrezzo'],'테라맥스':['terramax'],'아이스블레이저':['ice blazer','iceblazer'],'런플랫':['runflat','run flat','rft','ssr','zp'],'흡음':['sound absorber','soundabsorber','foam','silent']};
 function stkKoAlias(t){ var a=STK_KO_ALIAS[t]; if(a)return a; for(var k in STK_KO_ALIAS){ if(t.length>=2&&k.indexOf(t)===0)return STK_KO_ALIAS[k]; } return null; }   /* (10/22) 한글 패턴 이름→영어 별칭(앞글자 일치도) */
 function stkMatch(p,q){
   if(!q.trim())return true;
@@ -15083,7 +15083,7 @@ function stkMatch(p,q){
   var sizeNums=p.size.split(/[^0-9]+/).filter(Boolean);
   var dotTokens=p.lots.map(function(l){return l.dot||'';}).filter(Boolean);
   var plyTok=(p.ply||'').toLowerCase().trim();
-  var hay=((p.cat||'일반')+' '+(p.source||'')+' '+p.br+' '+p.name+' '+(p.code||'')+' '+p.size+' '+(p.ply||'')+' '+(p.spec||'')+' '+locs+' '+(p.memo||'')+(dm?' dot누락 DOT누락':'')).toLowerCase();
+  var hay=((p.cat||'일반')+' '+(p.source||'')+' '+p.br+' '+p.name+' '+(p.code||'')+' '+p.size+' '+(p.ply||'')+' '+(p.spec||'')+' '+locs+' '+(p.memo||'')+(dm?' dot누락 DOT누락':'')).toLowerCase(); hay=tgAliasHay(hay);
   return q.toLowerCase().split(/\s+/).filter(Boolean).every(function(t){
     var tq=t.replace(/p$/,'');   // 통짜+P수 정확검색: '275602010p' = 2756020 사이즈 + 10P (호준님 9/2)
     var td=tq.replace(/[^0-9]/g,'');
@@ -20825,7 +20825,7 @@ function rsvRenderSearchList(q){
       if(r.chk_air)_chk.push('공기압');
       if(r.chk_tpms)_chk.push('TPMS');
       var _qs=rsvQuoteState(r), _dn=rsvDoneBy(r); if(_qs==='done')_chk.push('견적서 작성됨 견적작성 작성'); else if(_qs==='none')_chk.push('견적서 미작성 견적미작성 미작성'); if(_dn)_chk.push('완료 '+_dn); if(r.pay_method==='이체')_chk.push('이체 계좌이체 🏦'); var _mg=rsvMgr(r); if(_mg)_chk.push('담당 담당자 '+_mg);
-      var hay=[r.memo,r.work_note,r.tire_spec,r.tire_pattern,r.phone,r.car_no,r.car_name,r.user_name,r.date_str,r.time_slot,r.status].concat(_amts).concat(_chk).filter(Boolean).join(' ').toLowerCase();
+      var hay=[r.memo,r.work_note,r.tire_spec,r.tire_pattern,r.phone,r.car_no,r.car_name,r.user_name,r.date_str,r.time_slot,r.status].concat(_amts).concat(_chk).filter(Boolean).join(' ').toLowerCase(); hay=tgAliasHay(hay);
       if(!ql.split(/\s+/).filter(Boolean).every(function(tk){ return hay.indexOf(tk)>=0; })) return false;   // (10/19) 띄어 쓴 낱말 모두
     }
     if(RSV_QF==='bank'){ if(r.pay_method!=='이체'||r.status==='취소')return false; } else if(RSV_QF){ var _q2=rsvQuoteState(r); if(RSV_QF==='done'&&_q2!=='done')return false; if(RSV_QF==='none'&&_q2==='done')return false; if(r.status==='취소')return false; }   // (10/19) 견적서 칩
@@ -23105,7 +23105,7 @@ function tsrAlarm(o){ return o.status==='keep'&&(tsrDue(o)||(tsrSeason(o)&&!tsrC
 function tsrKindTag(o){ return o.kind==='summer'?'<span class="tsr-tag b">☀ 서머 보관</span>':(o.kind==='winter'?'<span class="tsr-tag p">❄ 윈터 보관</span>':'<span class="tsr-tag g">기타</span>'); }
 function tsrStTag(o){ if(o.status==='out')return '<span class="tsr-tag g">↩ 돌려드림</span>'; var h='',d=tsrDays(o.paid_until); if(d<0)h+='<span class="tsr-tag r">💰 미납 '+(-d)+'일</span>'; else if(d<=14)h+='<span class="tsr-tag o">💰 보관료 '+d+'일 뒤</span>'; if(tsrSeason(o))h+=tsrContacted(o)?'<span class="tsr-tag k">🍂 연락함</span>':'<span class="tsr-tag o">🍂 교체 시기</span>'; return h||'<span class="tsr-tag k">📦 보관 중</span>'; }
 function tsrLocTxt(o){ return o.loc?(o.loc+(o.stk>=0&&o.stk!=null?' '+TSR_SN[o.stk]+'줄':'')):'(위치 없음)'; }
-function tsrMatch(o,q){ q=String(q||'').replace(/[\s\-]/g,'').toLowerCase(); if(!q)return true; return [o.car,o.name,o.tel,o.model,o.brand,o.pattern,o.size,o.loc,o.memo].join('').replace(/[\s\-]/g,'').toLowerCase().indexOf(q)>=0; }
+function tsrMatch(o,q){ q=String(q||'').replace(/[\s\-]/g,'').toLowerCase(); if(!q)return true; return tgAliasHay([o.car,o.name,o.tel,o.model,o.brand,o.pattern,o.size,o.loc,o.memo].join(' ').toLowerCase()).replace(/[\s\-]/g,'').toLowerCase().indexOf(q)>=0; }
 function tsrSets(cd){ return TSR.rows.filter(function(o){return o.status==='keep'&&o.loc===cd;}); }
 async function tsrUpdate(id,up,logT,extra){ var o=tsrRow(id); if(!o)return false; var who=(me&&me.name)||'?'; var diff=[]; Object.keys(up).forEach(function(k){ var a=String(o[k]==null?'':o[k]), b=String(up[k]==null?'':up[k]); if(a!==b)diff.push({k:k,b:a,a:b}); }); var lg=(Array.isArray(o.logs)?o.logs:[]).concat([Object.assign({t:logT,by:who,at:new Date().toISOString(),diff:diff},extra||{})]); var payload=Object.assign({},up,{logs:lg,updated_at:new Date().toISOString()}); var r=await sb.from('stored_sets').update(payload).eq('id',id); if(r.error){ alert('저장 실패: '+r.error.message); return false; } Object.assign(o,payload); try{ logAudit('🛞 보관 '+logT,(o.car||'')+' '+(o.name||'')+' '+(o.brand||'')+' '+(o.size||'')+' · '+diff.map(function(d){return d.k+' '+(d.b||'빈칸')+'→'+(d.a||'빈칸');}).join(' · ').slice(0,200)); }catch(e){} return true; }
 /* ── 열기·그리기 ── */
@@ -24169,6 +24169,64 @@ function ahWbFromNote(o){ var m=String((o&&o.use_note)||'').match(/시트송장:
 (function(){ if(window._ahOwnerWrapped||typeof jhInbOwnerPaint!=='function')return; window._ahOwnerWrapped=true; var _o=jhInbOwnerPaint; jhInbOwnerPaint=function(){ _o.apply(this,arguments); try{ var b=document.getElementById('inb-ownerbtn'); if(b&&INB_OWNER&&b.innerHTML.indexOf('오토하이브=')<0)b.innerHTML+='<button onclick="jhInbOwnerEdit(\'오토하이브\')" title="오토하이브 시트 담당만 바꾸기">오토하이브='+esc(INB_OWNER['오토하이브']||AH_RULES.owner)+'</button>'; }catch(e){} }; if(typeof jhInbOwnerEdit==='function'){ var _e=jhInbOwnerEdit; jhInbOwnerEdit=async function(k){ if(k!=='오토하이브')return _e.apply(this,arguments); if(!me){ alert('먼저 이름을 고르세요'); return; } await jhInbOwnerLoad(); var v=prompt('오토하이브 시트 담당',INB_OWNER['오토하이브']||AH_RULES.owner); if(v==null)return; var cur={}; try{ var r0=await sb.from('settings').select('value').eq('key','inb_owner').maybeSingle(); cur=(r0&&r0.data&&r0.data.value)||{}; }catch(e){} cur['오토하이브']=v.trim(); var up=await sb.from('settings').upsert({key:'inb_owner',value:cur,updated_at:new Date().toISOString()},{onConflict:'key'}); if(up&&up.error){ alert('저장 실패: '+up.error.message); return; } INB_OWNER=Object.assign({},INB_OWNER_DEF,cur); try{ logAudit('입고 담당 변경','오토하이브: '+v); }catch(e){} jhInbOwnerPaint(); }; } })();
 (function(){ try{ if(typeof jhInbChannelOf==='function'){ var _c=jhInbChannelOf; jhInbChannelOf=function(it){ var m=String(it&&it.use_note||'').match(/(?:📋 주문|🚀 직접출고(?:\([^)]*\))?) · (오토하이브)/); return m?m[1]:_c.apply(this,arguments); }; } }catch(e){} })();
 
+/* ═══════════ 📖 검색 사전 (11/2 호준님) — 영문 표기 ↔ 한글 발음, 메신저 모든 방 검색 공통 ═══════════
+   한 줄 = 같은 말의 여러 표기(예: alpin = 알핀, 알파인). 어느 표기로 찾아도 다른 표기가 적힌 것까지 나옴.
+   저장: settings 'search_alias' {list:[[표기,...],...]} — 대표가 [📖 검색 사전]에서 고침. 없으면 아래 기본값.
+   방식: 화면 안에서 찾는 방은 "찾을 글"에 사전의 다른 표기를 덧붙여 비교(tgAliasHay) · 전체 검색(DB)은 검색어를 표기마다 '또는'으로(tgGsOr). */
+var TG_ALIAS_EXTRA=[
+  ['hankook','한국','한국타이어','한타'],['kumho','금호','금호타이어'],['nexen','넥센','넥센타이어'],['michelin','미쉐린','미쉘린'],['pirelli','피렐리'],
+  ['continental','콘티넨탈','콘티'],['bridgestone','브리지스톤','브릿지스톤'],['goodyear','굿이어'],['yokohama','요코하마'],['dunlop','던롭'],['toyo','토요'],
+  ['sailun','사일룬'],['laufenn','라우펜'],['bfgoodrich','비에프굿리치','bfg'],['radar','레이다'],['falken','팔켄'],['nitto','니토'],['linglong','링롱'],
+  ['roadstone','로드스톤'],['marshal','마샬'],['triangle','트라이앵글'],
+  ['alpin','알핀','알파인'],['pilot','파일럿'],['sport','스포츠'],['winter','윈터'],['summer','썸머','서머'],['all season','올시즌','사계절']
+];
+var TG_ALIAS_CAT={'윈터':1,'올시즌':1,'사계절':1,'오프로드':1,'런플랫':1,'흡음':1,'겨울':1};
+var TG_ALIAS=null, _tgAliasIdx=null, _tgAliasCache=new Map();
+function tgAliasCanon(s){ return String(s==null?'':s).toLowerCase().replace(/[^0-9a-z가-힣]+/g,' ').replace(/\s+/g,' ').trim(); }
+function tgAliasDefault(){ var out=[], seen={};
+  var add=function(arr){ var g=[]; arr.forEach(function(x){ var c=tgAliasCanon(x); if(c&&g.indexOf(c)<0)g.push(c); }); if(g.length<2)return; var k=g.slice().sort().join('|'); if(seen[k])return; seen[k]=1; out.push(g); };
+  try{ if(typeof STK_KO_ALIAS!=='undefined')Object.keys(STK_KO_ALIAS).forEach(function(k){ if(TG_ALIAS_CAT[k])return; add([k].concat(STK_KO_ALIAS[k]||[])); }); }catch(e){}   /* 묶음 낱말(윈터=겨울 패턴 전체 등)은 재고방 자체 규칙에만 — 사전에 넣으면 '알핀'이 ICE·SNOW까지 걸림 */
+  try{ if(typeof PARCEL_DICT_DEF!=='undefined')PARCEL_DICT_DEF.forEach(function(g){ if(g&&g.rep&&Array.isArray(g.keys))add([g.rep].concat(g.keys)); }); }catch(e){}
+  TG_ALIAS_EXTRA.forEach(add);
+  /* 같은 표기가 든 줄끼리 합침(알파인 줄 + 알핀 줄 → 한 줄) */
+  var merged=[]; out.forEach(function(g){ var hit=merged.filter(function(m){ return g.some(function(x){ return m.indexOf(x)>=0; }); }); if(!hit.length){ merged.push(g.slice()); return; } var m0=hit[0]; hit.slice(1).forEach(function(m){ m.forEach(function(x){ if(m0.indexOf(x)<0)m0.push(x); }); merged.splice(merged.indexOf(m),1); }); g.forEach(function(x){ if(m0.indexOf(x)<0)m0.push(x); }); });
+  return merged; }
+function tgAliasBuild(list){ TG_ALIAS=(list||[]).map(function(g){ return (g||[]).map(tgAliasCanon).filter(Boolean); }).filter(function(g){ return g.length>=2; });
+  _tgAliasIdx=[]; TG_ALIAS.forEach(function(g,gi){ g.forEach(function(sp){ var ko=/[가-힣]/.test(sp); _tgAliasIdx.push({sp:sp, gi:gi, edge:!ko&&sp.replace(/ /g,'').length<=4}); }); }); _tgAliasCache=new Map(); }
+async function tgAliasLoad(){ try{ var r=await sb.from('settings').select('value').eq('key','search_alias').maybeSingle(); var v=r&&r.data&&r.data.value; if(v&&Array.isArray(v.list)&&v.list.length){ tgAliasBuild(v.list); return; } }catch(e){ console.warn('검색 사전 못 읽음 — 기본값으로',e); } tgAliasBuild(tgAliasDefault()); }
+function tgAliasReady(){ if(!TG_ALIAS)tgAliasBuild(tgAliasDefault()); }
+/* 찾을 글에 사전의 다른 표기를 덧붙임 */
+function tgAliasHay(h){ h=String(h==null?'':h); if(!h)return h; tgAliasReady(); var hit=_tgAliasCache.get(h); if(hit!==undefined)return hit;
+  var c=' '+tgAliasCanon(h)+' ', gs={};
+  for(var i=0;i<_tgAliasIdx.length;i++){ var e=_tgAliasIdx[i]; if(gs[e.gi])continue; if(e.edge?c.indexOf(' '+e.sp+' ')>=0:c.indexOf(e.sp)>=0)gs[e.gi]=1; }
+  var add=''; for(var gi in gs)add+=' '+TG_ALIAS[gi].join(' ');
+  var out=add?h+' ⟨'+add+' ⟩':h; if(_tgAliasCache.size>30000)_tgAliasCache=new Map(); _tgAliasCache.set(h,out); return out; }
+/* 검색어 한 낱말의 다른 표기들(전체 검색용) — 영문은 같은 표기, 한글은 2글자 이상이면 앞부분 일치도 */
+function tgAliasAlts(t){ tgAliasReady(); var q=tgAliasCanon(t); if(!q)return [t]; var ko=/[가-힣]/.test(q), out=[t];
+  TG_ALIAS.forEach(function(g){ var m=g.some(function(sp){ return sp===q||(ko&&q.length>=2&&sp.indexOf(q)===0)||(!ko&&q.length>=4&&sp.replace(/ /g,'').indexOf(q.replace(/ /g,''))===0); }); if(m)g.forEach(function(sp){ if(out.indexOf(sp)<0)out.push(sp); }); });
+  return out.slice(0,12); }
+function tgGsOr(cols,t){ return tgAliasAlts(t).map(function(a){ return gsOr(cols,gsPattern(a)); }).join(','); }
+/* 📖 사전 보기·고치기 (고치기는 대표만) */
+function tgAliasOpen(){ tgAliasReady(); var admin=(typeof me!=='undefined'&&me&&me.name===ADMIN_NAME);
+  var txt=TG_ALIAS.map(function(g){ return g[0]+' = '+g.slice(1).join(', '); }).join('\n');
+  var d=document.createElement('div'); d.id='tg-alias-dlg'; d.style.cssText='position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:99999;display:flex;align-items:center;justify-content:center;padding:12px';
+  d.innerHTML='<div style="background:#fff;border-radius:14px;max-width:560px;width:100%;max-height:90vh;display:flex;flex-direction:column;padding:14px;box-shadow:0 8px 30px rgba(0,0,0,.25)"><div style="font-weight:900;font-size:15px;margin-bottom:4px">📖 검색 사전 — 영문 ↔ 한글 <span style="font-size:12px;color:#64748b;font-weight:600">(메신저 모든 방 검색 공통)</span></div><div style="font-size:12px;color:#475569;line-height:1.5;margin-bottom:8px">한 줄에 같은 말: <b>alpin = 알핀, 알파인</b> · 어느 표기로 찾아도 나머지 표기가 적힌 것까지 나와요. 대소문자·띄어쓰기 상관없음.'+(admin?'':' <b style="color:#b45309">고치기는 대표만</b>')+'</div><textarea id="tg-alias-ta" '+(admin?'':'readonly ')+'style="flex:1;min-height:320px;width:100%;box-sizing:border-box;border:1.5px solid #cbd5e1;border-radius:9px;padding:8px;font-size:13px;line-height:1.5;font-family:inherit"></textarea><div style="display:flex;gap:6px;margin-top:8px;align-items:center"><span style="font-size:11.5px;color:#64748b">'+TG_ALIAS.length+'줄</span><span style="flex:1"></span>'+(admin?'<button class="rt-btn" onclick="tgAliasResetDef()">기본값 다시</button><button class="rt-btn dark" onclick="tgAliasSave()">저장</button>':'')+'<button class="rt-btn" onclick="var x=document.getElementById(\'tg-alias-dlg\');if(x)x.remove()">닫기</button></div></div>';
+  var old=document.getElementById('tg-alias-dlg'); if(old)old.remove(); document.body.appendChild(d); document.getElementById('tg-alias-ta').value=txt; }   /* 값은 직접 넣음 — esc()가 줄바꿈을 <br>로 바꿔 한 줄로 뭉치던 것(11/2 시험에서 재현) */
+function tgAliasParse(txt){ return String(txt||'').split(/\r?\n/).map(function(l){ return l.split(/[=,，]/).map(function(x){ return x.trim(); }).filter(Boolean); }).filter(function(g){ return g.length>=2; }); }
+function tgAliasResetDef(){ var ta=document.getElementById('tg-alias-ta'); if(!ta)return; if(!confirm('사전을 기본값으로 되돌려 보여 드릴까요? (저장을 눌러야 바뀌어요)'))return; ta.value=tgAliasDefault().map(function(g){ return g[0]+' = '+g.slice(1).join(', '); }).join('\n'); }
+async function tgAliasSave(){ if(!(typeof me!=='undefined'&&me&&me.name===ADMIN_NAME)){ alert('대표만 고칠 수 있어요'); return; } var ta=document.getElementById('tg-alias-ta'); if(!ta)return; var list=tgAliasParse(ta.value);
+  if(!list.length){ alert('사전이 비어 있어요 — 저장하지 않았어요'); return; }
+  var _n0=TG_ALIAS?TG_ALIAS.length:0; if(_n0>=10&&list.length<_n0*0.7&&!confirm('사전이 '+_n0+'줄 → '+list.length+'줄로 크게 줄어요. 그래도 저장할까요?'))return;
+  var before=TG_ALIAS?TG_ALIAS.length:0; var up=await sb.from('settings').upsert({key:'search_alias',value:{list:list,by:me.name,at:new Date().toISOString()},updated_at:new Date().toISOString()},{onConflict:'key'});
+  if(up&&up.error){ alert('저장 실패: '+up.error.message); return; }
+  tgAliasBuild(list); try{ logAudit('📖 검색 사전 저장',before+'줄 → '+list.length+'줄','',JSON.stringify(list).slice(0,3000)); }catch(e){}
+  var x=document.getElementById('tg-alias-dlg'); if(x)x.remove(); if(typeof stkToast==='function')stkToast('📖 검색 사전 저장 — '+list.length+'줄 (다른 창은 새로고침 뒤 적용)'); }
+/* 전체 검색 줄에 [📖] 단추 · 시작할 때 사전 읽기 */
+(function(){ var tries=0; var t=setInterval(function(){ tries++; var bar=document.getElementById('gs-bar'); if(bar&&!document.getElementById('tg-alias-btn')){ var b=document.createElement('button'); b.id='tg-alias-btn'; b.type='button'; b.title='검색 사전 (영문 ↔ 한글)'; b.textContent='📖'; b.style.cssText='border:1.5px solid #cbd5e1;background:#fff;border-radius:8px;padding:0 8px;height:30px;font-size:14px;cursor:pointer;flex:0 0 auto'; b.onclick=tgAliasOpen; var q=document.getElementById('gs-q'); if(q&&q.nextSibling)bar.insertBefore(b,q.nextSibling); else bar.appendChild(b); }
+  if(typeof sb!=='undefined'&&sb&&!window._tgAliasLoading){ window._tgAliasLoading=true; tgAliasLoad(); }
+  if((window._tgAliasLoading&&document.getElementById('tg-alias-btn'))||tries>600)clearInterval(t); },1000); })();
+
+
 var GS_SRC=[
  {key:'st',name:'보관타이어방',icon:'🛞',table:'stored_sets',cols:['car','name','tel','model','brand','pattern','size','loc','memo','year'],sel:'id,car,name,tel,model,brand,pattern,size,qty,year,kind,start_date,paid_until,pay,loc,stk,status,memo',order:['created_at',false]},   /* (10/30) 보관타이어방 */
  {key:'rt',name:'반품교환방',icon:'↩️',table:'returns',cols:['plat','no','recv','tel','addr','name','size','why','src','memo','wb','from_room','user_name','od','rd','ind'],sel:'id,plat,no,od,rd,recv,tel,addr,name,size,qty,fee,why,src,ind,done,memo,wb,vend,status,from_room,sheet_dirty',order:['created_at',false]},   /* (10/29) 반품교환방 */
@@ -24257,9 +24315,9 @@ async function gsQuery0(src,P,offset,pageN){
   var st=GS_STATE[src.key]||{};
   if(src.key==='lot'){   // 재고 칸: 연식(20xx)·위치(A1-05 꼴)·미배치/DOT누락은 칸에서, 나머지 낱말은 상품(임베드)에서
     P.text.forEach(function(t){ var f=st[t]||st[t.toLowerCase()], isLot=!!f||/^20[0-9]{2}$/.test(t)||/^[A-Za-z]{1,2}[0-9]/.test(t);
-      if(isLot){ var o=gsOr(src.cols,gsPattern(t)); q=q.or(f?(f+','+o):o); }
-      else q=q.or(gsOr(src.pcols,gsPattern(t)),{referencedTable:stkTbl('stock_products'),foreignTable:stkTbl('stock_products')}); });
-  }else P.text.forEach(function(t){ var f=st[t]||st[t.toLowerCase()], o=gsOr(src.cols,gsPattern(t)); q=q.or(f?(f+','+o):o); });   // 상태 낱말이면 '그 조건 또는 글자', 아니면 글자
+      if(isLot){ var o=tgGsOr(src.cols,t); q=q.or(f?(f+','+o):o); }
+      else q=q.or(tgGsOr(src.pcols,t),{referencedTable:stkTbl('stock_products'),foreignTable:stkTbl('stock_products')}); });
+  }else P.text.forEach(function(t){ var f=st[t]||st[t.toLowerCase()], o=tgGsOr(src.cols,t); q=q.or(f?(f+','+o):o); });   // 상태 낱말이면 '그 조건 또는 글자', 아니면 글자
   q=q.order(src.order[0],{ascending:src.order[1]}).range(offset,offset+(pageN||GS_PAGE)-1);
   var r=await q; if(r.error)throw r.error; return {rows:r.data||[],count:(r.count==null?(r.data||[]).length:r.count)};
 }
@@ -24468,7 +24526,7 @@ function kdRender(){
   var list=kdCache.filter(function(r){ var st=(r.status||'(상태 없음)'); if(_stOn){ if(!KD_CHIPS.st[st])return false; } else if(st==='삭제됨')return false;   // (10/16) 상태 칩 여러 개 '또는' · 안 고르면 삭제됨은 숨김
     if(_acOn&&!KD_CHIPS.acct[kdChk(r)])return false;   // 거래처 체크 칩 '또는' · 상태와는 '그리고'
     var _chOn=Object.keys(KD_CHIPS.ch||{}).length; if(_chOn&&!KD_CHIPS.ch[kdChOf(r.waybill_no).g||'그외'])return false;   /* (10/27) 판매처 칩 */
-    if(!q)return true; var hay=[r.waybill_no,r.recv_name,r.recv_tel,r.recv_addr,r.recv_zip,r.prod_name,r.sender_name,r.sender_tel,r.memo,r.status,r.acct_name,r.send_branch,r.arrive_branch,r.pickup_driver].filter(Boolean).join(' ').toLowerCase(); return q.split(/\s+/).every(function(t){return hay.indexOf(t)>=0;}); });
+    if(!q)return true; var hay=[r.waybill_no,r.recv_name,r.recv_tel,r.recv_addr,r.recv_zip,r.prod_name,r.sender_name,r.sender_tel,r.memo,r.status,r.acct_name,r.send_branch,r.arrive_branch,r.pickup_driver].filter(Boolean).join(' ').toLowerCase(); hay=tgAliasHay(hay); return q.split(/\s+/).every(function(t){return hay.indexOf(t)>=0;}); });
   if(typeof KD_PR!=='undefined'&&KD_PR.onlyNot)list=list.filter(function(r){ return !kdPrInfo(r.waybill_no).printed; });   /* (10/26) 미출력만 */
   var prBar=(typeof kdPrBar==='function')?kdPrBar(list):'';
   if(!list.length){ el.innerHTML=prBar+'<div style="text-align:center;color:#aaa;padding:24px 0;font-size:13px">'+(kdCache.length?'조건에 맞는 송장이 없습니다':'이 날짜에 송장이 없습니다')+'</div>'; return; }
@@ -25853,7 +25911,7 @@ function rowMargin(r){return calcMargin(r.pay,rowCost(r),r.qty,r.fee,r.instOut,r
 function R(id){for(var i=0;i<ROWS.length;i++)if(ROWS[i].id===id)return ROWS[i]}
 function linkedOf(r){return lotSum(r.whLots)+lotSum(r.inbLots)+(r.dl||0)}
 // 공용 매처: 띄어쓰기=AND, 일반 부분일치 + 기호제거 일치 + 숫자만 스트림 일치(2356018 ↔ 235/60R18)
-function qMatch(hay,q){
+function qMatch(hay,q){ hay=tgAliasHay(hay);
   var hayD=hay.replace(/[^0-9a-z가-힣]/g,'');
   var hayN=hay.replace(/[^0-9]/g,'');
   return q.toLowerCase().split(/\s+/).every(function(t){
@@ -31558,7 +31616,7 @@ function stkxRowsAll(){
   return out;
 }
 function stkxHit(r,toks){
-  var blob=(stkxSrcName(r._sk)+' '+r.b+' '+r.p+' '+r.code+' '+r.sz+' '+(r.ply?r.ply+'P':'')+' '+(r.dot||'')+' '+(r.loc||'')+' '+(r.note||'')).toUpperCase();
+  var blob=(stkxSrcName(r._sk)+' '+r.b+' '+r.p+' '+r.code+' '+r.sz+' '+(r.ply?r.ply+'P':'')+' '+(r.dot||'')+' '+(r.loc||'')+' '+(r.note||'')).toUpperCase(); blob=tgAliasHay(blob.toLowerCase()).toUpperCase();
   var szd=dn(r.sz),szp=szd+(r.ply?String(parseInt(r.ply,10)||''):'');
   for(var i=0;i<toks.length;i++){var T=toks[i].toUpperCase();
     if(blob.indexOf(T)>=0)continue;
