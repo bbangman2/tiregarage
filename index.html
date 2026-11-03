@@ -6111,7 +6111,8 @@ function _dlvSrcAbbr1(seg){ // 출처 한 조각 → 약어(+숫자 = 그 출처
   var base;
   // ★넥센 3원천 규칙(호준님 9/4): '미치다' 키워드가 있으면 타이어에미치다, '퇴계원'이 있으면 퇴계원,
   //   그 외 '넥센'(물류·시흥·양지 포함)은 넥센 본사 — 미치다·퇴계원을 넥센보다 먼저 검사해야 섞어 쓴 표기가 안 흡수됨
-  if(seg.indexOf('미치다')>=0)base='미';
+  if(seg.indexOf('바퀴창고')>=0)base='바';   /* (11/3 호준님) 동대문바퀴창고(받아오기) = '바' — '창고'보다 먼저 */
+  else if(seg.indexOf('미치다')>=0)base='미';
   else if(seg.indexOf('매일')>=0)base=seg.indexOf('오후')>=0?'매후':(seg.indexOf('오전')>=0?'매오':'매');
   else if(seg.indexOf('퇴계원')>=0)base='퇴';
   else if(seg.indexOf('한국')>=0||seg.indexOf('한타')>=0||seg.toUpperCase().indexOf('SFP')>=0)base='한';   // 9/8 호준님: 한타주문중·한국타이어·양주/인천SFP(한국타이어 물류) 전부 '한'
@@ -11136,7 +11137,7 @@ async function omSend(id,quiet){   // 주문방 줄 → 직배송방 카드 (택
   else{
     var mx=await sb.from('deliveries').select('sort_order').eq('room_id',dr.id).eq('date_str',today).eq('tab',tab).order('sort_order',{ascending:false}).limit(1); var so=((mx.data&&mx.data[0]&&mx.data[0].sort_order)||0)+1;
     var zip=(String(o.use_note||'').match(/우편:(\d{4,5})/)||[])[1]||''; var site=(String(o.use_note||'').match(/사이트:([^·]+)/)||[])[1]||'';
-    var _pl=String(o.ply||'').trim(); if(/^\d{1,2}$/.test(_pl))_pl=_pl+'P'; var _yy=(typeof pmYear==='function')?pmYear(o):''; var row={room_id:dr.id,date_str:today,tab:tab,channel:OM_PLAT_CH[o.platform]||'online',code:o.code||'',car:1,note:(o.use_note||'')+(site?' · '+site.trim():''),raw_line:key,src:o.src||'',tire:[o.brand,o.name,o.size,_pl,(_yy?_yy+'년':'')].filter(Boolean).join(' '),   /* (10/27) 카드 글자에 P수·연식 — 직배송방 경동 접수 품목명도 같은 글자에서 읽음 */spec:o.size||'',brand:o.brand||'',qty:String(o.qty||1),addr:o.addr||'',recv:o.recv||'',tel:o.tel||'',zipcode:(typeof dlvZip5==='function'?dlvZip5(zip):zip)||undefined,first_date:today,sort_order:so,user_name:who,need_done:(tab==='deliv'),done:false,cancelled:false,confirmed:false,ship_type:(o.dtype==='taekbae')?'tb':'dv'};   /* (10/28) 판매 사이트 이름을 shop_name(장착점)에 넣던 것 제거 — 사이트는 note의 '사이트:'에 이미 있음 */
+    var _pl=String(o.ply||'').trim(); if(/^\d{1,2}$/.test(_pl))_pl=_pl+'P'; var _yy=(typeof pmYear==='function')?pmYear(o):''; var row={room_id:dr.id,date_str:today,tab:tab,channel:OM_PLAT_CH[o.platform]||'online',code:o.code||((typeof pingPno==='function')?pingPno(o):''),car:1,note:(o.use_note||'')+(site?' · '+site.trim():''),raw_line:key,src:o.src||'',tire:[o.brand,o.name,o.size,_pl,(_yy?_yy+'년':'')].filter(Boolean).join(' '),   /* (10/27) 카드 글자에 P수·연식 — 직배송방 경동 접수 품목명도 같은 글자에서 읽음 */spec:o.size||'',brand:o.brand||'',qty:String(o.qty||1),addr:o.addr||'',recv:o.recv||'',tel:o.tel||'',zipcode:(typeof dlvZip5==='function'?dlvZip5(zip):zip)||undefined,first_date:today,sort_order:so,user_name:who,need_done:(tab==='deliv'),done:false,cancelled:false,confirmed:false,ship_type:(o.dtype==='taekbae')?'tb':'dv'};   /* (10/28) 판매 사이트 이름을 shop_name(장착점)에 넣던 것 제거 — 사이트는 note의 '사이트:'에 이미 있음 */
     try{ if(row.ship_type==='dv'&&typeof dlvShopFind==='function'){ if(typeof DLV_SHOPBOOK_LOADED!=='undefined'&&!DLV_SHOPBOOK_LOADED&&typeof dlvShopLoad==='function')await dlvShopLoad(); var _bt=(String(o.use_note||'').match(/배송:([^·]+)/)||[])[1]||''; var _sh=_bt?dlvShopFind(_bt.trim()):null; if(_sh&&!_sh.base){ row.cust_recv=row.recv; row.cust_tel=row.tel; row.cust_addr=row.addr; row.cust_zip=row.zipcode||null; row.shop_name=_sh.name; if(_sh.addr){ row.addr=_sh.addr; row.zipcode=dlvZip5(_sh.zip||'')||undefined; row.recv=_sh.name; row.tel=_sh.tel||row.tel; } } } }catch(_e){ console.warn('장착점 찾기 실패',_e); }   /* (11/2 호준님) 주문방에서 보낼 때도 '배송방법/장착점'이 협력점이면 그 주소로(붙여넣기 등록과 같게) — 손님 정보는 cust_*에 보존 */
     if(o.inbound_item_id){ var _sg=jhInbSegs(o)[0]; row.src_kind='inbound'; row.src_item_id=o.inbound_item_id; row.src_product_id=null; row.src_qty=_sg?_sg.qty:(parseInt(o.qty,10)||1); row.stock_done=false; }   /* (10/21) 입고분에 바로 연결 */
     var _sk=omStkLink(o); if(_sk&&!o.inbound_item_id){ row.src_kind='rt'; row.src_product_id=_sk.pid; row.src_item_id=null; row.src_dot=_sk.dot||''; row.src_qty=_sk.qty; row.src_label=DLV_ALREADY_TAG; row.stock_done=true; }   /* (10/21) 주문방에서 이미 뺀 재고 → 카드엔 연결만 */
@@ -13552,7 +13553,7 @@ var TG_SRC_CANON=[
 ];
 var TG_SRC_DICT=[   /* (10/27 호준님 출고지 사전) 긴 키워드 먼저 · 낱말에 들어 있으면 그 거래처 */
   ['매일오전','매일오전'],['매일오후','매일오후'],['매일화성','매일화성'],
-  ['동대문바퀴창고','바퀴창고'],['바퀴창고','바퀴창고'],['동대문SFP','동대문SFP'],['동대문','동대문SFP'],['양주SFP','양주SFP'],
+  ['동대문바퀴창고','동대문바퀴창고'],['바퀴창고','동대문바퀴창고'],['동대문SFP','동대문SFP'],['동대문','동대문SFP'],['양주SFP','양주SFP'],
   ['넥센긴급','퇴계원'],['퇴계원','퇴계원'],['긴급','퇴계원'],
   ['타이어에미치다','타이어에미치다'],['타이어미치다','타이어에미치다'],['미치다','타이어에미치다'],
   ['부산그랜드','그랜드타이어'],['그랜드','그랜드타이어'],['천안미쉐린','천안미쉐린'],['미쉐린','천안미쉐린'],['천안','천안미쉐린'],
@@ -17764,14 +17765,15 @@ function stkRenderTable(){
   }
   // 마이너스 재고 행은 정렬·검색과 무관하게 항상 최상단 고정
   // 고정 정렬 2단계: (1)마이너스 재고 (2)목표수량 미달 (3)나머지 — 기존 순서 유지, 목표 빈칸은 '나머지'
-  (function(){ var neg=[],low=[],rest=[];
+  (function(){ var neg=[],low=[],has=[],rest=[];   /* (11/3 호준님) 목표수량 있는 줄은 채웠어도 위로 — 마이너스 → 목표 미달 → 목표 채움 → 나머지 */
     R.forEach(function(r){
       if((r.cur||0)<0){neg.push(r);return}
       var t=stkTargetOf(r);
-      if(t!=null&&(r.cur||0)<t){low.push(r);return}
+      if(t!=null&&t>0&&(r.cur||0)<t){low.push(r);return}
+      if(t!=null&&t>0){has.push(r);return}
       rest.push(r);
     });
-    R=neg.concat(low,rest); })();
+    R=neg.concat(low,has,rest); })();
   // 편집모드: 같은 데이터 파이프라인(R)을 그대로 사용 — 편집 중엔 일반 렌더로 덮지 않음
   var _emBtn=document.getElementById('stk-em-btn');
   // ★ 권한이 있으면 기기와 무관하게 버튼을 보여준다 — 안 보이면 '권한이 없는 것'인지 '기기 때문'인지 구분이 안 되므로.
@@ -23001,7 +23003,7 @@ function rtRender(){ var root=document.getElementById('rt-root'); if(!root)retur
 function rtDetHtml(o){ var s=rtStep(o), sid=o.id; var h='';
     h+='<div class="rt-det" id="rt-det"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="rt-tag '+rtTagc(o.plat)+'">'+esc(o.plat||'')+'</span><b style="font-size:15px">'+esc(o.recv||o.addr||'')+'</b><span style="color:#475569">'+esc(o.tel||'')+'</span><span style="font-weight:800;color:'+RT_STEP[s][1]+'">● '+RT_STEP[s][0]+'</span>'+(o.vend&&o.vend.to?'<span class="rt-tag" style="background:#ede9fe;color:#5b21b6">🚚 '+esc(o.vend.to)+' 반품 '+(o.vend.back?'끝':'중')+'</span>':'')+(o.from_room?'<span class="rt-tag">'+esc(o.from_room)+'에서</span>':'')+'<span style="flex:1"></span><button class="rt-btn" onclick="RT.sel=null;rtRender()">▲ 접기</button></div>'
      +'<div class="rt-kv"><b>주소</b><span>'+esc(o.addr||'—')+'</span><b>제품</b><span>'+esc(o.name||'')+' <span style="color:#1d4ed8;font-weight:800">'+esc(o.size||'')+'</span> ×'+esc(String(o.qty||''))+'</span><b>주문/접수</b><span>'+esc(o.od||'—')+' / '+esc(o.rd||'—')+(o.no?' · 순번 '+esc(o.no):'')+(o.yr?' · '+esc(o.yr):'')+'</span><b>반품비</b><span>'+esc(o.fee||'—')+'</span><b>사유</b><span>'+esc(o.why||'—')+'</span><b>출고지</b><span>'+esc(o.src||'—')+'</span><b>회수 송장</b><span>'+esc(o.wb||'—')+'</span><b>입고일</b><span>'+esc(o.ind||'—')+'</span><b>비고</b><span>'+esc(rtMemo(o)||'—')+'</span><b>기록</b><span style="color:#64748b;font-size:12px">'+(Array.isArray(o.logs)?o.logs.slice(-6).map(function(g){ return kstMDHMof(g.at)+' '+esc(g.t||'')+(g.by?' ('+esc(g.by)+')':'')+(g.diff?': '+g.diff.slice(0,4).map(function(d){return esc(d.k)+' '+esc(d.b||'빈칸')+'→'+esc(d.a||'빈칸');}).join(' · '):'')+(g.txt?' '+esc(g.txt):''); }).join('<br>'):'')+'</span></div>'
-     +'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px"><button class="rt-btn pri" onclick="rtSetWb(\''+sid+'\')">📦 회수 송장 입력</button>'+(o.ind?'':'<button class="rt-btn" onclick="rtSetInb(\''+sid+'\')">📥 입고 확인 (오늘)</button>')+(o.done?'<button class="rt-btn" onclick="rtSetDone(\''+sid+'\',0)">↩ 완료 취소</button>':'<button class="rt-btn" onclick="rtSetDone(\''+sid+'\',1)">✓ 완료</button>')+(rtVendOpen(o)?'<button class="rt-btn pur" onclick="rtVendBack(\''+sid+'\')">✓ 거래처 처리 끝</button>':'<button class="rt-btn pur" onclick="rtVendSend(\''+sid+'\')">🚚 거래처로 반품 보내기</button>')+(o.sheet_dirty?'<button class="rt-btn" style="background:#fef3c7;color:#92400e;border-color:#fcd34d" onclick="rtPushNow(\''+sid+'\')" title="스크립트를 지금 불러 시트에 쓰게 하고 8초 뒤 써졌는지 확인">📤 시트에 지금 쓰기(재요청)</button>':'')+'<button class="rt-btn" onclick="rtForm(\''+sid+'\')">✏ 고치기</button>'+(o.from_id&&o.from_room!=='시트'?'<button class="rt-btn" onclick="rtGoFrom(\''+sid+'\')">🔗 원래 줄 찾기</button>':'')+(o.status==='gone'?'<button class="rt-btn red" onclick="rtRemoveGone(\''+sid+'\')" title="시트에 더는 없는 줄 — 목록에서 지움(기록은 남음)">🗑 지우기(시트에 없음)</button>':'')+'<button class="rt-btn red" onclick="rtHide(\''+sid+'\')">접기(숨김)</button></div></div>';
+     +'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px"><button class="rt-btn pri" onclick="rtSetWb(\''+sid+'\')">📦 회수 송장 입력</button>'+(o.ind?'':'<button class="rt-btn" onclick="rtSetInb(\''+sid+'\')">📥 입고 확인 (오늘)</button>')+(o.done?'<button class="rt-btn" onclick="rtSetDone(\''+sid+'\',0)">↩ 완료 취소</button>':'<button class="rt-btn" onclick="rtSetDone(\''+sid+'\',1)">✓ 완료</button>')+(rtVendOpen(o)?'<button class="rt-btn pur" onclick="rtVendBack(\''+sid+'\')">✓ 거래처 처리 끝</button><button class="rt-btn" onclick="rtVendUndoSend(\''+sid+'\')">↩ 반품 보냄 취소</button>':((o.vend&&o.vend.back)?'<span class="rt-btn" style="background:#f3e8ff;color:#6b21a8;border-color:#d8b4fe;cursor:default">✓ '+esc(o.vend.to||'')+' 처리 끝'+(o.vend.back_at?' '+esc(String(o.vend.back_at).slice(5).replace('-','/')):'')+'</span><button class="rt-btn" onclick="rtVendUndoBack(\''+sid+'\')">↩ 처리 끝 취소</button>':'<button class="rt-btn pur" onclick="rtVendSend(\''+sid+'\')">🚚 거래처로 반품 보내기</button>'))+(o.sheet_dirty?'<button class="rt-btn" style="background:#fef3c7;color:#92400e;border-color:#fcd34d" onclick="rtPushNow(\''+sid+'\')" title="스크립트를 지금 불러 시트에 쓰게 하고 8초 뒤 써졌는지 확인">📤 시트에 지금 쓰기(재요청)</button>':'')+'<button class="rt-btn" onclick="rtForm(\''+sid+'\')">✏ 고치기</button>'+(o.from_id&&o.from_room!=='시트'?'<button class="rt-btn" onclick="rtGoFrom(\''+sid+'\')">🔗 원래 줄 찾기</button>':'')+(o.status==='gone'?'<button class="rt-btn red" onclick="rtRemoveGone(\''+sid+'\')" title="시트에 더는 없는 줄 — 목록에서 지움(기록은 남음)">🗑 지우기(시트에 없음)</button>':'')+'<button class="rt-btn red" onclick="rtHide(\''+sid+'\')">접기(숨김)</button></div></div>';
   return h; }
 function rtSel(id){ RT.sel=(RT.sel===id?null:id); rtRender(); try{ var el=document.getElementById('rt-det'); if(el)el.scrollIntoView({block:'nearest',behavior:'smooth'}); }catch(e){} }   /* (10/29) 펴진 자리로 */
 function rtRow(id){ return RT.rows.find(function(x){return x.id===id;}); }
@@ -24307,6 +24309,149 @@ async function omCardsFollow(o,k,offPid){   // k=줄의 재고 연결(있으면 
 })();
 
 /* 🔗 줄이 메인 끝 */
+
+/* ═══════════ 📮 핑 송장 품목명 = 핑 품명 그대로 (11/3 호준님 "가형태로, 오늘부터 경동 등록할 때") ═══════════
+   사고: 코드만 뽑아(HP71) 'FOAM' 같은 구분 글자가 빠져 크루젠 HP71 FOAM(EV6 흡음재)과 일반 HP71이 같은 품목명으로 나감(10/26·10/29·11/2 송장).
+   (11/3 최종) 품목명 = [출고약자] [E흡런 표시] [브랜드] [패턴] [사이즈] [P수(4P 아닐 때)] [연식] [수량] · 제품번호는 경동 '메모' 칸.
+   · 핑(channel ping): 패턴 = 핑 품명 그대로(A/T→AT만, '+' 그대로).  · 스팜·11번가·오토하이브·전화(online·spam·st11·tel): 상품명에서 광고 글자·사이즈·하중속도·차종·지역 걷은 것.
+   · 표시 [EV 흡 런]: EV, 흡=흡음재(=NCS=FOAM), 런=런플랫, '-'=품명·비고에서 못 찾음(확인된 '아님'은 아님).
+   · 라벨 한도 54칸(영문·숫자 1, 한글 2 — 11/3 호준님 실물 확인 8026100023430). 넘으면 ① 패턴 속 EV·흡음재 글자 빼기 ② '년' 빼기 ③ 패턴 대신 코드(IW01A·TA91+·W330A) ④ 브랜드 빼기 — 그래도 넘으면 경동 접수 미리보기 맨 위에서 손으로 고치기.
+   · 거래처 양식·패턴을 못 찾은 줄 = 예전 방식. */
+var PNAME_MAX=54;
+function pnW(s){ s=String(s||''); var n=0; for(var i=0;i<s.length;i++)n+=s.charCodeAt(i)>127?2:1; return n; }
+function pnMark(text){ var t=' '+String(text||'')+' ';
+  var te=t.replace(/(니로|코나|아이오닉\s*\d?|쏘울|봉고|레이|포터)\s*EV/gi,' ').replace(/일반\s*\/\s*EV/gi,' ');
+  var e=/(^|[^A-Za-z])EV(?![A-Za-z0-9])|PS71EV|GTXEV|EV용/i.test(te)?'E':'-';
+  var h=/흡음재\s*(없음|X|미적용)|흡음\s*X|논\s*폼|NON\s*-?\s*FOAM/i.test(t)?'-':(/흡음|NCS|FOAM|폼\s*타입|흡음제|사일런트|SILENT/i.test(t)?'흡':'-');
+  var r=/런\s*플랫|RFT|SSR|(^|[^A-Za-z])R-F(?![A-Za-z])|(^|\s)ZP(\s|$)|RUN\s*-?\s*FLAT|(^|[^A-Za-z])ROF(?![A-Za-z])|DSST|(^|\s)MOE(\s|$)/i.test(t)?'런':'-';
+  return '['+(e==='E'?'EV':'-')+' '+h+' '+r+']'; }   /* (11/3 호준님) [EV 흡 런] · 없으면 '-' → [EV 흡 -] [- - -] */
+var PN_FEAT_RE=/^\(?(EV|EV용|흡음재|흡음제|흡|NCS|FOAM|폼타입|런플랫|RFT|SSR|R-F|ZP|ROF)\)?$/i;
+function pnBuild(ab,mark,brand,pat,size,ply,yy,qty){   /* 54칸 넘으면 차례로 줄임 */
+  var P=String(pat||'').split(/\s+/).filter(Boolean), Y=yy, B=brand;
+  var j=function(){ return [ab,mark,B,P.join(' '),size,ply,Y,qty].filter(function(x){return x!==''&&x!=null;}).join(' ').replace(/\s+/g,' ').trim(); };
+  var s=j(); if(pnW(s)<=PNAME_MAX)return s;
+  var P2=P.filter(function(w){ return !PN_FEAT_RE.test(w); }); if(P2.length)P=P2; s=j(); if(pnW(s)<=PNAME_MAX)return s;
+  Y=String(Y||'').replace(/년$/,''); s=j(); if(pnW(s)<=PNAME_MAX)return s;
+  var cd=pnCodeOf(P.join(' ')); if(cd){ P=[cd]; s=j(); if(pnW(s)<=PNAME_MAX)return s; }   /* (11/3 호준님) 그래도 길면 패턴 대신 코드 — IW01A·TA91+·W330A */
+  if(B&&P.length){ B=''; s=j(); }
+  return s; }
+function pnCodeOf(pat){ var t=String(pat||''); var pm=t.match(/\(([A-Za-z]{1,4}\d{1,4}[A-Za-z0-9+]*)\)\s*$/)||t.match(/\(([A-Za-z]{1,4}\d{1,4}[A-Za-z0-9+]*)\)/); if(pm)return pm[1].toUpperCase();
+  var ws=t.split(/\s+/).filter(function(w){ return /^[A-Za-z]{1,4}\d{1,4}[A-Za-z0-9+]*$/.test(w)&&!(typeof _DLV_CARS!=='undefined'&&_DLV_CARS.test(w.toUpperCase())); }); return ws.length?ws[ws.length-1].toUpperCase():''; }
+function pnSize(tire,spec){ var bt=_dlvFindSize(tire); var raw=bt?tire.slice(bt.st,bt.en):''; if(!raw){ var bs=_dlvFindSize(spec); if(bs)raw=spec.slice(bs.st,bs.en); } if(!raw)return ''; var t3=(typeof stkParseSize==='function')?stkParseSize(raw):null; return (t3&&t3[0]>=100)?(t3[0]+' '+t3[1]+' '+t3[2]):raw.replace(/[\/Rr]/g,' ').replace(/\s+/g,' ').trim(); }
+function pnYear(c,brand,tire,spec){ var ys=String(brand+' '+tire+' '+spec); var my=c.dot_year_set?(c.dot_year?[null,String(c.dot_year)]:null):(ys.match(/20(\d{2})/)||ys.match(/(\d{2})\s*년/)); return my?my[1]+'년':''; }
+function pnBrandFix(brand,pat){ if(!brand)return ''; return new RegExp('^'+brand.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'i').test(pat)?'':brand; }   /* 패턴이 브랜드로 시작하면 브랜드 생략 */
+function dlvPingName(c){
+  var tire=String(c.tire||'').replace(/\s+/g,' ').trim(), spec=String(c.spec||'').replace(/\s+/g,' ').trim(), brand=String(c.brand||'').trim();
+  var bt=_dlvFindSize(tire); var head=bt?tire.slice(0,bt.st):'';
+  if(brand&&head.indexOf(brand)===0)head=head.slice(brand.length);
+  head=head.replace(/(^|[^A-Za-z])([AMHR])\/([TS])(?![A-Za-z])/g,'$1$2$3').replace(/\s+/g,' ').trim();
+  if(!head)return null;
+  var size=pnSize(tire,spec);
+  var _pn=_dlvPlyNum(c,tire,spec); var ply=(_pn&&_pn!==4&&!/\d{1,2}\s*P(R)?\b/i.test(head))?(_pn+'P'):'';
+  var bigo=String(c.ping_bigo!=null?c.ping_bigo:((String(c.note||'').match(/비고:([^·]*)/)||[])[1]||''));
+  return pnBuild(dlvSrcAbbr(c.src),pnMark(head+' '+bigo),pnBrandFix(brand,head),head,size,ply,pnYear(c,brand,tire,spec),String(c.qty||'').trim()); }
+var STORE_AD_RE=/무료\s*장착|장착\s*무료|무료\s*택배|무료|\d{0,2}년?\s*제품|제품|장착\s*현장\s*별도|현장\s*별도|오프로드|매장\s*장착|장착비\s*용?\s*별도|장착\s*별도|장착\s*포함|장착비|공임\s*별도|택배\s*전용\s*상품|택배\s*전용|전국\s*택배|당일\s*장착|출장\s*무료\s*장착|무료\s*배송|특판|이월\s*타이어|이월\s*상품|이월|행사|순정\s*출고|순정|출고|OE\s*공급용|서울\s*경기|서울|경기|남양주|의정부|장착|교체\s*발송|생산|타이어/gi;
+var STORE_BRANDS=['한국타이어','금호타이어','넥센타이어','한국','금호','넥센','미쉐린','MICHELIN','콘티넨탈','CONTINENTAL','피렐리','PIRELLI','사일룬','SAILUN','하빌리드','HABILEAD','안나이트','ANNAITE','레이다','RADAR','브리지스톤','브릿지스톤','BRIDGESTONE','굿이어','GOODYEAR','요코하마','YOKOHAMA','던롭','DUNLOP','토요','TOYO','쿠퍼','COOPER','라우펜','LAUFENN','아리선','ARISUN','캡센','KAPSEN','킨포레스트','KINFOREST','BF GOODRICH','BF 굿리치','BFGOODRICH','BFG','BF굿리치','비에프굿리치','마샬','MARSHAL','트라이앵글','TRIANGLE','링롱','LINGLONG','중국산'];
+var STORE_CARS=/^(4|그랜저\w*|소나타|쏘나타|아반떼|모하비|랭글러|카렌스|더뉴\S*|스타렉스|스타리아|팰리세이드|렉스턴|티볼리|모닝|레이|스파크|캐스퍼|코란도|싼타페|산타페|투싼|스포티지|쏘렌토|카니발|니로\w*|아이오닉\d*|코나|포터\d*|봉고\d*|1톤\S*|트럭|테슬라|모델\s*[3SXY]|BMW|벤츠|아우디|제네시스|GLC|쿠페|\d시리즈|X[1-7]|G[789]0|GV\d0|GN7|EV\d|K[3-9]|SM\d|QM\d|XM3|택시용?)$/i;
+function storePatClean(txt,brand){
+  var _ln=String(txt||'').split(/\r?\n/); var t=_ln[0]; var note=_ln.slice(1).map(function(x){return x.replace(/^[\s\/>]+/,'').trim();}).filter(Boolean).join(' / ');   /* 둘째 줄부터 = 메모(대체·교환·공지) */
+  var gi=t.search(/\s>|^>|>\s*\S/); if(gi>=0){ note=t.slice(gi).replace(/^[\s\/>]+/,'').trim()+(note?' / '+note:''); t=t.slice(0,gi); }   /* '>' 뒤 = 대체·교환 메모 */
+  t=t.split(/\s\/\s/).filter(function(seg,i){ if(i>0&&/대체|교환|발송|취소|추가금|안내|재고|회수|차액|입금|증정|공지|알림톡|구매시/.test(seg)){ note=(note?note+' / ':'')+seg.trim(); return false; } return true; }).join(' / ');   /* ' / ' 뒤 메모 */
+  var szm=t.match(/(?:^|[^\d])(\d{3})\s*[\/\s]\s*(\d{2})\s*(?:Z?R|\/|\s)\s*(\d{2})(?![\dPp])/i); var size=szm?(szm[1]+' '+szm[2]+' '+szm[3]):'';   /* 상품명 속 사이즈(줄 사이즈 칸이 틀린 것 보정) */
+  t=t.replace(/\s\/\s*$/,' ');
+  t=t.replace(/(^|[^A-Za-z])([AMHR])\/([TS])(?![A-Za-z])/g,'$1$2$3');   /* A/T→AT (빗금만) */
+  t=t.replace(/[\[(（][^\])）]*(장착|택배|배송|생산|년|특판|행사|온\/오프|무료|출고|당일)[^\])）]*[\])）]/g,' ');   /* 광고 괄호 */
+  /* 사이즈 걷기 */
+  t=t.replace(/\b\d{2}\s*[Xx]\s*\d{1,2}(\.\d{1,2})?\s*(R|\s|\/)?\s*\d{2}(LT)?\b/g,' ');   /* 인치 사이즈 31X10.50R15 */
+  t=t.replace(/\bLT(?=\d{3})/g,'').replace(/\b\d{3}\s*\/\s*\d{2}\s*(Z?R|\/|\s)\s*\d{2}(\.5)?C?\b/gi,' ').replace(/\b\d{3}\s*\/\s*R\s*\d{2}\b/gi,' ').replace(/\b\d{3}\s+\d{2}\s+\d{2}\b/g,' ').replace(/\b\d{3}\s*R\s*\d{2}C?\b/gi,' ').replace(/\b\d{3}\s+\d{2}(?=\s|$)/g,' ').replace(/\b\d{7}\b/g,' ').replace(/\b\d{5}\b/g,' ').replace(/\b\d{3}\s*\/\s*\d{2}\b/g,' ');
+  /* 하중·속도·P수·연식·DOT·수량 */
+  t=t.replace(/\b\d{2,3}(\s*\/\s*\d{2,3})?\s*\/?\s*[A-Z]\b(?!\w)/g,function(m){ return /^\d{2,3}(\/\d{2,3})?\s*\/?\s*[HVWYTSRQZLNPJ]$/i.test(m.replace(/\s+/g,''))?' ':m; })
+       .replace(/\b\d{1,2}\s*P{1,2}(R)?\b/gi,' ').replace(/\b(20)?\d{2}\s*년\s*(도|식)?\s*(생산)?/g,' ').replace(/\b20\d{2}\s*(DOT)?\b/gi,' ').replace(/\bDOT\b/gi,' ').replace(/\b\d+\s*(개|본|짝)(?![가-힣])\(?/g,' ').replace(/\d*\s*본\s*구매시.*$/,' ').replace(/\b(XL|TL|EXTRA LOAD)\b/gi,' ');
+  t=t.replace(/모델\s*[3SXY](?=\s|$)/gi,' ').replace(/EV용/g,'EV').replace(/더\s*올\s*뉴|올\s*뉴|더\s*뉴|[뒷앞]\s*타이어|제조|(^|\s)OE(?=\s|$)/g,' ');
+  t=t.replace(STORE_AD_RE,' ');
+  t=t.replace(/사계절|4계절|온\/오프|흡음재\s*(없음|X|미적용)|\d{0,2}년?\s*(중반|후반|초반|상반기|하반기)|(^|\s)(미국|중국|중국산|베트남|인도네시아|태국|일본|독일|포르투갈|포르투칼|루마니아|헝가리|체코|스페인|이탈리아|CN)(?=\s|$)|(니로|코나|아이오닉\d?|쏘울|봉고)\s*EV(?=\s|$)/gi,' ');
+  var bl=STORE_BRANDS.concat(brand?[brand]:[]).sort(function(a,b){return b.length-a.length;});
+  bl.forEach(function(b){ if(!b)return; var re=new RegExp('(^|[^A-Za-z가-힣])'+b.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'(?=[^A-Za-z가-힣]|$)','gi'); t=t.replace(re,'$1 '); });
+  if(/넥센/.test(brand||''))t=t.replace(/(^|\s)NX(?=\s)/g,' ');
+  var ws=t.replace(/[,·]/g,' ').split(/\s+/).map(function(w){ return w.replace(/^[\-\/~]+|[\-\/~]+$/g,''); }).filter(function(w){ return w&&!/^[\-\/()~.]+$/.test(w)&&!/^\d{3,}$/.test(w)&&!STORE_CARS.test(w)&&w.replace(/쏘렌토|카니발|싼타페|산타페|투싼|스포티지|그랜저|그렌져|소나타|쏘나타|아반떼|팰리세이드|펠리세이드|모하비|코나|니로|셀토스|신형|구형|K[3-9]|G[789]0|GV[0-9]0/gi,'')!==''&&!/^\(\s*\)$/.test(w); });
+  var out=[]; ws.forEach(function(w){ if(out.length&&out[out.length-1].toUpperCase()===w.toUpperCase())return; out.push(w); });
+  return {size:size, pat:out.join(' ').replace(/\(\s*\)/g,'').replace(/\s+/g,' ').trim(), note:note}; }
+function dlvStoreName(c){   /* 스팜·11번가·오토하이브·전화 — 카드 tire(=브랜드 상품명 사이즈 …) */
+  var brand=String(c.brand||'').trim(); var src=String(c.tire||'');
+  var P=storePatClean(src,brand); if(!P.pat)return null;
+  var spec=String(c.spec||'').trim(), size=P.size; if(!size){ var t3=(typeof stkParseSize==='function')?stkParseSize(spec):null; if(t3&&t3[0]>=100)size=t3[0]+' '+t3[1]+' '+t3[2]; else if(spec)size=spec.replace(/[\/Rr]/g,' ').replace(/\s+/g,' ').trim(); }
+  var tire=String(c.tire||''); var _pn=_dlvPlyNum(c,tire,spec); var ply=(_pn&&_pn!==4)?(_pn+'P'):'';
+  var first=src.split(/\r?\n/)[0].split(/\s>|>\s*\S/)[0];   /* 표시는 상품명 첫 줄(대체 메모 제외)에서 */
+  return pnBuild(dlvSrcAbbr(c.src),pnMark(first),pnBrandFix(brand,P.pat),P.pat,size,ply,pnYear(c,brand,tire,spec),String(c.qty||'').trim()); }
+function pingPno(o){ var p=String((o&&o.raw_cols||[])[3]||'').trim(); return (o&&o.platform==='핑'&&/^[0-9A-Za-z\-]{4,14}$/.test(p))?p:''; }   /* 핑 시트 제품번호 칸 */
+function pingPnoOfKey(key){ try{ var L=[].concat((typeof OM!=='undefined'&&OM.rows)||[],(typeof PM!=='undefined'&&PM.rows)||[]); for(var i=0;i<L.length;i++){ var o=L[i]; if(o&&o.platform==='핑'&&(omKey(o)===key||(typeof omKeyOld==='function'&&omKeyOld(o)===key)))return String(o.code||'').trim()||pingPno(o); } }catch(e){} return ''; }   /* 이미 직배송방에 있는 핑 카드 — 읽어 둔 주문 줄에서 */
+var PN_STORE_CH={online:1,spam:1,st11:1,tel:1};
+(function(){ if(window._pingPnameWrapped)return; window._pingPnameWrapped=true;
+  var _dpn=dlvParcelName; dlvParcelName=function(c){ try{ if(c&&c._pname_fix)return String(c._pname_fix); if(c&&!c.trade_client&&c.channel!=='trade'){ if(c.channel==='ping'){ if(!String(c.code||'').trim()&&c.raw_line){ var p=pingPnoOfKey(c.raw_line); if(p)c=Object.assign({},c,{code:p}); } var s=dlvPingName(c); if(s)return s; } else if(PN_STORE_CH[c.channel]){ var s2=dlvStoreName(c); if(s2)return s2; } } }catch(e){ console.warn('품목명 새 규칙 실패 — 예전 방식',e); } return _dpn.apply(this,arguments); };
+  /* (11/3 호준님 "제품번호는 무조건 메모에") — 모든 택배 줄: 품목명엔 제품번호를 안 붙이고 경동 양식 '메모' 칸(24번째)에 */
+  var _dpr=dlvParcelRows; dlvParcelRows=function(list){ var out=[]; (list||[]).forEach(function(c){ var pno=String((c&&c.code)||'').replace(/\s+/g,'').trim(); if(!pno&&c&&c.channel==='ping'&&c.raw_line){ try{ pno=pingPnoOfKey(c.raw_line); }catch(e){} } var c2=c?Object.assign({},c,{code:''}):c; _dpr.call(this,[c2]).forEach(function(r){ if(pno){ var m=String(r[23]||'').trim(); r[23]=m?(m.indexOf(pno)>=0?m:pno+' '+m):pno; } out.push(r); }); }); return out; };
+  var _ppc=pmPseudoCard; pmPseudoCard=function(o){ var c=_ppc.apply(this,arguments); try{ if(o&&o.platform==='핑'){ if(!String(c.code||'').trim()){ var p=pingPno(o); if(p)c.code=p; } c.ping_bigo=String((o.raw_cols||[])[9]||''); } }catch(e){} return c; };
+  /* ── (11/3 호준님) 54칸 넘음 ✂(주황)·대체출고 🔁(보라) 표시 — 주문방·택배방·직배송방·경동택배방, 경동 접수 미리보기 맨 위에서 품목명 고치기 ── */
+  var _later=function(){
+    if(typeof kdRcptModal==='function'&&!kdRcptModal._pnWrapped){ var _krm=kdRcptModal; kdRcptModal=function(h,btns){ try{ var C=KD_RCPT.cur; if(C&&/경동 접수 미리보기/.test(String(h||'')))h=pnPreviewTop(C)+h; }catch(e){ console.warn('품목명 확인 칸 실패',e); } return _krm.call(this,h,btns); }; kdRcptModal._pnWrapped=true; }
+    if(typeof kdRcptSave==='function'&&!kdRcptSave._pnWrapped){ var _ks=kdRcptSave; kdRcptSave=async function(close,btn){ try{ var C=KD_RCPT.cur; var L=C?pnPreviewList(C).filter(function(x){return x.over;}):[]; if(L.length&&!confirm('✂ 품목명이 '+PNAME_MAX+'칸을 넘는 줄이 '+L.length+'개 있어요 — 라벨에서 끝이 잘릴 수 있어요\n'+L.slice(0,5).map(function(x){return '· '+x.nm+' ('+x.w+'칸)';}).join('\n')+'\n그대로 접수할까요? (취소 = 미리보기 맨 위에서 고치기)'))return; }catch(e){} return _ks.apply(this,arguments); }; kdRcptSave._pnWrapped=true; }
+    if(typeof kdStChips==='function'&&!kdStChips._pnWrapped){ var _kc=kdStChips; kdStChips=function(r){ var h=_kc.apply(this,arguments); try{ var w=pnW(r&&r.prod_name); if(w>PNAME_MAX)h+=pnBadgeOver(w,r.prod_name); }catch(e){} return h; }; kdStChips._pnWrapped=true; }
+  };
+  _later(); window.addEventListener('load',_later); setTimeout(_later,0); setTimeout(_later,3000);   /* 뒤쪽 스크립트 함수는 다 읽은 뒤 감쌈 */
+  if(typeof pmStepTxt==='function'){ var _pst=pmStepTxt; pmStepTxt=function(o){ var h=_pst.apply(this,arguments); try{ if(o&&!o.cancelled&&pmKind(o)==='tb')h+=pnBadges(pmPseudoCard(o)); }catch(e){} return h; }; }
+  if(typeof otLinkTxt==='function'){ var _olt=otLinkTxt; otLinkTxt=function(o,short){ var h=_olt.apply(this,arguments); try{ if(o&&!o.cancelled&&o.dtype==='taekbae')h+=pnBadges(pmPseudoCard(o)); }catch(e){} return h; }; }
+  ['dlvCardHtml','dlvSummaryCard'].forEach(function(fn){ if(typeof window[fn]!=='function')return; var _f=window[fn]; window[fn]=function(c){ var h=_f.apply(this,arguments); try{ if(c&&!c.cancelled&&c.tab==='parcel'&&typeof h==='string'){ var b=pnBadges(c); if(b){ var k=h.indexOf('<span class="recv">'); h=(k>=0)?h.slice(0,k)+b+' '+h.slice(k):h.replace(/^(<[^>]+>)/,'$1'+b+' '); } } }catch(e){} return h; }; });
+})();
+function pnSubNote(c){ var t=String((c&&c.tire)||''); var lines=t.split(/\r?\n/); var extra=lines.slice(1).map(function(x){ return x.replace(/^[\s\/>]+/,'').trim(); }).filter(Boolean).join(' / '); var gi=lines[0].search(/\s>|>\s*\S/); if(gi>=0)extra=lines[0].slice(gi).replace(/^[\s>]+/,'')+(extra?' / '+extra:''); var src=String((c&&c.src)||''); var hit=[];
+  if(/대체|교체|교환|(으로|로)\s*(출고|발송)/.test(extra))hit.push(extra.trim()); if(/대체|교체|(으로|로)\s*(출고|발송)/.test(src))hit.push('출고지: '+src); return hit.join(' · '); }
+function pnBadgeOver(w,nm){ return '<span title="송장 품목명 '+w+'칸(최대 '+PNAME_MAX+') — '+esc(nm||'')+'" style="display:inline-block;background:#ffedd5;color:#9a3412;border:1px solid #fdba74;border-radius:6px;padding:0 5px;font-size:11px;font-weight:800;margin-left:4px;white-space:nowrap">✂ 품목명 '+w+'칸</span>'; }
+function pnBadgeSub(t){ return '<span title="대체출고 메모 — '+esc(t||'')+'" style="display:inline-block;background:#f3e8ff;color:#6b21a8;border:1px solid #d8b4fe;border-radius:6px;padding:0 5px;font-size:11px;font-weight:800;margin-left:4px;white-space:nowrap">🔁 대체출고</span>'; }
+function pnBadges(c){ var nm=dlvParcelName(c), w=pnW(nm), sub=pnSubNote(c); return (w>PNAME_MAX?pnBadgeOver(w,nm):'')+(sub?pnBadgeSub(sub):''); }
+function pnPreviewList(C){ var out=[], seen={}; (C.rows||[]).forEach(function(r,i){ var ii=C.rmap?C.rmap[i]:i; if(seen[ii])return; seen[ii]=1; var it=(C.items||[])[ii]||{}; var nm=String(r[10]||''), w=pnW(nm); var sub=it.card?pnSubNote(it.card):''; out.push({ri:i,ii:ii,nm:nm,w:w,over:w>PNAME_MAX,sub:sub,label:it.label||r[0]||''}); }); return out; }
+function pnPreviewTop(C){ var L=pnPreviewList(C).filter(function(x){return x.over||x.sub;}); if(!L.length)return ''; var ro=!C.rowMap;   /* 경동이 읽은 줄 순서가 우리 엑셀과 다르면 다시 올리기 버튼이 없음 → 여기서는 보기만 */
+  return '<div id="pn-check" style="border:2px solid #f59e0b;border-radius:10px;padding:8px 10px;margin-bottom:10px;background:#fffbeb"><div style="font-weight:900;font-size:13.5px;margin-bottom:4px">⚠ 접수 전 확인 '+L.length+'건 — <span style="color:#9a3412">✂ 품목명 '+PNAME_MAX+'칸 넘음</span> · <span style="color:#6b21a8">🔁 대체출고 메모</span></div><div style="font-size:11.5px;color:#64748b;margin-bottom:6px">품목명을 고치면 같은 송장 줄이 함께 바뀝니다 · 고친 뒤 <b>[💰 운임 바꿔 다시 올리기]</b>를 눌러야 경동 표에 올라가요 (한글 2칸·영문 1칸)</div>'
+   +L.map(function(x){ return '<div style="border-top:1px dashed #fcd34d;padding:5px 0;font-size:12.5px"><div>'+(x.over?pnBadgeOver(x.w,x.nm):'')+(x.sub?pnBadgeSub(x.sub):'')+' <b>'+esc(x.label)+'</b></div>'+(x.sub?'<div style="color:#6b21a8;font-size:12px;margin:2px 0">🔁 '+esc(x.sub)+'</div>':'')+'<div style="display:flex;gap:6px;align-items:center;margin-top:3px"><input data-pnri="'+x.ri+'" value="'+esc(x.nm)+'"'+(ro?' readonly title="줄 순서가 달라 여기서는 못 고쳐요 — 닫고 카드·줄 상품명을 고친 뒤 다시 📮 경동 접수"':' oninput="pnNameLen(this)" onchange="pnNameEdit(this)"')+' style="flex:1;min-width:0;padding:4px 6px;border:1px solid '+(x.over?'#fdba74':'#d8b4fe')+';border-radius:6px;font-family:inherit;font-size:12.5px"><span class="pn-len" style="font-weight:800;font-size:12px;min-width:44px;text-align:right;color:'+(x.over?'#b91c1c':'#166534')+'">'+x.w+'칸</span></div></div>'; }).join('')+'</div>'; }
+function pnNameLen(inp){ var w=pnW(inp.value); var s=inp.parentNode&&inp.parentNode.querySelector('.pn-len'); if(s){ s.textContent=w+'칸'; s.style.color=w>PNAME_MAX?'#b91c1c':'#166534'; } }
+function pnNameEdit(inp){ var C=KD_RCPT.cur; if(!C)return; var ri=parseInt(inp.dataset.pnri,10); var v=String(inp.value||'').replace(/\s+/g,' ').trim(); if(!v){ inp.value=C.rows[ri][10]; return; } var ii=C.rmap?C.rmap[ri]:ri, n=0;
+  C.rows.forEach(function(r,k){ if((C.rmap?C.rmap[k]:k)===ii){ r[10]=v; n++; } }); C.feeChanged=true;
+  try{ var b=Array.from(document.querySelectorAll('button')).filter(function(x){return /운임 바꿔 다시 올리기/.test(x.textContent);})[0]; if(b){ b.disabled=false; b.title=''; } var m=Array.from(document.querySelectorAll('button')).filter(function(x){return /이대로 접수/.test(x.textContent);})[0]; if(m){ m.disabled=true; m.title='고친 품목명을 먼저 [운임 바꿔 다시 올리기]로 올려 주세요'; } }catch(e){}
+  try{ logAudit('📮 경동 접수 품목명 고침',v,'',''); }catch(e){} if(typeof stkToast==='function')stkToast('✏ 품목명 고침 ('+pnW(v)+'칸) · '+n+'줄 — [💰 운임 바꿔 다시 올리기]를 눌러 주세요'); }
+
+/* ═══════════ 📦 출고지 괄호 — 버리지 않기 (11/3 호준님) ═══════════
+   "출고지에 괄호가 들어가는 경우가 가장 위험 — 메모에라도 꼭 남기고, 출고지 키워드에 잡히면 반영, 받아오기는 누락되면 안 됨"
+   ① 괄호 안이 거래처와 합쳐진 이름이면 그 거래처: 동대문(바퀴창고) → 동대문바퀴창고(받아오기, 동대문SFP와 별개) — 입고방 출처 목록의 이름·별칭 / 출고지 사전에서.
+   ② 그 밖의 괄호 글자(날짜·물류센터 위치 천안·북원주·양지·시흥 등)는 메모로 — 주문방 출고지 칸 표시(· 메모)와 입고방 입고분 메모(use_note)에 남김.
+   ③ 날짜 괄호(5/30)를 수량으로 읽던 것 고침(창고4(5/30) → 창고 4). */
+function spNorm(x){ return String(x||'').replace(/\s+/g,'').toLowerCase(); }
+function spParenList(raw){ var a=[]; String(raw||'').replace(/[(（]([^)）]*)[)）]/g,function(m,x){ x=String(x).trim(); if(x)a.push(x); return m; }); return a; }
+function spComboHit(base,paren){   /* 거래처+괄호 = 한 이름 (입고방 출처 목록 별칭 → 출고지 사전 키 순) */
+  var full=spNorm(base+'('+paren+')'), cat=spNorm(base+paren), b=spNorm(base), p=spNorm(paren); if(!b||!p)return null;
+  try{ if(typeof srcList!=='undefined'&&srcList&&srcList.length){ for(var i=0;i<srcList.length;i++){ var it=srcList[i]; var names=[it.name].concat(it.aliases||[]).map(spNorm); if(names.indexOf(full)>=0||names.indexOf(cat)>=0)return it.name; } } }catch(e){}
+  try{ for(var j=0;j<TG_SRC_DICT.length;j++){ var k=spNorm(TG_SRC_DICT[j][0]); if(k.indexOf(b)>=0&&k.indexOf(p)>=0&&cat.indexOf(k)>=0)return TG_SRC_DICT[j][1]; } }catch(e){}
+  return null; }
+(function(){ if(window._spWrapped)return; window._spWrapped=true;
+  /* 입고방 해석기: 동대문(바퀴창고) 같은 합친 이름 먼저 */
+  if(typeof tgSrcCanon==='function'){ var _tc=tgSrcCanon; tgSrcCanon=function(w){ try{ var raw=w, t=String(w||'').replace(/\s+/g,''); var pm=t.match(/^(.*?)\(([^)]*)\)$/); if(pm){ var hit=spComboHit(pm[1],pm[2]); if(hit)return {src:hit,raw:raw,note:''}; } }catch(e){} return _tc.apply(this,arguments); }; }
+  /* 주문방 해석기: 날짜 괄호를 수량으로 안 읽게 + 괄호 글자는 메모로 + 합친 이름 */
+  if(typeof jhSrcParse==='function'){ var _jp=jhSrcParse; jhSrcParse=function(raw){ var R0=String(raw||'');
+      var cleaned=R0.replace(/[(（]\s*(\d{1,2}\s*\/\s*\d{1,2}[^)）]*)[)）]/g,' ');   /* (5/30) (6/2오후) — 수량 아님 */
+      var R=_jp.call(this,cleaned); try{ R.raw=R0; var pieces=jhSrcSplit(R0); var same=(pieces.length===R.parts.length);
+        R.parts.forEach(function(p,i){ var piece=same?pieces[i]:(i===0?R0:''); if(!piece)return;
+          var bm=String(piece).replace(/\s+/g,'').match(/^([^(（]+)[(（]([^)）]*)[)）]/); if(bm){ var hit=spComboHit(bm[1],bm[2]); if(hit){ p.name=hit; p.kind=(hit==='창고')?'stock':'supplier'; } }
+          var add=spParenList(piece).filter(function(a){ var an=spNorm(a); return an&&String(p.note||'').replace(/\s+/g,'').indexOf(a.replace(/\s+/g,''))<0&&spNorm(p.name).indexOf(an)<0&&!/^\d{1,2}\s*(개|본)?$/.test(a); });
+          if(add.length)p.note=((p.note?p.note+' ':'')+add.join(' · ')).trim(); });
+        R.unk=R.parts.some(function(p){return p.kind==='unknown';}); }catch(e){ console.warn('출고지 괄호 메모 실패',e); } return R; }; }
+  /* 입고방 입고분 메모(use_note)에 출고지 괄호 글자 */
+  if(typeof jhInbItemOf==='function'){ var _io=jhInbItemOf; jhInbItemOf=function(o,seg,who){ var it=_io.apply(this,arguments); try{ var ps=spParenList(o&&o.src).filter(function(a){ var an=spNorm(a); return an&&spNorm(seg&&seg.src).indexOf(an)<0&&!/^\d{1,2}\s*(개|본)?$/.test(a); }); if(seg&&seg.note&&ps.indexOf(seg.note)<0&&spNorm(seg.src).indexOf(spNorm(seg.note))<0)ps.unshift(seg.note); if(ps.length)it.use_note=(it.use_note||'')+' · 📝 출고지 메모: '+ps.join(' · '); }catch(e){} return it; }; }
+})();
+
+/* 📦 출고지 괄호 끝 */
+
+/* ═══ ↩️ 반품교환방 거래처 반품 되돌리기 (11/3 호준님 "처리 끝 뒤에 또 보내기 버튼이 나와 무한 반복") — 처리 끝이면 보내기 대신 [처리 끝 취소], 보낸 상태면 [반품 보냄 취소] ═══ */
+async function rtVendUndoBack(id){ var o=rtRow(id); if(!o||!o.vend||!o.vend.back)return; if(!confirm(o.vend.to+' 처리 끝을 취소할까요? (다시 "반품 보냄" 상태로)'))return; var v=Object.assign({},o.vend,{back:false,back_at:null}); var memo=String(o.memo||'').replace(/\s*·\s*거래처 처리 끝 \d{2}\/\d{2}/,''); await rtUpdate(id,{vend:v,memo:memo},'거래처 처리 끝 취소'); }
+async function rtVendUndoSend(id){ var o=rtRow(id); if(!o||!o.vend||o.vend.back)return; if(!confirm(o.vend.to+'에 반품 보낸 것을 취소할까요? (보내기 전으로)'))return; var to=String(o.vend.to); var memo=String(o.memo||''); var k=memo.indexOf(to+'에 반품 '); if(k>=0){ var rest=memo.slice(k+(to+'에 반품 ').length); var m=rest.match(/^\d{2}\/\d{2}( · 송장 \S+)?/); if(m)memo=(memo.slice(0,k)+rest.slice(m[0].length)).replace(/^\s*·\s*/,'').replace(/\s*·\s*·\s*/g,' · ').replace(/\s*·\s*$/,'').trim(); } await rtUpdate(id,{vend:null,memo:memo},'거래처 반품 보냄 취소'); }
+
+/* 📮 핑 품목명 끝 */
 
 /* ═══════════ 📖 검색 사전 (11/2 호준님) — 영문 표기 ↔ 한글 발음, 메신저 모든 방 검색 공통 ═══════════
    한 줄 = 같은 말의 여러 표기(예: alpin = 알핀, 알파인). 어느 표기로 찾아도 다른 표기가 적힌 것까지 나옴.
