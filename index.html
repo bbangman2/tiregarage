@@ -15997,12 +15997,13 @@ var STK_CHANS=['장착','당일배송','핑배송','온라인'];
 // 채널별 출고량 집계: product_id → {채널:수량}
 // 채널명(옛/새) → 4개 버킷. 기존 출고기록도 새 채널칸에 정확히 모이게.
 function stkChanBucket(ch){
-  ch=String(ch||'');
-  if(ch.indexOf('장착')>=0)return '장착';
+  ch=String(ch||'').trim();
+  if(!ch)return null;   // 채널 없는 기록은 칸 집계 제외
+  if(ch.indexOf('장착')>=0)return '장착';                    // 예약등록방 재고 연결(장착·예약장착)
   if(ch.indexOf('당일')>=0)return '당일배송';                 // 당일직배송·당일택배·당일배송
-  if(ch.indexOf('핑')>=0||ch.indexOf('효성')>=0)return '핑배송'; // 택배핑&효성·직배송핑&효성·핑배송
-  if(/11번가|스토어|롯데|쿠팡|온라인/.test(ch))return '온라인';  // 11번가·스토어팜·롯데온·쿠팡·온라인
-  return null;  // 그 외(종합방 등)는 채널칸 집계 제외 (기존과 동일)
+  if(ch.indexOf('핑')>=0||ch.indexOf('효성')>=0||ch.indexOf('오토하이브')>=0)return '핑배송'; // (11/3 호준님) 핑·오토하이브 = 핑배송
+  if(/11번가|스토어|스팜|롯데|쿠팡|온라인|전화/.test(ch))return '온라인';  // (11/3 호준님) 스팜·11번가·전화주문 = 온라인
+  return '당일배송';  // (11/3 호준님) 거래처를 포함한 그 외 재고 연결 = 당일배송
 }
 function stkChannelSums(){
   // product_id + dot(연식) 단위로 채널 출고 집계 — 오늘(KST) 출고만 (어제 것은 이미 실재고에 반영됨)
@@ -24450,6 +24451,56 @@ function spComboHit(base,paren){   /* 거래처+괄호 = 한 이름 (입고방 �
 /* ═══ ↩️ 반품교환방 거래처 반품 되돌리기 (11/3 호준님 "처리 끝 뒤에 또 보내기 버튼이 나와 무한 반복") — 처리 끝이면 보내기 대신 [처리 끝 취소], 보낸 상태면 [반품 보냄 취소] ═══ */
 async function rtVendUndoBack(id){ var o=rtRow(id); if(!o||!o.vend||!o.vend.back)return; if(!confirm(o.vend.to+' 처리 끝을 취소할까요? (다시 "반품 보냄" 상태로)'))return; var v=Object.assign({},o.vend,{back:false,back_at:null}); var memo=String(o.memo||'').replace(/\s*·\s*거래처 처리 끝 \d{2}\/\d{2}/,''); await rtUpdate(id,{vend:v,memo:memo},'거래처 처리 끝 취소'); }
 async function rtVendUndoSend(id){ var o=rtRow(id); if(!o||!o.vend||o.vend.back)return; if(!confirm(o.vend.to+'에 반품 보낸 것을 취소할까요? (보내기 전으로)'))return; var to=String(o.vend.to); var memo=String(o.memo||''); var k=memo.indexOf(to+'에 반품 '); if(k>=0){ var rest=memo.slice(k+(to+'에 반품 ').length); var m=rest.match(/^\d{2}\/\d{2}( · 송장 \S+)?/); if(m)memo=(memo.slice(0,k)+rest.slice(m[0].length)).replace(/^\s*·\s*/,'').replace(/\s*·\s*·\s*/g,' · ').replace(/\s*·\s*$/,'').trim(); } await rtUpdate(id,{vend:null,memo:memo},'거래처 반품 보냄 취소'); }
+
+/* (11/3) ↩ 경동 다시 등록은 테스트에만 — 정본은 "정본도" 대기 */
+/* ═══ 🏪 직배송 카드 협력점 주소 자동 (11/3 호준님 "기본은 자동") ═══
+   직배송방을 읽을 때마다: 카드 메모 '배송:' 값이 장착점 주소록(이름·같이 쓰는 이름)에 있고, 본점이 아니고 주소가 있으면 → 받는분·주소·우편번호·전화를 협력점으로, 손님 정보는 cust_*에 보관.
+   대상 = 오늘·앞으로 날짜 · 완료/취소 아님 · 택배 탭 아님 · 한 번도 안 바꾼 카드(shop_name·cust_recv·cust_addr 모두 빈칸).
+   되돌리기 = 카드 [주소 바꾸기] 창의 '🧑 고객 주소로 되돌리기'(손님 정보가 남아 있어 다시 자동으로 안 바뀜). 직배송 기록에 남김. */
+var DLV_SHOP_AUTO={busy:false,last:0};
+function dlvShopAutoTarget(c){ if(!c||c.cancelled||c.done)return null; if(String(c.date_str||'')<getTodayISO())return null; if(c.tab==='parcel'||c.ship_type==='tb')return null;
+  if(String(c.shop_name||'').trim()||String(c.cust_recv||'').trim()||String(c.cust_addr||'').trim())return null;
+  var v=(String(c.note||'').match(/(?:^|·)\s*배송\s*:\s*([^·]+)/)||[])[1]; v=String(v||'').trim(); if(!v||/^(직배송|택배|배송|매장|매장장착|퀵|화물|방문|직접|-)$/.test(v))return null;
+  var s=dlvShopFind(v); if(!s||s.base||!String(s.addr||'').trim())return null;
+  if(String(c.recv||'').trim()===String(s.name).trim()&&String(c.addr||'').trim()===String(s.addr).trim())return null;
+  return s; }
+async function dlvShopAutoRun(){ if(DLV_SHOP_AUTO.busy)return 0; if(Date.now()-DLV_SHOP_AUTO.last<5000)return 0; DLV_SHOP_AUTO.busy=true; DLV_SHOP_AUTO.last=Date.now(); var n=0;
+  try{ if(typeof DLV_SHOPBOOK_LOADED!=='undefined'&&!DLV_SHOPBOOK_LOADED&&typeof dlvShopLoad==='function')await dlvShopLoad(); if(!DLV_SHOPBOOK_LOADED)return 0;
+    var L=(deliveriesCache||[]).filter(function(c){ return !!dlvShopAutoTarget(c); }); var who=(me&&me.name)||'자동';
+    for(var i=0;i<L.length;i++){ var c=L[i], s=dlvShopAutoTarget(c); if(!s)continue;
+      var up={cust_recv:c.recv||'',cust_tel:c.tel||'',cust_addr:c.addr||'',cust_zip:c.zipcode||null,shop_name:s.name,recv:s.name,addr:s.addr,zipcode:(dlvZip5(s.zip||'')||null),tel:(s.tel||c.tel||'')};
+      var r=await sb.from('deliveries').update(up).eq('id',c.id).is('shop_name',null).is('cust_recv',null).select('id');   /* 다른 화면이 먼저 바꿨으면 0줄 */
+      if(r&&r.error){ console.warn('협력점 자동 실패',c.id,r.error.message); continue; } if(!r||!r.data||!r.data.length)continue;
+      Object.assign(c,up); n++;
+      try{ await sb.from('delivery_logs').insert({room_id:c.room_id,date_str:c.date_str||getTodayISO(),text:'🏪 협력점 주소로 자동 변경 — '+s.name+' (배송: 메모 · 손님 '+up.cust_recv+' 정보는 보관 · 되돌리기 = 주소 바꾸기 창) [#'+String(c.id).slice(0,8)+']',user_name:who}); }catch(e){} }
+    if(n){ try{ logAudit('🏪 직배송 협력점 자동',n+'장'); }catch(e){} if(typeof toast==='function')toast('🏪 협력점 주소로 자동 변경 '+n+'장 (되돌리기 = 카드 주소 바꾸기)'); }
+  }catch(e){ console.warn('협력점 자동',e); } finally{ DLV_SHOP_AUTO.busy=false; }
+  return n; }
+(function(){ if(window._dlvShopAutoWrapped||typeof loadDeliveries!=='function')return; window._dlvShopAutoWrapped=true;
+  var _ld=loadDeliveries; loadDeliveries=async function(){ var r=await _ld.apply(this,arguments); try{ var n=await dlvShopAutoRun(); if(n&&typeof renderDelivery==='function')renderDelivery(); }catch(e){} return r; }; })();
+
+/* ═══ 📍 협력점 주소 못 정한 카드는 1호차·2호차·택배로 못 옮김 (11/3 호준님) ═══
+   카드 메모 '배송:'이 협력점(직배송·택배 등이 아닌 값)인데 ① 주소록에서 못 찾음 ② 주소록 주소·우편번호 빈칸 ③ 협력점으로 바꿨는데 우편번호 빈칸 → 빨간 [📍 협력점 주소 정하기] 표시(누르면 주소 바꾸기 창).
+   그 상태로 →1호차·→2호차·→택배를 누르면 막고 주소 바꾸기 창을 엶. 손님 주소로 일부러 되돌린 카드(손님 정보 있음, 협력점 아님)는 막지 않음. 본점은 해당 없음. */
+function dlvShopNeed(c){ if(!c||c.cancelled||c.done)return '';
+  var v=(String(c.note||'').match(/(?:^|·)\s*배송\s*:\s*([^·]+)/)||[])[1]; v=String(v||'').trim();
+  if(c.shop_name){ var s0=(typeof dlvShopFind==='function')?dlvShopFind(c.shop_name):null; if(s0&&s0.base)return ''; if(!String(c.addr||'').trim())return c.shop_name+' 주소 빈칸'; if(!dlvZip5(c.zipcode||''))return c.shop_name+' 우편번호 빈칸'; return ''; }
+  if(!v||/^(직배송|택배|배송|매장|매장장착|퀵|화물|방문|직접|-)$/.test(v))return '';
+  if(String(c.cust_recv||'').trim()||String(c.cust_addr||'').trim())return '';   /* 손님 주소로 일부러 되돌림 */
+  var s=(typeof dlvShopFind==='function')?dlvShopFind(v):null;
+  if(!s)return '\''+v+'\' 주소록에 없음';
+  if(s.base)return '';
+  if(!String(s.addr||'').trim())return s.name+' 주소록 주소 빈칸';
+  if(!dlvZip5(s.zip||''))return s.name+' 주소록 우편번호 빈칸';
+  return '\''+v+'\' → '+s.name+' 아직 안 바뀜';   /* 자동 변경 전이면 */ }
+function dlvShopNeedBadge(c){ var w=dlvShopNeed(c); if(!w)return ''; return '<span class="dlv-shopneed" title="협력점 주소를 정해야 1호차·2호차·택배로 옮길 수 있어요 — '+esc(w)+'" onclick="event.stopPropagation();dlvAddrOpen(\''+String(c.id).replace(/[^0-9a-f\-]/gi,'')+'\')">📍 협력점 주소 정하기 · '+esc(w)+'</span>'; }
+(function(){ if(window._dlvShopNeedWrapped)return; window._dlvShopNeedWrapped=true;
+  try{ var st=document.createElement('style'); st.textContent='.dlv-shopneed{display:inline-block;background:#dc2626;color:#fff;border-radius:7px;padding:2px 8px;font-size:11.5px;font-weight:900;cursor:pointer;margin:2px 4px;animation:dlvShopPulse 1.2s ease-in-out infinite}@keyframes dlvShopPulse{0%,100%{box-shadow:0 0 0 0 rgba(220,38,38,.55)}50%{box-shadow:0 0 0 5px rgba(220,38,38,0)}}'; document.head.appendChild(st); }catch(e){}
+  if(typeof dlvMoveTab==='function'){ var _mt=dlvMoveTab; dlvMoveTab=async function(id,to,carNo){ try{ var c=(deliveriesCache||[]).find(function(x){return x.id===id;}); var go=(to==='parcel')||(to==='deliv'&&(carNo===2||carNo===3));
+      if(c&&go){ var w=dlvShopNeed(c); if(w){ alert('📍 협력점 주소를 먼저 정해 주세요\n'+(c.recv||'')+' — '+w+'\n\n'+(to==='parcel'?'택배':(carNo===3?'1호차':'2호차'))+'로 옮기기 전에 주소 바꾸기 창에서 협력점을 고르거나, 장착점 주소록에 주소·우편번호를 넣어 주세요'); try{ dlvAddrOpen(id); }catch(e){} return; } } }catch(e){} return _mt.apply(this,arguments); }; }
+  if(typeof dlvSetCar==='function'){ var _sc=dlvSetCar; dlvSetCar=async function(id,carNo){ try{ var c=(deliveriesCache||[]).find(function(x){return x.id===id;}); if(c&&(carNo===2||carNo===3)){ var w=dlvShopNeed(c); if(w){ alert('📍 협력점 주소를 먼저 정해 주세요\n'+(c.recv||'')+' — '+w); try{ dlvAddrOpen(id); }catch(e){} return; } } }catch(e){} return _sc.apply(this,arguments); }; }
+  ['dlvCardHtml','dlvSummaryCard'].forEach(function(fn){ if(typeof window[fn]!=='function')return; var _f=window[fn]; window[fn]=function(c){ var h=_f.apply(this,arguments); try{ if(c&&typeof h==='string'){ var b=dlvShopNeedBadge(c); if(b){ var k=h.indexOf('<span class="recv">'); h=(k>=0)?h.slice(0,k)+b+' '+h.slice(k):h.replace(/^(<[^>]+>)/,'$1'+b+' '); } } }catch(e){} return h; }; });
+})();
 
 /* 📮 핑 품목명 끝 */
 
