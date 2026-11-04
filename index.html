@@ -16612,8 +16612,12 @@ async function stkSetLotTotal(p,dotv,target){
     var L=(q.data||[]); if(typeof stkEntranceSort==='function')L=stkEntranceSort(L);   /* (10/30 호준님) 줄이면 입구 가까운 자리부터 */ var before=0; L.forEach(function(l){before+=(parseInt(l.qty)||0);});
     if(!L.length){ var ins=await sb.from('stock_lots').insert({product_id:p.id,dot:dotv,qty:target,loc:'U'}).select(); if(ins.error)return {ok:false,err:ins.error.message}; var nl=ins.data&&ins.data[0]; if(nl){ p.lots=p.lots||[]; p.lots.push({id:nl.id,dot:dotv,q:target,loc:'U',price:null}); } return {ok:true,before:0,after:target,lotId:nl&&nl.id,lots:[[nl&&nl.id,target]]}; }
     var rem=target-before, plan=[];
-    if(rem>=0){ var uL=null; for(var ui=0;ui<L.length;ui++){ if((L[ui].loc||'U')==='U'&&(parseInt(L[ui].qty)||0)>=0){ uL=L[ui]; break; } }   /* (10/30 호준님) 늘리면 미배치에 — 미배치 자리가 없으면 새로 */
-      if(uL||rem===0){ plan.push([uL||L[0],(parseInt((uL||L[0]).qty)||0)+rem]); }
+    if(rem>=0){ var uL=null;
+      for(var ni=0;ni<L.length&&rem>0;ni++){ var nq0=parseInt(L[ni].qty)||0; if(nq0<0){ var fill=Math.min(-nq0,rem); plan.push([L[ni],nq0+fill]); rem-=fill; } }   /* (11/4 호준님) 마이너스(입고예정) 칸부터 메움 — 11/4 2023년식 3개·−3개 두 줄 사고 */
+      for(var ui=0;ui<L.length;ui++){ if((L[ui].loc||'U')==='U'&&!plan.some(function(x){return x[0].id===L[ui].id;})){ uL=L[ui]; break; } }   /* (10/30 호준님) 늘리면 미배치에 — 미배치 자리가 없으면 새로 · (11/4) 부호 상관없이 */
+      if(!uL&&plan.length&&rem>0){ plan[0][1]+=rem; rem=0; }
+      if(rem===0&&!plan.length){ plan.push([L[0],(parseInt(L[0].qty)||0)]); }
+      else if(uL||rem===0){ if(rem>0)plan.push([uL,(parseInt(uL.qty)||0)+rem]); }
       else { var insU=await sb.from('stock_lots').insert({product_id:p.id,dot:dotv,qty:rem,loc:'U',stk:-1,ord:0}).select(); if(insU.error)return {ok:false,err:insU.error.message}; var nlu=insU.data&&insU.data[0]; if(nlu){ p.lots=p.lots||[]; p.lots.push({id:nlu.id,dot:dotv,q:rem,loc:'U',price:null,stk:-1,ord:0}); } return {ok:true,before:before,after:target,lotId:nlu&&nlu.id,lots:[[nlu&&nlu.id,rem]]}; } }
     else{ for(var i=0;i<L.length&&rem<0;i++){ var cq=parseInt(L[i].qty)||0; var take=Math.min(cq,-rem); if(take>0){plan.push([L[i],cq-take]);rem+=take;} }
       if(rem<0){ var f0=null; for(var k0=0;k0<plan.length;k0++)if(plan[k0][0].id===L[0].id)f0=plan[k0]; if(f0)f0[1]+=rem; else plan.push([L[0],(parseInt(L[0].qty)||0)+rem]); rem=0; } }   // 전부 0인데 더 빼야 하면 음수(시작값 경로) 허용
