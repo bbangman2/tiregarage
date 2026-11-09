@@ -6234,11 +6234,14 @@ var PARCEL_DICT_DEF=[
 var PARCEL_DICT=null;   /* [{rep,keys}] — null이면 아직 안 읽음 → 기본표 */
 /* (10/29 호준님) 사전 창에서 고치는 규칙 두 가지 — 비어 있으면 기본값 */
 var PARCEL_BW_DEF=['AT','MT','HT','RT','AS','4S','UHP','SUV','EV','LT','XL'];   /* 패턴이 이 글자만 남으면 브랜드를 앞에(오프로드 AT·MT·RT 등) */
-var PARCEL_MARKS_DEF=[{f:'EV',s:'EV'},{f:'흡음',s:'흡'}];   /* 상품명·규격·비고에 f가 있으면 품목명에 s */
+var PARCEL_MARKS_DEF=[{f:'EV',s:'EV'},{f:'흡음',s:'흡'},{f:'FOAM',s:'흡'},{f:'NCS',s:'흡'}];   /* 상품명·규격·비고에 f가 있으면 품목명에 s · (11/9 호준님) 흡음재=FOAM=NCS 기본 포함 */
 var PARCEL_BW=null, PARCEL_MARKS=null;
 function dlvBrandWords(){ return (Array.isArray(PARCEL_BW)&&PARCEL_BW.length)?PARCEL_BW:PARCEL_BW_DEF; }
 function dlvMarks(){ return (Array.isArray(PARCEL_MARKS)&&PARCEL_MARKS.length)?PARCEL_MARKS:PARCEL_MARKS_DEF; }
-function dlvMarkHit(f,hay){ f=String(f||'').trim(); if(!f)return false; if(/^[A-Za-z0-9]+$/.test(f)){ return new RegExp('(^|[^A-Za-z0-9])'+f.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'(?![A-Za-z0-9])','i').test(hay); } return hay.indexOf(f)>=0; }
+function dlvMarkHit(f,hay){ f=String(f||'').trim(); if(!f)return false; var h=String(hay||''), fe=f.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+  /* (11/9 호준님 "흡음제없음처럼 없음이 붙은 건 흡음재가 아니다") — '흡음재 없음·흡음제없음·흡음 X·미적용·NON FOAM·NO FOAM' 같은 부정 표기는 지우고 나서 본다 (재/제·띄어쓰기 모두) */
+  h=h.replace(new RegExp(fe+'[재제]?\\s*(없음|무|X(?![A-Za-z])|미적용|제외)','gi'),' ').replace(new RegExp('(NON|NO|논)\\s*-?\\s*'+fe,'gi'),' ');
+  if(/^[A-Za-z0-9]+$/.test(f)){ return new RegExp('(^|[^A-Za-z0-9])'+fe+'(?![A-Za-z0-9])','i').test(h); } return h.indexOf(f)>=0; }
 function dlvDictGroups(){ var L=Array.isArray(PARCEL_DICT)?PARCEL_DICT:PARCEL_DICT_DEF; return L.filter(function(g){ return g&&Array.isArray(g.keys)&&g.keys.some(function(k){return String(k||'').trim();}); }); }
 function dlvDictList(){ var out=[]; dlvDictGroups().forEach(function(g){ g.keys.forEach(function(k){ k=String(k||'').trim(); if(k)out.push({ko:k,en:String(g.rep||'').trim()}); }); }); return out.sort(function(a,b){return b.ko.length-a.ko.length;}); }
 function dlvDictApply(s){ s=String(s||''); if(!s)return s; var L=dlvDictList(); for(var i=0;i<L.length;i++){ var ko=L[i].ko; if(s.indexOf(ko)<0)continue; if(!/[가-힣]/.test(ko)){ var re=new RegExp('(^|[^A-Za-z0-9\'])'+ko.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'(?![A-Za-z0-9])','g'); if(!re.test(s))continue; s=s.replace(re,function(m,p1){ return p1+' '+L[i].en+' '; }); } else s=s.split(ko).join(L[i].en?' '+L[i].en+' ':' '); } return s.replace(/\s+/g,' ').trim(); }
@@ -7431,7 +7434,7 @@ function dlvCardHtml(c,idx,list){
   h+='<div class="dc-top"><span class="dtag '+(c.channel||'spam')+'">'+dchLabelOf(c)+'</span>'
     +(c.ship_type?'<span class="stbadge '+dlvClsKey(c.ship_type)+'">'+dlvClsName(c.ship_type)+'</span>':'')
     +(c.shop_name?'<span class="stbadge" style="background:#15803d;cursor:pointer" title="누르면 보낼 곳을 바꿀 수 있어요" onclick="event.stopPropagation();dlvAddrOpen(\''+c.id+'\')">📒 '+esc(c.shop_name)+' ▾</span>'
-       :((c.ship_type==='dv'&&!c.cancelled&&!c.done)?'<span style="cursor:pointer;font-size:10.5px;font-weight:800;color:#15803d" title="장착점 주소로 보내기" onclick="event.stopPropagation();dlvAddrOpen(\''+c.id+'\')">📍 보낼 곳</span>':''))
+       :(((c.ship_type==='dv'||c.ship_type==='tb')&&!c.cancelled&&!c.done)?'<span style="cursor:pointer;font-size:10.5px;font-weight:800;color:#15803d" title="장착점(협력점) 주소로 보내기 — 주소록에서 고름" onclick="event.stopPropagation();dlvAddrOpen(\''+c.id+'\')">📍 보낼 곳</span>':''))   /* (11/9 호준님) 택배 카드도 — 협력점으로 가는 택배가 주소록을 못 쓰던 것 */
     +'<span class="dc-src">입고: '+esc(c.src||'-')+'</span>'
     +(c.cancelled?'':stkLinkBadge(dlvLinkQty(c),parseInt(c.qty,10)||0,true));   /* (11/7) 공통 배지: 빨강 미연결·노랑 모자람·초록 연결됨 */   // 🧪 목업8: 연결만 한 건은 '차감 재고 연결'   // (10/15) 연결 여부를 글자로 (전체 검색 '미연결'과 같은 기준)
   if(c.cancelled)h+='<span class="dcancel-badge">취소됨</span>';
@@ -22636,9 +22639,9 @@ async function qrRowLinkDone(i,n0){   // 추가연결이 끝난 뒤: 상세로 �
   try{ rsvCloseDetail(); }catch(e){}
   if(!qrShowingFor(rid)){ await qrOpen(rid); }
   var row=qtCur&&qtCur.rows&&qtCur.rows[i]; if(!row){ qtRender(); return; }
-  row.link_id=lk.id;   // (10/16 호준님) 품목 자동 입력은 보류 — 연결 표시만
+  row.link_id=lk.id; row.pat=qrLinkText(lk); if(!row.part)row.part='타이어'; if(!row.work)row.work='타이어 장착'; if(!row.qty)row.qty=String(lk.qty||1);   // (11/9 호준님 "다시 살리자") 연결하면 품목이 줄에 — 패턴은 연결한 재고로, 부품·작업·수량은 비어 있을 때만, 금액은 안 건드림 (10/16 보류 → 되살림)
   try{ await qrPersistRows(rid); }catch(e){ console.error('견적서 줄 저장 실패',e); }
-  qtRender(); if(typeof stkToast==='function')stkToast('🔗 '+(i+1)+'번째 줄에 연결됨: '+qrLinkText(lk));
+  qtRender(); if(typeof stkToast==='function')stkToast('🔗 '+(i+1)+'번째 줄에 연결 — 품목이 들어갔어요: '+qrLinkText(lk));
 }
 async function qrRowUnlink(i){
   if(!qtCur||!qtCur.rsv||!qtCur.rsv.r)return; var row=qtCur.rows[i]; if(!row||!row.link_id)return; var rid=qtCur.rsv.r.id, lid=row.link_id;
@@ -22678,7 +22681,8 @@ function qrNewLink(){
 }
 function _qrNewSet(out){
   var R=qtCur&&qtCur.rsv; if(!R)return; R.fromStock=true; R.out=out;
-  rsvPickClose(); qtRender();   // (10/16) 품목 자동 입력 보류 — 줄 칸은 건드리지 않음 if(typeof stkToast==='function')stkToast('🔗 미리 골랐어요 — [예약 등록]을 누르면 그때 출고(차감)됩니다: '+noPP(out.spec||'')+' ×'+out.qty);
+  try{ var row=qtCur.rows.filter(function(z){return z&&z.kind!=='align';})[0]; if(row){ row.pat=noPP(out.spec||''); if(!row.qty)row.qty=String(out.qty||''); if(!row.part)row.part='타이어'; if(!row.work)row.work='타이어 장착'; } }catch(e){}   /* (11/9 호준님) 품목 자동 입력 되살림 */
+  rsvPickClose(); qtRender(); if(typeof stkToast==='function')stkToast('🔗 미리 골랐어요 — 품목이 첫 줄에 들어갔고, [예약 등록]을 누르면 그때 출고(차감)됩니다: '+noPP(out.spec||'')+' ×'+out.qty);
 }
 function qnewPickChoose(pid,dot){
   var p=stkP.find(function(x){return x.id===pid;}); if(!p)return; var row=qtCur.rows.filter(function(z){return z&&z.kind!=='align';})[0]||{};
@@ -22701,7 +22705,8 @@ function qrRowLinkNew(i){
   var hint={tire_spec:(row.pat||'')};
   if(typeof stkLoad==='function'){ Promise.resolve(stkLoad()).then(function(){ _rsvPickShow(hint); }); } else _rsvPickShow(hint);
 }
-function _qrRowPendSet(pend){ var i=window._qrRowLinkIdx; var row=qtCur&&qtCur.rows&&qtCur.rows[i]; window._qrRowLinkIdx=null; if(!row){ rsvPickClose(); return; } row._pend=pend; rsvPickClose(); qtRender(); if(typeof stkToast==='function')stkToast('🔗 '+(i+1)+'번째 줄에 미리 골랐어요 — [예약 등록]을 누르면 그때 연결·차감됩니다: '+noPP(pend.spec||'')+' ×'+pend.qty); }
+function _qrRowPendSet(pend){ var i=window._qrRowLinkIdx; var row=qtCur&&qtCur.rows&&qtCur.rows[i]; window._qrRowLinkIdx=null; if(!row){ rsvPickClose(); return; } row._pend=pend; row.pat=noPP(pend.spec||''); if(!row.qty)row.qty=String(pend.qty||''); if(!row.part)row.part='타이어'; if(!row.work)row.work='타이어 장착';   /* (11/9 호준님) 품목 자동 입력 되살림 */
+  rsvPickClose(); qtRender(); if(typeof stkToast==='function')stkToast('🔗 '+(i+1)+'번째 줄에 미리 골랐어요 — 품목이 들어갔고, [예약 등록]을 누르면 그때 연결·차감됩니다: '+noPP(pend.spec||'')+' ×'+pend.qty); }
 function qnewRowPickChoose(pid,dot){
   var p=stkP.find(function(x){return x.id===pid;}); if(!p)return; var i=window._qrRowLinkIdx, row=(qtCur&&qtCur.rows&&qtCur.rows[i])||{};
   var spec=p.br+' '+p.name+' '+p.size+(dot?' '+dot:'')+(p.ply?' '+p.ply:''); var def=qtNum(row.qty)||1;
@@ -24475,7 +24480,7 @@ function pnW(s){ s=String(s||''); var n=0; for(var i=0;i<s.length;i++)n+=s.charC
 function pnMark(text){ var t=' '+String(text||'')+' ';
   var te=t.replace(/(니로|코나|아이오닉\s*\d?|쏘울|봉고|레이|포터)\s*EV/gi,' ').replace(/일반\s*\/\s*EV/gi,' ');
   var e=/(^|[^A-Za-z])EV(?![A-Za-z0-9])|PS71EV|GTXEV|EV용/i.test(te)?'E':'-';
-  var h=/흡음재\s*(없음|X|미적용)|흡음\s*X|논\s*폼|NON\s*-?\s*FOAM/i.test(t)?'-':(/흡음|NCS|FOAM|폼\s*타입|흡음제|사일런트|SILENT/i.test(t)?'흡':'-');
+  var h=/흡음[재제]?\s*(없음|무|X(?![A-Za-z])|미적용|제외)|논\s*폼|(NON|NO)\s*-?\s*FOAM/i.test(t)?'-':(/흡음|NCS|FOAM|폼\s*타입|사일런트|SILENT/i.test(t)?'흡':'-');   /* (11/9 호준님) '흡음제없음'(제·붙여쓰기)도 없음으로 */
   var r=/런\s*플랫|RFT|SSR|(^|[^A-Za-z])R-F(?![A-Za-z])|(^|\s)ZP(\s|$)|RUN\s*-?\s*FLAT|(^|[^A-Za-z])ROF(?![A-Za-z])|DSST|(^|\s)MOE(\s|$)/i.test(t)?'런':'-';
   return '['+(e==='E'?'EV':'-')+' '+h+' '+r+']'; }   /* (11/3 호준님) [EV 흡 런] · 없으면 '-' → [EV 흡 -] [- - -] */
 var PN_FEAT_RE=/^\(?(EV|EV용|흡음재|흡음제|흡|NCS|FOAM|폼타입|런플랫|RFT|SSR|R-F|ZP|ROF)\)?$/i;
@@ -24522,7 +24527,7 @@ function storePatClean(txt,brand){
        .replace(/\b\d{1,2}\s*P{1,2}(R)?\b/gi,' ').replace(/\b(20)?\d{2}\s*년\s*(도|식)?\s*(생산)?/g,' ').replace(/\b20\d{2}\s*(DOT)?\b/gi,' ').replace(/\bDOT\b/gi,' ').replace(/\b\d+\s*(개|본|짝)(?![가-힣])\(?/g,' ').replace(/\d*\s*본\s*구매시.*$/,' ').replace(/\b(XL|TL|EXTRA LOAD)\b/gi,' ');
   t=t.replace(/모델\s*[3SXY](?=\s|$)/gi,' ').replace(/EV용/g,'EV').replace(/더\s*올\s*뉴|올\s*뉴|더\s*뉴|[뒷앞]\s*타이어|제조|(^|\s)OE(?=\s|$)/g,' ');
   t=t.replace(STORE_AD_RE,' ');
-  t=t.replace(/사계절|4계절|온\/오프|흡음재\s*(없음|X|미적용)|\d{0,2}년?\s*(중반|후반|초반|상반기|하반기)|(^|\s)(미국|중국|중국산|베트남|인도네시아|태국|일본|독일|포르투갈|포르투칼|루마니아|헝가리|체코|스페인|이탈리아|CN)(?=\s|$)|(니로|코나|아이오닉\d?|쏘울|봉고)\s*EV(?=\s|$)/gi,' ');
+  t=t.replace(/사계절|4계절|온\/오프|흡음[재제]?\s*(없음|무|X(?![A-Za-z])|미적용|제외)|\d{0,2}년?\s*(중반|후반|초반|상반기|하반기)|(^|\s)(미국|중국|중국산|베트남|인도네시아|태국|일본|독일|포르투갈|포르투칼|루마니아|헝가리|체코|스페인|이탈리아|CN)(?=\s|$)|(니로|코나|아이오닉\d?|쏘울|봉고)\s*EV(?=\s|$)/gi,' ');
   var bl=STORE_BRANDS.concat(brand?[brand]:[]).sort(function(a,b){return b.length-a.length;});
   bl.forEach(function(b){ if(!b)return; var re=new RegExp('(^|[^A-Za-z가-힣])'+b.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'(?=[^A-Za-z가-힣]|$)','gi'); t=t.replace(re,'$1 '); });
   if(/넥센/.test(brand||''))t=t.replace(/(^|\s)NX(?=\s)/g,' ');
