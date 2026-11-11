@@ -11152,7 +11152,7 @@ function otDetail(o){ var sid=String(o.id).replace(/'/g,''), L=otLink(o), acts=[
   if(o.status==='done')acts.push('<button class="dact" onclick="omUndone(\''+sid+'\')">↩ 완료 취소</button>');
   if(o.status!=='sent')acts.push('<button class="dact" style="color:#b91c1c" onclick="omCancelRow(\''+sid+'\')" title="시트엔 영향 없음 — 접힌 줄로 들어가고 되살릴 수 있음">🚫 취소(접기)</button>');
   acts.push('<button class="dact" onclick="jhShowRaw(\''+sid+'\')">📄 원본</button><button class="dact" onclick="omHist(\''+sid+'\')">🕘 이력</button><button class="dact" onclick="otCloseDetail()">▲ 접기</button>');
-  return '<div style="display:flex;gap:26px;flex-wrap:wrap;align-items:flex-start"><div style="min-width:220px"><div style="font-size:15.5px;font-weight:900">'+esc(o.recv||'')+' <span class="stbadge" style="background:#475569">'+esc(o.platform||'')+'</span></div><div class="pm-mono" style="color:#475569">'+esc(o.tel||'')+' · '+esc(o.order_no||'')+' · 처리 '+esc(String(o.date_str||'').slice(5).replace('-','/'))+'</div><div style="margin-top:5px;font-size:14.5px">'+pmTire(o)+'</div><div style="margin-top:5px;display:flex;gap:10px;flex-wrap:wrap;align-items:center"><span class="ot-kn">'+(OT_K[o.dtype]||'❔')+'</span>'+otSrcTxt(o)+otLinkTxt(o)+'</div></div><div class="pm-kv"><span>주소</span><span>'+omShipBox(o)+'</span>'+(o.dtype!=='install'?'<span>송장</span><span>'+pmWbBox(o)+'</span>':'')+'<span>시트 정보</span><span style="color:#475569">'+pmNoteKv(o).map(function(p){return '<span style="display:inline-block;margin:0 8px 2px 0"><span style="color:#94a3b8">'+esc(p[0])+'</span> '+esc(p[1])+'</span>';}).join('')+'</span>'+(omChgHist(o)?'<span>변동사항</span><span style="color:#854d0e">'+omChgHist(o)+'</span>':'')+'<span>재고</span><span>'+omStkBox(o,(o.status==='wait'||o.status==='sent')&&o.dtype!=='install')+'</span>'+(inbInfo?'<span>입고</span><span style="color:#475569">'+inbInfo+'</span>':'')+'</div><div style="display:flex;gap:6px;flex-wrap:wrap;align-self:center;max-width:380px">'+acts.join(' ')+'</div></div>'+(omChgHtml(o)||''); }
+  return '<div style="display:flex;gap:26px;flex-wrap:wrap;align-items:flex-start"><div style="min-width:220px"><div style="font-size:15.5px;font-weight:900">'+esc(o.recv||'')+' <span class="stbadge" style="background:#475569">'+esc(o.platform||'')+'</span></div><div class="pm-mono" style="color:#475569">'+esc(o.tel||'')+' · '+esc(o.order_no||'')+' · 처리 '+esc(String(o.date_str||'').slice(5).replace('-','/'))+'</div><div style="margin-top:5px;font-size:14.5px">'+pmTire(o)+'</div><div style="margin-top:5px;display:flex;gap:10px;flex-wrap:wrap;align-items:center"><span class="ot-kn">'+(OT_K[o.dtype]||'❔')+'</span>'+otSrcTxt(o)+otLinkTxt(o)+'</div></div><div class="pm-kv"><span>주소</span><span>'+omShipBox(o)+'</span>'+(o.dtype!=='install'?'<span>송장</span><span>'+pmWbBox(o)+'</span>':'')+'<span>시트 정보</span><span style="color:#475569">'+pmNoteKv(o).map(function(p){return '<span style="display:inline-block;margin:0 8px 2px 0"><span style="color:#94a3b8">'+esc(p[0])+'</span> '+esc(p[1])+'</span>';}).join('')+'</span>'+(omChgHist(o)?'<span>변동사항</span><span style="color:#854d0e">'+omChgHist(o)+'</span>':'')+'<span>재고</span><span>'+omStkBox(o,(o.status==='wait'||o.status==='sent')&&o.dtype!=='install')+'</span>'+((inbInfo&&omInbBoxOn(o)!=='item')?'<span>입고</span><span style="color:#475569">'+inbInfo+'</span>':'')+'</div><div style="display:flex;gap:6px;flex-wrap:wrap;align-self:center;max-width:380px">'+acts.join(' ')+'</div></div>'+(omChgHtml(o)||''); }
 /* ── (10/21) 주문방·택배방에서 바로 재고 연결(차감 또는 연결만)·해제 · 직배송방 보낸 것 되돌리기 ── */
 /* ── (11/7 호준님) 모든 방 공통 '재고 연결 칸': 빨강 미연결 · 노랑 모자람 · 초록 다 연결 · 주황 초과. 무엇이 몇 개, 누가 언제 연결했는지 목록 + [🔗 재고 연결] / [🔗 더 연결](항상) / [🔁 바꿔 연결] / [↩ 전부 해제] ── */
 function stkLinkState(have,need){ have=parseInt(have,10)||0; need=parseInt(need,10)||0; if(!have)return 'none'; if(need&&have<need)return 'short'; if(need&&have>need)return 'over'; return 'full'; }
@@ -11165,9 +11165,26 @@ function stkLinkBox(a){ var st=stkLinkState(a.have,a.need), S=STK_LK_ST[st]; var
   return h+'</div>'; }
 function stkOverOk(have,add,need,what){ have=parseInt(have,10)||0; add=parseInt(add,10)||0; need=parseInt(need,10)||0; if(!need||have+add<=need)return true; return confirm('⚠ '+(what||'')+' 수량 '+need+'개를 넘깁니다 — 연결 '+have+' + '+add+' = '+(have+add)+'개\n그래도 연결할까요?'); }
 function stkWhen(at){ if(!at)return ''; return (typeof kstMDHMof==='function')?kstMDHMof(at):String(at).slice(5,16).replace('T',' '); }
+/* ▼INB1111 (11/11 호준님 "거래처출고는 빨강으로 할 이유가 없고, 입고방의 어떤 내용으로 들어가 있는지 연결 표시") 재고를 연결하지 않은 줄 가운데 ① 입고방 줄에 이어진 줄 ② 출고지가 거래처뿐인 줄은 빨강 '재고 미연결' 대신 입고방 연결을 보여 줌. 재고를 하나라도 연결했거나 출고지에 창고가 섞여 있으면 전과 같음 */
+var OM_INBX={m:{},p:{}};   /* 택배방처럼 주문방 읽기를 안 거친 화면용: 입고방 줄을 한 번만 읽어 둠(실패도 한 번으로 끝) */
+function omInbItem(o){ var id=o&&o.inbound_item_id; if(!id)return null; return (typeof OM!=='undefined'&&OM.inb&&OM.inb[id])||OM_INBX.m[id]||null; }
+function omInbBoxOn(o){ try{ if(!o||o.cancelled)return ''; if(omStkQty(o)>0)return ''; var _rk=(typeof OM!=='undefined'&&OM.rsvLk)?OM.rsvLk[o.id]:null; if(_rk&&_rk.q>0)return ''; var P=omSrc(o); if(P.cancel||P.nostock)return ''; var it=omInbItem(o); if(it&&!it.cancelled)return 'item'; var st=P.parts.some(function(p){return p.kind==='stock';}), sp=P.parts.some(function(p){return p.kind==='supplier';}); if(st||!sp)return ''; if(it&&it.cancelled)return 'cancel'; if(o.inbound_item_id)return (OM_INBX.p[o.inbound_item_id]===2)?'gone':'load'; return 'wait'; }catch(e){ return ''; } }
+function omInbBox(o,canEdit){ var k=omInbBoxOn(o); if(!k)return ''; var sid=String(o.id).replace(/'/g,''), n=parseInt(o.qty,10)||0; var blue=(k==='item'), C=blue?['#1d4ed8','#dbeafe']:['#64748b','#f1f5f9'];
+  var h='<div class="stk-lkbox" id="inbbox-'+esc(String(o.id))+'" style="margin-top:6px;background:'+C[1]+'80;border:1.3px solid '+C[0]+'66;border-radius:8px;padding:6px 9px;font-size:12px;line-height:1.55;text-align:left">';
+  if(k==='item'){ var it=omInbItem(o), iq=parseInt(it.qty,10)||0; var stt=it.recv_done?('✓ 받아옴 '+esc(kstDateStr(it.recv_done_at).slice(5))):(it.arrived?('📦 실물입고 '+esc(kstDateStr(it.arrived_at).slice(5))):'아직 안 옴');
+    h+='<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><span style="background:'+C[0]+';color:#fff;border-radius:6px;padding:1px 8px;font-size:11.5px;font-weight:800">📥 입고방 연결됨</span><span style="color:#64748b;font-size:11px">'+(o.dtype==='dx'?'직접출고 — 입고방에 자동으로 이어짐 · 재고 연결할 것 없음':'거래처 출고 — 입고방 줄로 이어짐')+'</span></div>';
+    h+='<div style="margin-top:3px"><b style="color:#0f172a">'+esc(it.src||'')+' · '+esc(it.model||'')+' '+esc(it.spec||'')+' ×'+esc(String(it.qty||''))+'</b> <span style="color:#475569;font-size:11px">입고방 '+esc(String(it.date_str||'').slice(5))+' 줄 · '+stt+'</span></div>';
+    if(n&&iq&&iq<n)h+='<div style="margin-top:2px;color:#a16207;font-size:11px;font-weight:700">⚠ 주문은 '+n+'개인데 입고방 줄은 '+iq+'개예요</div>'; }
+  else { var msg={wait:'입고방에 아직 줄이 없어요',cancel:'이어진 입고방 줄이 취소됐어요',gone:'이어진 입고방 줄을 찾지 못했어요',load:'입고방 줄 읽는 중…'}[k];
+    h+='<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><span style="background:'+C[0]+';color:#fff;border-radius:6px;padding:1px 8px;font-size:11.5px;font-weight:800">📥 거래처 출고</span><span style="color:#475569;font-size:11.5px">'+msg+'</span></div>'; if(k==='load')omInbLazy(o); }
+  if(canEdit&&o.dtype!=='dx')h+='<div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:5px"><button class="dact" style="background:#fff;color:#0f766e;border-color:#99e3d0;font-weight:800" onclick="event.stopPropagation();omPickOpen(\''+sid+'\')" title="거래처가 아니라 우리 재고에서 나가는 경우에만 — 재고표에서 골라 연결">🔗 우리 재고에서 연결</button></div>';
+  return h+'</div>'; }
+function omInbLazy(o){ var id=o.inbound_item_id; if(!id||OM_INBX.p[id])return; OM_INBX.p[id]=1; var oid=o.id, ce=(o.status==='wait'||o.status==='sent'); (async function(){ try{ var r=await sb.from('items').select('id,src,model,spec,qty,cancelled,arrived,arrived_at,recv_done,recv_done_at,out_qty,date_str').eq('id',id).maybeSingle(); if(r&&r.error)throw r.error; if(r&&r.data)OM_INBX.m[id]=r.data; }catch(e){ console.error('입고방 줄 읽기 실패',e); } OM_INBX.p[id]=2;   /* 한 번만 — 못 읽었으면 '찾지 못했어요'로 확정, 다시 부르지 않음 */ try{ var el=document.getElementById('inbbox-'+oid); if(el){ var nh=omInbBox(o,ce&&!!el.querySelector('button')); if(nh)el.outerHTML=nh; } }catch(e){} })(); }
+/* ▲INB1111 */
 /* 주문방·택배방 줄의 연결 칸 */
 function omStkBox(o,canEdit){ var ks=omStkLinks(o), n=parseInt(o.qty,10)||0, sid=String(o.id).replace(/'/g,''); var sent=(o.status==='sent');
   var _rk=(typeof OM!=='undefined'&&OM.rsvLk)?OM.rsvLk[o.id]:null; if(_rk&&_rk.q>omStkQty(o))return stkLinkBox({have:_rk.q,need:n,rows:_rk.rows,canEdit:false,note:'📅 예약 쪽에서 연결한 재고 — 바꾸기·해제는 예약에서'+(_rk.share>1?' · 이 예약에 주문 줄 '+_rk.share+'개가 묶여 있어 합쳐서 보임':'')});   /* (11/11 IBQ1111) */
+ var _ibx=omInbBox(o,canEdit); if(_ibx)return _ibx;   /* (11/11 INB1111) 거래처 출고 줄 */
  var rows=ks.map(function(k){ return {txt:esc((k.spec||'')+' ×'+(k.qty||1)),sub:esc((k.already?'연결만(이미 뺀 재고)':'재고에서 뺌')+(k.loc?' · '+k.loc:'')+(k.how?' · '+k.how:'')+' · '+(k.by||'?')+' '+stkWhen(k.at))}; });
   return stkLinkBox({have:omStkQty(o),need:n,rows:rows,canEdit:!!canEdit,pick:'omPickOpen(\''+sid+'\')',more:'omPickOpen(\''+sid+'\',\'add\')',swapAll:'omPickOpen(\''+sid+'\',\'swap\')',unlinkAll:'omStkUnlink(\''+sid+'\')',note:sent?'직배송방에 보낸 줄 — 재고는 이 줄이 메인, 직배송 카드는 연결만 표시로 따라감(11/2)':''}); }   /* (11/8) 보낸 줄도 줄에서 연결·더 연결·바꿔 연결 */
 function omStkLink(o){ var L=Array.isArray(o&&o.logs)?o.logs:[]; for(var i=L.length-1;i>=0;i--){ var t=L[i]&&L[i].t; if(t==='재고 연결 해제')return null; if(t==='재고 연결')return L[i]; } return null; }
@@ -12992,6 +13009,7 @@ function listPaint(){
   else if(curListChip==='inq')list=list0.filter(listInqIs);   /* (11/11 IBQ1111) 시트 출고지에 재고·재고편입·편입으로 적혀 생긴 줄 + 편입한 적 있는 줄 */
   /* ▼ARF1111 (11/11 호준님) 실물입고 확인된 줄은 누른 다음 날부터 '실물입고확인' 묶음으로 접음(접힌 동안은 그리지 않아 빠름) — 검색·입고완료/완료 칩에서는 그대로 다 보임 */
   var _arf=[]; if(curListChip==='all'&&!itemSearchQuery){ _arf=list.filter(listArfIs); if(_arf.length)list=list.filter(function(it){return !listArfIs(it);}); }
+  var _cxf=[]; if(curListChip==='all'&&!itemSearchQuery){ _cxf=list.filter(function(it){return !!it.cancelled;}); if(_cxf.length)list=list.filter(function(it){return !it.cancelled;}); }   /* (11/11 CXF1111 호준님 "입고방에서 취소된 것들도 따로 접어줘") 취소된 줄은 맨 아래 '취소' 묶음으로 — 검색하면 그대로 다 보임 */
   var waitVisible=list.filter(function(it){return !it.arrived&&!isReturnItem(it)&&!it.cancelled;}).length;
   var doneVisible=(LIST_ARF_OPEN?list.concat(_arf):list).filter(function(it){return it.arrived&&!isReturnItem(it)&&!it.cancelled;}).length;
   var h='';
@@ -13003,7 +13021,7 @@ function listPaint(){
       '<button onclick="listBulkUndoJh()" style="padding:7px 14px;border:1px solid #7c3aed;background:#fff;color:#7c3aed;border-radius:8px;font-weight:700;cursor:pointer;font-size:12px">↩️ 종합방으로 되돌리기</button>'+
     '</div>';
   }
-  if(!list.length&&!_arf.length){bd.innerHTML=h+'<div class="iempty">'+(itemSearchQuery?'검색 결과 없음':(curListChip==='all'?'아직 추가된 타이어가 없어요.':'해당 상태의 항목이 없어요.'))+'</div>';return;}
+  if(!list.length&&!_arf.length&&!_cxf.length){bd.innerHTML=h+'<div class="iempty">'+(itemSearchQuery?'검색 결과 없음':(curListChip==='all'?'아직 추가된 타이어가 없어요.':'해당 상태의 항목이 없어요.'))+'</div>';return;}
   if(listDateSel==='all'||listFrom||listTo){
     const byDate={};
     list.forEach(function(it){(byDate[it.date_str]=byDate[it.date_str]||[]).push(it);});
@@ -13015,6 +13033,7 @@ function listPaint(){
     h+=itemListDxLast(list);   /* (10/28 호준님) 직접출고 자동분은 맨 아래 */
   }
   if(_arf.length){ h+='<div class="date-divider" id="list-arf-h" onclick="listArfToggle()" style="cursor:pointer;background:#ecfdf5;color:#047857;margin-top:14px">'+(LIST_ARF_OPEN?'▼':'▶')+' 📦 실물입고확인 ('+_arf.length+'건) — '+(LIST_ARF_OPEN?'눌러서 접기':'눌러서 펼치기 · 검색하면 접힌 것도 같이 찾아요')+'</div>'; if(LIST_ARF_OPEN)h+=listArfHtml(_arf); }
+  if(_cxf.length){ h+='<div class="date-divider" id="list-cxf-h" onclick="listCxfToggle()" style="cursor:pointer;background:#f1f5f9;color:#475569;margin-top:14px">'+(LIST_CXF_OPEN?'▼':'▶')+' 🚫 취소 ('+_cxf.length+'건) — '+(LIST_CXF_OPEN?'눌러서 접기':'눌러서 펼치기 · 검색하면 접힌 것도 같이 찾아요')+'</div>'; if(LIST_CXF_OPEN)h+=listArfHtml(_cxf); }   /* (11/11 CXF1111) */
   bd.innerHTML=h;
 }
 function listInqIs(it){ try{ return !!it&&!it.cancelled&&!isReturnItem(it)&&(ibsPlanned(it)||ibsLogs(it).length>0||ibsUseIs(it)); }catch(e){ return false; } }   /* (11/11 IBQ1111) 재고편입 칩 */
@@ -13023,6 +13042,8 @@ function listArfDay(it){ try{ if(!it.arrived_at)return ''; return new Date(new D
 function listArfIs(it){ if(!it||!it.arrived||it.cancelled||isReturnItem(it))return false; try{ if(inbSheetOpen(it))return false; }catch(e){}   /* 시트와 달라 확인이 필요한 줄은 접지 않음 */ return listArfDay(it)<getTodayISO(); }   /* 실물입고 누른 날(한국 날짜)에는 그대로, 다음 날부터 접힘 */
 function listArfToggle(){ LIST_ARF_OPEN=!LIST_ARF_OPEN; listPaint(); if(LIST_ARF_OPEN){ var e=document.getElementById('list-arf-h'); if(e){ try{ e.scrollIntoView({block:'start'}); }catch(x){} } } }
 function listArfHtml(L){ var h=''; if(listDateSel==='all'||listFrom||listTo){ var byDate={}; L.forEach(function(it){(byDate[it.date_str]=byDate[it.date_str]||[]).push(it);}); Object.keys(byDate).sort().reverse().forEach(function(ds){ h+='<div class="date-divider">'+fmtDateLabel(ds)+' ('+byDate[ds].length+'건)</div>'+itemListDxLast(byDate[ds]); }); }else{ h+=itemListDxLast(L); } return h; }   /* 펼치면 위 목록과 같은 모양(날짜·출처 묶음·카드) */
+var LIST_CXF_OPEN=false;   /* (11/11 CXF1111) */
+function listCxfToggle(){ LIST_CXF_OPEN=!LIST_CXF_OPEN; listPaint(); if(LIST_CXF_OPEN){ var e=document.getElementById('list-cxf-h'); if(e){ try{ e.scrollIntoView({block:'start'}); }catch(x){} } } }
 /* ▲ARF1111 */
 /* (10/28 호준님) 거래처 직접출고(🚀, 자동이 출고 완료로 넣는 줄)는 입고방 목록 맨 아래 한 묶음으로 — 입고방이 길어져도 넣되 실물 입고분과 섞이지 않게 */
 function itemIsDx(it){ return /🚀 직접출고/.test(String((it&&it.use_note)||'')); }
