@@ -18087,7 +18087,7 @@ function stkRenderTable(){
       ed('fprice',r.fprice||'')+
       edTG(r,pid,dotv)+
       ed('qty',r.qty)+
-      ((STK_STORE==='ping'&&!v2ColOn('cur'))?'':('<td class="rtv rtcur'+(r.cur<0?' neg':(r.cur===0?' zero':''))+'">'+stkEsc(r.cur)+'<button class="rt-hist" title="이 줄(연식) 이력" onclick="event.stopPropagation();stkHistOpen(\''+pid+'\',\''+dq(dotv)+'\')">📜</button></td>'));   /* (11/4 호준님) 줄(연식)마다 이력 */
+      ((STK_STORE==='ping'&&!v2ColOn('cur'))?'':('<td class="rtv rtcur'+(r.cur<0?' neg':(r.cur===0?' zero':''))+'">'+stkEsc(r.cur)+'<button class="rt-hist" title="이 줄(연식) 이력" onclick="event.stopPropagation();stkHistOpen(\''+pid+'\',\''+dq(dotv)+'\')">📜</button>'+((typeof stkCkSpan==='function')?stkCkSpan(pid,dotv,'t'):'')+'</td>'));   /* (11/4 호준님) 줄(연식)마다 이력 */
     r.ch.forEach(function(v,ci){
       var chName=STK_CHANS[ci];
       rows+='<td class="rtch ch-'+ci+'" style="cursor:pointer" title="클릭해서 '+chName+' 출고" onclick="stkRtOpenOut(\''+pid+'\',\''+dq(dotv)+'\','+ci+')">'+(v||'<span style="color:#ccc">+</span>')+'</td>';
@@ -18209,6 +18209,10 @@ function stkSearchCmpKey(p){ var b=STK_BR_ALIAS[p.br]||p.br||''; var bi=STK_BR_O
 function stkSearchSort(list){ var K=list.map(function(p){ return {p:p,k:stkSearchCmpKey(p)}; });
   K.sort(function(x,y){ var a=x.k,b=y.k; return (a.bi-b.bi)||(a.bi===99?a.b.localeCompare(b.b,'ko'):0)||(a.rim-b.rim)||(a.w-b.w)||(a.a-b.a)||a.pat.localeCompare(b.pat,'ko')||(a.dot-b.dot)||(a.ord-b.ord); });
   return K.map(function(x){return x.p;}); }
+var _stkLimN=80,_stkLimKey='',_stkMoreOb=null;   /* (11/11) 검색 탭 이어 보기 — 검색어·필터·정렬이 바뀌면 다시 80건부터 */
+function stkLim(){ var k=[].slice.call(arguments).join('|'); if(k!==_stkLimKey){ _stkLimKey=k; _stkLimN=80; } return _stkLimN; }
+function stkMore(){ _stkLimN+=80; stkRenderSearch(); }
+function stkMoreWatch(){ try{ if(_stkMoreOb)_stkMoreOb.disconnect(); var m=document.getElementById('stk-more'); if(!m||typeof IntersectionObserver==='undefined')return; _stkMoreOb=new IntersectionObserver(function(en){ if(en.some(function(x){ return x.isIntersecting; })){ _stkMoreOb.disconnect(); stkMore(); } }); _stkMoreOb.observe(m); }catch(e){ console.error('stkMoreWatch',e); } }
 function stkRenderSearch(){
   var q=document.getElementById('stk-q').value||'';
   var el=document.getElementById('stk-plist');if(!el)return;
@@ -18235,7 +18239,8 @@ function stkRenderSearch(){
     return;
   }
   el.innerHTML='';
-  list.slice(0,80).forEach(function(p){
+  var _lim=stkLim(q,sortMode,fPos,fZero,fNeg);
+  list.slice(0,_lim).forEach(function(p){
     var qty=stkTq(p);
     var c=document.createElement('div');c.className='pcard'+(stkOpen[p.id]?' open':'');
     var lots=stkLotRowsHtml(p)||'<div class="lotrow" style="color:#bbb">창고 재고 없음 — 출고하면 입고예정(마이너스)으로 잡힙니다 <button class="lotbtn" onclick="event.stopPropagation();stkOutZero(\''+p.id+'\')">📦 출고</button></div>';
@@ -18257,8 +18262,8 @@ function stkRenderSearch(){
     c.setAttribute('data-pid',p.id);
     el.appendChild(c);
   });
-  try{ stkBulkFetch(list.slice(0,80).map(function(p){return p.id;})); }catch(e){}   // (10/14) 대량 입고 배지
-  if(list.length>80)el.innerHTML+='<div class="stk-empty">'+(list.length-80)+'건 더 있음 — 검색어를 좁혀보세요</div>';
+  try{ stkBulkFetch(list.slice(0,_lim).map(function(p){return p.id;})); }catch(e){}   // (10/14) 대량 입고 배지
+  if(list.length>_lim){ el.innerHTML+='<div class="stk-empty" id="stk-more">'+(list.length-_lim)+'건 더 있음 — 아래로 내리면 이어서 나옵니다 <button class="lotbtn" onclick="stkMore()">80건 더 보기</button></div>'; stkMoreWatch(); }
   if(!el._stkBound){el._stkBound=true;
     el.addEventListener('click',function(e){
       if(e.target.closest('.lotbtn')||e.target.closest('.lotloc'))return; // 출고·위치 버튼은 자체 처리
@@ -23558,7 +23563,7 @@ function wmSegLabel(it){ var p=it.p, mk=wmMarks(p), code=wmPatCode(p), model=wmM
 function wmHz(){ return window.innerWidth<900; }
 function wmSegHz(it){ var p=it.p, mk=wmMarks(p), code=wmPatCode(p), model=wmModel(p); return '<b class="l1"><span class="sz">'+stkEsc(p.size||'')+(wmPly(p)?' '+stkEsc(wmPly(p)):'')+'</span><u class="q">×'+it.l.q+'</u></b><span class="l2">'+(code?'<span class="pt">'+stkEsc(code)+'</span>':'')+(mk.length?'<u class="mk">'+stkEsc(mk.join(' '))+'</u>':'')+'<span class="yr">'+stkEsc(it.l.dot||'DOT?')+'</span><span class="md">'+stkEsc(model)+'</span></span>'; }
 /* 막대: 칸 크기는 항상 같고(늘어나지 않음), 줄 안에서 수량 비율만큼 색칠(10개 = 꽉, 넘치면 비율로) */
-function wmBars(cd,m,big){ var o=m[cd], n=wmN(cd), st=o?o.stacks:[]; var hz=big&&wmHz(); var out='<div class="bars'+(hz?' hz':'')+'">'; for(var i=0;i<n;i++){ var s=st[i]||[], q=s.reduce(function(a,it){return a+it.l.q;},0), cap=Math.max(10,q); out+='<div class="bar" title="줄 '+WM_SN[i]+' · '+q+'개">'+(q?'':'<em>'+(i+1)+'</em>')+s.map(function(it){ return '<i style="flex:'+it.l.q+' 1 0;min-height:3px;background:'+wmColor(it.p.br)+';cursor:grab" title="'+stkEsc(wmLotTitle(it))+' — 누르면 수량 고르기 · 끌면 통째로" draggable="true" ondragstart="wmDragSeg(event,\''+it.l.id+'\')" ondragend="stkDragEnd()" ondragover="event.preventDefault();event.stopPropagation();this.style.outline=\'3px solid #f59e0b\'" ondragleave="this.style.outline=\'\'" ondrop="this.style.outline=\'\';wmDropOnLot(event,\''+it.l.id+'\')" onclick="event.stopPropagation();if(typeof stkPick!==\'undefined\'&&stkPick&&stkPick.type===\'lot\'&&String(stkPick.id)!==\''+it.l.id+'\'){wmDropOnLot(null,\''+it.l.id+'\');}else wmQtyPick(\''+it.l.id+'\')">'+(hz?wmSegHz(it):(big?wmSegLabel(it):'×'+it.l.q))+'</i>'; }).join('')+((q<cap&&!hz)?'<i style="flex:'+(cap-q)+' 1 0;background:transparent;border:0"></i>':'')+'</div>'; } return out+'</div>'; }   /* 폰 큰 보기는 가로 띠(채움 비율 칸 없음 — 글자 자리 확보), PC는 세로 막대 그대로 */
+function wmBars(cd,m,big){ var o=m[cd], n=wmN(cd), st=o?o.stacks:[]; var hz=big&&wmHz(); var out='<div class="bars'+(hz?' hz':' sq')+'"'+(hz?'':' style="grid-template-columns:repeat('+(n<=1?1:2)+',minmax(0,1fr))"')+'>'; for(var i=0;i<n;i++){ var s=st[i]||[], q=s.reduce(function(a,it){return a+it.l.q;},0), cap=Math.max(10,q), wk=q?wmCkWorst(s.map(function(it){return it.l;})):null; out+='<div class="bar" title="줄 '+WM_SN[i]+' · '+q+'개'+(wk?' · 실물 확인 '+(wmCkWhen(wk)||'안 함'):'')+' — 끌어다 놓거나, 집은 뒤 누르면 이 줄에" ondragover="event.preventDefault();this.classList.add(\'dz\')" ondragleave="this.classList.remove(\'dz\')" ondrop="this.classList.remove(\'dz\');wmDropBar(event,\''+cd+'\','+i+')" onclick="if(typeof stkPick!==\'undefined\'&&stkPick){event.stopPropagation();wmPlace(\''+cd+'\','+i+');}">'+(q?'<b class="ckd" data-ck="'+cd+'|'+i+'" style="background:'+wmCkCol(wk)+'"></b>':'<em>'+(i+1)+'</em>')+s.map(function(it){ return '<i style="flex:'+it.l.q+' 1 0;min-height:3px;background:'+wmColor(it.p.br)+';cursor:grab" title="'+stkEsc(wmLotTitle(it))+' — 누르면 수량 고르기 · 끌면 통째로" draggable="true" ondragstart="wmDragSeg(event,\''+it.l.id+'\')" ondragend="stkDragEnd()" ondragover="event.preventDefault();event.stopPropagation();this.style.outline=\'3px solid #f59e0b\'" ondragleave="this.style.outline=\'\'" ondrop="this.style.outline=\'\';wmDropOnLot(event,\''+it.l.id+'\')" onclick="event.stopPropagation();if(typeof stkPick!==\'undefined\'&&stkPick&&stkPick.type===\'lot\'&&String(stkPick.id)!==\''+it.l.id+'\'){wmDropOnLot(null,\''+it.l.id+'\');}else wmQtyPick(\''+it.l.id+'\')">'+(hz?wmSegHz(it):(big?wmSegLabel(it):'×'+it.l.q))+'</i>'; }).join('')+((q<cap&&!hz)?'<i style="flex:'+(cap-q)+' 1 0;background:transparent;border:0"></i>':'')+'</div>'; } return out+'</div>'; }   /* 폰 큰 보기는 가로 띠(채움 비율 칸 없음 — 글자 자리 확보), PC는 세로 막대 그대로 */
 (function(){ if(window._wmHzCss)return; window._wmHzCss=true; document.head.insertAdjacentHTML('beforeend','<style>.wm-grid.big .tc .bars.hz{flex-direction:column;gap:2px}.wm-grid.big .tc .bars.hz .bar{flex-direction:row;min-height:0;position:relative}.wm-grid.big .tc .bars.hz .bar em{position:absolute;left:3px;top:50%;transform:translateY(-50%);font-size:9px;color:#cbd5e1;font-style:normal}.wm-grid.big .tc .bars.hz .bar i{border-top:0;border-left:1px solid rgba(255,255,255,.5);flex-direction:column;justify-content:center;align-items:stretch;gap:1px;white-space:nowrap;padding:1px 4px;font-size:8.5px;line-height:1.1;min-width:46%;overflow:hidden;text-align:left}.wm-grid.big .tc .bars.hz .bar i:only-child{min-width:0}.wm-grid.big .tc .bars.hz .bar i .l1{display:flex;gap:4px;align-items:center;min-width:0;font-size:9.5px;font-weight:900}.wm-grid.big .tc .bars.hz .bar i .l1 .sz{flex:0 0 auto;white-space:nowrap}.wm-grid.big .tc .bars.hz .bar i .l1 .q{flex:0 0 auto;text-decoration:none;background:rgba(0,0,0,.25);border-radius:3px;padding:0 3px}.wm-grid.big .tc .bars.hz .bar i .l2{display:flex;gap:3px;align-items:center;min-width:0;overflow:hidden;opacity:.95}.wm-grid.big .tc .bars.hz .bar i .l2 .pt{flex:0 0 auto;font-weight:800}.wm-grid.big .tc .bars.hz .bar i .l2 .mk{flex:0 0 auto;text-decoration:none;background:rgba(255,255,255,.35);border-radius:3px;padding:0 3px;font-weight:900}.wm-grid.big .tc .bars.hz .bar i .l2 .yr{flex:0 1 auto;min-width:0;overflow:hidden;white-space:nowrap}.wm-grid.big .tc .bars.hz .bar i .l2 .md{flex:0 999 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}</style>'); })();
 function wmCellHtml(x,m,h,big){ if(x.kind==='none')return '<div class="tc none"></div>'; if(x.kind==='wall')return '<div class="tc wall">벽</div>'; if(x.kind==='aisle')return WM.edit?wmEditCell(x):'<div class="tc aisle">'+stkEsc(x.label)+'</div>'; if(x.kind==='fx')return WM.edit?wmEditCell(x):'<div class="tc fx">'+stkEsc(x.label)+'</div>';
   if(WM.edit)return wmEditCell(x); var cd=x.code, o=m[cd], q=o?o.stacks.reduce(function(a,s){return a+s.reduce(function(b,it){return b+it.l.q;},0);},0):0, over=o&&o.stacks.some(function(s){return s.reduce(function(b,it){return b+it.l.q;},0)>10;});
@@ -23655,13 +23660,13 @@ async function wmDropOnLot(e,targetId){ if(e){ e.preventDefault(); e.stopPropaga
 async function wmSetPos(l,k,cd,logIt){ var m=wmCellMap(), o=m[cd], ord=0; if(o&&o.stacks[k])o.stacks[k].forEach(function(it){ if(it.l.id!==l.id)ord=Math.max(ord,(it.l.ord||0)+1); }); var up=await sb.from('stock_lots').update({stk:k,ord:ord,updated_at:new Date().toISOString()}).eq('id',l.id); if(up.error){ stkToast('⚠ 줄 저장 안 됨: '+up.error.message+(/stk|ord|column/.test(String(up.error.message))?' — SQL(stk·ord 칸 추가) 먼저':'')); wmRender(); return; } var oldK=l.stk; l.stk=k; l.ord=ord; if(logIt){ var p=wmLot(l.id).p; stkLog('📍줄이동',(p.br||'')+' '+(p.name||'')+(p.code?' ['+p.code+']':'')+' '+(p.size||'')+(l.dot?' '+l.dot:'')+' '+l.q+'개 · '+cd+' '+(oldK>=0?WM_SN[oldK]:'?')+'→'+WM_SN[k]+'줄',{product_id:p.id,dot:l.dot,qty:l.q,from_loc:cd,to_loc:cd}); } stkToast('📍 '+cd+' '+WM_SN[k]+'줄'); WM.sel=cd; wmRender(); if(WM.det===cd)wmDet(cd); }
 /* 칸 상세: 줄 N개 · 블록 탭→줄 탭 · 수량·분리 · 줄 수 ➖➕ */
 function wmDet(cd){ WM.det=cd; var old=document.getElementById('wm-det'); if(old)old.remove();
-  document.body.insertAdjacentHTML('beforeend','<div id="wm-det" class="rt-form" onclick="if(event.target===this){this.remove();WM.det=null;wmRender()}"><div class="sheet"><div style="display:flex;align-items:center;gap:8px"><b style="font-size:18px">'+cd+'</b><span id="wm-det-sub" style="font-size:12px;color:#64748b"></span><span style="flex:1"></span>'+(stkIsAdmin()?'<span style="font-size:11.5px;color:#475569">줄 수</span><button class="rt-btn" onclick="wmStkN(\''+cd+'\',-1)">➖</button><b id="wm-det-n"></b><button class="rt-btn" onclick="wmStkN(\''+cd+'\',1)">➕</button>':'')+'<button class="rt-btn" onclick="document.getElementById(\'wm-det\').remove();WM.det=null;wmRender()">닫기 ✕</button></div><div style="font-size:11.5px;color:#555;line-height:1.6;margin:6px 0 8px">줄 ①이 통로 쪽, 아래→위 쌓인 순서. 블록을 누른 뒤 다른 줄을 누르면 옮겨짐(기록). 블록 두 번 = 수량·분리. 다른 칸으로는 블록 누른 뒤 창 닫고 칸 탭.</div><div class="tsr-stacks" id="wm-stacks"></div><div class="tsr-lbls"><span>◀ 통로 쪽 ①</span><span>안쪽 ▶</span></div><div id="wm-det-edit"></div></div></div>'); wmDetDraw(); }
-function wmDetDraw(){ var cd=WM.det, el=document.getElementById('wm-stacks'); if(!cd||!el)return; var m=wmCellMap(), o=m[cd], n=wmN(cd), st=o?o.stacks:[]; var tot=0; st.forEach(function(s){ s.forEach(function(it){ tot+=it.l.q; }); }); document.getElementById('wm-det-sub').textContent=tot+'개 · 줄 '+n+'개'; var nn=document.getElementById('wm-det-n'); if(nn)nn.textContent=n+'줄'; el.style.gridTemplateColumns='repeat('+Math.min(4,n)+',minmax(0,1fr))'; var pk=(typeof stkPick!=='undefined'&&stkPick&&stkPick.type==='lot')?String(stkPick.id):null;
+  document.body.insertAdjacentHTML('beforeend','<div id="wm-det" class="rt-form" onclick="if(event.target===this){this.remove();WM.det=null;wmRender()}"><div class="sheet"><div style="display:flex;align-items:center;gap:8px"><b style="font-size:18px">'+cd+'</b><span id="wm-det-sub" style="font-size:12px;color:#64748b"></span><span style="flex:1"></span>'+(stkIsAdmin()?'<span style="font-size:11.5px;color:#475569">줄 수</span><button class="rt-btn" onclick="wmStkN(\''+cd+'\',-1)">➖</button><b id="wm-det-n"></b><button class="rt-btn" onclick="wmStkN(\''+cd+'\',1)">➕</button>':'')+'<button class="rt-btn" onclick="document.getElementById(\'wm-det\').remove();WM.det=null;wmRender()">닫기 ✕</button></div><div style="font-size:11.5px;color:#555;line-height:1.6;margin:6px 0 8px">줄 ①이 통로 쪽, 아래→위 쌓인 순서. 블록을 누른 뒤 다른 줄을 누르면 옮겨짐(기록). 블록 두 번 = 수량·분리. 다른 칸으로는 블록 누른 뒤 창 닫고 칸 탭.</div><div class="tsr-stacks" id="wm-stacks"></div><div class="tsr-lbls"><span>①② 윗줄 · ③④ 아랫줄</span><span>네모를 누르면 넣을 줄 · 찾은 타이어를 네모로 끌어다 놓아도 됩니다</span></div><div id="wm-det-edit"></div></div></div>'); wmDetDraw(); }
+function wmDetDraw(){ var cd=WM.det, el=document.getElementById('wm-stacks'); if(!cd||!el)return; var m=wmCellMap(), o=m[cd], n=wmN(cd), st=o?o.stacks:[]; var tot=0; st.forEach(function(s){ s.forEach(function(it){ tot+=it.l.q; }); }); document.getElementById('wm-det-sub').textContent=tot+'개 · 줄 '+n+'개'; var nn=document.getElementById('wm-det-n'); if(nn)nn.textContent=n+'줄'; el.style.gridTemplateColumns='repeat('+(n<=1?1:2)+',minmax(0,1fr))'; var pk=(typeof stkPick!=='undefined'&&stkPick&&stkPick.type==='lot')?String(stkPick.id):null;
   /* 줄 4칸은 항상 같은 크기(높이 고정), 블록은 수량 비율로만 — 10개 = 꽉, 넘치면 비율로 */
-  el.innerHTML=(function(){ var h=''; for(var i=0;i<n;i++){ var s=st[i]||[], q=s.reduce(function(a,it){return a+it.l.q;},0), cap=Math.max(10,q); h+='<div class="stk'+(q?'':' empty')+'" style="height:190px;min-height:190px;padding-top:18px;box-sizing:border-box" onclick="wmStkTap('+i+')" ondragover="event.preventDefault();this.style.outline=\'3px solid #f59e0b\'" ondragleave="this.style.outline=\'\'" ondrop="event.preventDefault();this.style.outline=\'\';wmStkDrop('+i+')"><span class="hd">'+WM_SN[i]+'</span><span style="position:absolute;top:3px;right:5px;font-size:9px;color:'+(q>10?'#b91c1c':'#888')+'">'+(q?q+'개':'')+'</span>'+(q?s.map(function(it,j){ return '<div class="blk'+(pk===String(it.l.id)?' sel':'')+'" style="background:'+wmColor(it.p.br)+';flex:'+it.l.q+' 1 0;min-height:22px;overflow:hidden;display:flex;align-items:center;gap:4px;cursor:grab" draggable="true" ondragstart="event.stopPropagation();wmDragSeg(event,\''+it.l.id+'\')" ondragend="stkDragEnd()" ondragover="event.preventDefault();event.stopPropagation();this.style.outline=\'3px solid #fff\'" ondragleave="this.style.outline=\'\'" ondrop="this.style.outline=\'\';wmDropOnLot(event,\''+it.l.id+'\')" onclick="event.stopPropagation();if(typeof stkPick!==\'undefined\'&&stkPick&&stkPick.type===\'lot\'&&String(stkPick.id)!==\''+it.l.id+'\'){wmDropOnLot(null,\''+it.l.id+'\');}else wmBlkTap(\''+it.l.id+'\')"><span style="flex:1;min-width:0;overflow:hidden;line-height:1.2">'+stkEsc(it.p.br+' '+it.p.name)+'<small>'+stkEsc(it.p.size)+(wmPly(it.p)?' '+stkEsc(wmPly(it.p)):'')+(wmMarks(it.p).length?' · <u>'+stkEsc(wmMarks(it.p).join(' '))+'</u>':'')+' · '+(it.l.dot?stkEsc(it.l.dot):'<span style=\"color:#fde68a\">DOT?</span>')+' · <b>'+it.l.q+'개</b> '+wmCkChip(it.l)+(it.p.code?' · '+stkEsc(it.p.code):'')+'</small></span><span style="display:flex;flex-direction:column;gap:2px">'+(j<s.length-1?'<button class="wm-ud" onclick="event.stopPropagation();wmOrdMove(\''+it.l.id+'\',1)" title="위로">▲</button>':'')+(j>0?'<button class="wm-ud" onclick="event.stopPropagation();wmOrdMove(\''+it.l.id+'\',-1)" title="아래로">▼</button>':'')+'</span></div>'; }).join('')+(q<cap?'<div style="flex:'+(cap-q)+' 1 0"></div>':''):'<span class="hint">빈 줄<br>블록을 누른 뒤 여기</span>')+'</div>'; } return h; })(); }
+  el.innerHTML=(function(){ var h=''; for(var i=0;i<n;i++){ var s=st[i]||[], q=s.reduce(function(a,it){return a+it.l.q;},0), cap=Math.max(10,q); h+='<div class="stk'+(q?'':' empty')+(String(WM.putK)===String(i)?' put':'')+'" style="height:150px;min-height:150px;padding-top:18px;box-sizing:border-box" onclick="wmStkTap('+i+')" ondragover="event.preventDefault();this.style.outline=\'3px solid #f59e0b\'" ondragleave="this.style.outline=\'\'" ondrop="event.preventDefault();this.style.outline=\'\';wmStkDrop('+i+')"><span class="hd">'+WM_SN[i]+(String(WM.putK)===String(i)?' <em>여기에 넣음</em>':'')+'</span><span style="position:absolute;top:3px;right:5px;font-size:9px;color:'+(q>10?'#b91c1c':'#888')+'">'+(q?q+'개':'')+'</span>'+(q?s.map(function(it,j){ return '<div class="blk'+(pk===String(it.l.id)?' sel':'')+'" style="background:'+wmColor(it.p.br)+';flex:'+it.l.q+' 1 0;min-height:22px;overflow:hidden;display:flex;align-items:center;gap:4px;cursor:grab" draggable="true" ondragstart="event.stopPropagation();wmDragSeg(event,\''+it.l.id+'\')" ondragend="stkDragEnd()" ondragover="event.preventDefault();event.stopPropagation();this.style.outline=\'3px solid #fff\'" ondragleave="this.style.outline=\'\'" ondrop="this.style.outline=\'\';wmDropOnLot(event,\''+it.l.id+'\')" onclick="event.stopPropagation();if(typeof stkPick!==\'undefined\'&&stkPick&&stkPick.type===\'lot\'&&String(stkPick.id)!==\''+it.l.id+'\'){wmDropOnLot(null,\''+it.l.id+'\');}else wmBlkTap(\''+it.l.id+'\')"><span style="flex:1;min-width:0;overflow:hidden;line-height:1.2">'+stkEsc(it.p.br+' '+it.p.name)+'<small>'+stkEsc(it.p.size)+(wmPly(it.p)?' '+stkEsc(wmPly(it.p)):'')+(wmMarks(it.p).length?' · <u>'+stkEsc(wmMarks(it.p).join(' '))+'</u>':'')+' · '+(it.l.dot?stkEsc(it.l.dot):'<span style=\"color:#fde68a\">DOT?</span>')+' · <b>'+it.l.q+'개</b> '+wmCkChip(it.l)+(it.p.code?' · '+stkEsc(it.p.code):'')+'</small></span><span style="display:flex;flex-direction:column;gap:2px">'+(j<s.length-1?'<button class="wm-ud" onclick="event.stopPropagation();wmOrdMove(\''+it.l.id+'\',1)" title="위로">▲</button>':'')+(j>0?'<button class="wm-ud" onclick="event.stopPropagation();wmOrdMove(\''+it.l.id+'\',-1)" title="아래로">▼</button>':'')+'</span></div>'; }).join('')+(q<cap?'<div style="flex:'+(cap-q)+' 1 0"></div>':''):'<span class="hint">빈 줄<br>누르면 여기에 넣기</span>')+'</div>'; } return h; })(); }
 function wmBlkTap(id){ if(typeof stkPick!=='undefined'&&stkPick&&String(stkPick.id)===String(id)){ /* 집은 것 다시 누름 = 수량(실사) 고치기 */ stkPickCancel(); wmDetDraw(); wmLotEdit(id); return; } wmQtyPick(id); }
-async function wmStkTap(i){ if(!stkPick||stkPick.type!=='lot')return; var id=stkPick.id, split=stkPick.split; stkPickCancel(); await wmMoveLot(id,WM.det,i,split); }
-async function wmStkDrop(i){ if(!stkDrag||stkDrag.type!=='lot')return; var id=stkDrag.id; stkDrag=null; stkDragging=false; await wmMoveLot(id,WM.det,i,undefined); }
+async function wmStkTap(i){ if(!stkPick||stkPick.type!=='lot'){ if(!document.getElementById('wm-put'))return; WM.putK=(String(WM.putK)===String(i))?'':i; var _s=document.getElementById('wm-put-k'); if(_s)_s.value=String(WM.putK); wmDetDraw(); return; }   /* (11/11) 집은 것이 없을 때 네모를 누르면 = 넣을 줄 고르기(다시 누르면 자동) */ var id=stkPick.id, split=stkPick.split; stkPickCancel(); await wmMoveLot(id,WM.det,i,split); }
+async function wmStkDrop(i){ if(!stkDrag||stkDrag.type!=='lot')return; var id=stkDrag.id; stkDrag=null; stkDragging=false; await wmMoveLot(id,WM.det,i,undefined); try{ wmPutDraw(); }catch(e){} }
 function wmLotEdit(id){ var r=wmLot(id); if(!r)return; var box=document.getElementById('wm-det-edit'); if(!box)return; box.innerHTML='<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:9px;padding:8px 10px;margin-top:8px;font-size:12.5px"><b>'+stkEsc(r.p.br+' '+r.p.name)+' '+stkEsc(r.p.size)+' '+(r.l.dot||'DOT?')+'</b> — '+r.l.q+'개<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px"><label>수량(실사) <input type="number" id="wm-le-q" value="'+r.l.q+'" min="0" style="width:70px"></label><button class="rt-btn" onclick="wmLotQty(\''+id+'\')">저장</button><button class="rt-btn" style="border-color:#16a34a;color:#15803d" onclick="wmCkDo(\''+id+'\').then(function(){wmLotEdit(\''+id+'\');})">✔ 실물 맞음</button> '+wmCkChip(r.l)+wmCkInfo(r.l)+'<span style="color:#94a3b8">|</span><label>분리 <input type="number" id="wm-le-s" value="1" min="1" max="'+r.l.q+'" style="width:60px"></label><button class="rt-btn" onclick="wmLotSplit(\''+id+'\')">✂ 집어서 분리 → 줄/칸 탭</button><button class="rt-btn" onclick="document.getElementById(\'wm-det-edit\').innerHTML=\'\'">닫기</button></div></div>'; }
 async function wmLotQty(id){ var v=document.getElementById('wm-le-q').value; await stkAdjQty(id,v); wmDetDraw(); wmRender(); }
 function wmLotSplit(id){ var r=wmLot(id); if(!r)return; var n=Math.max(1,parseInt(document.getElementById('wm-le-s').value)||1); if(n>r.l.q)n=r.l.q;   /* (10/30 시험) 전체보다 크게 적으면 전체 — 안내 숫자도 맞춤 */ if(n>=r.l.q){ stkPick={type:'lot',id:id}; } else stkPick={type:'lot',id:id,split:n}; var b=document.getElementById('stk-pickbar'); if(b){ b.style.display='flex'; document.getElementById('stk-pickmsg').textContent='📦 '+r.p.name+' '+n+'개 집음'; } document.getElementById('wm-det-edit').innerHTML=''; wmDetDraw(); stkToast(n+'개 집음 — 줄을 누르거나 창 닫고 칸 탭'); }
@@ -23692,7 +23697,7 @@ function stkLocsHtml(p,g){ var L=g.lots.filter(function(l){return l.q>0;}); if(!
 function stkLotRowsHtml(p){ var G=stkGroups(p); if(!G.length)return ''; return G.map(function(g){ var r=g.lots[0];
     if(g.minus){ var l=r; return '<div class="lotrow" data-lot="'+l.id+'" style="background:#fef2f2;border-radius:6px"><span class="ldot'+(l.dot?'':' miss')+'">'+(l.dot?stkEsc(l.dot)+'년식':'DOT누락 ⚠')+'</span>'+stkLotPriceHtml(p,l)+'<span class="lotq" style="color:#dc2626">'+l.q+'개 ⏳</span><span class="lotloc" onclick="event.stopPropagation();stkGoto(\''+l.loc+'\',\''+l.id+'\')">📍'+stkEsc(stkLocTxt(l))+'</span><button class="lotbtn" onclick="event.stopPropagation();stkOpenOut(\''+l.id+'\')">📦 출고</button><button class="lotbtn lot-hist" title="이 연식 줄 이력" onclick="event.stopPropagation();stkHistOpen(\''+p.id+'\',\''+stkEsc(stkDotKey(l))+'\')">📜 이력</button>'+(l.src_in?'<div style="font-size:11px;color:#dc2626;width:100%;padding-left:2px">⏳ '+stkEsc(l.src_in)+(l.due_date?' '+stkEsc(l.due_date):'')+' 입고예정분 미리출고</div>':'')+'</div>'; }
     var n=g.lots.filter(function(l){return l.q>0;}).length;
-    return '<div class="lotrow" data-lot="'+r.id+'" data-dot="'+stkEsc(g.dot)+'"><span class="ldot'+(r.dot?'':' miss')+'">'+(r.dot?stkEsc(r.dot)+'년식':'DOT누락 ⚠')+'</span>'+stkLotPriceHtml(p,r)+'<span class="lotq" style="cursor:pointer" title="누르면 전체 수량 고치기(실사) — 줄이면 입구 가까운 자리부터, 늘리면 미배치에" onclick="event.stopPropagation();stkAdjGroupPrompt(\''+p.id+'\',\''+stkEsc(g.dot)+'\')">'+g.q+'개'+(n>1?' <small style="color:#64748b;font-weight:600">('+n+'곳)</small>':'')+' ✏</span>'+stkLocsHtml(p,g)+'<button class="lotbtn" onclick="event.stopPropagation();stkOpenOutGroup(\''+p.id+'\',\''+stkEsc(g.dot)+'\')">📦 출고</button><button class="lotbtn lot-hist" title="이 연식 줄 이력" onclick="event.stopPropagation();stkHistOpen(\''+p.id+'\',\''+stkEsc(g.dot)+'\')">📜 이력</button></div>'; }).join(''); }
+    return '<div class="lotrow" data-lot="'+r.id+'" data-dot="'+stkEsc(g.dot)+'"><span class="ldot'+(r.dot?'':' miss')+'">'+(r.dot?stkEsc(r.dot)+'년식':'DOT누락 ⚠')+'</span>'+stkLotPriceHtml(p,r)+'<span class="lotq" style="cursor:pointer" title="누르면 전체 수량 고치기(실사) — 줄이면 입구 가까운 자리부터, 늘리면 미배치에" onclick="event.stopPropagation();stkAdjGroupPrompt(\''+p.id+'\',\''+stkEsc(g.dot)+'\')">'+g.q+'개'+(n>1?' <small style="color:#64748b;font-weight:600">('+n+'곳)</small>':'')+' ✏</span>'+stkLocsHtml(p,g)+((typeof stkCkSpan==='function')?stkCkSpan(p.id,g.dot,'c'):'')+'<button class="lotbtn" onclick="event.stopPropagation();stkOpenOutGroup(\''+p.id+'\',\''+stkEsc(g.dot)+'\')">📦 출고</button><button class="lotbtn lot-hist" title="이 연식 줄 이력" onclick="event.stopPropagation();stkHistOpen(\''+p.id+'\',\''+stkEsc(g.dot)+'\')">📜 이력</button></div>'; }).join(''); }
 /* 위치 명단(4곳 넘을 때 · 출고 창에서 "여기서 빼기") */
 function stkLocList(pid,dot,mode){ var p=stkP.find(function(x){return x.id===pid;}); if(!p)return; var L=stkGroupLots(pid,dot); var old=document.getElementById('stk-loclist'); if(old)old.remove();
   document.body.insertAdjacentHTML('beforeend','<div id="stk-loclist" class="rt-form" style="z-index:10001" onclick="if(event.target===this)this.remove()"><div class="sheet" style="max-width:460px"><div style="display:flex;align-items:center;gap:8px"><b style="font-size:15px">📍 '+stkEsc(p.br+' '+p.name+' '+p.size)+' · '+stkEsc(dot)+' · '+L.reduce(function(a,l){return a+l.q;},0)+'개 · '+L.length+'곳</b><span style="flex:1"></span><button class="rt-btn" onclick="document.getElementById(\'stk-loclist\').remove()">✕</button></div><div style="font-size:11.5px;color:#94a3b8;margin:4px 0 8px">입구에서 가까운 순. '+(mode==='out'?'[여기서 빼기]를 누르면 그 자리에서만 출고합니다.':'[지도]를 누르면 그 칸으로 갑니다.')+'</div>'+L.map(function(l,i){ return '<div style="display:flex;align-items:center;gap:8px;border-top:1px solid #f1f5f9;padding:7px 0;font-size:13px"><span style="color:#94a3b8;font-size:11px;width:18px">'+(i+1)+'</span><b style="min-width:110px">'+stkEsc(stkLocTxt(l))+'</b><span style="color:#2563eb;font-weight:800">'+l.q+'개</span>'+(l.src_in?'<span style="font-size:11px;color:#64748b">'+stkEsc(l.src_in)+'</span>':'')+'<span style="flex:1"></span>'+(mode==='out'?'<button class="lotbtn" onclick="document.getElementById(\'stk-loclist\').remove();stkCurOutGroup=null;stkOpenOut(\''+l.id+'\')">📦 여기서 빼기</button>':'<button class="lotbtn" onclick="document.getElementById(\'stk-loclist\').remove();stkGoto(\''+l.loc+'\',\''+l.id+'\')">🗺 지도</button>')+'</div>'; }).join('')+'</div></div>'); }
@@ -23818,10 +23823,10 @@ wmMoveLot=async function(id,cd,k,split){ var r=wmLot(id); if(!r||cd==='U'||r.l.l
 var _wmDet0=window._wmDet0||wmDet; window._wmDet0=_wmDet0;
 wmDet=function(cd){ _wmDet0(cd); try{ wmPutMount(cd); }catch(e){ console.error('wmPutMount',e); } };
 function wmPutMount(cd){ if((typeof stkLocked!=='undefined'&&stkLocked)||(cd!=='U'&&WH.zone[cd]))return; var ed=document.getElementById('wm-det-edit'); if(!ed||document.getElementById('wm-put'))return; if(WM.putCd!==cd){ WM.putCd=cd; WM.putQ=''; WM.putK=''; } var n=wmN(cd), opt='<option value="">줄 자동</option>'; for(var i=0;i<n;i++)opt+='<option value="'+i+'"'+(String(WM.putK)===String(i)?' selected':'')+'>'+WM_SN[i]+'줄</option>';
-  ed.insertAdjacentHTML('beforebegin','<div id="wm-put" style="border-top:1px solid #e2e8f0;margin-top:10px;padding-top:8px"><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><b style="font-size:13px">🔍 '+stkEsc(cd)+' 칸에 넣기</b><input id="wm-put-q" value="'+stkEsc(WM.putQ||'')+'" placeholder="타이어 검색 (예: 2355519, HP71, 금호)" style="flex:1;min-width:140px;padding:7px 9px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px" oninput="WM.putQ=this.value;wmPutDraw()"><select id="wm-put-k" onchange="WM.putK=this.value" style="padding:6px;border:1px solid #cbd5e1;border-radius:8px;font-size:12px">'+opt+'</select></div><div id="wm-put-list" style="max-height:260px;overflow:auto;margin-top:6px"></div></div>'); wmPutDraw(); }
+  ed.insertAdjacentHTML('beforebegin','<div id="wm-put" style="border-top:1px solid #e2e8f0;margin-top:10px;padding-top:8px"><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><b style="font-size:13px">🔍 '+stkEsc(cd)+' 칸에 넣기</b><input id="wm-put-q" value="'+stkEsc(WM.putQ||'')+'" placeholder="타이어 검색 (예: 2355519, HP71, 금호)" style="flex:1;min-width:140px;padding:7px 9px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px" oninput="WM.putQ=this.value;wmPutDraw()"><select id="wm-put-k" onchange="WM.putK=this.value;wmDetDraw()" style="padding:6px;border:1px solid #cbd5e1;border-radius:8px;font-size:12px">'+opt+'</select></div><div id="wm-put-list" style="max-height:260px;overflow:auto;margin-top:6px"></div></div>'); wmPutDraw(); }
 function wmPutFind(cd,q){ var out=[]; if(!q||!q.trim())return out; stkP.forEach(function(p){ if(!stkMatch(p,q))return; (p.lots||[]).forEach(function(l){ if(l.q>0&&l.loc!==cd)out.push({p:p,l:l}); }); }); var ua=function(r){ return (r.l.loc==='U'||wmLegacy(r.l.loc))?0:1; }; out.sort(function(a,b){ var x=ua(a)-ua(b); if(x)return x; var s=(a.p.br+a.p.name+a.p.size)<(b.p.br+b.p.name+b.p.size)?-1:((a.p.br+a.p.name+a.p.size)>(b.p.br+b.p.name+b.p.size)?1:0); if(s)return s; return wmYr(a.l)-wmYr(b.l); }); return out; }
-function wmPutDraw(){ var el=document.getElementById('wm-put-list'), cd=WM.det; if(!el||!cd)return; var q=WM.putQ||''; if(!q.trim()){ el.innerHTML='<div style="padding:8px;color:#94a3b8;font-size:12px">넣을 타이어를 검색하세요. 미배치가 먼저 나오고, 다른 칸에 있는 것도 나옵니다.</div>'; return; } var L=wmPutFind(cd,q);
-  el.innerHTML=L.length?L.slice(0,40).map(function(r){ var p=r.p, l=r.l, ua=(l.loc==='U'||wmLegacy(l.loc)); return '<div style="display:flex;align-items:center;gap:6px;border-top:1px solid #f1f5f9;padding:6px 0;font-size:12.5px;flex-wrap:wrap"><span style="flex:1;min-width:150px"><b>'+stkEsc(p.br+' '+p.name)+'</b> '+stkEsc(p.size)+(wmPly(p)?' '+stkEsc(wmPly(p)):'')+' <span style="color:#64748b">'+(l.dot?stkEsc(l.dot):'DOT?')+(p.code?' · '+stkEsc(p.code):'')+'</span><br><span style="color:'+(ua?'#b45309':'#0f766e')+';font-weight:700">'+stkEsc(ua?'미배치':stkLocTxt(l))+'</span> · '+l.q+'개 '+wmCkChip(l)+wmCkInfo(l)+'</span><input type="number" id="wm-put-n-'+l.id+'" value="'+l.q+'" min="1" max="'+l.q+'" style="width:54px;padding:5px;border:1px solid #cbd5e1;border-radius:6px" title="넣을 수량"><button class="wmckb" onclick="wmPutGo(\''+l.id+'\',false)">넣기</button><button class="wmckb ok" onclick="wmPutGo(\''+l.id+'\',true)" title="세어 보니 맞음 — 넣으면서 실물 확인">✔맞음·넣기</button></div>'; }).join('')+(L.length>40?'<div style="padding:6px;color:#94a3b8;font-size:11px;text-align:center">'+(L.length-40)+'건 더 — 검색어를 더 적어 좁히세요</div>':''):'<div style="padding:8px;color:#94a3b8;font-size:12px">이 검색어로 넣을 수 있는 재고가 없어요 (이미 이 칸에 있는 것은 안 나옵니다)</div>'; }
+function wmPutDraw(){ var el=document.getElementById('wm-put-list'), cd=WM.det; if(!el||!cd)return; var q=WM.putQ||''; if(!q.trim()){ el.innerHTML='<div style="padding:8px;color:#94a3b8;font-size:12px">넣을 타이어를 검색하세요. 미배치가 먼저 나오고, 다른 칸에 있는 것도 나옵니다. 위 네모를 눌러 줄을 고르거나, 찾은 타이어를 네모로 끌어다 놓으세요.</div>'; return; } var L=wmPutFind(cd,q);
+  el.innerHTML=L.length?L.slice(0,40).map(function(r){ var p=r.p, l=r.l, ua=(l.loc==='U'||wmLegacy(l.loc)); return '<div style="display:flex;align-items:center;gap:6px;border-top:1px solid #f1f5f9;padding:6px 0;font-size:12.5px;flex-wrap:wrap"><span style="flex:1;min-width:150px;cursor:grab;border-left:5px solid '+wmColor(p.br)+';padding-left:6px" draggable="true" ondragstart="wmDragRes(event,\''+l.id+'\')" ondragend="stkDragEnd()" title="위 네모로 끌어다 놓으면 그 줄에 통째로"><b>'+stkEsc(p.br+' '+p.name)+'</b> '+stkEsc(p.size)+(wmPly(p)?' '+stkEsc(wmPly(p)):'')+' <span style="color:#64748b">'+(l.dot?stkEsc(l.dot):'DOT?')+(p.code?' · '+stkEsc(p.code):'')+'</span><br><span style="color:'+(ua?'#b45309':'#0f766e')+';font-weight:700">'+stkEsc(ua?'미배치':stkLocTxt(l))+'</span> · '+l.q+'개 '+wmCkChip(l)+wmCkInfo(l)+'</span><input type="number" id="wm-put-n-'+l.id+'" value="'+l.q+'" min="1" max="'+l.q+'" style="width:54px;padding:5px;border:1px solid #cbd5e1;border-radius:6px" title="넣을 수량"><button class="wmckb" onclick="wmPutGo(\''+l.id+'\',false)">넣기</button><button class="wmckb ok" onclick="wmPutGo(\''+l.id+'\',true)" title="세어 보니 맞음 — 넣으면서 실물 확인">✔맞음·넣기</button></div>'; }).join('')+(L.length>40?'<div style="padding:6px;color:#94a3b8;font-size:11px;text-align:center">'+(L.length-40)+'건 더 — 검색어를 더 적어 좁히세요</div>':''):'<div style="padding:8px;color:#94a3b8;font-size:12px">이 검색어로 넣을 수 있는 재고가 없어요 (이미 이 칸에 있는 것은 안 나옵니다)</div>'; }
 async function wmPutGo(id,check){ var cd=WM.det; if(!cd)return; if(WM._putBusy)return; if(!stkLockGuard())return; var r=wmLot(id); if(!r||r.l.q<=0){ stkToast('그 재고가 없어요 — 다시 검색해 주세요'); wmPutDraw(); return; } if(r.l.loc===cd){ stkToast('이미 이 칸에 있어요'); wmPutDraw(); return; } if(cd!=='U'&&WH.zone[cd]){ stkToast('🛞 보관타이어방 구역이에요 — 우리 재고는 못 둠'); return; }
   var inp=document.getElementById('wm-put-n-'+id), n=inp?parseInt(inp.value,10):r.l.q; if(isNaN(n)||n<1){ stkToast('넣을 수량을 1 이상으로 적어 주세요'); return; } if(n>r.l.q){ stkToast('지금 '+r.l.q+'개뿐이에요 — 수량이 더 많으면 먼저 ✏수량으로 고쳐 주세요'); return; }
   WM._putBusy=true;
@@ -23846,7 +23851,7 @@ try{ WB.on=(localStorage.getItem('wm_big')==='1'); }catch(e){}
  +'.wb-quick{display:flex;gap:8px;padding:8px 0}.wb-quick button{flex:1;border:1px solid #cbd5e1;background:#fff;border-radius:12px;padding:11px 6px;font-size:14px;font-weight:700;color:#0f172a}.wb-quick button.pri{background:#4f46e5;border-color:#4f46e5;color:#fff}'
  +'.wb-leg{display:flex;flex-wrap:wrap;gap:5px 10px;padding:0 2px 8px;font-size:12px;color:#475569}.wb-leg i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:4px;vertical-align:-1px}'
  +'.wb-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:10px}.wb-hint{font-size:12px;color:#94a3b8;padding:0 2px 4px}.wb-grid{display:grid;gap:6px;width:max-content}'
- +'.wb-c{border-radius:10px;min-height:60px;padding:5px 6px;background:#fff;border:2px solid #e2e8f0;display:flex;flex-direction:column;justify-content:space-between;position:relative;overflow:hidden;cursor:pointer}.wb-c .cd{font-size:15px;font-weight:800;letter-spacing:-.3px;color:#0f172a}.wb-c .cd small{font-size:9.5px;color:#94a3b8;font-weight:700;margin-right:1px}.wb-c .n{font-size:11.5px;color:#475569;font-weight:700;white-space:nowrap}.wb-c .rf{font-size:9.5px;color:#92400e;white-space:nowrap}.wb-c.empty{border-style:dashed;border-color:#94a3b8;background:#f8fafc}.wb-c.empty .n{color:#4f46e5}.wb-c.out{background:#eef7ff}.wb-c.roof{background:#fffbeb}.wb-c.stair{background:#fde68a}.wb-c.sel{border-color:#4f46e5;box-shadow:0 0 0 3px #c7d2fe}.wb-c .dot{position:absolute;top:7px;right:6px;width:11px;height:11px;border-radius:50%}'
+ +'.wb-c{border-radius:10px;min-height:60px;padding:5px 6px;background:#fff;border:2px solid #e2e8f0;display:flex;flex-direction:column;justify-content:space-between;position:relative;overflow:hidden;cursor:pointer}.wb-c .cd{font-size:14px;font-weight:800;letter-spacing:-.3px;color:#0f172a}.wb-c .cd small{font-size:13px;color:#4f46e5;font-weight:800}.wb-c .mini{display:grid;grid-template-columns:1fr 1fr;gap:2px;margin:3px 0}.wb-c .mini i{height:18px;border-radius:3px;display:block;color:#fff;font-size:11px;font-weight:800;font-style:normal;text-align:center;line-height:14px;text-shadow:0 0 2px rgba(0,0,0,.5)}.wb-c .mini i.e{border:1px dashed #cbd5e1}.wb-c .n{font-size:11.5px;color:#475569;font-weight:700;white-space:nowrap}.wb-c .rf{font-size:9.5px;color:#92400e;white-space:nowrap}.wb-c.empty{border-style:dashed;border-color:#94a3b8;background:#f8fafc}.wb-c.empty .n{color:#4f46e5}.wb-c.out{background:#eef7ff}.wb-c.roof{background:#fffbeb}.wb-c.stair{background:#fde68a}.wb-c.sel{border-color:#4f46e5;box-shadow:0 0 0 3px #c7d2fe}.wb-c .dot{position:absolute;top:7px;right:6px;width:11px;height:11px;border-radius:50%}'
  +'.wb-c.zone{background:repeating-linear-gradient(45deg,#ede9fe,#ede9fe 6px,#f5f3ff 6px,#f5f3ff 12px);border-color:#c4b5fd;cursor:default}.wb-c.zone .cd,.wb-c.zone .n{color:#7c3aed}.wb-x{border-radius:8px;min-height:60px;display:flex;align-items:center;justify-content:center;text-align:center;font-size:10.5px;color:#64748b;line-height:1.2;overflow:hidden}.wb-x.aisle{background:#f1f5f9}.wb-x.fx{background:#d6d3cb;color:#44403c}.wb-x.wall{background:#94a3b8;border-radius:3px;font-size:0}.wb-x.gate{background:#0f172a;color:#fff;font-size:13px;font-weight:700;min-height:34px}'
  +'#wb-sheet{position:fixed;left:0;right:0;top:0;bottom:0;z-index:900;background:rgba(15,23,42,.45);display:none}#wb-sheet.on{display:block}#wb-sheet .pn{position:absolute;top:0;bottom:0;left:0;right:0;max-width:560px;margin:0 auto;background:#f8fafc;display:flex;flex-direction:column}'
  +'#wb-sheet .hd{background:#0f172a;color:#fff;padding:10px;display:flex;align-items:center;gap:8px}#wb-sheet .hd .big{font-size:23px;font-weight:800;flex:1;letter-spacing:-.5px;white-space:nowrap;overflow:hidden}#wb-sheet .hd .big small{font-size:13px;font-weight:600;color:#cbd5e1;margin-left:6px}#wb-sheet .hd button{border:0;border-radius:10px;font-size:14px;font-weight:700;padding:11px 11px;background:#334155;color:#fff;white-space:nowrap}'
@@ -23856,44 +23861,61 @@ try{ WB.on=(localStorage.getItem('wm_big')==='1'); }catch(e){}
  +'.wb-row{display:flex;gap:8px;margin-top:10px;align-items:center}.wb-btn{flex:1;border:1.5px solid #cbd5e1;background:#fff;border-radius:12px;min-height:46px;font-size:15px;font-weight:800;color:#0f172a;padding:0 6px;white-space:nowrap}.wb-btn.ok{background:#16a34a;border-color:#16a34a;color:#fff}.wb-btn.in{background:#4f46e5;border-color:#4f46e5;color:#fff}.wb-btn.sm{flex:0 0 auto;padding:0 13px}'
  +'.wb-step{display:flex;align-items:center;border:1.5px solid #cbd5e1;border-radius:12px;overflow:hidden;flex:0 0 auto;background:#fff}.wb-step button{border:0;background:#f1f5f9;width:44px;height:46px;font-size:22px;font-weight:800;color:#0f172a}.wb-step input{width:58px;border:0;text-align:center;font-size:18px;font-weight:800;height:46px;background:#fff;color:#0f172a;-moz-appearance:textfield}.wb-step input::-webkit-outer-spin-button,.wb-step input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}'
  +'.wb-srch{position:sticky;top:0;z-index:2;background:#f8fafc;padding:8px 10px;border-bottom:1px solid #e2e8f0;border-top:1px solid #e2e8f0;margin-top:6px}.wb-srch .lab{font-size:15px;font-weight:800;margin-bottom:6px;color:#0f172a}.wb-srch .lab em{font-style:normal;color:#4f46e5}.wb-srch .box{display:flex;gap:8px}.wb-srch input{flex:1;min-width:0;font-size:17px;padding:12px;border:2px solid #4f46e5;border-radius:12px;background:#fff;color:#0f172a;outline:none}.wb-srch .x{flex:0 0 auto;border:0;background:#e2e8f0;border-radius:12px;width:46px;font-size:18px;font-weight:800;color:#0f172a}'
- +'.wb-lines{display:flex;gap:6px;margin-top:8px;overflow-x:auto}.wb-lines button{flex:0 0 auto;border:1.5px solid #cbd5e1;background:#fff;border-radius:99px;padding:7px 13px;font-size:13px;font-weight:800;color:#334155}.wb-lines button.on{background:#0f172a;border-color:#0f172a;color:#fff}.wb-msg{padding:14px 16px;color:#64748b;font-size:14px;line-height:1.5}.wb-none{margin:0 10px 8px;border:2px dashed #cbd5e1;border-radius:14px;padding:16px;text-align:center;color:#64748b;font-size:14px}';
+ +'.wb-lines{display:flex;gap:6px;margin-top:8px;overflow-x:auto}.wb-lines button{flex:0 0 auto;border:1.5px solid #cbd5e1;background:#fff;border-radius:99px;padding:7px 13px;font-size:13px;font-weight:800;color:#334155}.wb-lines button.on{background:#0f172a;border-color:#0f172a;color:#fff}.tc .bars.sq{display:grid;grid-auto-rows:minmax(0,1fr);align-items:stretch}.tc .bars.sq .bar{height:auto;min-height:0}.tc .bars.sq .bar i{min-height:9px!important}.tc .bar.dz{outline:2px solid #f59e0b;outline-offset:-2px}.tc .bar b.ckd{position:absolute;top:1px;right:1px;width:7px;height:7px;border-radius:50%;border:1px solid #fff;z-index:1;pointer-events:none;box-sizing:border-box}.tsr-stacks .stk.put{border:2px solid #4f46e5;box-shadow:0 0 0 3px #c7d2fe}.tsr-stacks .stk .hd em{font-style:normal;font-size:10px;color:#4f46e5;margin-left:3px}.wm-ckleg{font-size:11px;color:#64748b;display:inline-flex;gap:4px;align-items:center;margin-left:8px;white-space:nowrap}.wm-ckleg i{width:8px;height:8px;border-radius:50%;display:inline-block}.stkck{display:inline-flex;gap:4px;align-items:center;margin-left:4px;vertical-align:middle}.rt-ckb{border:0;border-radius:8px;font-size:10px;font-weight:800;padding:1px 5px;margin-left:3px;cursor:pointer;color:#fff;font-family:inherit;white-space:nowrap}.rt-ckb.b{background:#2563eb}.rt-ckb.g{background:#16a34a}.rt-ckb.y{background:#facc15;color:#422006}.rt-ckb.o{background:#dc2626}.rt-ckb.n{background:#e2e8f0;color:#475569}.wb-sq .no{flex-wrap:wrap}.wb-lines span{font-size:13px;font-weight:700;color:#475569;align-self:center}.wb-lines span b{color:#4f46e5}.wb-sqs{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:0 10px}.wb-sq{background:#fff;border:2px solid #cbd5e1;border-radius:12px;min-height:78px;padding:6px 7px;cursor:pointer;min-width:0}.wb-sq.e{border-style:dashed;background:#f8fafc}.wb-sq.on{border-color:#4f46e5;border-style:solid;box-shadow:0 0 0 3px #c7d2fe}.wb-sq .no{font-size:16px;font-weight:800;color:#0f172a;display:flex;align-items:center;gap:5px}.wb-sq .no em{font-style:normal;font-size:11.5px;color:#4f46e5}.wb-sq .no b{font-size:13px;color:#475569;margin-left:auto}.wb-sq .it{color:#fff;border-radius:7px;padding:4px 7px;font-size:12px;line-height:1.35;margin-top:4px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}.wb-sq .it b{font-size:14px}.wb-sq .emp{color:#94a3b8;font-size:12.5px;margin-top:12px;text-align:center}.wb-sq .mo{font-size:11.5px;color:#64748b;margin-top:3px}.wb-msg{padding:14px 16px;color:#64748b;font-size:14px;line-height:1.5}.wb-none{margin:0 10px 8px;border:2px dashed #cbd5e1;border-radius:14px;padding:16px;text-align:center;color:#64748b;font-size:14px}';
   document.head.appendChild(st); })();
 function wbSet(on){ WB.on=!!on; try{ localStorage.setItem('wm_big',on?'1':'0'); }catch(e){} var s=document.getElementById('wb-sheet'); if(s)s.classList.remove('on'); WB.cd=null; if(on){ var d=document.getElementById('wm-det'); if(d)d.remove(); WM.det=null; } wmRender(); }
 var _wmRender0=window._wmRender0||wmRender; window._wmRender0=_wmRender0;
 wmRender=async function(){ var root=document.getElementById('wm-root'); if(!root)return; if(!WB.on){ await _wmRender0(); try{ wbBtn(); }catch(e){ console.error('wbBtn',e); } return; } if(!WH.loaded||!WM.chips)await _wmRender0(); if(!WH.loaded||!WH.layout)return; try{ wbDraw(); wbSheetDraw(true); }catch(e){ console.error('wbDraw',e); WB.on=false; stkToast('❌ 큰 화면을 못 그렸어요 — 원래 화면으로 돌아갑니다: '+e.message); await _wmRender0(); try{ wbBtn(); }catch(_e){} } };
-function wbBtn(){ var bar=document.querySelector('#wm-root .wm-bar'); if(!bar||document.getElementById('wb-on'))return; var b=document.createElement('button'); b.id='wb-on'; b.className='rt-btn'; b.textContent='📱 큰 화면'; b.title='칸을 크게, 칸을 누르면 검색해서 넣는 화면으로 (다시 누르면 원래대로)'; b.onclick=function(){ wbSet(true); }; bar.insertBefore(b,bar.children[2]||null); }
+function wbBtn(){ var bar=document.querySelector('#wm-root .wm-bar'); if(!bar||document.getElementById('wb-on'))return; var b=document.createElement('button'); b.id='wb-on'; b.className='rt-btn'; b.textContent='📱 큰 화면'; b.title='칸을 크게, 칸을 누르면 검색해서 넣는 화면으로 (다시 누르면 원래대로)'; b.onclick=function(){ wbSet(true); }; bar.insertBefore(b,bar.children[2]||null); bar.insertAdjacentHTML('beforeend','<span class="wm-ckleg" title="네모 오른쪽 위 점 = 그 줄을 마지막으로 세어 본 때">실물 확인 '+['b','g','y','o','n'].map(function(k){ return '<i style="background:'+({b:'#2563eb',g:'#16a34a',y:'#facc15',o:'#dc2626',n:'#cbd5e1'})[k]+'"></i>'+WM_CK_LAB[k]; }).join(' ')+'</span>'); }
 function wbCells(){ var out=[], L=WH.layout; ['A','YA','G','B','YB'].concat(Object.keys(L.floors)).forEach(function(f,i,arr){ if(arr.indexOf(f)!==i)return; var F=L.floors[f]; if(!F)return; for(var r=1;r<=F.rows;r++)for(var c=1;c<=F.cols;c++){ var x=wmKind(whCell(f,r,c)); if(x.kind==='store'&&!x.zone)out.push(x.code); } }); return out; }
 function wbCellLots(cd,m){ var o=m[cd], out=[]; if(o)o.stacks.forEach(function(s,k){ s.forEach(function(it){ out.push({p:it.p,l:it.l,k:k}); }); }); return out; }
+async function wmDropBar(e,cd,i){ e.preventDefault(); e.stopPropagation(); if(!stkDrag)return; var dg=stkDrag; stkDrag=null; stkDragging=false; if(dg.type!=='lot')return; if(cd!=='U'&&WH.zone[cd]){ stkToast('🛞 보관타이어방 구역이에요 — 우리 재고는 못 둠'); wmRender(); return; } await wmMoveLot(dg.id,cd,i,undefined); }   /* (11/11) 지도 칸의 네모 하나에 끌어 놓기 = 그 줄에 통째로 */
+function wbCkW(s){ var w=wmCkWorst(s.map(function(it){ return it.l; })); return wmCkChip(w)+(wmCkTime(w)?'<span class="wmcki">'+wmCkWhen(w)+'</span>':''); }
+/* (11/11) 검색 카드·재고표에서도 실물 확인 — 창고지도와 같은 기능(wmCkDo·wmCkUndo·wmCkList)을 그대로 부름 */
+function stkCkInner(pid,dot,m){ var L=stkGroupLots(pid,dot); if(!L.length)return ''; var w=wmCkWorst(L), d=stkEsc(dot), tip=wmCkTime(w)?(wmCkWhen(w)+' '+stkEsc(w.ckby||'')):'한 적 없음';
+  if(m==='t')return '<button class="rt-ckb '+wmCkState(w)+'" title="실물 확인: '+tip+' — 누르면 확인 창" onclick="event.stopPropagation();wmCkList(\''+pid+'\',\''+d+'\')">'+WM_CK_LAB[wmCkState(w)]+'</button>';
+  var btn=''; if(!(typeof stkLocked!=='undefined'&&stkLocked)){ if(L.length===1){ var id=L[0].id; btn=WM_CK_UNDO[String(id)]?'<button class="wmckb un" onclick="event.stopPropagation();wmCkUndo(\''+id+'\')" title="방금 누른 실물 확인을 취소">↩취소</button>':'<button class="wmckb ok" onclick="event.stopPropagation();wmCkDo(\''+id+'\')" title="실물을 세어 보니 '+L[0].q+'개 맞음">✔맞음</button>'; } else btn='<button class="wmckb ok" onclick="event.stopPropagation();wmCkList(\''+pid+'\',\''+d+'\')" title="자리마다 실물 확인">✔'+L.length+'곳</button>'; }
+  return wmCkChip(w)+wmCkInfo(w)+btn; }
+function stkCkSpan(pid,dot,m){ try{ return '<span class="stkck" data-pid="'+pid+'" data-dot="'+stkEsc(dot)+'" data-m="'+m+'" onclick="event.stopPropagation()">'+stkCkInner(pid,dot,m)+'</span>'; }catch(e){ console.error('stkCkSpan',e); return ''; } }
+function stkCkFill(){ document.querySelectorAll('.stkck').forEach(function(el){ el.innerHTML=stkCkInner(el.getAttribute('data-pid'),el.getAttribute('data-dot'),el.getAttribute('data-m')); }); var m=null; document.querySelectorAll('#wm-root b.ckd').forEach(function(el){ if(!m)m=wmCellMap(); var a=el.getAttribute('data-ck').split('|'), o=m[a[0]], s=o&&o.stacks[+a[1]]; if(s&&s.length)el.style.background=wmCkCol(wmCkWorst(s.map(function(it){ return it.l; }))); }); }
+var _wmCkRedraw0=window._wmCkRedraw0||wmCkRedraw; window._wmCkRedraw0=_wmCkRedraw0;
+wmCkRedraw=function(){ _wmCkRedraw0(); try{ stkCkFill(); }catch(e){ console.error('stkCkFill',e); } try{ if(document.getElementById('wm-put'))wmPutDraw(); }catch(e){ console.error('wmPutDraw',e); } };
+function wbStackBg(s){ var cs=[]; s.forEach(function(it){ var c=wmColor(it.p.br); if(it.l.q>0&&cs.indexOf(c)<0)cs.push(c); }); if(!cs.length)return ''; if(cs.length===1)return cs[0]; var n=cs.length; return 'linear-gradient(90deg,'+cs.map(function(c,i){ return c+' '+Math.round(i/n*100)+'%,'+c+' '+Math.round((i+1)/n*100)+'%'; }).join(',')+')'; }   /* (11/11) 줄 하나의 색 = 재고방 카드의 브랜드 색. 브랜드가 섞였으면 나눠 칠함 */
+function wbMini(cd,m){ var o=m[cd], n=wmN(cd), h='<div class="mini">'; for(var i=0;i<n;i++){ var s=(o&&o.stacks[i])||[], bg=s.length?wbStackBg(s):'', q=s.reduce(function(a,it){ return a+it.l.q; },0); h+='<i'+(bg?' style="background:'+bg+';box-shadow:inset 0 -3px 0 '+wmCkCol(wmCkWorst(s.map(function(it){ return it.l; })))+',inset 0 -4px 0 rgba(255,255,255,.85)"':' class="e"')+'>'+(bg?q:'')+'</i>'; } return h+'</div>'; }   /* (11/11) 지도 칸 안의 작은 ①②/③④ 요약 */
+function wbLine(i){ WB.k=(i<0||String(WB.k)===String(i))?'':i; wbSheetDraw(true); }
+function wbSqDraw(cd){ var m=wmCellMap(), o=m[cd], n=wmN(cd), h=''; for(var i=0;i<n;i++){ var s=(o&&o.stacks[i])||[], q=s.reduce(function(a,it){ return a+it.l.q; },0), on=String(WB.k)===String(i);
+    h+='<div class="wb-sq'+(on?' on':'')+(s.length?'':' e')+'" onclick="wbLine('+i+')"><div class="no">'+WM_SN[i]+(on?'<em>여기에 넣음</em>':'')+(s.length?wbCkW(s):'')+(q?'<b>'+q+'개</b>':'')+'</div>'+(s.length?s.slice(0,3).map(function(it){ return '<div class="it" style="background:'+wmColor(it.p.br)+'">'+stkEsc(it.p.br+' '+it.p.name)+'<br><b>'+stkEsc(it.p.size)+'</b> ×'+it.l.q+'</div>'; }).join('')+(s.length>3?'<div class="mo">+'+(s.length-3)+'건 더</div>':''):'<div class="emp">비어 있음</div>')+'</div>'; }
+  var a=document.getElementById('wb-sqs'); if(a)a.innerHTML=h; var b=document.getElementById('wb-lines'); if(b)b.innerHTML='<span>넣을 줄: <b>'+(WB.k===''?'자동':WM_SN[WB.k]+'줄')+'</b> · 위 네모를 눌러 고릅니다</span>'+(WB.k===''?'':'<button class="on" onclick="wbLine(-1)">자동으로</button>'); }
 function wbCellHtml(x,m){ if(x.kind==='none')return '<div></div>'; if(x.kind==='wall')return '<div class="wb-x wall"></div>'; if(x.kind==='aisle')return '<div class="wb-x aisle">'+stkEsc(x.label)+'</div>'; if(x.kind==='fx')return '<div class="wb-x fx">'+stkEsc(x.label)+'</div>';
-  var cd=x.code, i=cd.indexOf('-'), pre=cd.slice(0,i), num=cd.slice(i+1), lab='<div class="cd">'+(pre.length>1?'<small>'+pre+'</small>':'')+num+'</div>';
+  var cd=x.code, i=cd.indexOf('-'), pre=cd.slice(0,i), num=cd.slice(i+1), lab='<div class="cd"><small>'+pre+'-</small>'+num+'</div>';
   if(x.zone)return '<div class="wb-c zone" onclick="stkToast(\'🛞 보관타이어방 구역 — 여기서는 못 둠\')">'+lab+'<div class="n">🛞 보관</div></div>';
   var ls=wbCellLots(cd,m), q=ls.reduce(function(a,it){ return a+it.l.q; },0), cls='wb-c'+(q?'':' empty')+(x.out?' out':'')+(x.t==='roof'?' roof':'')+(x.t==='stair'?' stair':'')+((WB.cd||WM.sel)===cd?' sel':'');
-  return '<div class="'+cls+'" id="wb-cell-'+cd+'" onclick="wbOpen(\''+cd+'\')">'+(q?'<i class="dot" style="background:'+wmCkCol(wmCkWorst(ls.map(function(it){ return it.l; })))+'"></i>':'')+lab+(x.l?'<div class="rf">'+stkEsc(x.l)+'</div>':'')+'<div class="n">'+(q?q+'개':'＋ 넣기')+'</div></div>'; }
+  return '<div class="'+cls+'" id="wb-cell-'+cd+'" onclick="wbOpen(\''+cd+'\')">'+(q?'<i class="dot" style="background:'+wmCkCol(wmCkWorst(ls.map(function(it){ return it.l; })))+'"></i>':'')+lab+(x.l?'<div class="rf">'+stkEsc(x.l)+'</div>':'')+wbMini(cd,m)+'<div class="n">'+(q?q+'개':'＋ 넣기')+'</div></div>'; }
 function wbDraw(){ var root=document.getElementById('wm-root'); if(!root)return; var old=document.getElementById('wb-scroll'), sl=old?old.scrollLeft:0;
   var m=wmCellMap(), all=wbCells(), filled=all.filter(function(cd){ return !!m[cd]; }).length, ua=wmLots().filter(function(r){ return r.l.loc==='U'||wmLegacy(r.l.loc); }).length, d=wmDims(WM.floor);
   var h='<div class="wb-top"><b class="t">🗺 창고지도</b><span class="wb-seg">'+['A','B'].map(function(f){ return '<button class="'+(WM.floor===f?'on':'')+'" onclick="WM.floor=\''+f+'\';wmRender()">'+(f==='A'?'1층':'2층')+'</button>'; }).join('')+'</span><button class="wb-back" onclick="wbSet(false)">↩ 원래 화면</button></div>';
   h+='<div class="wb-prog"><div class="t"><div>채운 칸 '+filled+' / '+all.length+'</div><span>미배치 '+ua+'건</span></div><div class="wb-bar"><i style="width:'+(all.length?Math.round(filled/all.length*100):0)+'%"></i></div></div>';
   h+='<div class="wb-quick"><button class="pri" onclick="wbNext()">▶ 빈 칸부터 채우기</button><button onclick="wbOld()">⏰ 확인 오래된 칸</button></div>';
   h+='<div class="wb-leg">'+['b','g','y','o','n'].map(function(k){ return '<span><i style="background:'+wmCkCol({ck:(k==='n'?'':new Date(Date.now()-({b:0,g:3,y:15,o:60}[k])*86400000).toISOString())})+'"></i>'+WM_CK_LAB[k]+'</span>'; }).join('')+'</div>';
-  var cols=''; for(var c=1;c<=d.cols;c++)cols+=(d.S&&c===d.F.cols+1?'12px ':'66px ');
+  var cols=''; for(var c=1;c<=d.cols;c++)cols+=(d.S&&c===d.F.cols+1?'12px ':'76px ');
   h+='<div class="wb-hint">◀ ▶ 옆으로 밀면 나머지 칸이 보여요 · 칸을 누르면 그 칸이 열립니다</div><div class="wb-scroll" id="wb-scroll"><div class="wb-grid" style="grid-template-columns:'+cols+'">';
   for(var r=1;r<=d.rows;r++){ for(var c2=1;c2<=d.cols;c2++){ var x=wmAt(WM.floor,c2,r); if(x.kind==='gate'){ if(c2===1){ h+='<div class="wb-x gate" style="grid-column:span '+d.F.cols+'">▼ 정문 ▼</div>'; c2=d.F.cols; } continue; } h+=wbCellHtml(x,m); } }
   h+='</div></div>'; root.innerHTML=h; var ns=document.getElementById('wb-scroll'); if(ns)ns.scrollLeft=sl; }
 function wbShow(cd){ var e=document.getElementById('wb-cell-'+cd); if(e&&e.scrollIntoView){ try{ e.scrollIntoView({block:'center',inline:'center'}); }catch(_e){} } }
 function wbSheet(){ var s=document.getElementById('wb-sheet'); if(s)return s; s=document.createElement('div'); s.id='wb-sheet';
-  s.innerHTML='<div class="pn"><div class="hd"><button onclick="wbClose()">◀ 지도</button><div class="big" id="wb-hd"></div><button onclick="wbNext()">다음 빈 칸 ▶</button></div><div class="bd" id="wb-bd"><div class="sec">이 칸에 들어 있는 것</div><div id="wb-in"></div><div class="wb-srch"><div class="lab">🔍 <em id="wb-cd2"></em> 칸에 넣을 타이어 찾기</div><div class="box"><input id="wb-q" inputmode="search" autocomplete="off" placeholder="예: 2355519, HP71, 금호" oninput="WB.q=this.value;wbResDraw()"><button class="x" onclick="WB.q=\'\';var q=document.getElementById(\'wb-q\');q.value=\'\';wbResDraw();q.focus()">✕</button></div><div class="wb-lines" id="wb-lines"></div></div><div id="wb-res"></div></div></div>';
+  s.innerHTML='<div class="pn"><div class="hd"><button onclick="wbClose()">◀ 지도</button><div class="big" id="wb-hd"></div><button onclick="wbNext()">다음 빈 칸 ▶</button></div><div class="bd" id="wb-bd"><div class="sec">이 칸 모양 · 네모를 누르면 그 줄에 넣어요</div><div class="wb-sqs" id="wb-sqs"></div><div class="sec">이 칸에 들어 있는 것</div><div id="wb-in"></div><div class="wb-srch"><div class="lab">🔍 <em id="wb-cd2"></em> 칸에 넣을 타이어 찾기</div><div class="box"><input id="wb-q" inputmode="search" autocomplete="off" placeholder="예: 2355519, HP71, 금호" oninput="WB.q=this.value;wbResDraw()"><button class="x" onclick="WB.q=\'\';var q=document.getElementById(\'wb-q\');q.value=\'\';wbResDraw();q.focus()">✕</button></div><div class="wb-lines" id="wb-lines"></div></div><div id="wb-res"></div></div></div>';
   document.body.appendChild(s); return s; }
 function wbOpen(cd){ if(WH.zone[cd]){ stkToast('🛞 보관타이어방 구역 — 여기서는 못 둠'); return; } var s=wbSheet(); WB.cd=cd; WB.k=''; WB.q=''; WM.sel=cd; var q=document.getElementById('wb-q'); if(q)q.value=''; s.classList.add('on'); wbSheetDraw(); var bd=document.getElementById('wb-bd'); if(bd)bd.scrollTop=0; }
 function wbClose(){ var s=document.getElementById('wb-sheet'); if(s)s.classList.remove('on'); var cd=WB.cd; WB.cd=null; if(WB.on){ wbDraw(); if(cd)wbShow(cd); } }
 function wbSheetDraw(soft){ var s=document.getElementById('wb-sheet'), cd=WB.cd; if(!s||!cd||!s.classList.contains('on'))return; var rb=document.getElementById('refresh-banner'), pn=s.querySelector('.pn'); if(pn)pn.style.top=((rb&&rb.classList.contains('on'))?Math.max(0,Math.round(rb.getBoundingClientRect().bottom)):0)+'px'; /* 빨간 "새로고침 필요" 띠가 떠 있으면 그 아래부터 */ var ls=wbCellLots(cd,wmCellMap()), q=ls.reduce(function(a,it){ return a+it.l.q; },0);
   document.getElementById('wb-hd').innerHTML=stkEsc(cd)+'<small>'+(ls.length?q+'개 · '+ls.length+'건':'빈 칸')+'</small>'; document.getElementById('wb-cd2').textContent=cd;
   document.getElementById('wb-in').innerHTML=ls.length?ls.map(function(it){ var p=it.p, l=it.l, id=l.id, un=!!WM_CK_UNDO[String(id)];
-    return '<div class="wb-card"><div class="l1"><span class="ln">'+WM_SN[it.k]+'줄</span> · '+stkEsc(p.br+' '+p.name)+'</div><div class="l2"><span class="sz">'+stkEsc(p.size)+(wmPly(p)?' '+stkEsc(wmPly(p)):'')+'</span><span class="dt">'+(l.dot?stkEsc(l.dot):'DOT?')+'</span><span class="qty">'+l.q+'<small>개</small></span></div><div class="l3">'+wmCkChip(l)+(wmCkInfo(l)||'<span>아직 세어 본 적 없음</span>')+'</div><div class="wb-row">'+(un?'<button class="wb-btn" onclick="wbAct(\'undo\',\''+id+'\')">↩ 확인 취소</button>':'<button class="wb-btn ok" onclick="wbAct(\'ck\',\''+id+'\')">✔ 세어 보니 맞음</button>')+'<button class="wb-btn sm" onclick="wbAct(\'fix\',\''+id+'\')">✏ 수량</button><button class="wb-btn sm" onclick="wbAct(\'out\',\''+id+'\')">빼기</button></div></div>'; }).join(''):'<div class="wb-none">아직 아무것도 없어요.<br>아래에서 타이어를 찾아 넣어 주세요.</div>';
-  var n=wmN(cd), lh='<button class="'+(WB.k===''?'on':'')+'" onclick="WB.k=\'\';wbSheetDraw(true)">줄 자동</button>'; for(var i=0;i<n;i++)lh+='<button class="'+(String(WB.k)===String(i)?'on':'')+'" onclick="WB.k='+i+';wbSheetDraw(true)">'+WM_SN[i]+'줄에</button>'; document.getElementById('wb-lines').innerHTML=lh;
+    return '<div class="wb-card" style="border-left:7px solid '+wmColor(p.br)+'"><div class="l1"><span class="ln">'+WM_SN[it.k]+'줄</span> · '+stkEsc(p.br+' '+p.name)+'</div><div class="l2"><span class="sz">'+stkEsc(p.size)+(wmPly(p)?' '+stkEsc(wmPly(p)):'')+'</span><span class="dt">'+(l.dot?stkEsc(l.dot):'DOT?')+'</span><span class="qty">'+l.q+'<small>개</small></span></div><div class="l3">'+wmCkChip(l)+(wmCkInfo(l)||'<span>아직 세어 본 적 없음</span>')+'</div><div class="wb-row">'+(un?'<button class="wb-btn" onclick="wbAct(\'undo\',\''+id+'\')">↩ 확인 취소</button>':'<button class="wb-btn ok" onclick="wbAct(\'ck\',\''+id+'\')">✔ 세어 보니 맞음</button>')+'<button class="wb-btn sm" onclick="wbAct(\'fix\',\''+id+'\')">✏ 수량</button><button class="wb-btn sm" onclick="wbAct(\'out\',\''+id+'\')">빼기</button></div></div>'; }).join(''):'<div class="wb-none">아직 아무것도 없어요.<br>아래에서 타이어를 찾아 넣어 주세요.</div>';
+  wbSqDraw(cd);
   var res=document.getElementById('wb-res'); if(soft&&res&&document.activeElement&&res.contains(document.activeElement))return; wbResDraw(); }
 function wbResDraw(){ var el=document.getElementById('wb-res'), cd=WB.cd; if(!el||!cd)return; var q=WB.q||''; if(!q.trim()){ el.innerHTML='<div class="wb-msg">사이즈 숫자나 패턴 이름을 적으면 아래에 나옵니다.<br>미배치가 먼저 나오고, 다른 칸에 있는 것도 나옵니다.</div>'; return; } var L=wmPutFind(cd,q);
   el.innerHTML='<div class="sec">찾은 재고 '+L.length+'건</div>'+(L.length?L.slice(0,40).map(function(r){ var p=r.p, l=r.l, id=l.id, ua=(l.loc==='U'||wmLegacy(l.loc));
-    return '<div class="wb-card"><div class="l1">'+stkEsc(p.br+' '+p.name)+(p.code?' <span style="color:#94a3b8;font-weight:600">'+stkEsc(p.code)+'</span>':'')+'</div><div class="l2"><span class="sz">'+stkEsc(p.size)+(wmPly(p)?' '+stkEsc(wmPly(p)):'')+'</span><span class="dt">'+(l.dot?stkEsc(l.dot):'DOT?')+'</span><span class="qty">'+l.q+'<small>개</small></span></div><div class="l3"><span class="where'+(ua?' u':'')+'">'+stkEsc(ua?'미배치':'지금 '+stkLocTxt(l))+'</span>'+wmCkChip(l)+wmCkInfo(l)+'</div><div class="wb-row"><span style="flex:1;font-size:14px;font-weight:700;color:#475569">넣을 수량</span><div class="wb-step"><button onclick="wbStep(\''+id+'\',-1)">−</button><input type="number" inputmode="numeric" id="wb-n-'+id+'" value="'+l.q+'" min="1" max="'+l.q+'"><button onclick="wbStep(\''+id+'\',1)">＋</button></div></div><div class="wb-row" style="margin-top:8px"><button class="wb-btn in" onclick="wbPut(\''+id+'\',false)">넣기</button><button class="wb-btn ok" onclick="wbPut(\''+id+'\',true)">✔ 맞음·넣기</button></div></div>'; }).join('')+(L.length>40?'<div class="wb-msg">'+(L.length-40)+'건 더 있어요 — 검색어를 더 적어 좁혀 주세요</div>':''):'<div class="wb-msg">이 말로 넣을 수 있는 재고가 없어요.<br>(이미 이 칸에 있는 것은 안 나옵니다)</div>'); }
+    return '<div class="wb-card" style="border-left:7px solid '+wmColor(p.br)+'"><div class="l1">'+stkEsc(p.br+' '+p.name)+(p.code?' <span style="color:#94a3b8;font-weight:600">'+stkEsc(p.code)+'</span>':'')+'</div><div class="l2"><span class="sz">'+stkEsc(p.size)+(wmPly(p)?' '+stkEsc(wmPly(p)):'')+'</span><span class="dt">'+(l.dot?stkEsc(l.dot):'DOT?')+'</span><span class="qty">'+l.q+'<small>개</small></span></div><div class="l3"><span class="where'+(ua?' u':'')+'">'+stkEsc(ua?'미배치':'지금 '+stkLocTxt(l))+'</span>'+wmCkChip(l)+wmCkInfo(l)+'</div><div class="wb-row"><span style="flex:1;font-size:14px;font-weight:700;color:#475569">넣을 수량</span><div class="wb-step"><button onclick="wbStep(\''+id+'\',-1)">−</button><input type="number" inputmode="numeric" id="wb-n-'+id+'" value="'+l.q+'" min="1" max="'+l.q+'"><button onclick="wbStep(\''+id+'\',1)">＋</button></div></div><div class="wb-row" style="margin-top:8px"><button class="wb-btn in" onclick="wbPut(\''+id+'\',false)">넣기</button><button class="wb-btn ok" onclick="wbPut(\''+id+'\',true)">✔ 맞음·넣기</button></div></div>'; }).join('')+(L.length>40?'<div class="wb-msg">'+(L.length-40)+'건 더 있어요 — 검색어를 더 적어 좁혀 주세요</div>':''):'<div class="wb-msg">이 말로 넣을 수 있는 재고가 없어요.<br>(이미 이 칸에 있는 것은 안 나옵니다)</div>'); }
 function wbStep(id,dv){ var i=document.getElementById('wb-n-'+id), r=wmLot(id); if(!i||!r)return; var n=parseInt(i.value,10); if(isNaN(n))n=r.l.q; n+=dv; if(n<1)n=1; if(n>r.l.q)n=r.l.q; i.value=n; }
 async function wbPut(id,check){ var cd=WB.cd; if(!cd||WB.busy)return; if(!stkLockGuard())return; var r=wmLot(id); if(!r||r.l.q<=0){ stkToast('그 재고가 없어요 — 다시 검색해 주세요'); wbResDraw(); return; } if(r.l.loc===cd){ stkToast('이미 이 칸에 있어요'); wbResDraw(); return; } if(WH.zone[cd]){ stkToast('🛞 보관타이어방 구역이에요 — 우리 재고는 못 둠'); return; }
   var inp=document.getElementById('wb-n-'+id), n=inp?parseInt(inp.value,10):r.l.q; if(isNaN(n)||n<1){ stkToast('넣을 수량을 1 이상으로 적어 주세요'); return; } if(n>r.l.q){ stkToast('지금 '+r.l.q+'개뿐이에요 — 수량이 더 많으면 넣은 뒤 ✏수량으로 고쳐 주세요'); return; }
@@ -25218,7 +25240,7 @@ JSR.view=(function(){ try{ var v=localStorage.getItem('jsr_view'); if(v==='s'||v
 function jsrView(v){ JSR.view=v; try{ localStorage.setItem('jsr_view',v); }catch(e){} jsrRender(); }
 JSR.sel=(function(){ try{ var v=localStorage.getItem('jsr_sel'); if(v==='all'||JSR_ORDER.indexOf(v)>=0)return v; }catch(e){} return 'hk'; })();
 function jsrSelList(){ return JSR.sel==='all'?JSR_ORDER.slice():(JSR.sel==='file'?[]:[JSR.sel]); }
-function jsrSel(v){ if(v!=='all'&&v!=='file'&&JSR_ORDER.indexOf(v)<0)return; JSR.sel=v; try{ localStorage.setItem('jsr_sel',v); }catch(e){} jsrRender(); var i=document.getElementById('jsr-q'); if(i&&JSR.q&&!jsrBusyAny()&&!jsrSelList().every(function(s){ return JSR.res&&JSR.res[s]; }))jsrSearch(false); }
+function jsrSel(v){ if(v!=='all'&&v!=='file'&&JSR_ORDER.indexOf(v)<0)return; JSR.sel=v; try{ localStorage.setItem('jsr_sel',v); }catch(e){} var i0=document.getElementById('jsr-q'), typed=i0?i0.value:null; jsrRender(); var i=document.getElementById('jsr-q'); if(i&&typed!=null)i.value=typed; }   /* (11/11 호준님) 전산을 바꿔도 자동 조회 안 함 — 적어 둔 검색어만 남기고 [조회]를 눌러야 받아옴. jsrSelNoAuto */
 var JSR_BR={HANKOOK:'한국',LAUFENN:'라우펜','MAXXIS TIRE':'맥시스',MAXXIS:'맥시스',GOODYEAR:'굿이어',BRIDGESTONE:'브리지스톤',CONTINENTAL:'컨티넨탈','PIRELLI TIRE':'피렐리',PIRELLI:'피렐리','MICHELIN TIRE':'미쉐린',MICHELIN:'미쉐린'};
 var JSR_SFP3=['동대문','북원주','천안'];
 async function jsrSetGet(k){ var r=await sb.from('settings').select('value').eq('key',k).maybeSingle(); if(r&&r.error)throw r.error; return r&&r.data?r.data.value:null; }
@@ -25342,7 +25364,7 @@ async function jsrSearch(refresh){ var inp=document.getElementById('jsr-q'); var
   await jsrCacheWrite(pq,got);
   if(JSR.needCode){ var ci=document.getElementById('jsr-code'); if(ci)ci.focus(); }
   /* (11/4 호준님) 고른 전산이 끝나면 나머지 전산을 조용히 미리 받아 둠 — 탭을 바꾸면 기다림 없이 보임 (접속 안 된 전산은 건너뜀) */
-  var rest=JSR_ORDER.filter(function(s){ return JSR.urls[s]&&selL.indexOf(s)<0&&jsrOn(s)&&!(JSR.res&&JSR.res[s]&&!JSR.res[s].cached); });
+  var rest=(JSR.preAll?JSR_ORDER:[]).filter(function(s){ return JSR.urls[s]&&selL.indexOf(s)<0&&jsrOn(s)&&!(JSR.res&&JSR.res[s]&&!JSR.res[s].cached); });
   if(rest.length){ var got2={}; await Promise.all(rest.map(function(s){ return jsrFetchOne(s,pq,seq,true).then(function(r){ if(r)got2[s]=r; }); })); if(seq!==JSR.seq)return; if(Object.keys(got2).length)await jsrCacheWrite(pq,got2); } }
 async function jsrCacheWrite(pq,got){ if(!Object.keys(got).length)return; try{ var all=await jsrSetGet(JSR_CACHE_KEY); all=(all&&typeof all==='object')?all:{}; var ent=all[pq.send]||{}; if(got.hk){ ent.at=got.hk.at; ent.rows=got.hk.rows; } if(got.nx){ ent.nx={at:got.nx.at,rows:got.nx.rows}; } ent.by=me&&me.name; ent.last=new Date().toISOString(); all[pq.send]=ent;
       var ks=Object.keys(all).sort(function(a,b){return (Date.parse(all[b].last||all[b].at)||0)-(Date.parse(all[a].last||all[a].at)||0);}); ks.slice(12).forEach(function(k){delete all[k];}); await jsrSetPut(JSR_CACHE_KEY,all); JSR.cache=all; }
@@ -25479,21 +25501,21 @@ function jsrRender(){ var root=document.getElementById('jsr-root'); if(!root)ret
    +'<div class="jsr-tabs"><span class="jsr-tab'+(JSR.view==='s'?' on':'')+'" onclick="jsrView(\'s\')">🔎 검색</span><span class="jsr-tab'+(JSR.view==='t'?' on':'')+'" onclick="jsrView(\'t\')">📋 재고표</span></div><div class="jsr-pane">'
    +(JSR.view==='f'?jsrFTab()+'</div>':'')
    +(JSR.view==='f'?'':'<div class="jsr-search"><input id="jsr-q" value="'+esc(JSR.q)+'" placeholder="'+(JSR.sel==='nx'?'사이즈 2355519 · 23555(전체) · 패턴 CP321 · 제품코드 12501NXK':(JSR.sel==='hk'?'사이즈 2355519 · 패턴 RA45 · 상품코드 1021279 (사이즈+패턴 같이도 됨)':'사이즈 2355519 · 패턴 · 상품코드 — 전부 동시에'))+'" onkeydown="if(event.key===\'Enter\')jsrSearch(false)"><button class="jsr-btn pri" onclick="jsrSearch(false)"'+(jsrBusyAny()?' disabled':'')+'>🔎 조회</button><button class="jsr-btn" onclick="jsrSearch(true)"'+(jsrBusyAny()||!JSR.q?' disabled':'')+'>↻ 다시 조회</button>'
-   +'<label class="jsr-f"><input type="checkbox" '+(JSR.fUrg?'checked':'')+' onchange="JSR.fUrg=this.checked;jsrRender()"> ⚡ 긴급 가능만 <small style="font-weight:600;color:#64748b">(한국: 긴급 SFP · 넥센: 관할 0인데 입고예정·D+1·D+2 있음)</small></label><label class="jsr-f"><input type="checkbox" '+(JSR.fHas?'checked':'')+' onchange="JSR.fHas=this.checked;jsrRender()"> 관할 재고 있는 것만 <small style="font-weight:600;color:#64748b">(넥센은 입고예정·D+1·D+2도 있음으로)</small></label></div>');
+   +'<label class="jsr-f"><input type="checkbox" '+(JSR.fAny?'checked':'')+' onchange="JSR.fAny=this.checked;jsrRender()"> ⚡ 긴급 가능 또는 관할 재고 있는 것만</label><label class="jsr-f"><input type="checkbox" '+(JSR.fUrg?'checked':'')+' onchange="JSR.fUrg=this.checked;jsrRender()"> ⚡ 긴급 가능만 <small style="font-weight:600;color:#64748b">(한국: 긴급 SFP · 넥센: 관할 0인데 입고예정·D+1·D+2 있음)</small></label><label class="jsr-f"><input type="checkbox" '+(JSR.fHas?'checked':'')+' onchange="JSR.fHas=this.checked;jsrRender()"> 관할 재고 있는 것만 <small style="font-weight:600;color:#64748b">(넥센은 입고예정·D+1·D+2도 있음으로)</small></label></div>');
   if(JSR.view==='f'){ root.innerHTML=h; return; }
   var busyL=jsrSelList().filter(function(s){return JSR.busy[s];}); if(busyL.length)h+='<div class="jsr-busy">⏳ '+busyL.map(function(s){return JSR_SRC[s].name;}).join(' · ')+'에서 받는 중…'+(JSR.sel==='hk'||JSR.sel==='all'?' (한국은 긴급 가능 상품 SFP까지)':'')+'</div>';
   var showS=jsrSelList();
-  if(R){ var fl=function(x){ if(JSR.fUrg){ if(x.src==='hk'&&!x.quick)return false; if(x.src==='nx'){ var n=x.nx||{}; if(!((+x.mainQ<=0)&&((+n.in0>0)||(+n.d1>0)||(+n.d2>0))))return false; } } if(JSR.fHas&&!jsrAvail(x))return false; return true; };   /* (11/4 호준님) 넥센 '긴급 가능' = 관할 재고 0인데 입고예정·D+1·D+2 숫자가 있는 것 */
+  if(R){ var fl=function(x){ if(JSR.fUrg){ if(x.src==='hk'&&!x.quick)return false; if(x.src==='nx'){ var n=x.nx||{}; if(!((+x.mainQ<=0)&&((+n.in0>0)||(+n.d1>0)||(+n.d2>0))))return false; } } if(JSR.fHas&&!jsrAvail(x))return false; if(JSR.fAny&&!(jsrAvail(x)||(x.src==='hk'&&x.quick)))return false; return true; };   /* (11/4 호준님) 넥센 '긴급 가능' = 관할 재고 0인데 입고예정·D+1·D+2 숫자가 있는 것 */
     var hkL=(showS.indexOf('hk')>=0&&R.hk?R.hk.items:[]).filter(fl), nxL=(showS.indexOf('nx')>=0&&R.nx?R.nx.items:[]).filter(fl); var M=hkL.filter(function(x){return x.main2;}), O=hkL.filter(function(x){return !x.main2;});
     h+='<div class="jsr-meta" style="margin-bottom:2px">검색 <b>'+esc(R.send)+'</b>'+(R.pat?' · 패턴 거르기 <b>'+esc(R.pat)+'</b>':'')+'</div>'+showS.map(function(s){ return jsrMeta(s,R); }).join('');
-    var fL=(JSR.sel==='file'||JSR.sel==='all'||true)?jsrFMatch(R).filter(function(x){ return !JSR.fHas||(+x.qty>0); }):[];
-    var any=M.length+O.length+nxL.length+fL.length; if(!any&&!jsrBusyAny())h+='<div class="jsr-busy">결과 없음'+(JSR.sel==='file'&&!Object.keys(JSR.files).length?' — 📄 파일 재고 탭에서 먼저 파일을 올려 주세요':'')+'</div>';
+    var fL=(JSR.sel==='file'||JSR.sel==='all'||true)?jsrFMatch(R).filter(function(x){ return !(JSR.fHas||JSR.fAny)||(+x.qty>0); }):[];
+    var any=M.length+O.length+nxL.length+fL.length; var noAsk=showS.filter(function(s){ return JSR.urls[s]&&!R[s]; }); if(!any&&!jsrBusyAny()&&noAsk.length)h+='<div class="jsr-busy">'+noAsk.map(function(s){ return JSR_SRC[s].name; }).join(' · ')+'에서는 아직 조회하지 않았습니다 — <b>[조회]</b>를 누르면 받아옵니다</div>'; else if(!any&&!jsrBusyAny())h+='<div class="jsr-busy">결과 없음'+(JSR.sel==='file'&&!Object.keys(JSR.files).length?' — 📄 파일 재고 탭에서 먼저 파일을 올려 주세요':'')+'</div>';
     if(fL.length&&JSR.sel==='file')h+='<div class="jsr-sec">● 📄 파일 재고 '+fL.length+'개</div><div class="jsr-grid">'+fL.map(jsrFCard).join('')+'</div>';
     if(M.length)h+='<div class="jsr-sec">● 한국 · 라우펜 '+M.length+'개</div>'+(JSR.view==='s'?'<div class="jsr-grid">'+M.map(jsrCard).join('')+'</div>':jsrTable(M,'hk'));
     if(nxL.length)h+='<div class="jsr-sec" style="margin-top:'+(M.length?'14px':'0')+'">● 넥센 '+nxL.length+'개</div>'+(JSR.view==='s'?'<div class="jsr-grid">'+nxL.map(jsrCard).join('')+'</div>':jsrTable(nxL,'nx'));
     h+=jsrOthers(O); if(fL.length&&JSR.sel!=='file')h+='<div class="jsr-sec" style="margin-top:14px">● 📄 파일 재고 '+fL.length+'개 <span style="font-weight:600;color:#64748b">(거래처가 준 파일 기준)</span></div><div class="jsr-grid">'+fL.map(jsrFCard).join('')+'</div>'; }
   else if(!jsrBusyAny()){ var ks=Object.keys(JSR.cache||{}); h+='<div class="jsr-busy">검색어를 넣고 [조회] — '+(JSR.sel==='file'?'📄 올려 둔 파일 재고에서 찾습니다':'그때 '+jsrSelList().map(function(s){return JSR_SRC[s].name;}).join('·')+'에서 바로 받아옵니다')+(ks.length?'<div style="margin-top:8px">최근 조회: '+ks.slice(0,12).map(function(k){ return '<a href="javascript:void(0)" onclick="document.getElementById(\'jsr-q\').value=\''+esc(k).replace(/'/g,'')+'\';jsrSearch(false)" style="margin:0 4px;color:#1d4ed8;font-weight:800">'+esc(k)+'</a>'; }).join('')+'</div>':'')+'</div>'; }
-  h+='</div>'; var y=root.scrollTop; root.innerHTML=h; root.scrollTop=y; }
+  h+='</div>'; var y=root.scrollTop, _qi=document.getElementById('jsr-q'), _qv=_qi?_qi.value:null, _qf=(_qi&&document.activeElement===_qi); root.innerHTML=h; root.scrollTop=y; var _qn=document.getElementById('jsr-q'); if(_qn&&_qv!=null&&_qv!==_qn.value)_qn.value=_qv; if(_qn&&_qf){ try{ _qn.focus(); }catch(e){} } }
 (function(){ if(window._jsrStyle)return; window._jsrStyle=true; try{ var st=document.createElement('style'); st.textContent=
  '#jsr-root{padding:0 0 40px}.jsr-hd{background:#0f172a;color:#fff;padding:10px 14px;display:flex;align-items:center;gap:10px}.jsr-hd .t{font-size:17px;font-weight:900}'
 +'.jsr-bar{padding:8px 14px;border-bottom:1px solid #e2e8f0;display:flex;gap:6px;flex-wrap:wrap;align-items:center;background:#fafafa}.jsr-bar .lab{font-size:12px;color:#64748b;font-weight:800}'
@@ -33725,5 +33747,747 @@ function tbInitForm(){ var rv=document.getElementById('t-recv'); if(rv&&!rv.data
   var c=document.getElementById('t-client'); if(!c||c.dataset.tb)return; c.dataset.tb='1'; c.addEventListener('input',function(){ tbHint(false); }); c.addEventListener('blur',function(){ setTimeout(function(){ tbHint(true); var hit=tbFind(tbFormVal('t-client')); if(hit&&(tbNz(hit.name)===tbNz(tbFormVal('t-client'))||(hit.aliases||[]).some(function(a){return tbNz(a)===tbNz(tbFormVal('t-client'));})))tbApply(hit.id,false); },120); }); ['t-addr','t-zip'].forEach(function(id){ var x=document.getElementById(id); if(x)x.addEventListener('change',function(){ tbHint(true); }); }); }
 setTimeout(function(){ try{ tbInitForm(); }catch(e){} },1500);
 </script>
+<!-- ▼ ul-block 미연결 모아보기 (2026-11-10) — 이 표지부터 끝 표지까지가 한 덩어리 -->
+<style id="ul-css">
+/* (11/10 호준님 "미연결 모아보기") 전역 패널 — 목업 블록 C CSS 글자 그대로 + 실제 메신저용 덧붙임 */
+/* C-1. 상단 버튼: #gs-bar button(초록 #0f766e · 높이 34 · radius 9) 그대로 + 건수 알약 */
+#gs-bar #ul-open{display:inline-flex;align-items:center;gap:5px;flex:none}
+#gs-bar #ul-open b{background:#fff;color:#dc2626;border-radius:9px;padding:0 7px;font-size:12px;line-height:19px;min-width:22px;text-align:center}
+#gs-bar #ul-open.zero b{color:#15803d}
+@media(max-width:640px){ #gs-bar #ul-open .ul-btxt{display:none} #gs-bar #ul-open{padding:0 8px;gap:3px} }
+
+/* C-2. 패널: 전체 검색 패널(#gs-panel·#gs-box, L1039~1041)과 같은 값 — 다른 점은 '머리는 고정, 목록만 스크롤' */
+#ul-panel{position:fixed;left:0;right:0;top:76px;bottom:0;z-index:94;background:rgba(15,23,42,.35);display:none}   /* top은 검색창 바로 아래로 JS가 맞춤(gsOpen과 같은 방식) */
+#ul-panel.on{display:block}
+#ul-box{background:#fff;max-height:calc(100% - 12px);margin:0 auto;max-width:860px;border-radius:0 0 14px 14px;padding:8px 12px 12px;box-shadow:0 8px 24px rgba(0,0,0,.25);display:flex;flex-direction:column;overflow:hidden}
+#ul-head{flex:none}
+#ul-list{flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden;padding:0 2px 4px 0}
+@media(max-width:640px){ #ul-box{border-radius:0;max-height:100%;padding:6px 8px 8px} }
+
+/* C-3. 주문방 상세에서 쓰는 모양 — 원문은 #orders-screen/#parcel-screen 아래로 한정(L2411~2435·L2478~2481)이라 패널용 선택자만 더함(값 그대로) */
+#ul-box .pm-step{border:1px solid #e5e7eb;color:#4b5563;background:#fff;border-radius:999px;padding:3px 10px;font-weight:800;font-size:12.5px;cursor:pointer;display:inline-flex;gap:5px;align-items:center;white-space:nowrap;user-select:none}
+#ul-box .pm-step.on{background:#111827;color:#fff;border-color:#111827}
+#ul-box .pm-step i{width:8px;height:8px;border-radius:50%;display:inline-block;flex:none}
+#ul-box .pm-step.on i{outline:1.5px solid #fff}
+#ul-box .pm-mini{border:1.5px solid #cbd5e1;background:#fff;border-radius:8px;padding:4px 9px;font-weight:800;font-size:12px;cursor:pointer;white-space:nowrap;list-style:none;font-family:inherit;color:inherit}
+#ul-box .pm-mini.on{background:#0f172a;color:#fff;border-color:#0f172a}
+#ul-box .pm-kv{display:grid;grid-template-columns:max-content 1fr;gap:3px 12px;font-size:12.5px;min-width:260px;max-width:620px}
+#ul-box .pm-kv>span:nth-child(odd){color:#94a3b8}
+#ul-box .pm-sz{font-weight:900;color:#1d4ed8;font-family:ui-monospace,Consolas,monospace;font-size:12.8px}
+#ul-box .pm-q{font-weight:900;color:#6d28d9}
+#ul-box .pm-mono{font-family:ui-monospace,Consolas,monospace;font-size:12px}
+#ul-box details.pm-fold{border:1px solid #e2e8f0;border-radius:10px;margin:0 0 6px;background:#fcfdfd}
+#ul-box details.pm-fold summary{cursor:pointer;padding:6px 10px;font-weight:900;font-size:13px;list-style:none;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+#ul-box details.pm-fold summary::-webkit-details-marker{display:none}
+#ul-box details.pm-fold summary::before{content:"▸";color:#94a3b8}
+#ul-box details[open].pm-fold summary::before{content:"▾"}
+@media (max-width:700px){ #ul-box .pm-sz{font-size:11.5px!important} #ul-box .ul-row .stbadge{font-size:10.5px!important;padding:0 4px!important} }
+
+/* C-4. 머리(범위·자료원·날짜 칩) — .gs-top / .ot-row1 / .ot-seg .jh-chip / .pm-step / .jh-chip(.on) 그대로 사용 */
+#ul-head .gs-top{flex-wrap:nowrap;white-space:nowrap}
+#ul-head .gs-top .ul-sub{color:#64748b;font-size:11.5px;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:0 1 auto}
+#ul-head .gs-top .ul-flt{color:#7c3aed;font-weight:800}
+#ul-head .ot-row1{margin:2px 0 5px;gap:8px}
+#ul-head .ot-row1 .ot-grp{flex:1 1 auto;min-width:0}
+#ul-head .ot-seg .jh-chip small{font-weight:600;opacity:.65;font-size:10.5px;margin-left:2px}
+.ul-dates{display:flex;gap:5px;flex-wrap:wrap;align-items:center;padding:0 0 6px;border-bottom:1px solid #eef0f4}
+.ul-dates .lbl{font-size:11.5px;font-weight:800;color:#64748b;white-space:nowrap}
+.ul-dates .jh-chip{padding:3px 9px;white-space:nowrap;color:#334155;user-select:none}
+.ul-dates .jh-chip small{color:#dc2626;font-weight:900;font-size:11px;margin-left:1px}
+.ul-dates .jh-chip.on{color:#fff}
+.ul-dates .jh-chip.on small{color:#fff}
+.ul-dates .jh-chip.tdy{border-color:#7c3aed;box-shadow:inset 0 0 0 1px #7c3aed}
+.ul-dates .jh-chip.fut{border-style:dashed;border-color:#94a3b8}
+.ul-dates .jh-chip.zero{opacity:.45}
+#ul-head .gs-top .ul-fcnt{color:#475569;font-weight:700;flex:none}
+#ul-head .gs-top>b{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}   /* 자리가 모자라면 제목 글부터 줄임 — ✕ 닫기는 언제나 보이게 */
+@media(max-width:640px){ .ul-dates{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch} #ul-head .gs-top .ul-sub,#ul-head .gs-top .x{display:none} #ul-head .gs-top{gap:5px} #ul-head .ot-row1{padding:5px 7px;gap:6px} #ul-head .ot-row1 .ot-vsep{display:none}
+  /* (11/10) 폰: 범위·자료원 칩을 한 줄 가로 밀기로 — 3줄로 접히면 목록 자리가 줄어듦 */
+  #ul-head .ot-row1{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none} #ul-head .ot-row1::-webkit-scrollbar{display:none} #ul-head .ot-row1 .ot-grp{flex:none;flex-wrap:nowrap} }
+
+/* C-5. 날짜 절취선 — 색은 .wave-divider(L550: #b45309 · 점선 #fcd9b6)에서 */
+.ul-day{display:flex;align-items:center;gap:10px;margin:0;padding:9px 0 5px;font-size:12px;font-weight:800;color:#b45309;white-space:nowrap;position:sticky;top:0;z-index:2;background:#fff}
+.ul-day::before,.ul-day::after{content:"";flex:1;border-top:1.5px dashed #fcd9b6}
+.ul-day small{font-weight:800;font-size:10.5px;border-radius:6px;padding:0 6px;margin-left:4px;background:#fef3c7;color:#92400e}
+.ul-day.future{color:#475569}.ul-day.future::before,.ul-day.future::after{border-top-color:#cbd5e1}.ul-day.future small{background:#e2e8f0;color:#334155}
+.ul-day.today small{background:#7c3aed;color:#fff}
+/* 앞날 예약 묶음(접힘) — 전체 검색의 '더 보기' 단추(.gs-more) 그대로 */
+#ul-list .gs-more.ul-fut{margin:8px 0 2px;display:flex;gap:8px;align-items:center;justify-content:center;font-family:inherit}
+#ul-list .gs-more.ul-fut small{font-weight:700;color:#64748b}
+#ul-list .gs-more.ul-fut{white-space:nowrap}
+@media(max-width:640px){ #ul-list .gs-more.ul-fut small .x{display:none} }
+#ul-box .pm-step.ul-opt{border-style:dashed}
+
+/* C-6. 한 줄 — 전체 검색 결과 줄(.gs-it)을 바탕으로 한 줄 압축 */
+.gs-it.ul-it{padding:5px 9px;margin-bottom:4px;transition:opacity .35s,transform .35s,background .2s,border-color .2s}
+.gs-it.ul-it.open,.gs-it.ul-it.open:hover{border-color:#0f766e;background:#fff;cursor:default}
+.gs-it.ul-it.ul-linked,.gs-it.ul-it.ul-linked:hover{border-color:#15803d;background:#f0fdf4}
+.gs-it.ul-it.ul-leave{opacity:0;transform:translateX(14px)}
+.ul-row{display:flex;align-items:center;gap:7px;min-width:0;cursor:pointer}
+.ul-row .ul-w{min-width:62px;text-align:center}
+.ul-row .ul-chip{min-width:58px;text-align:center;flex:none}
+.ul-row .dtag.ul-chip{padding:2px 4px}
+.ul-row .ul-time{font-family:ui-monospace,Consolas,monospace;font-size:12px;font-weight:800;color:#1d4ed8}
+.ul-sum{flex:1;min-width:0;display:flex;align-items:center;gap:6px;white-space:nowrap;font-size:13px;color:#334155;overflow:hidden}
+.ul-sum br{display:none}   /* (11/10) 요약 줄은 언제나 한 줄 — 글 안의 줄바꿈은 JS(ulOne)에서 빈칸으로 바꾸고, 이것은 보험 */
+.ul-sum .rv{flex:0 100000 auto;min-width:48px;max-width:170px;overflow:hidden;text-overflow:ellipsis;font-weight:800;color:#1e2a4a}   /* (11/10) 자리가 모자라면 품목 이름 → 받는분·규격 순으로 줄고 출고지는 끝까지 남김 */
+.ul-sum .tire{flex:0 10000000000 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}   /* 자리가 모자라면 품목 이름부터 줄임 — 사이즈·수량·출고지는 남김. (11/10) 줄어드는 비율을 단계별로 아주 크게(품목 이름 ≫ 받는분 ≫ 규격): 앞의 것이 끝까지 다 준 다음에야 다음 것이 줄게(비율 차이가 작으면 규격이 1px만 줄어도 '…'이 붙음) */
+.ul-sum .tire .br{color:#475569}
+.ul-sum .tire.none{color:#94a3b8}
+.ul-sum .pm-sz{flex:0 1 auto;min-width:48px;max-width:170px;overflow:hidden;text-overflow:ellipsis}
+.ul-sum .pm-q{flex:none}
+.ul-sum .src{flex:0 0 auto;max-width:200px;overflow:hidden;text-overflow:ellipsis}
+.ul-sum .sep{flex:none;color:#cbd5e1;font-style:normal}
+.ul-row .st{flex:none}
+/* (11/10) 줄 오른쪽 연결 버튼 = 재고 상자의 버튼과 같은 것(.dact + 빨강 채움, stkLinkBox L11092) — 여기서는 한 줄 높이에 맞게 위아래 여백만 줄임 */
+.ul-row .ul-go{flex:none;white-space:nowrap;padding:3px 9px}
+.ul-row .ul-go[disabled]{cursor:default}
+.ul-det{margin-top:6px;padding-top:8px;border-top:1px solid #eef0f4;cursor:default;white-space:normal}
+.ul-det .dcard{margin-bottom:0}
+.ul-det .dc-main{cursor:default}
+.ul-acts{display:flex;gap:6px;flex-wrap:wrap;margin-top:7px}
+/* 지난 날짜 띠 — (11/10) 메신저에 이미 있는 지난 날짜 노란 띠 그대로: .dlv-viewonly(L575) + style="background:#fef3c7;color:#92400e;border-color:#fcd34d"(L7729). 새로 더한 것은 둘째 줄 작은 글뿐 */
+.dlv-viewonly.ul-past small{display:block;font-weight:600;font-size:11px;opacity:.85;margin-top:1px}
+.ul-empty{color:#94a3b8;text-align:center;padding:18px 0}
+.ul-loading{display:flex;flex-direction:column;gap:5px;padding:8px 0 4px}
+.ul-loading .msg{display:flex;align-items:center;gap:8px;justify-content:center;font-size:12.5px;font-weight:800;color:#0f766e;padding:6px 0 8px}
+.ul-loading .msg .tg-busy-spin{border-color:rgba(15,118,110,.25);border-top-color:#0f766e}
+.ul-skel{height:31px;border:1.5px solid #eef0f4;border-radius:10px;background:linear-gradient(90deg,#f8fafc 25%,#eef2f7 37%,#f8fafc 63%);background-size:400% 100%;animation:ulskel 1.2s ease infinite}
+@keyframes ulskel{0%{background-position:100% 50%}100%{background-position:0 50%}}
+/* 폰(≤640px) 한 줄 압축형 — 받는분(또는 차량) · 사이즈 · 수량 · 연결만 */
+@media(max-width:640px){
+  .gs-it.ul-it{padding:5px 7px}
+  .ul-row{gap:5px}
+  .ul-row .ul-w{min-width:0;padding:1px 4px;font-size:12px;background:none}
+  .ul-row .ul-w .wt,.ul-row .ul-chip,.ul-row .st,.ul-sum .src,.ul-sum .sep,.ul-sum .tire.hidem,.ul-row .stbadge{display:none}
+  .ul-sum .rv{max-width:42vw;flex:0 1 auto;min-width:0}
+  .ul-sum .pm-sz{max-width:34vw;flex:none}
+  .ul-sum{font-size:12.5px;gap:5px}
+  .ul-row .ul-go{padding:4px 8px}
+}
+/* ── (11/10) 실제 메신저용 덧붙임 — 설계서 §3-1 ── */
+.ul-log{margin-top:5px!important}
+.ul-log .ln{font-size:12px;color:#334155;padding:2px 10px;border-top:1px solid #f1f5f9}
+.ul-log .ln b{color:#b45309}
+@media(min-width:641px){ .ul-dates{max-height:64px;overflow-y:auto} }   /* PC 날짜 칩은 2줄 높이까지 — 넘으면 그 칸 안에서 스크롤(90일·전체에서 목록 자리 지키기) */
+body.ul-on #ph-bar.on{display:none}   /* 폰 주문방·택배방 아래 막대(z 9000)가 패널 마지막 줄을 덮지 않게 — 앱의 body.tg-typing 수법과 같음 */
+@media(min-width:641px) and (max-width:760px){   /* 창 폭 641~760: 검색 줄이 넘치지 않게 '미연결' 글자를 숨기고 숫자는 아이콘 위 작은 배지로(설계 안 D) */
+  #gs-bar #ul-open .ul-btxt{display:none}
+  #gs-bar #ul-open{padding:0 8px;gap:3px;position:relative}
+  #gs-bar #ul-open b{position:absolute;top:-6px;right:-6px;min-width:16px;padding:0 4px;font-size:10px;line-height:15px;border:1px solid #dc2626} }
+.ul-warn{margin:6px 10px;padding:7px 10px;border-radius:8px;background:#fffbeb;border:1px solid #fcd34d;color:#92400e;font-size:12.5px;font-weight:700}   /* 읽기 실패·상한·멈춤·선거르기 꺼짐 안내 줄 */
+.ul-warn .pm-mini{margin-left:6px;padding:2px 8px}
+.ul-row .ul-actst{flex:none;display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:800;color:#0f766e;white-space:nowrap}   /* 다루는 중인 줄: 확인 중… / 재고 읽는 중… / 고르는 중 / 저장 중… */
+.ul-row .ul-actst .tg-busy-spin{border-color:rgba(15,118,110,.25);border-top-color:#0f766e}
+.ul-row .ul-rwarn{flex:none;font-size:11.5px;font-weight:800;color:#b45309;white-space:nowrap}
+.ul-loading .msg.ul-progm{font-weight:700;color:#475569;padding:0 0 6px}
+.ul-loading .msg.ul-progm .pm-mini{margin-left:8px;padding:2px 10px}
+#ul-list .gs-more.ul-moreb{display:block;width:100%;margin:8px 0 2px;font-family:inherit}
+</style>
+<script id="ul-js">
+/* (11/10 호준님 "미연결 모아보기") 메신저 전체의 재고 미연결(주문·택배 줄 / 직배송 전용 카드 / 예약)을 한 번에 보고, 날짜별로, 누르면 카드가 펼쳐져 그 자리에서 재고 연결.
+   · 방을 새로 만들지 않고 어느 방에서나 뜨는 전역 패널(검색 줄의 🔗 버튼). 화면·동작은 목업(시험_미연결모아보기_목업_20261109.html) 그대로 — 목업 전용 가짜 부분(고르기 창·표본)만 앱 함수로.
+   · 미연결 판정·연결·해제는 앱 함수 그대로(pmNoLink·dlvNeedLink·rsvHasLink / omPickOpen·dlvPickOpen·rsvOutFromStock …). 기존 줄은 고치지 않고 아래에서 전역 함수 18개를 감쌈 —
+     감싸기는 '패널이 지금 다루는 그 한 줄'(UL.act)일 때만 다르게 하고, 평소엔 원본을 그대로 부름. 주기 타이머 없음.
+   · 결정 ①: 지난 날짜 직배송 전용 카드도 직원이 연결 — dlvPickOpen·dlvStkUnlink를 부르는 그 한 번(첫 줄 검사) 동안만 날짜 검사 통과(자정 잠금은 그대로), 직배송 기록·감사 기록에 남김.
+   · 설계: 클로드_임시작업\20261110_미연결이식_2f68f114\설계_미연결모아보기.md */
+var UL_RANGES=[['7','7일'],['14','14일'],['30','30일'],['90','90일'],['all','전체']];
+var UL_RANGE_NAME={'7':'최근 7일','14':'최근 14일','30':'최근 30일','90':'최근 90일','all':'전체 기간'};
+var UL_SRC=[['o','📋 주문·택배 줄','#475569'],['d','🚚 직배송 카드','#15803d'],['r','📅 예약','#2563eb']];
+var UL_DOW=['일','월','화','수','목','금','토'];
+var UL_SRC_NAME={o:'주문 줄',d:'직배송 카드',r:'예약'}, UL_PROG_NAME={o:'주문 줄',d:'카드',r:'예약'};
+var UL_COLS_O='id,origin_id,date_str,platform,dtype,order_no,brand,name,code,size,ply,qty,src,out_target,status,recv,tel,addr,use_note,inbound_item_id,cancelled,logs';
+var UL_COLS_D='id,origin_id,room_id,date_str,first_date,tab,car,channel,src,tire,brand,spec,qty,code,recv,tel,addr,trade_client,done,confirmed,cancelled,need_done,due_date,ship_type,shop_name,note,raw_line,src_kind,src_product_id,src_item_id,src_dot,src_qty,src_label,stock_done,links';
+var UL_COLS_R='id,date_str,time_slot,duration_min,status,car_name,car_no,car_model,customer_name,customer_tel,phone,tire_spec,tire_pattern,qty,user_name,src_kind,src_product_id,src_item_id,src_dot,src_qty,src_label,stock_done';
+var UL_COLS_L='id,reservation_id,kind,product_id,item_id,dot,qty,stock_done,tire_spec,src_label';
+var UL_WIN={o:7,d:30,r:90}, UL_DRAW=300, UL_MAX=3000, UL_FETCH_MAX=8000, UL_REQ_MAX=80, UL_FAIL_SRC=2, UL_FAIL_ALL=3, UL_REUSE_MS=30000, UL_SLOW_MS=20000, UL_GHOST_MS=60000;   /* 창(일) · 그리기 단위 · 미연결 줄 상한 · 읽은 줄 상한 · 조회 상한(창 조회 — (3회차 보수) 누름마다가 아니라 읽어 간직한 창의 조회 수로 세고 [이어서 읽기]마다 그만큼 더: ulReqFull) · 실패 멈춤(자료원 연속·누름 누적) · 다시 열기 재사용 · [그만두기] 보이는 때 · 그만둔 줄의 늦은 창을 삼키는 시간(1회차) */
+var UL={range:'7',src:{},dates:{},noTire:false,futOpen:false,open:null,busy:false,rows:[],log:[],req:0,seq:0,logOpen:false,   /* 목업 그대로: req = 조회 요청 번호(마지막에 누른 범위만 반영) · seq = 연결 직후 초록 표시 번호 */
+  ok:false,f:{},act:null,pass:false,ghost:null,own:null,more:300,who:null,closedAt:0,dirty:false,ab:null,busyAt:0,pre:null,   /* act: 패널이 다루는 그 한 줄 · pass: 가드 통과(결정 ①) · ghost: 그만둔 줄 · own: 패널이 띄운 고르기 창 */
+  loaded:false,from:null,got:{o:null,d:null,r:null},win:{o:7,d:30,r:90},why:{},skip:{},fail:{o:0,d:0,r:0,n:0},cnt:{req:0,rows:0,bytes:0},prog:{},stop:false,
+  ro:{},cmin:{},cfull:{},rr:{},lnk:null,mir:{},rootDone:{},nRead:0,capX:1,nReq:0,reqBase:0,cut:{},preMode:null,lnkErr:false,rootErr:false,rootCut:false,dlvRoom:null};   /* 읽어 둔 자료: ro 미연결 주문 줄 · cmin 카드 6칸(사슬 묶기) · cfull 미연결 후보 카드 전체 칸 · rr 예약 · lnk 예약 추가연결 · mir 보낸 줄 미러 */
+function ulToday(){ return getTodayISO(); }   /* E1 — 그릴 때마다 오늘(KST) */
+function ulDateOk(d){ return typeof d==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(d); }
+function ulIdOk(id){ return id!=null&&/^[A-Za-z0-9_-]{1,64}$/.test(String(id)); }   /* onclick에 넣는 열쇠는 id 꼴만 */
+function ulCh(c){ var ch=String((c&&c.channel)||''); return /^[a-z0-9]{1,24}$/.test(ch)?ch:'spam'; }   /* E17 클래스에 넣어도 되는 채널만 */
+function ulIsOpen(){ var p=document.getElementById('ul-panel'); return !!(p&&p.classList.contains('on')); }
+function ulPickerOn(){ var m=document.getElementById('rsv-pick-modal'); return !!(m&&m.classList.contains('on')); }
+function ulToast(t){ try{ if(typeof stkToast==='function')stkToast(t); }catch(e){} }
+function ulBusyToast(){ ulToast('다른 줄을 다루는 중이에요 — 고르기 창을 닫거나 저장이 끝난 뒤 눌러 주세요'); }
+function ulMDk(d){ return (+d.slice(5,7))+'월 '+(+d.slice(8,10))+'일'; }
+function ulDays(a,b){ return Math.round((Date.parse(b+'T00:00:00Z')-Date.parse(a+'T00:00:00Z'))/86400000); }
+function ulBytes(rows){ try{ var s=JSON.stringify(rows||[]); return (typeof TextEncoder!=='undefined')?new TextEncoder().encode(s).length:s.length; }catch(e){ return 0; } }
+function ulIsTimeout(e){ var s=String((e&&e.code)||'')+' '+String((e&&e.message)||e||''); return /57014|statement timeout/i.test(s); }
+function ulFromSync(range){ if(range==='all')return (typeof jhOldSince==='function')?jhOldSince():'2026-01-01'; return ulAddDays(ulToday(),-(parseInt(range,10)-1)); }
+async function ulFrom(range){ if(range==='all'){ var g0=false; try{ g0=!JH_OLD_SINCE; }catch(e){} try{ await jhOldSinceLoad(); }catch(e){} if(g0&&UL.cnt)UL.cnt.req++; } return ulFromSync(range); }   /* '전체' 하한 = 주문방 '지난 미처리' 시작일(jhOldSince). (2회차) 시작일이 비어 있으면 앱이 settings 1건을 읽음 — 콘솔 조회 수에 셈 */
+/* 판정에 필요한 전역은 판정하는 순간에만 잠깐 바꿔 끼우고 바로 되돌림(방 화면에 안 남음) */
+function ulWithMirror(fn){ var k=OM.mirror; OM.mirror=UL.mir; try{ return fn(); } finally{ OM.mirror=k; } }
+function ulWithLinks(fn){ var k=rsvLinks; rsvLinks=UL.lnk||[]; try{ return fn(); } finally{ rsvLinks=k; } }
+function ulJudgeO(o){ if(!o||(o.origin_id&&o.origin_id!==o.id))return false; o._srcP=null; try{ return ulWithMirror(function(){ return !!pmNoLink(o); }); }catch(e){ return false; } }   /* pmNoLink → jhNoLink(최종 래핑) 그대로 */
+function ulJudgeR(v){ if(!v||v.status==='취소'||!ulDateOk(v.date_str))return false; return ulWithLinks(function(){ return !(v.src_product_id||v.src_item_id||v.stock_done||rsvHasLink(v.id)); }); }   /* 앱이 달력·상세·전체 검색에서 쓰는 식 */
+function ulSrcPrefilterOk(){   /* 주문 줄 '창' 선거르기를 써도 되는지 — 출고지 사전 세 곳에 '창'이 없는 창고 별칭이 있으면 끄고 전부 읽음 */
+  var why=[];
+  try{ (((typeof JH_SRC_USER!=='undefined')&&JH_SRC_USER)||[]).forEach(function(x){ if(x&&(x.kind==='stock'||x.to==='창고')&&String(x.m||'').indexOf('창')<0)why.push(String(x.m||'')); }); }catch(e){}
+  try{ (((typeof TG_SRC_DICT!=='undefined')&&TG_SRC_DICT)||[]).forEach(function(p){ if(p&&p[1]==='창고'&&String(p[0]).indexOf('창')<0)why.push(String(p[0])); }); }catch(e){}
+  try{ (((typeof srcList!=='undefined')&&srcList)||[]).forEach(function(it){ if(it&&it.name==='창고')(it.aliases||[]).forEach(function(al){ if(String(al).indexOf('창')<0)why.push(String(al)); }); }); }catch(e){}
+  return {ok:!why.length,why:why.slice(0,5).join(', ')}; }
+function ulResetData(){ UL.loaded=false; UL.from=null; UL.got={o:null,d:null,r:null}; UL.win={o:UL_WIN.o,d:UL_WIN.d,r:UL_WIN.r}; UL.why={}; UL.skip={}; UL.ro={}; UL.cmin={}; UL.cfull={}; UL.rr={}; UL.lnk=null; UL.capR=null; UL.mir={}; UL.rootDone={}; UL.nRead=0; UL.capX=1; UL.nReq=0; UL.reqBase=0; UL.cut={}; UL.preMode=null; UL.lnkErr=false; UL.rootErr=false; UL.rootCut=false; UL.noRoom=false; UL.dirty=false; UL.rows=[]; }
+/* ── 조회 — 세 자료원을 '창'으로 쪼개 최신 → 옛날, 한 번에 요청 하나 ── */
+function ulQO(a,b){ var q=sb.from('jonghap_orders').select(UL_COLS_O).gte('date_str',a).lte('date_str',b||ulToday()).or('cancelled.is.null,cancelled.eq.false'); if(UL.preMode==='on')q=q.ilike('src','%창%'); return q.order('date_str',{ascending:false}); }
+function ulQD(a,b){ var q=sb.from('deliveries').select(UL_COLS_D).gte('date_str',a).ilike('src','%창%').eq('room_id',UL.dlvRoom); if(b)q=q.lte('date_str',b); return q.order('date_str',{ascending:false}); }   /* 위 끝 없음(30일 확인과 같음) */
+function ulQR(a,b){ var q=sb.from('reservations').select(UL_COLS_R).gte('date_str',a).neq('status','취소'); if(b)q=q.lte('date_str',b); return q.order('date_str',{ascending:true}).order('time_slot',{ascending:true}); }   /* 위 끝 없음(앞날 예약 포함) */
+var UL_Q={o:ulQO,d:ulQD,r:ulQR};
+function ulAbortable(q){ try{ if(UL.ab&&q&&typeof q.abortSignal==='function')return q.abortSignal(UL.ab.signal); }catch(e){} return q; }
+function ulCapErr(){ var e=new Error('조회 상한'); e.ulCap=true; return e; }
+function ulReqFull(W){ return UL.nReq+((W&&W.n)||0)>=UL.reqBase+UL_REQ_MAX; }   /* (3회차 보수) 조회 상한에 닿았는지 — 읽어 간직한 창의 조회 수(UL.nReq) + 지금 읽는 창의 조회 수(W.n)가 '마지막 [이어서 읽기] 때의 값(UL.reqBase) + UL_REQ_MAX'에 닿았나.
+   전에는 누를 때마다 0부터 세어(UL.cnt.req), 넓은 범위를 한 번에 누르면 차례로 누를 때보다 먼저 닿아 같은 범위인데 결과가 달랐음. 줄 상한 둘(UL.nRead · ulUnlinkedN)처럼 읽어 둔 것만으로 정해지게 함 — 한 번 누름에 창 조회는 여전히 UL_REQ_MAX건까지 */
+async function ulRead(s,a,b,W){ var rows=await sbFetchAll(function(){ if(ulReqFull(W))throw ulCapErr(); if(W)W.n++; UL.cnt.req++; return ulAbortable(UL_Q[s](a,b)); });
+  UL.cnt.rows+=rows.length; UL.cnt.bytes+=ulBytes(rows); return rows; }   /* (3회차) 읽은 줄 상한 셈(UL.nRead)은 그 창을 다 받아 간직할 때(ulFetchSrc) 올림 — 읽다 버린 창을 두 번 세지 않게 · (3회차 보수) 조회 수(UL.nReq)도 같은 때. UL.cnt.req는 콘솔 한 줄용(이번 누름의 조회 수) */
+async function ulFetchMirror(sent,my,W){   /* 보낸 줄의 직배송 카드(미러) — omMirror(P10995)의 읽기 부분만 같은 글자로(취소 카드 되돌리기 쓰기는 안 함). 카드에 따라 결과가 갈리는 줄만 1번 조회 */
+  var cand=[]; sent.forEach(function(o){ UL.mir[o.id]={id:'?'}; if(ulJudgeO(o))cand.push(o); else UL.mir[o.id]={missing:true}; });
+  if(!cand.length)return true;
+  var keys=cand.map(omKey).concat(cand.map(omKeyOld)).filter(Boolean), found={};
+  for(var i=0;i<keys.length;i+=100){ if(my!=null){ if(my!==UL.req)return false; if(ulReqFull(W))throw ulCapErr(); if(W)W.n++; UL.cnt.req++; }
+    var qm=sb.from('deliveries').select('id,date_str,tab,car,done,confirmed,cancelled,raw_line,room_id,src_kind,src_product_id,src_item_id,src_label').in('raw_line',keys.slice(i,i+100)).order('date_str',{ascending:false});
+    var r=await ((my!=null)?ulAbortable(qm):qm);   /* (1회차) 줄 갱신(my 없음)은 목록 조회의 끊기 신호에 묶지 않음 */
+    if(my!=null&&my!==UL.req)return false; if(r&&r.error)throw r.error; UL.cnt.bytes+=ulBytes(r&&r.data);
+    ((r&&r.data)||[]).forEach(function(d){ var f0=found[d.raw_line]; if(!f0||(f0.cancelled&&!d.cancelled)||(!!f0.cancelled===!!d.cancelled&&d.date_str>f0.date_str))found[d.raw_line]=d; }); }
+  cand.forEach(function(o){ var d=found[omKey(o)]||found[omKeyOld(o)]; UL.mir[o.id]=d||{missing:true}; }); return true; }
+async function ulTakeO(rows,my,W){ var keep=[], sent=[];
+  rows.forEach(function(o){ if(!o)return; if(!ulDateOk(o.date_str)||!ulIdOk(o.id)){ console.warn('[미연결] 날짜·id 꼴이 아닌 주문 줄을 뺐습니다',o.id,o.date_str); return; } if(o.origin_id&&o.origin_id!==o.id)return; o._srcP=null; if(o.status==='sent')sent.push(o); else if(ulJudgeO(o))keep.push(o); });
+  if(sent.length){ var ok=await ulFetchMirror(sent,my,W); if(!ok||my!==UL.req)return; sent.forEach(function(o){ if(ulJudgeO(o))keep.push(o); }); }
+  if(my!==UL.req)return; keep.forEach(function(o){ UL.ro[o.id]=o; }); }   /* 메모리: 미연결로 남은 줄만 간직 */
+function ulCardMin(c,ext){ var m={id:c.id,origin_id:c.origin_id||null,date_str:c.date_str,cancelled:!!c.cancelled,lk:!!(c.src_kind&&(c.src_product_id||c.src_item_id))}; if(ext)m.ext=1; else if(dlvNeedLink(c))m.nl=1; return m; }   /* (3회차) nl = 읽은 그 장이 미연결 후보(dlvNeedLink)인지 — 상한 셈(ulUnlinkedN)에 씀. ext(사슬 뿌리를 6칸만 읽은 것)는 판정할 칸이 없어 붙이지 않음 */
+function ulTakeD(rows){ rows.forEach(function(c){ if(!c)return; if(!ulIdOk(c.id)||!ulDateOk(c.date_str)){ console.warn('[미연결] 날짜·id 꼴이 아닌 카드를 뺐습니다',c.id,c.date_str); return; } var m=UL.cmin[c.id]=ulCardMin(c); if(m.nl)UL.cfull[c.id]=c; else delete UL.cfull[c.id]; }); }
+function ulTakeR(rows){ rows.forEach(function(v){ if(!v)return; if(!ulIdOk(v.id)||!ulDateOk(v.date_str)){ console.warn('[미연결] 날짜·id 꼴이 아닌 예약을 뺐습니다',v&&v.id,v&&v.date_str); return; } UL.rr[v.id]=v; }); }
+function ulUnlinkedN(){   /* (3회차) 상한 확인용 — 목록에 미연결로 남을 줄 수: 미연결 주문 줄 + 미연결 카드 사슬(사슬마다 1 — 이월 복사본은 세지 않음) + 미연결 예약(읽은 예약 전부가 아니라 판정한 것).
+     전에는 UL.cfull(목록을 만들기 전에는 이월 복사본까지 전부)과 읽은 예약 전부를 세어, 같은 범위라도 한 번에 읽으면 상한에 일찍 닿아 예약을 읽기 전에 멈췄음(M1).
+     읽은 구간이 같으면 언제 세어도 같은 값이 되게 — cfull 정리 여부·사슬 뿌리(ext) 읽기 여부와 상관없이 UL.cmin의 nl·lk만으로 셈(뿌리 쪽에서 연결이 드러날 사슬은 조금 넉넉히 세는 어림) */
+  var n=Object.keys(UL.ro).length, ch=ulChainMap();
+  Object.keys(ch).forEach(function(k){ var live=ulLive(ch[k].filter(function(c){ return !c.ext; })); if(live.length&&live[live.length-1].nl&&!live.some(function(c){ return c.lk; }))n++; });
+  var nk=Object.keys(UL.rr).length, m=UL.capR;   /* 예약 셈은 읽은 예약·추가연결이 바뀔 때만 다시(판정은 앱 식 그대로 ulJudgeR) */
+  if(!m||m.rr!==UL.rr||m.nk!==nk||m.lnk!==UL.lnk){ var x=0; ulWithLinks(function(){ Object.keys(UL.rr).forEach(function(id){ if(ulJudgeR(UL.rr[id]))x++; }); }); m=UL.capR={rr:UL.rr,nk:nk,lnk:UL.lnk,n:x}; }
+  return n+m.n; }
+async function ulFetchSrc(s,from,my){   /* 한 자료원 — 모자란 옛 구간만. 시간 초과면 창을 반으로 줄여 다시(줄인 크기는 다음 창에도), 그 밖의 오류는 바로 멈춤. 연속 2번·누름 누적 3번 실패면 멈춤 */
+  while(true){
+    if(my!==UL.req)return;
+    if(UL.skip[s]){ UL.why[s]=null; return; }
+    var got=UL.got[s]; if(got!==null&&got<=from){ UL.why[s]=null; return; }
+    if(UL.stop){ UL.why[s]='stop'; return; }
+    if(UL.fail[s]>=UL_FAIL_SRC||UL.fail.n>=UL_FAIL_ALL){ UL.why[s]='fail'; return; }
+    var cq=ulReqFull(), cl=UL.nRead>=UL_FETCH_MAX*UL.capX||ulUnlinkedN()>=UL_MAX*UL.capX;
+    if(cq||cl){ if(cq)UL.cut.q=1; if(cl)UL.cut.l=1; UL.why[s]='cut'; return; }   /* (3회차 보수) 어느 상한에 닿았는지 적어 둠(q 조회 · l 줄) — [이어서 읽기]는 닿은 상한만 올림(ulMoreRead) */
+    var top=(got===null)?ulToday():ulAddDays(got,-1), b=(got===null)?null:top, w=UL.win[s], a=ulAddDays(top,-(w-1)), W={n:0}; if(a<from)a=from;   /* W = 이 창을 읽는 데 든 조회 수(다음 쪽·보낸 줄 미러 포함) — 창을 간직할 때만 UL.nReq에 더함 */
+    try{ var rows=await ulRead(s,a,b,W); if(my!==UL.req)return; if(s==='o')await ulTakeO(rows,my,W); else if(s==='d')ulTakeD(rows); else ulTakeR(rows); }
+    catch(e){ if(my!==UL.req)return; if(UL.stop){ UL.why[s]='stop'; return; } if(e&&e.ulCap){ UL.cut.q=1; UL.why[s]='cut'; return; }
+      UL.fail.n++; if(ulIsTimeout(e)&&w>1){ UL.fail[s]++; UL.win[s]=Math.max(1,Math.ceil(w/2)); } else UL.fail[s]=UL_FAIL_SRC;
+      console.warn('[미연결] '+UL_SRC_NAME[s]+' '+a+'~'+(b||'')+' 읽기 실패 (창 '+w+'일)',e); continue; }
+    if(my!==UL.req)return;
+    UL.fail[s]=0; UL.got[s]=a; UL.nRead+=rows.length; UL.nReq+=W.n; UL.prog[s]=(UL.prog[s]||0)+1; ulProgShow();
+  }
+}
+async function ulFetchLinks(my){ if(UL.lnk)return;   /* 예약 추가연결 — 표 전체 1번(앱 loadReservations와 같은 표) */
+  try{ var rows=await sbFetchAll(function(){ if(UL.cnt.req>=UL_REQ_MAX)throw ulCapErr(); UL.cnt.req++; return ulAbortable(sb.from('reservation_links').select(UL_COLS_L)); });
+    if(my!==UL.req)return; UL.cnt.rows+=rows.length; UL.cnt.bytes+=ulBytes(rows); UL.lnk=rows; UL.lnkErr=false; }
+  catch(e){ if(my!==UL.req)return; if(!UL.stop&&!(e&&e.ulCap))UL.fail.n++; UL.lnkErr=true; console.warn('[미연결] 예약 추가연결 읽기 실패',e); } }
+function ulChainMap(){ var ch={}; Object.keys(UL.cmin).forEach(function(id){ var c=UL.cmin[id]; var k=c.origin_id||c.id; (ch[k]=ch[k]||[]).push(c); }); return ch; }   /* 사슬 묶기 = 30일 확인(P24477) 원문과 같은 식 */
+function ulLive(list){ return list.filter(function(c){return !c.cancelled;}).sort(function(a,b){ return a.date_str<b.date_str?-1:(a.date_str>b.date_str?1:0); }); }
+async function ulFetchChainRoots(my){   /* 미연결 후보 가운데 사슬 뿌리가 읽은 범위 밖인 것 — 뿌리 100개씩 6칸만 한 번 더 읽어 같은 사슬 묶기를 다시(판정식은 그대로)
+     (1회차) 1,000줄이 넘으면 이어 읽음(sbFetchAll — 한 요청 1,000줄에서 잘려 옛 카드가 빠지지 않게) · 이미 읽은 날짜(UL.got.d 이후 — 같은 조건으로 다 읽음)는 빼고 읽음 · 조회 상한·멈춤으로 다 못 읽으면 [이어서 읽기] 안내(UL.rootCut) */
+  var ch=ulChainMap(), need=[], nq=0; UL.rootCut=false;   /* (3회차 보수) nq = 이 사슬 뿌리 읽기에 든 조회 수 — 조회 상한을 창 조회와 따로 셈(전에는 이번 누름의 조회 전부와 한데 세어, 창을 많이 읽은 누름에서만 뿌리 읽기가 끊겨 누른 순서에 따라 달라질 수 있었음) */
+  Object.keys(ch).forEach(function(k){ if(UL.cmin[k]||UL.rootDone[k]||!ulIdOk(k))return; var live=ulLive(ch[k]); if(!live.length||live.some(function(c){return c.lk;}))return; if(!UL.cfull[live[live.length-1].id])return; need.push(k); });
+  for(var i=0;i<need.length;i+=100){ if(my!==UL.req)return; if(UL.stop||nq>=UL_REQ_MAX){ UL.rootCut=true; return; } var ids=need.slice(i,i+100).join(','), below=UL.got.d, rows=null, err=null;
+    try{ rows=await sbFetchAll(function(){ if(nq>=UL_REQ_MAX)throw ulCapErr(); nq++; UL.cnt.req++; var q=sb.from('deliveries').select('id,origin_id,date_str,cancelled,src_kind,src_product_id,src_item_id').or('id.in.('+ids+'),origin_id.in.('+ids+')').ilike('src','%창%'); if(UL.dlvRoom)q=q.eq('room_id',UL.dlvRoom); if(below)q=q.lt('date_str',below); return ulAbortable(q); }); }catch(e){ err=e; }
+    if(my!==UL.req)return;
+    if(err){ if(UL.stop||err.ulCap){ UL.rootCut=true; return; } UL.fail.n++; UL.rootErr=true; console.warn('[미연결] 사슬 뿌리 읽기 실패',err); return; }
+    UL.cnt.rows+=rows.length; UL.cnt.bytes+=ulBytes(rows); rows.forEach(function(c){ if(!c||!ulIdOk(c.id)||!ulDateOk(c.date_str)||UL.cmin[c.id])return; UL.cmin[c.id]=ulCardMin(c,true); });
+    need.slice(i,i+100).forEach(function(k){ UL.rootDone[k]=1; }); }
+  UL.rootErr=false; }
+function ulSteps(range,from){ var st=[]; for(var i=0;i<UL_RANGES.length;i++){ var f=ulFromSync(UL_RANGES[i][0]); st.push(f<from?from:f); if(UL_RANGES[i][0]===range)break; } st.push(from); return st; }   /* (3회차) 읽는 계단 = 범위 버튼(7·14·30·90일·전체)의 하한을 누른 범위까지 차례로, 맨 끝은 그 범위의 하한 */
+async function ulFetchTo(range,my){   /* 범위 → 모자란 구간만 순서대로 읽음 */
+  try{ await jhSrcAliasLoad(); }catch(e){} if(my!==UL.req)return;   /* 사용자 출고지 사전(설정 1건·캐시) — 방에서는 주문방·택배방만 부름 */
+  var pre=ulSrcPrefilterOk(), mode=pre.ok?'on':'off'; UL.pre=pre;
+  if(UL.preMode&&UL.preMode!==mode){ UL.got.o=null; UL.ro={}; UL.why.o=null; } UL.preMode=mode;
+  var from=await ulFrom(range); if(my!==UL.req)return; UL.from=from;
+  try{ UL.skip.o=!!gsSrcHidden({key:'jh'}); UL.skip.d=!!gsSrcHidden({key:'dlv'}); UL.skip.r=!!gsSrcHidden({key:'rsv'}); }catch(e){}   /* 직원에게 감춘 방은 건너뜀 */
+  var room=null, _hid=!!UL.skip.d; try{ room=omDlvRoom(); }catch(e){}
+  if(!room&&!_hid){ for(var _w=0;_w<50&&!room&&!(typeof rooms!=='undefined'&&rooms&&rooms.length);_w++){ await new Promise(function(r){ setTimeout(r,100); }); if(my!==UL.req)return; try{ room=omDlvRoom(); }catch(e){} } }   /* (3회차c) 화면이 뜨자마자 눌러 방 목록이 아직 안 왔으면 올 때까지(최대 5초) 기다림 — 전에는 직배송 카드가 말없이 0건 */
+  UL.dlvRoom=(room&&room.id)||null; UL.noRoom=(!UL.dlvRoom&&!_hid); if(!UL.dlvRoom)UL.skip.d=true;
+  /* (3회차) 넓은 범위를 한 번에 눌러도(또는 읽는 도중에 눌러도) 범위 버튼을 차례로 누른 것과 같은 계단·같은 창으로 읽음: 계단마다 주문 줄 → 카드 → 예약을 그 하한까지.
+     전에는 주문 줄을 범위 끝까지 다 읽은 뒤에야 카드·예약을 읽어, 상한에 닿는 자리와 남는 구간이 누른 순서에 따라 달랐음(M1). 상한·멈춤·실패로 못 읽는 자료원은 다음 계단에서도 조회 없이 같은 까닭으로 돌아옴 */
+  var st=ulSteps(range,from);
+  for(var i=0;i<st.length;i++){
+    await ulFetchSrc('o',st[i],my); if(my!==UL.req)return;
+    await ulFetchSrc('d',st[i],my); if(my!==UL.req)return;
+    if(!i&&!UL.skip.r){ await ulFetchLinks(my); if(my!==UL.req)return; }   /* 예약 추가연결은 누름마다 한 번만(첫 계단 — 전과 같은 자리) */
+    await ulFetchSrc('r',st[i],my); if(my!==UL.req)return; }
+  if(!UL.skip.d)await ulFetchChainRoots(my); }   /* (1회차) 멈춤이어도 부름 — 남은 사슬이 있으면 조회 없이 안내만 남김 */
+function ulProgTxt(){ var f=ulFromSync(UL.range), T=ulToday(), out=[];   /* (1회차) 지금 누른 범위의 하한으로 — 넓힌 직후 직전 범위 값이 쓰여 0/0이 보이던 것 */ var st=ulSteps(UL.range,f); ['o','d','r'].forEach(function(s){ if(UL.skip[s])return; var done=UL.prog[s]||0, g=UL.got[s], w=UL.win[s]||1, left=0, p=(g===null)?ulAddDays(T,1):g; st.forEach(function(x){ if(x<p){ left+=Math.ceil(ulDays(x,p)/w); p=x; } });   /* (3회차) 남은 창 수를 읽는 계단(ulSteps)대로 셈 — 계단 끝에서 창이 끊기므로 */ out.push(UL_PROG_NAME[s]+' '+done+'/'+(done+left)); }); return out.join(' · '); }
+function ulProgShow(){ try{ var el=document.getElementById('ul-prog'); if(el)el.textContent=ulProgTxt(); }catch(e){} }
+async function ulLoad(opts){   /* 목업 ulLoad 자리 — 찾는 중 표시 → 실제 조회 → 판정 → 다시 그림 · 콘솔 한 줄 */
+  var my=++UL.req; try{ if(UL.ab)UL.ab.abort(); }catch(e){} UL.ab=(typeof AbortController!=='undefined')?new AbortController():null;
+  UL.busy=true; UL.stop=false; UL.fail={o:0,d:0,r:0,n:0}; UL.cnt={req:0,rows:0,bytes:0}; UL.prog={}; UL.cut={};
+  ulDraw();
+  var pill=!!(opts&&opts.pill), t0=Date.now();
+  if(pill){ try{ tgBusy('미연결 불러오는 중…'); UL.busyAt=t0; }catch(e){ pill=false; } }   /* 앱 알약은 패널을 열 때의 7일치 한 번에만 */
+  try{ await ulFetchTo(UL.range,my); }catch(e){ console.warn('[미연결] 읽기 오류',e); }
+  finally{ if(pill&&Date.now()-UL.busyAt<20000){ try{ tgBusyOff(); }catch(e){} } }   /* 알약은 20초에 저절로 꺼지며 횟수를 0으로 — 그 뒤엔 끄지 않음(다른 기능 알약 보호) */
+  if(my!==UL.req)return;
+  UL.busy=false; UL.loaded=true; UL.ab=null;
+  try{ ulRebuild(); }catch(e){ console.error('[미연결] 목록 만들기 오류',e); }
+  ulDraw();
+  try{ console.log('[미연결] '+UL_RANGE_NAME[UL.range]+' · 조회 '+UL.cnt.req+'건 · '+UL.cnt.rows+'줄 · '+UL.cnt.bytes.toLocaleString()+'바이트 · '+((Date.now()-t0)/1000).toFixed(2)+'초 · 실패 '+UL.fail.n); }catch(e){} }
+function ulStop(){ UL.stop=true; try{ if(UL.ab)UL.ab.abort(); }catch(e){} }
+function ulRetry(){ if(UL.busy)return; UL.lnkErr=false; UL.rootErr=false; ulLoad(); }
+function ulMoreRead(){ if(UL.busy)return; if(UL.cut.q)UL.reqBase=UL.nReq; if(UL.cut.l)UL.capX++; ulLoad(); }   /* [이어서 읽기] — (3회차 보수) 닿은 상한만 올려 이어 읽음: 조회 상한이면 지금까지의 조회 수에서 UL_REQ_MAX건 더, 줄 상한(미연결 줄·읽은 줄)이면 한 단계 더. [멈춤]으로 멈춘 것은 상한을 올리지 않고 이어 읽기만(전에는 까닭과 상관없이 줄 상한을 올려, 멈췄다 이어 읽은 사람만 다음 범위에서 더 많이 읽혔음) */
+function ulWarnHtml(){   /* 목록 맨 위 노란 안내 줄 — 읽기 실패(다시 시도) / 상한·멈춤(이어서 읽기) / 선거르기 꺼짐 */
+  var h='', from=ulFromSync(UL.range), F=[], C=[];
+  if(UL.pre&&!UL.pre.ok)h+='<div class="ul-warn">⚠ 출고지 사전에 \'창\'이 없는 창고 별칭('+esc(UL.pre.why)+')이 있어 주문 줄을 전부 읽습니다 — 느려질 수 있어요</div>';
+  ['o','d','r'].forEach(function(s){ if(UL.skip[s])return; var g=UL.got[s]; if(g!==null&&g<=from)return; var w=UL.why[s]; if(!w)return; var t=UL_SRC_NAME[s]+(g?' '+ulMDk(g)+' 이전':' 전부'); if(w==='fail')F.push(t); else C.push(t); });
+  if(UL.lnkErr&&!UL.skip.r)F.push('예약 추가연결 — 예약은 빼고 보입니다');
+  if(UL.noRoom)F.push('직배송 카드 전부 — 직배송방을 찾지 못했어요');   /* (3회차c) */
+  if(UL.rootErr)F.push('직배송 카드 사슬 확인');
+  else if(UL.rootCut&&!UL.skip.d)C.push('직배송 카드 옛 사슬');   /* (1회차) 조회 상한·멈춤으로 사슬 뿌리를 다 못 읽음 — 남은 카드는 읽은 범위 안 사슬로만 판정(앱 30일 확인과 같은 수준) */
+  if(F.length)h+='<div class="ul-warn">⚠ 일부 구간을 읽지 못했어요 ('+F.join(' · ')+') · DB 응답이 느립니다<button class="pm-mini" onclick="ulRetry()">다시 시도</button></div>';
+  if(C.length)h+='<div class="ul-warn">아직 읽지 않은 구간이 있어요 ('+C.join(' · ')+')<button class="pm-mini" onclick="ulMoreRead()">이어서 읽기</button></div>';   /* (3회차) 전에는 묶은 글 뒤에 '은 읽지 않았습니다'를 붙여 '예약 전부은'이 됨(M2) — 조사가 묶은 글에 붙지 않게 괄호 안에 늘어놓음(위 읽기 실패 줄과 같은 짜임) */
+  return h; }
+/* ── 판정 → 줄 모형 ── */
+function ulMkO(o){ return {k:'o-'+o.id,type:'o',d:o.date_str,o:o,need:parseInt(o.qty,10)||0,have:omStkQty(o),links:omStkLinks(o)}; }
+function ulMkD(c){ return {k:'d-'+c.id,type:'d',d:c.date_str,c:c,root:c.origin_id||c.id,need:parseInt(c.qty,10)||0,have:dlvLinkQty(c),links:dlvLinks(c)}; }
+function ulMkR(v){ return {k:'r-'+v.id,type:'r',d:v.date_str,r:v,need:parseInt(v.qty,10)||0,have:ulWithLinks(function(){ return rsvLinkQtyOf(v); }),links:[]}; }
+function ulSentCardIds(list){ var m={}; list.forEach(function(o){ if(o.status!=='sent'||o.cancelled)return; var L=Array.isArray(o.logs)?o.logs:[]; for(var i=L.length-1;i>=0;i--){ if(L[i]&&L[i].t==='직배송방으로 보냄'){ if(L[i].dlv_id)(m[L[i].dlv_id]=m[L[i].dlv_id]||[]).push(o.date_str); break; } } }); return m; }   /* 미연결로 목록에 든 보낸 줄이 가리키는 카드(조건은 dlvOrderLineOf와 같음) → 그 줄의 날짜들. 그 사슬은 그 줄이 보이는 범위에서는 줄로만 보임(ulFolded) */
+function ulChainsD(sentIds){ var out=[], ch=ulChainMap(), keep={};
+  Object.keys(ch).forEach(function(k){ var live=ulLive(ch[k]); if(!live.length||live.some(function(c){return c.lk;}))return; var last=live[live.length-1], c=UL.cfull[last.id]; if(!c)return; keep[c.id]=c; if(!dlvNeedLink(c))return; var fd=[]; ch[k].forEach(function(x){ if(sentIds[x.id])fd=fd.concat(sentIds[x.id]); }); out.push({c:c,fold:fd}); });
+  UL.cfull=keep; return out; }   /* 메모리: 미연결 사슬의 마지막 장만 전체 칸으로 · (1회차) 접기는 빼지 않고 fold(가리키는 보낸 줄 날짜)만 달아 둠 — 범위에 따라 ulPool이 거름 */
+function ulSort(rows){ var ord={o:0,d:1,r:2}, so={wait:0,sent:1,done:2};
+  rows.sort(function(a,b){ if(a.d!==b.d)return a.d<b.d?1:-1; if(a.type!==b.type)return ord[a.type]-ord[b.type]; if(a.type==='o')return (so[a.o.status]||0)-(so[b.o.status]||0); if(a.type==='d')return (a.c.done?1:0)-(b.c.done?1:0); return String(a.r.time_slot||'')<String(b.r.time_slot||'')?-1:1; }); }   /* 목업 ulBuild 끝의 정렬 그대로 */
+function ulRebuild(){ var old={}; (UL.rows||[]).forEach(function(r){ old[r.k]=r; }); var rows=[], keepO=[];
+  Object.keys(UL.ro).forEach(function(id){ var o=UL.ro[id]; if(ulJudgeO(o))keepO.push(o); else delete UL.ro[id]; });
+  keepO.forEach(function(o){ rows.push(ulMkO(o)); });
+  ulChainsD(ulSentCardIds(keepO)).forEach(function(x){ var n=ulMkD(x.c); if(x.fold.length)n.fold=x.fold; rows.push(n); });
+  if(UL.lnk)ulWithLinks(function(){ Object.keys(UL.rr).forEach(function(id){ var v=UL.rr[id]; if(ulJudgeR(v))rows.push(ulMkR(v)); }); });   /* 추가연결을 못 읽었으면 예약은 빼고(잘못 미연결로 보이지 않게) */
+  var seen={}; rows.forEach(function(n){ seen[n.k]=1; var p=old[n.k]; if(p){ n.flash=p.flash; n.gone=p.gone; n.warn=p.warn; n.stay=p.stay; } });
+  (UL.rows||[]).forEach(function(p){ if(!seen[p.k]&&!p.gone&&(p.stay||(UL.act&&UL.act.k===p.k))){ rows.push(p); seen[p.k]=1; } });   /* 패널에서 방금 모자라게 연결한 카드·다루는 중인 줄은 남김 */
+  ulSort(rows); UL.rows=rows; }
+/* ════ 그리기 — 목업 mock_render_extract.js 글자 그대로 + 설계 §3-1 고치는 곳(E1~E17)만 ════ */
+function ulMD(d){ return (+d.slice(5,7))+'/'+(+d.slice(8,10)); }
+function ulDow(d){ var p=d.split('-'); return UL_DOW[new Date(+p[0],+p[1]-1,+p[2]).getDay()]; }
+function ulAddDays(d,n){ var p=d.split('-'); return new Date(Date.UTC(+p[0],+p[1]-1,+p[2])+n*86400000).toISOString().slice(0,10); }
+function ulRow(k){ for(var i=0;i<UL.rows.length;i++)if(UL.rows[i].k===k)return UL.rows[i]; return null; }
+function ulInRange(d,range){ range=range||UL.range; if(range==='all')return true; return d>=ulAddDays(ulToday(),-(parseInt(range,10)-1)); }   /* 앞날 예약은 범위와 상관없이 포함 */
+function ulPool(range){ return UL.rows.filter(function(r){ return !r.gone&&ulInRange(r.d,range)&&!ulFolded(r,range); }); }
+function ulFolded(r,range){ return !!(r.fold&&r.fold.some(function(d){ return ulInRange(d,range); })); }   /* (1회차) 그 카드 사슬을 가리키는 보낸 주문 줄이 이 범위에 보이면 카드는 줄로만(설계 §1-4 ② '이번 목록에 들어 있을 때만') — 같은 범위면 넓혔다 돌아와도 같은 목록·같은 버튼 숫자 */
+function ulAny(m){ for(var k in m)if(m[k])return true; return false; }
+function ulPassS(r){ return !ulAny(UL.src)||!!UL.src[r.type]; }                                   /* 자료원 칩 */
+function ulPassD(r){ return !ulAny(UL.dates)||!!UL.dates[r.d]; }                                  /* 날짜 칩 */
+function ulNoTire(r){ return r.type==='r'&&!(r.r.tire_spec||r.r.tire_pattern); }                 /* 타이어가 안 적힌 예약(얼라인먼트·정비 등) */
+function ulPassT(r){ return !(UL.noTire&&ulNoTire(r)); }
+function ulFiltered(){ return ulAny(UL.src)||ulAny(UL.dates)||UL.noTire; }
+function ulView(){ return ulPool().filter(function(r){ return ulPassS(r)&&ulPassD(r)&&ulPassT(r); }); }
+/* ── 열기·닫기: 전체 검색의 gsOpen/gsClose와 같은 방식(남색 줄 바로 아래에 맞춤) ── */
+function ulPlace(){ var p=document.getElementById('ul-panel'), b=document.getElementById('gs-bar'); if(p&&b){ var r=b.getBoundingClientRect(); p.style.top=Math.round(r.bottom)+'px'; } }
+function ulOpen(){   /* 열 때마다 기본(최근 7일 · 칩 안 고름)으로(결정 2) · 닫은 지 30초 안이고 그 사이 연결·해제가 없었으면 읽어 둔 것을 그대로(조회 0건) */
+  try{ clearTimeout(GS.timer); }catch(e){} try{ gsClose(); }catch(e){}
+  var p=document.getElementById('ul-panel'); if(!p)return; ulBtnAdd();
+  var who=(typeof me!=='undefined'&&me&&me.name)||'';
+  if(UL.who!==who){ UL.log=[]; UL.who=who; if(!UL.act)ulResetData(); }   /* 로그인한 사람이 바뀌었으면 처음부터 */
+  UL.range='7'; UL.src={}; UL.dates={}; UL.noTire=false; UL.futOpen=false; UL.open=null; UL.more=UL_DRAW;
+  try{ document.body.classList.add('ul-on'); }catch(e){}
+  ulPlace(); p.classList.add('on'); var L=document.getElementById('ul-list'); if(L)L.scrollTop=0;
+  var reuse=!!UL.act||(UL.loaded&&UL.closedAt&&(Date.now()-UL.closedAt)<UL_REUSE_MS&&!UL.dirty);
+  if(reuse){ var f=ulFromSync('7'), need=['o','d','r'].some(function(s){ return !UL.skip[s]&&(UL.got[s]===null||UL.got[s]>f); })||!!UL.noRoom; if(need&&!UL.act)ulLoad(); else ulDraw(); return; }
+  ulResetData(); ulLoad({pill:true}); }
+function ulClose(){ var p=document.getElementById('ul-panel'); if(p)p.classList.remove('on'); try{ document.body.classList.remove('ul-on'); }catch(e){}
+  var wasBusy=UL.busy; UL.req++; UL.busy=false; try{ if(UL.ab)UL.ab.abort(); }catch(e){} UL.ab=null; if(wasBusy)UL.loaded=false;   /* 뒤늦은 결과는 버리고 진행 중인 요청은 끊음 · (1회차) 읽다가 끊었으면 다음에 처음부터(읽은 창과 목록이 어긋나 줄이 조용히 빠지지 않게) */
+  var a=UL.act; if(a&&!a.ended&&(a.phase==='press'||a.phase==='opening'))ulActAbandon(a);   /* 고르기 창이 뜨기 전이면 그만둠(⑤) — 고르는 중·저장 중이면 그대로 둠 */
+  UL.closedAt=Date.now(); }
+function ulToggleOpen(){ if(ulIsOpen())ulClose(); else ulOpen(); }
+function ulSetRange(v){ if(UL.range===v)return; UL.range=v; UL.open=null; UL.more=UL_DRAW; var pool={}; ulPool().forEach(function(r){ pool[r.d]=1; }); for(var d in UL.dates)if(!pool[d])delete UL.dates[d];
+  var f=ulFromSync(v), need=UL.busy||!UL.loaded||(v==='all'&&typeof JH_OLD_SINCE!=='undefined'&&!JH_OLD_SINCE)||['o','d','r'].some(function(s){ return !UL.skip[s]&&(UL.got[s]===null||UL.got[s]>f); });
+  if(need)ulLoad(); else ulDraw();   /* 넓히면 모자란 옛 구간만 더 읽고, 좁히면 조회 없이 거르기만 */
+  var L=document.getElementById('ul-list'); if(L)L.scrollTop=0; }
+function ulSrcToggle(t){ if(UL.src[t])delete UL.src[t]; else UL.src[t]=1; ulDraw(); }
+function ulDateToggle(d){ if(UL.dates[d])delete UL.dates[d]; else UL.dates[d]=1; ulDraw(); }
+function ulNoTireToggle(){ UL.noTire=!UL.noTire; ulDraw(); }
+function ulFutToggle(){ UL.futOpen=!UL.futOpen; ulListDraw(); }
+function ulClearFilters(){ UL.src={}; UL.dates={}; UL.noTire=false; ulDraw(); }
+function ulMore(){ UL.more+=UL_DRAW; ulListDraw(); }
+function ulBtnCount(){   /* 버튼 숫자 = 최근 7일(오늘까지)만. 앞날 예약은 풍선말에만. 패널을 한 번 연 뒤부터 보임(부팅 때 세지 않음 — 설계 §2) */
+  if(!UL.loaded)return; var T=ulToday(), P=ulPool('7'), f=P.filter(function(r){ return r.d>T; }).length, n=P.length-f, b=document.getElementById('ul-open'), nb=document.getElementById('ul-n'); if(!b||!nb)return;
+  nb.textContent=n; nb.style.display=''; b.classList.toggle('zero',!n);
+  b.title='재고 미연결 모아보기 — 주문·택배 줄 / 직배송 전용 카드 / 예약 (최근 7일 '+n+'건'+(f?' · 앞날 예약 '+f+'건은 따로':'')+')'; }
+/* ── 머리: 제목·건수 / 범위 버튼 · 자료원 칩 / 날짜 칩 ── */
+function ulHeadDraw(){
+  var hd=document.getElementById('ul-head'); if(!hd)return; var T=ulToday();
+  var pool=ulPool(), aF=ulFiltered(), view=ulView(), B=UL.busy;   /* B: 찾는 중에는 건수·날짜 칩을 아직 모름 → 비워 둠 */
+  var cnt={o:0,d:0,r:0}, cntAll={o:0,d:0,r:0}, byD={}, days={}, nNoTire=0, nFut=0;
+  pool.forEach(function(r){ if(r.d>T)nFut++; else cntAll[r.type]++; days[r.d]=1; if(ulNoTire(r)&&ulPassD(r))nNoTire++; if(ulPassD(r)&&ulPassT(r))cnt[r.type]++; if(ulPassS(r)&&ulPassT(r))byD[r.d]=(byD[r.d]||0)+1; });
+  var h='<div class="gs-top">🔗 <b>미연결 모아보기</b> <span style="flex:none">· '+(B?UL_RANGE_NAME[UL.range]:'<span class="x">'+UL_RANGE_NAME[UL.range]+' · </span><b>'+(pool.length-nFut)+'</b>건')+'</span>'+((nFut&&!B)?'<span class="ul-fcnt" title="오늘 뒤 날짜의 예약 가운데 재고 미연결 — 범위 건수와 따로 셉니다">+ 앞날<span class="x"> 예약</span> '+nFut+'건</span>':'')+((aF&&!B)?' <span class="ul-flt" style="flex:none">→ <span class="x">고른 것 </span>'+view.length+'건</span>':'')+(B?'':' <span class="ul-sub">(주문·택배 '+cntAll.o+' · 직배송 '+cntAll.d+' · 예약 '+cntAll.r+')</span>')+'<span class="gs-busy">'+(UL.busy?'찾는 중…':'')+'</span><span style="flex:1"></span><button onclick="ulClose()" style="border:1px solid #cbd5e1;background:#fff;border-radius:7px;padding:3px 9px;font-size:12px;cursor:pointer;margin-left:6px;flex:none">✕ 닫기</button></div>';
+  h+='<div class="ot-row1"><span class="ot-seg" title="찾는 범위 — 누르면 그 자리에서 다시 찾습니다 (기본 7일)">'+UL_RANGES.map(function(p){ return '<span class="jh-chip'+(UL.range===p[0]?' on':'')+'" onclick="ulSetRange(\''+p[0]+'\')">'+p[1]+(p[0]==='7'?'<small>기본</small>':'')+'</span>'; }).join('')+'</span><span class="ot-vsep"></span><span class="ot-grp" title="자료원 — 눌러서 골라 보기 (아무것도 안 고르면 전부)">'+UL_SRC.map(function(s){ return '<span class="pm-step'+(UL.src[s[0]]?' on':'')+'" onclick="ulSrcToggle(\''+s[0]+'\')">'+s[1]+(B?'':' '+cnt[s[0]])+'</span>'; }).join('')+(((nNoTire&&!B)||UL.noTire)?'<span class="pm-step ul-opt'+(UL.noTire?' on':'')+'" onclick="ulNoTireToggle()" title="타이어 칸이 비어 있는 예약을 목록에서 빼고 보기 — 기본은 전부 보임">타이어 없는 예약 빼기'+(B?'':' '+nNoTire)+'</span>':'')+'</span></div>';
+  var ds=Object.keys(days).sort().reverse();
+  if(B)h+='<div class="ul-dates"><span class="lbl">날짜</span><span style="font-size:12px;color:#94a3b8;padding:3px 0">찾는 중…</span></div>';
+  else h+='<div class="ul-dates"><span class="lbl">날짜</span>'+ds.map(function(d){ var n=byD[d]||0; return '<span class="jh-chip'+(UL.dates[d]?' on':'')+(d===T?' tdy':(d>T?' fut':''))+(n?'':' zero')+'" onclick="ulDateToggle(\''+d+'\')" title="'+ulMD(d)+' ('+ulDow(d)+')'+(d===T?' 오늘':(d>T?' 예정':''))+' · '+n+'건 — 눌러서 이 날짜만 보기(여러 개 가능)">'+ulMD(d)+' <small>·'+n+'</small></span>'; }).join('')+(aF?'<button class="pm-mini" onclick="ulClearFilters()" title="자료원·날짜 고른 것을 모두 풀기" style="padding:2px 8px">✕ 칩 풀기</button>':'')+(ds.length?'':'<span style="font-size:12px;color:#94a3b8">미연결 있는 날짜 없음</span>')+'</div>';
+  if(UL.log.length){ h+='<details class="pm-fold ul-log"'+(UL.logOpen?' open':'')+' ontoggle="UL.logOpen=this.open"><summary>📝 방금 연결한 것 '+UL.log.length+'건 <small style="font-weight:700;color:#6366f1">이 화면에서 내가 방금 한 것만 · 새로고침하면 비워짐 — 남는 기록은 각 줄(주문 줄 기록 · 직배송 기록 · 예약 연결)에</small></summary>'+UL.log.map(function(g){ return '<div class="ln">'+g+'</div>'; }).join('')+'</details>'; }
+  hd.innerHTML=h;
+}
+/* ── 목록: 날짜 절취선 → 그 날짜의 줄들 (300줄씩 · 더 보기) ── */
+function ulListDraw(){
+  var el=document.getElementById('ul-list'); if(!el)return; var top=el.scrollTop, h='', T=ulToday();
+  if(UL.busy){ var wide=(UL.range==='30'||UL.range==='90'||UL.range==='all'); h='<div class="ul-loading"><div class="msg"><span class="tg-busy-spin"></span>'+UL_RANGE_NAME[UL.range]+' 미연결을 찾는 중… (주문·택배 줄 · 직배송 카드 · 예약)</div>'+(wide?'<div class="msg ul-progm"><span id="ul-prog">'+esc(ulProgTxt())+'</span><button class="pm-mini" onclick="ulStop()" title="읽은 데까지만 보기">멈춤</button></div>':''); for(var i=0;i<6;i++)h+='<div class="ul-skel"></div>'; el.innerHTML=h+'</div>'; return; }
+  var v=ulView(); h+=ulWarnHtml();
+  if(!v.length){
+    var filtered=ulFiltered();
+    h+='<div class="ul-empty">'+(filtered?'고른 조건에 맞는 미연결이 없습니다':'🎉 '+UL_RANGE_NAME[UL.range]+' 미연결이 없습니다')+'<div style="margin-top:8px">'+(filtered?'<button class="pm-mini" onclick="ulClearFilters()">✕ 칩 풀기</button> ':'')+(UL.range!=='all'?'<button class="pm-mini" onclick="ulSetRange(\'all\')">전체 기간으로 넓혀 보기</button>':'')+'</div></div>';
+  } else {
+    var nBy={}; v.forEach(function(r){ nBy[r.d]=(nBy[r.d]||0)+1; });
+    var day=function(d){ return '<div class="ul-day'+(d===T?' today':(d>T?' future':''))+'"><span>'+ulMD(d)+' ('+ulDow(d)+') · '+nBy[d]+'건'+(d===T?'<small>오늘</small>':(d>T?'<small>예정</small>':''))+'</span></div>'; };
+    var shown=0, total=0;
+    /* 앞날(오늘 뒤) 예약은 맨 위에 한 줄로 접어 둠 — 오늘·지난 줄이 밀려 내려가지 않게. 앞날 날짜 칩을 고르면 저절로 펼쳐짐 */
+    var fut=v.filter(function(r){ return r.d>T; }), rest=v.filter(function(r){ return r.d<=T; });
+    if(fut.length){
+      var fo=UL.futOpen||Object.keys(UL.dates).some(function(d){ return UL.dates[d]&&d>T; })||!rest.length, fds=Object.keys(fut.reduce(function(m,r){ m[r.d]=1; return m; },{})).sort();
+      h+='<button class="gs-more ul-fut" onclick="ulFutToggle()">'+(fo?'▾':'▸')+' 📅 앞날 예약 '+fut.length+'건 <small>'+ulMD(fds[0])+(fds.length>1?' ~ '+ulMD(fds[fds.length-1]):'')+'<span class="x"> · 오늘 뒤 예약 가운데 재고 미연결</span></small> '+(fo?'접기':'펼치기')+'</button>';
+      if(fo){ total+=fut.length; fds.forEach(function(d){ var hd=false; fut.forEach(function(r){ if(r.d===d&&shown<UL.more){ if(!hd){ h+=day(d); hd=true; } h+=ulRowHtml(r); shown++; } }); }); }   /* 가까운 날부터 */
+    }
+    total+=rest.length; var cur=''; for(var j=0;j<rest.length&&shown<UL.more;j++){ var r=rest[j]; if(r.d!==cur){ cur=r.d; h+=day(cur); } h+=ulRowHtml(r); shown++; }
+    if(total>shown)h+='<button class="gs-more ul-moreb" onclick="ulMore()">더 보기 (남은 '+(total-shown)+'줄)</button>';
+  }
+  el.innerHTML=h; el.scrollTop=top;
+}
+function ulDraw(){ try{ ulHeadDraw(); ulListDraw(); }catch(e){ console.warn('[미연결] 그리기 오류',e); } try{ ulBtnCount(); }catch(e){} }
+function ulListDrawSafe(){ try{ if(ulIsOpen())ulListDraw(); }catch(e){ console.warn('[미연결] 그리기 오류',e); } }
+/* ── 한 줄 ── */
+function ulWhere(r){ var ic,tx; if(r.type==='o'){ var d=r.o.dtype||'taekbae'; if(d==='taekbae'||d==='reship'){ ic='📦'; tx='택배방'; } else { ic='📋'; tx='주문방'; } } else if(r.type==='d'){ ic='🚚'; tx='직배송방'; } else { ic='📅'; tx='예약'; } return '<span class="dlv-gtab ul-w" title="'+tx+'">'+ic+'<span class="wt"> '+tx+'</span></span>'; }
+function ulDchLabel(c){ return dchLabelOf(c); }   /* E10 앱 dchLabelOf(오토하이브 표시 포함) */
+function ulChip(r){
+  if(r.type==='o')return '<span class="stbadge ul-chip" style="background:#475569">'+esc(r.o.platform||'—')+'</span>';
+  if(r.type==='d')return '<span class="dtag '+ulCh(r.c)+' ul-chip">'+esc(ulDchLabel(r.c))+'</span>';
+  return '<span class="ul-chip ul-time">'+esc(r.r.time_slot||'--:--')+'</span>';
+}
+function ulRsvWho(v){ var a=[v.car_no,v.car_name||v.car_model].filter(Boolean).join(' '); return a||v.customer_name||v.phone||v.customer_tel||'(차량·이름 없음)'; }
+function ulRsvTire(v){ return [v.tire_spec,v.tire_pattern].filter(Boolean).join(' '); }
+function ulCardTire(c){ var t=String(c.tire||''), s=String(c.spec||''); if(s&&t.indexOf(s)>=0)t=t.replace(s,'').trim(); return t; }
+function ulOne(t){ return String(t==null?'':t).replace(/\s*[\r\n]+\s*/g,' ').trim(); }   /* 요약 줄용 — 글 안의 줄바꿈을 빈칸으로(esc가 줄바꿈을 <br>로 바꾸므로 esc 전에) */
+function ulE(t){ return esc(ulOne(t)); }
+function ulSum(r){
+  var S='<i class="sep">·</i>';
+  if(r.type==='o'){ var o=r.o; return '<span class="rv">'+ulE(o.recv||o.tel||'(받는분 없음)')+'</span>'+S+'<span class="tire hidem"><span class="br">'+ulE(o.brand||'')+'</span> '+ulE(o.name||'')+(o.code?' '+ulE(o.code):'')+'</span><span class="pm-sz">'+ulE(o.size||'')+'</span><span class="pm-q">×'+(o.qty||1)+'</span>'+S+'<span class="src">'+otSrcTxt(o)+'</span>'; }
+  if(r.type==='d'){ var c=r.c; return '<span class="rv">'+ulE(c.recv||c.trade_client||'(받는분 없음)')+'</span>'+S+'<span class="tire hidem">'+(c.code?'['+ulE(c.code)+'] ':'')+ulE(ulCardTire(c))+(c.brand?' <span class="br">'+ulE(c.brand)+'</span>':'')+'</span><span class="pm-sz">'+ulE(c.spec||'')+'</span><span class="pm-q">×'+esc(c.qty||1)+'</span>'+S+'<span class="src">'+otSrcTxt({src:c.src,qty:c.qty})+'</span>'; }
+  var v=r.r, t=ulRsvTire(v); return '<span class="rv">'+ulE(ulRsvWho(v))+'</span>'+S+(t?'<span class="tire">'+ulE(t)+'</span>':'<span class="tire none">타이어 미기재</span>')+(v.qty?'<span class="pm-q">×'+ulE(v.qty)+'</span>':'');
+}
+function ulSt(txt,cls){ return '<span class="st '+(cls||'')+'">'+txt+'</span>'; }   /* 전체 검색의 gsSt와 같은 칩 */
+function ulStat(r){
+  var h='', st=stkLinkState(r.have,r.need);
+  if(st!=='none')h+=stkLinkBadge(r.have,r.need,true);
+  if(r.type==='o')h+=(r.o.status==='done'?ulSt('완료','ok'):(r.o.status==='sent'?ulSt('보냄','blue'):ulSt('미처리','wait')));
+  else if(r.type==='d')h+=(r.c.done?ulSt('완료','ok'):(r.c.tab==='parcel'?(r.c.confirmed?ulSt('택배 확인','ok'):ulSt('택배 미확인','wait')):ulSt('미완료','wait')));
+  else h+=(r.r.status==='완료'?ulSt('완료','ok'):ulSt(esc(r.r.status||'예약'),'blue'));
+  return h;
+}
+function ulGoBtn(r){   /* 재고 상자(stkLinkBox)의 버튼과 같은 클래스·색 */
+  var st=stkLinkState(r.have,r.need);
+  if(st==='full'||st==='over')return '<button class="dact confirmed ul-go" style="font-weight:800" disabled>✓ 연결됨</button>';
+  if(st==='short')return '<button class="dact ul-go" style="background:#ca8a04;color:#fff;border-color:#ca8a04;font-weight:800" onclick="event.stopPropagation();ulPick(\''+r.k+'\',\'add\')" title="지금 연결은 그대로 두고 다른 재고를 추가로 연결">🔗 더 연결</button>';
+  return '<button class="dact ul-go" style="background:#dc2626;color:#fff;border-color:#dc2626;font-weight:800" onclick="event.stopPropagation();ulPick(\''+r.k+'\')" title="재고표에서 상품·DOT를 골라 연결 (지금 재고에서 뺌 / 이미 뺀 재고면 연결만)">🔗 연결</button>'; }
+function ulActHtml(a){   /* 다루는 중인 줄 — 연결 단추 자리에 단계 글(설계 §4-1) · 20초 넘게 창이 안 뜨면 [그만두기] */
+  var t={press:'확인 중…',opening:'재고 읽는 중…',picking:'고르는 중',saving:'저장 중…'}[a.phase]||'…';
+  var h='<span class="ul-actst">'+(a.phase==='picking'?'':'<span class="tg-busy-spin"></span>')+t+'</span>';
+  if((a.phase==='press'||a.phase==='opening')&&(Date.now()-(a.t1||a.t0))>=UL_SLOW_MS)h+='<button class="dact ul-go" style="font-weight:800" onclick="event.stopPropagation();ulGiveUp()" title="고르기 창을 기다리지 않고 그만둡니다">그만두기</button>';
+  return h; }
+function ulRowHtml(r){
+  var open=(UL.open===r.k), a=UL.act, mine=!!(a&&!a.ended&&a.k===r.k);
+  var h='<div class="gs-it ul-it'+(open?' open':'')+(r.flash?' ul-linked':'')+'" id="ul-'+r.k+'">';
+  h+='<div class="ul-row" onclick="ulToggle(\''+r.k+'\')" title="누르면 그 자리에서 펼쳐집니다">'+ulWhere(r)+ulChip(r)+'<div class="ul-sum">'+ulSum(r)+'</div>'+ulStat(r)+(r.warn?'<span class="ul-rwarn">'+esc(r.warn)+'</span>':'')+(mine?ulActHtml(a):(r.chk?'<span class="ul-actst"><span class="tg-busy-spin"></span>확인 중…</span>':ulGoBtn(r)))+'<span class="dlv-rexp">'+(open?'▴':'▾')+'</span></div>';
+  if(open)h+='<div class="ul-det">'+(r.type==='o'?ulDetO(r):(r.type==='d'?ulDetD(r):ulDetR(r)))+'</div>';
+  return h+'</div>';
+}
+function ulToggle(k){ UL.open=(UL.open===k?null:k); ulListDraw(); if(UL.open){ var el=document.getElementById('ul-'+k), L=document.getElementById('ul-list'); if(el&&L){ var a=el.getBoundingClientRect(), b=L.getBoundingClientRect(); if(a.bottom>b.bottom)L.scrollTop+=Math.min(a.bottom-b.bottom+8,a.top-b.top-34); } } }
+/* ── 펼친 모양 ① 주문·택배 줄 — 주문방 상세 머리 + 재고 상자(stkLinkBox 원문 함수) ── */
+function ulLinkRows(r,perRow){ return r.links.map(function(k,i){ var row={txt:esc((k.spec||'')+' ×'+(k.qty||1)),sub:esc((k.kind==='inbound'?'입고분 연결':(k.already?'연결만(이미 뺀 재고)':'재고에서 뺌'))+(k.loc?' · '+k.loc:'')+(k.how?' · '+k.how:'')+(k.past?' · 지난 날짜 연결':'')+' · '+(k.by||'?')+' '+stkWhen(k.at))}; if(perRow)row.rm='ulUnlinkOne(\''+r.k+'\','+i+')'; return row; }); }
+function ulOtLink(r){ var o=r.o; if(o.status==='sent')return '<span class="ot-lk auto"><i></i>직배송방 보냄</span>'; if(o.status==='done')return '<span class="ot-lk done"><i></i>끝</span>'; if(r.have>0&&r.need>0&&r.have<r.need)return '<span class="ot-lk auto"><i></i>🔗 재고 연결 '+r.have+'/'+r.need+' <span style="color:#a16207">모자람</span></span>'; if(r.have>0)return '<span class="ot-lk auto"><i></i>재고 연결됨</span>'; return '<span class="ot-lk me"><i></i>재고 연결 필요</span>'; }
+function ulNoteKv(o){ return String(o.use_note||'').split(' · ').map(function(s){ var i=s.indexOf(':'); return i>0?[s.slice(0,i).trim(),s.slice(i+1).trim()]:null; }).filter(Boolean); }   /* pmNoteKv와 같음 */
+function ulStkBoxO(r){ var k=r.k, sent=(r.o.status==='sent'); return stkLinkBox({have:r.have,need:r.need,rows:ulLinkRows(r,false),canEdit:true,pick:'ulPick(\''+k+'\')',more:'ulPick(\''+k+'\',\'add\')',swapAll:'ulPick(\''+k+'\',\'swap\')',unlinkAll:'ulUnlinkAll(\''+k+'\')',note:sent?'직배송방에 보낸 줄 — 재고는 이 줄이 메인, 직배송 카드는 연결만 표시로 따라감(11/2)':''}); }
+function ulDetO(r){
+  var o=r.o, room=((o.dtype||'taekbae')==='taekbae'||o.dtype==='reship')?'택배방':'주문방';
+  var h='<div style="display:flex;gap:26px;flex-wrap:wrap;align-items:flex-start">';
+  h+='<div style="min-width:220px"><div style="font-size:15.5px;font-weight:900">'+esc(o.recv||'')+' <span class="stbadge" style="background:#475569">'+esc(o.platform||'')+'</span></div>';
+  h+='<div class="pm-mono" style="color:#475569">'+esc(o.tel||'')+' · '+esc(o.order_no||'')+' · 처리 '+String(o.date_str||'').slice(5).replace('-','/')+'</div>';
+  h+='<div style="margin-top:5px;font-size:14.5px">'+pmTire(o)+'</div>';
+  h+='<div style="margin-top:5px;display:flex;gap:10px;flex-wrap:wrap;align-items:center"><span class="ot-kn">'+(OT_K[o.dtype]||'❔')+'</span> '+otSrcTxt(o)+' '+ulOtLink(r)+'</div></div>';
+  h+='<div class="pm-kv"><span>주소</span><span>'+esc(o.addr||'—')+'</span><span>시트 정보</span><span style="color:#475569">'+ulNoteKv(o).map(function(p){return '<span style="display:inline-block;margin:0 8px 2px 0"><span style="color:#94a3b8">'+esc(p[0])+'</span> '+esc(p[1])+'</span>';}).join('')+'</span><span>재고</span><span>'+ulStkBoxO(r)+'</span></div>';
+  h+='<div style="display:flex;gap:6px;flex-wrap:wrap;align-self:center;max-width:380px"><button class="dact edit-btn" onclick="ulJump(\''+r.k+'\')">↗ '+room+'에서 이 줄 보기</button></div>';
+  return h+'</div>';
+}
+/* ── 펼친 모양 ② 직배송 전용 카드 — 카드 머리(dlvCardHtml 구조) + 재고 상자 + 지난 날짜 노란 띠 ── */
+function ulDaysOld(c){ var first=c.first_date||c.date_str; if(!first)return 1; return Math.round((new Date(ulToday()+'T00:00:00')-new Date(first+'T00:00:00'))/86400000)+1; }   /* dlvDaysOld와 같음(기준일만 오늘) */
+/* 직배송 카드의 재고 상자 = 앱 dlvStkBox 구조·글자 그대로(E11: 연결 글자 esc(dlvLinkTxt) · ⏳ 미차감 포함 · [교체]는 첫 연결만). 덧붙인 것 — '지난 날짜 연결' 꼬리표(연결한 날 > 카드 날짜) · 미연결일 때 [📥 입고분 연결] */
+function ulLinkRowsD(r){ var c=r.c; return r.links.map(function(k,i){ var past=false; try{ past=!!(k.at&&kstDateStr(k.at)>c.date_str); }catch(e){} return {txt:esc(dlvLinkTxt(k,c))+' ×'+(parseInt(k.qty,10)||1),sub:(k.stock_done?(k.already?'✅ 이미 뺀 재고(연결만)':'✅ 재고 차감됨'):'⏳ 미차감')+(k.loc?' · '+esc(k.loc):'')+(past?' · <b style="color:#92400e">지난 날짜 연결</b>':'')+(k.by?' · '+esc(k.by)+' '+stkWhen(k.at):''),swap:(k.main?'ulPick(\''+r.k+'\',\'swap1\',\'\',0)':''),rm:'ulUnlinkOne(\''+r.k+'\','+i+')'}; }); }
+function ulStkBoxD(r){ var k=r.k; var h=stkLinkBox({have:r.have,need:r.need,rows:ulLinkRowsD(r),canEdit:true,pick:'ulPick(\''+k+'\')',more:'ulPick(\''+k+'\',\'add\')'});
+  return h.replace('🔗 재고 연결</button>','🔗 재고 연결</button><button class="dact" style="background:#f0fdfa;color:#0f766e;border-color:#99e3d0;font-weight:800" onclick="event.stopPropagation();ulPick(\''+k+'\',\'\',\'inbound\')" title="입고방에 들어온 입고분에서 골라 연결">📥 입고분 연결</button>'); }
+function ulDetD(r){
+  var c=r.c, past=(c.date_str<ulToday()), ch=ulCh(c), h='';
+  if(past)h+='<div class="dlv-viewonly ul-past" style="background:#fef3c7;color:#92400e;border-color:#fcd34d">⚠ 지난 날짜 카드 ('+ulMD(c.date_str)+' '+ulDow(c.date_str)+') — 직배송 전용 카드는 연결하면 \'지난 날짜 연결\'로 기록됩니다<small>직배송 기록·감사 기록에 누가·언제·어떤 재고를 연결했는지 남습니다 · 주문방·택배방에서 보낸 카드는 주문 줄에서 연결되어 주문 줄 기록으로 남습니다(📥 입고분 연결은 이 카드에 \'지난 날짜 연결\'로 기록)</small></div>';   /* (2회차) 목업 글에 '보낸 카드' 경우를 덧붙임 — 그 카드는 ulPickD가 줄 경로로 보내 '지난 날짜 연결' 꼬리표가 안 붙음 · (3회차) 끝 괄호 글을 바꿈 — 보낸 카드의 📥 입고분 연결도 누구나 되고(ulPickD), 카드 경로라 '지난 날짜 연결' 꼬리표가 붙음 */
+  h+='<div class="dcard ch-'+ch+(ch==='ping'?' ping':'')+(c.ship_type?' '+dlvClsKey(c.ship_type):'')+(c.done?' done':'')+'"><div class="dc-num">'+(c.done?'✓':'·')+'</div><div class="dc-main">';
+  h+='<div class="dc-top"><span class="dtag '+ch+'">'+esc(ulDchLabel(c))+'</span>'+(c.ship_type?'<span class="stbadge '+dlvClsKey(c.ship_type)+'">'+esc((DLV_CLS[c.ship_type]||DLV_CLS.nn).n)+'</span>':'')+(c.shop_name?'<span class="stbadge" style="background:#15803d">📒 '+esc(c.shop_name)+' ▾</span>':'')+'<span class="dc-src">입고: '+esc(c.src||'-')+'</span>'+stkLinkBadge(r.have,r.need,true);
+  if(c.need_done&&!c.done)h+='<span class="dneed-badge">완료필요</span>';
+  if(!c.done){ var dold=ulDaysOld(c); if(dold>=2)h+='<span class="dold-badge'+(dold>=3?' hot':'')+'">'+esc(String(c.first_date||c.date_str).slice(5))+' 등록 · '+dold+'일째</span>'; }
+  if(c.due_date&&!c.done)h+='<span class="ddue-badge urgent">⚠️ '+esc(c.due_date)+'</span>';
+  h+='</div>';
+  if(ch==='trade'){ h+='<div class="dc-tire">'+esc(c.tire||'')+'<span class="brand">'+esc(c.trade_client||'')+'</span><span class="qty">'+esc(c.qty||'')+'개</span></div>'; if(c.spec)h+='<div class="dc-tire" style="font-size:12px;color:#64748b">'+esc(c.spec||'')+'</div>'; }
+  else h+='<div class="dc-tire">'+(c.code?'<span class="dc-code">['+esc(c.code)+']</span> ':'')+esc(c.tire||'')+'<span class="brand">'+esc(c.brand||'')+'</span><span class="qty">'+esc(c.qty||'')+'개</span></div>';
+  if(c.addr)h+='<div class="dc-addr">📍 '+esc(c.addr)+'</div>';
+  if(c.recv||c.tel)h+='<div class="dc-recv"><span class="name">'+esc(c.recv||'')+'</span>'+(c.tel?' · <a class="tel">'+esc(c.tel)+'</a>':'')+'</div>';
+  h+='</div></div>';
+  h+=ulStkBoxD(r);
+  h+='<div class="ul-acts"><button class="dact edit-btn" onclick="ulJump(\''+r.k+'\')">↗ 직배송방 '+ulMD(c.date_str)+' 카드 보기</button></div>';
+  return h;
+}
+/* ── 펼친 모양 ③ 예약 — 예약 상세 머리 + '🔗 재고·입고분 연결' 접이식(앱 rsvBuildLinksHtml 그대로) ── */
+function ulEnd(t,dur){ var m=/^(\d{1,2}):(\d{2})/.exec(String(t||'')); if(!m)return ''; var x=(+m[1])*60+(+m[2])+(parseInt(dur,10)||60); return String(Math.floor(x/60)%24).padStart(2,'0')+':'+String(x%60).padStart(2,'0'); }
+function ulRsvLinks(r){   /* E12: 앱 rsvBuildLinksHtml을 패널이 읽은 추가연결로 부르고, 단추의 onclick 이름만 패널 문(ulRsvDo)으로 바꿔 끼움 */
+  var h=''; try{ h=ulWithLinks(function(){ return rsvBuildLinksHtml(r.r); })||''; }catch(e){ console.warn('[미연결] 예약 연결 칸 그리기 실패',e); return ''; }
+  h=h.replace(/onclick="(rsvOutFromStock|rsvOutFromInbound|rsvUnlinkStock|rsvUnlinkInbound|rsvSwapLink|rsvRemoveLink|rsvAddLinkFromStock)\('/g,'onclick="ulRsvDo(\'$1\',\'');
+  if(h.indexOf('onclick="rsv')>=0){ console.warn('[미연결] 예약 연결 칸에 모르는 단추가 있어 뺐습니다'); h=h.replace(/<button onclick="rsv[^"]*"[^>]*>[\s\S]*?<\/button>/g,''); }
+  return h; }
+function ulDetR(r){
+  var v=r.r, lk=r.have>0, stc=(v.status==='완료')?['#dcfce7','#15803d']:(v.status==='취소')?['#f0f0f0','#999']:['#dbeafe','#1d4ed8'];
+  var end=ulEnd(v.time_slot,v.duration_min), t=ulRsvTire(v);
+  var h='<div style="max-width:480px">';
+  h+='<div style="display:flex;justify-content:space-between;align-items:center;background:#f7f6f3;border-radius:9px;padding:8px 11px;margin-bottom:8px"><b style="font-size:14.5px">'+esc((v.date_str||'')+' '+(v.time_slot||'')+(end?'~'+end:''))+'</b><span style="font-size:11px;font-weight:800;background:'+stc[0]+';color:'+stc[1]+';border-radius:6px;padding:2px 8px">'+esc(v.status||'')+'</span></div>';
+  if(t)h+='<div style="background:'+(lk?'#f0fdfa':'#fff5f5')+';border:1.5px solid '+(lk?'#99e3d0':'#fab8b8')+';border-radius:11px;padding:10px 12px;margin-bottom:8px"><div style="font-size:11px;font-weight:800;color:'+(lk?'#0d9488':'#dc2626')+';margin-bottom:3px">🛞 장착할 타이어'+(lk?' (연결됨)':' (재고 미연결)')+(v.qty?' · '+esc(v.qty)+'짝':'')+'</div><div style="font-size:15px;font-weight:800;color:'+(lk?'#04342c':'#713f12')+';line-height:1.5">'+esc(t)+'</div></div>';
+  [['전화',v.phone||v.customer_tel],['차량번호',v.car_no],['차량명',v.car_name||v.car_model],['고객',v.customer_name],['작성자',v.user_name]].forEach(function(p){ if(p[1])h+='<div class="rsv-detail-row"><div class="k">'+p[0]+'</div><div class="v">'+esc(p[1])+'</div></div>'; });
+  h+='<details class="pm-fold" open style="margin-top:9px"><summary>🔗 재고·입고분 연결 '+stkLinkBadge(r.have,r.need,true)+'</summary><div style="padding:0 10px 9px">'+ulRsvLinks(r)+'</div></details>';
+  h+='<div class="ul-acts"><button class="dact edit-btn" onclick="ulJump(\''+r.k+'\')">↗ '+esc(rsvRoomLabel('예약장착방'))+'에서 이 예약 보기</button></div>';
+  return h+'</div>';
+}
+function ulRowTitle(r){ var s; if(r.type==='o')s=(r.o.recv||'')+' · '+(r.o.brand||'')+' '+(r.o.size||'')+' ×'+(r.o.qty||1); else if(r.type==='d')s=(r.c.recv||r.c.trade_client||'')+' · '+(r.c.tire||'')+' '+(ulCardTire(r.c)===r.c.tire?(r.c.spec||''):'')+' ×'+(r.c.qty||1); else s=ulRsvWho(r.r)+' · '+(ulRsvTire(r.r)||'타이어 미기재')+(r.r.qty?' ×'+r.r.qty:''); return ulOne(s); }   /* 목업 ulRowTitle 그대로 — '방금 연결한 것' 줄에 씀 */
+/* ════ 연결·해제 — 앱 함수 그대로(설계 §4). UL.act = 패널이 지금 다루는 그 한 줄(한 번에 하나), 시간으로 끝내지 않음 ════ */
+function ulStoreOk(){ try{ if(stkTbl('stock_lots')==='ping_lots')return true; }catch(e){} ulToast('지금 방에서는 재고표가 달라 모아보기 연결을 막았어요 — 다른 방(주문방·직배송방 등)으로 옮긴 뒤 눌러 주세요'); return false; }   /* 중고타이어방·옛 재고방·전산재고방 파일 재고 동안은 막음 */
+function ulGate(){ if(!UL.ok){ ulToast('이 버전에서는 모아보기 연결을 쓸 수 없어요'); return false; } if(UL.act&&!UL.act.ended){ ulBusyToast(); return false; } if(ulGhostLive()){ ulToast('앞서 그만둔 줄의 재고 읽기가 아직 끝나지 않았어요 — 몇 초 뒤 다시 눌러 주세요'); return false; }   /* (2회차) 그만둔 줄의 늦은 고르기 창이 새로 누른 줄에 붙거나 앱 창으로 뜨지 않게 — 그 창을 삼킬 때까지(최대 60초) 새 누름을 막음 */
+  if(ulPickerOn()){ ulToast('다른 고르기 창이 열려 있어요 — 닫은 뒤 눌러 주세요'); return false; } if(typeof me==='undefined'||!me){ ulToast('로그인한 뒤에 연결할 수 있어요'); return false; } return ulStoreOk(); }
+function ulNewAct(r,path,tid,verb){ var x=r.o||r.c||r.r; return {type:r.type,k:r.k,id:x&&x.id,path:path,tid:tid,lid:null,verb:verb,phase:'press',saving:0,t0:Date.now(),t1:0,before:ulSnap(r),room:(r.c&&r.c.room_id)||null,cobj:r.c||null,oref:r.o||null}; }
+function ulSlowTimer(a){ setTimeout(function(){ if(UL.act===a&&(a.phase==='press'||a.phase==='opening'))ulListDrawSafe(); },UL_SLOW_MS+200); }   /* 한 번만 — 20초 뒤 [그만두기]를 보이려고 다시 그림 */
+function ulActBegin(a){ UL.act=a; UL.dirty=true; var r=ulRow(a.k); if(r){ r.flash=0; r.warn=''; } ulSlowTimer(a); ulListDrawSafe(); }
+function ulOpening(a){ a.phase='opening'; a.t1=Date.now(); ulSlowTimer(a); ulListDrawSafe(); }
+function ulTargetIs(x){ try{ if(!x)return false; if(x.path==='card')return dlvPickCardId===x.tid; if(x.path==='line')return window._omPickId!=null&&String(window._omPickId)===String(x.tid); if(x.path==='rsv')return rsvPickRsvId===x.tid&&(!x.lid||rsvPickLinkId===x.lid); }catch(e){} return false; }   /* 고르기 창의 '대상 전역'이 그 줄인지 */
+function ulActAbandon(a){ if(!a||a.ended)return; if(a.phase==='opening')UL.ghost={path:a.path,tid:a.tid,lid:a.lid||null,act:a,t:Date.now()}; a.ended=true; if(UL.act===a)UL.act=null; try{ ulCardDrop(a); }catch(e){} try{ ulMirOut(a); }catch(e){} ulListDrawSafe(); }   /* ⑤ 늦게 뜨려는 창은 _rsvPickShow 감싸기가 삼킴 */
+function ulGiveUp(){ var a=UL.act; if(a&&!a.ended&&(a.phase==='press'||a.phase==='opening'))ulActAbandon(a); }
+function ulGhostDrop(a){ var g=UL.ghost; if(g&&g.act===a&&!ulTargetIs(g))UL.ghost=null; }   /* (1회차) 앱 열기 함수가 대상 전역을 세우지 않고 돌아왔으면 늦은 창도 없음 → 그만둔 표시를 지움(남아 있으면 나중에 방에서 같은 줄의 창을 한 번 삼킴) */
+function ulGhostLive(){ var g=UL.ghost; if(!g)return null; try{ if((Date.now()-(g.t||0))>=UL_GHOST_MS||(!(g.act&&g.act.opRun)&&!ulTargetIs(g))){ UL.ghost=null; return null; } }catch(e){ UL.ghost=null; return null; } return g; }   /* (2회차) 그만둔 줄의 늦은 창을 아직 기다리는지 = 60초 안 + (앱 열기 함수가 아직 도는 중이거나 대상 전역이 아직 그 줄). 아니면 표시를 지움 */
+function ulActEnd(a,opt){ if(!a||a.ended)return; a.ended=true; if(UL.act===a)UL.act=null; UL.own=null; try{ ulCardDrop(a); }catch(e){} try{ ulMirOut(a); }catch(e){}
+  if(opt&&opt.noRefresh){ ulListDrawSafe(); return; }
+  ulRefreshRow(a.k,((opt&&opt.noAudit)||a.quiet)?null:a).catch(function(e){ console.warn('[미연결] 줄 갱신 실패',e); }); }   /* (2회차) a.quiet = 주문 줄 [↩ 전부 해제]에서 앱이 쓰기 전 읽기를 못 함(쓰기 없음) · (1회차) noAudit = '그 사이 바뀜'으로 끝냄 — 그 줄만 DB에서 다시 읽고 감사·방금 연결한 것·토스트는 남기지 않음(남이 한 연결을 이 사람 것으로 적지 않게) */
+function ulSaveBegin(a){ a.saving=(a.saving||0)+1; a.phase='saving'; ulListDrawSafe(); }
+function ulSaveDone(a){ try{ a.saving=Math.max(0,(a.saving||0)-1); if(a.saving>0)return;
+    if(a.deferLoad){ a.deferLoad=false; if(typeof curRoom!=='undefined'&&curRoom&&a.room&&curRoom.id===a.room&&UL.f.loadDeliveries){ try{ Promise.resolve(UL.f.loadDeliveries.call(window)).catch(function(){}); }catch(e){} } }   /* 저장 중 미룬 직배송 화면 다시 읽기 — 지금 그 방이면 1번 */
+    if(a.ended||UL.act!==a)return;
+    if(ulPickerOn()){ a.phase='picking'; ulListDrawSafe(); return; }   /* 수량 창 취소 등으로 창이 그대로면 계속 다루는 중 */
+    ulActEnd(a); }catch(e){ console.warn('[미연결] 저장 끝 처리 오류',e); } }
+/* 카드를 방 캐시(deliveriesCache)에 두는 것은 (가) 열기 동기 구간 (나) 저장 함수 (다) 해제 함수 동안만 — 고르는 동안·패널을 닫은 뒤에는 없음 */
+function ulCacheHas(id){ try{ return (deliveriesCache||[]).some(function(x){ return x&&x.id===id; }); }catch(e){ return false; } }
+function ulCardEnsure(a){ if(!Array.isArray(deliveriesCache))deliveriesCache=[]; var arr=deliveriesCache, f=null; for(var j=0;j<arr.length;j++){ if(arr[j]&&arr[j].id===a.tid){ f=arr[j]; break; } } if(f){ a.cref=f; } else { arr.push(a.cobj); a.cref=a.cobj; a.put=true; } }
+function ulCardDrop(a){ if(!a||!a.put)return; try{ var arr=deliveriesCache||[], i=arr.indexOf(a.cref); if(i>=0)arr.splice(i,1); }catch(e){} a.put=false; }
+async function ulCardFresh(a){ try{ var r=await sb.from('deliveries').select(UL_COLS_D).eq('id',a.tid).maybeSingle(); if(r&&r.error)throw r.error; if(!r||!r.data)return false; Object.assign(a.cobj,r.data); return true; }catch(e){ console.warn('[미연결] 카드 다시 읽기 실패',e); return false; } }   /* 방 캐시에 없을 때 저장 직전 1줄 — 고르는 사이의 변화를 맞춤 */
+function ulMirIn(a,o){ try{ if(!a||!o||o.status!=='sent')return; var m=UL.mir[o.id]; if(!m||!m.id||m.id==='?')return; if(!OM.mirror)OM.mirror={}; if(OM.mirror[o.id])return; OM.mirror[o.id]=m; a.mirPut=m; a.mirId=o.id; }catch(e){} }   /* 보낸 줄의 카드 사슬 찾기(omDlvChain)가 미러로 떨어질 때를 위해 — 내가 끼운 것만 나중에 뺌 */
+function ulMirOut(a){ try{ if(a&&a.mirPut&&OM.mirror&&OM.mirror[a.mirId]===a.mirPut)delete OM.mirror[a.mirId]; }catch(e){} }
+function ulOmVisible(){ var e=document.getElementById('orders-screen'), p=document.getElementById('parcel-screen'); return !!((e&&e.style.display!=='none')||(p&&p.style.display!=='none')); }
+function ulPastTag(c,verb){ if(c&&c.date_str&&c.date_str<ulToday())return ' · 지난 날짜 '+c.date_str+' '+(verb==='unlink'?'해제':'연결')+'(모아보기)'; return ' · 모아보기에서'; }
+/* ── 단추 → 종류별 열기 ── */
+function ulPick(k,mode,src,idx){ var r=ulRow(k); if(!r)return; if(r.type==='r'){ ulRsvDo(mode==='add'?'rsvAddLinkFromStock':'rsvOutFromStock',r.r.id,{fromRow:true}); return; } if(!ulGate())return; if(r.type==='o')ulPickO(r,mode||''); else ulPickD(r,mode||'',src||''); }
+async function ulLineOpen(a,mode){   /* 줄 경로: omPickOpen(권한 지킴이·보낸 줄 겹 그대로) */
+  try{ window._omPickId=null; }catch(e){} ulOpening(a);
+  a.opRun=true; try{ await omPickOpen(a.tid,mode||''); }catch(e){ console.warn('[미연결] 줄 고르기 창 열기 실패',e); } finally{ a.opRun=false; }   /* (2회차) opRun = 열기 함수가 도는 중(권한 지킴이·읽기를 기다리며 대상 전역이 아직 안 섬) — 그동안 그만두면 그 표시를 지우지 않음 */
+  ulGhostDrop(a); if(a!==UL.act)return; if(a.phase==='opening'&&!ulTargetIs(a))ulActEnd(a,{noRefresh:true}); }   /* ③ 권한 없음·카드에 이미 차감 등 앱 알림으로 돌아옴 */
+async function ulPickO(r,mode){ var a=ulNewAct(r,'line',r.o.id,'link'); ulActBegin(a); await ulLineOpen(a,mode); }
+async function ulReadCard(a,r){ var fr; try{ fr=await sb.from('deliveries').select(UL_COLS_D).eq('id',r.c.id).maybeSingle(); }catch(e){ fr={error:e}; } if(a!==UL.act)return null;
+  if(!fr||fr.error){ ulToast('카드를 다시 읽지 못했어요 — 잠시 뒤 다시 눌러 주세요'); ulActEnd(a,{noRefresh:true}); return null; }
+  if(!fr.data||fr.data.cancelled){ ulActEnd(a,{noAudit:true}); return null; }   /* 없어졌거나 취소 → 그 줄만 갱신 */
+  Object.assign(r.c,fr.data); a.cobj=r.c; a.room=r.c.room_id;
+  r.need=parseInt(r.c.qty,10)||0; r.have=dlvLinkQty(r.c); r.links=dlvLinks(r.c); a.before=ulSnap(r);   /* (1회차) 누른 뒤 DB 값으로 '전'을 다시 — 목록을 읽은 뒤 남이 한 연결·해제가 이 사람의 연결로 기록되지 않게 */
+  return r.c; }
+async function ulPickD(r,mode,src){ var a=ulNewAct(r,'card',r.c.id,'link'); a.inb=(src==='inbound'); ulActBegin(a);
+  var c=await ulReadCard(a,r); if(!c)return;
+  if(!mode&&dlvLinked(c)){ ulToast('그 사이 연결된 카드예요 — 새로 읽었어요'); ulActEnd(a,{noAudit:true}); return; }
+  var ol=null; try{ ol=await dlvOrderLineOf(c); }catch(e){ ol=null; } if(a!==UL.act)return;   /* 주문 줄이 있는 카드인지(앱 함수 — 사슬 확장 포함) */
+  if(ol&&!a.inb){ if(!ulIdOk(ol.id)){ ulActEnd(a,{noRefresh:true}); return; } a.path='line'; a.tid=ol.id; a.oref=ol; await ulLineOpen(a,(mode==='add')?'add':(mode==='swap1'?'swap':'')); return; }   /* 11/2 규칙: 보낸 줄 재고는 줄이 메인 → 줄 경로 */
+  /* (3회차 — 호준님 11/10 "재고연결 다 가능하게 하면 되는데 뭘 대표만 해") 주문방·택배방에서 보낸 건의 지난 날짜 카드도 📥 입고분 연결은 누구나 — 직배송 전용 카드(결정 ①)와 같은 카드 경로·같은 기록(직배송 기록·감사 기록에 '지난 날짜 … 연결(모아보기)') */
+  try{ dlvPickCardId=null; }catch(e){} ulOpening(a);
+  var p; ulCardEnsure(a); UL.pass=true; a.opRun=true; try{ p=dlvPickOpen(c.id,(mode==='add')?'add':undefined); }catch(e){ console.warn('[미연결] 카드 고르기 창 열기 실패',e); } finally{ UL.pass=false; ulCardDrop(a); }   /* 결정 ①: 그 한 번의 호출(첫 줄 가드) 동안만 통과 */
+  try{ await p; }catch(e){} a.opRun=false; ulGhostDrop(a);
+  if(a!==UL.act)return; if(a.phase==='opening'&&!ulTargetIs(a))ulActEnd(a,{noRefresh:true}); }
+async function ulUnlinkAll(k){ var r=ulRow(k); if(!r||r.type!=='o')return; if(!ulGate())return; var a=ulNewAct(r,'line',r.o.id,'unlink'); ulActBegin(a); ulSaveBegin(a);
+  try{ await omStkUnlink(r.o.id); }catch(e){ console.warn('[미연결] 해제 오류',e); } finally{ if(!a.bfix)a.quiet=1; ulSaveDone(a); } }   /* ④ 창 없음 — 저장 표시를 켠 채 기다리고 돌아오면 끝. (2회차) 앱이 쓰기 전 읽기(omFreshRow)를 한 번도 못 했으면(권한 지킴이에서 멈춤·읽기 실패) 쓰기도 없었음 → '전'이 목록 읽은 때 값이라 감사·방금 연결한 것 없이 그 줄만 다시 읽음 */
+function ulLinkSig(k){ return [k.kind,k.pid,k.item_id,k.qty,k.at].join('|'); }
+async function ulUnlinkOne(k,i){ var r=ulRow(k); if(!r)return; if(r.type!=='d')return; var drawn=r.links[i]; if(!drawn)return; if(!ulGate())return;
+  var a=ulNewAct(r,'card',r.c.id,'unlink'); ulActBegin(a);
+  var c=await ulReadCard(a,r); if(!c)return;
+  var cur=dlvLinks(c)[i]; if(!cur||ulLinkSig(cur)!==ulLinkSig(drawn)){ ulToast('연결 목록이 바뀌었어요 — 다시 확인하고 눌러 주세요'); ulActEnd(a,{noAudit:true}); return; }   /* 그린 자리와 지금 자리가 같은 연결인지 */
+  var ol=null; try{ ol=await dlvOrderLineOf(c); }catch(e){ ol=null; } if(a!==UL.act)return;
+  var olk=null; try{ olk=ol?omStkLink(ol):null; }catch(e){ olk=null; }   /* (1회차) 줄에 재고 연결이 실제로 있고 카드가 그것을 비출 때만(앱 dlvLineStkUnlink·omCardsFollow와 같은 조건: rt · 연결만 · 같은 상품) — 입고분 '연결만'은 카드에서 해제 */
+  if(ol&&cur.main&&cur.kind==='rt'&&c.src_label===DLV_ALREADY_TAG&&olk&&c.src_product_id===olk.pid){ if(!ulIdOk(ol.id)){ ulActEnd(a,{noRefresh:true}); return; } a.path='line'; a.tid=ol.id; a.oref=ol; ulSaveBegin(a); try{ await omStkUnlink(ol.id); }catch(e){ console.warn('[미연결] 해제 오류',e); } finally{ ulSaveDone(a); } return; }   /* 줄 연결을 비춘 '연결만' → 줄에서 해제 */
+  /* (3회차 — 호준님 11/10) 주문방·택배방에서 보낸 건의 지난 날짜 카드도 카드에서 하는 해제(입고분·추가 연결 등)는 누구나 — 직배송 기록·감사 기록에 '지난 날짜 … 해제(모아보기)'로 남음 */
+  ulSaveBegin(a); var p; ulCardEnsure(a); UL.pass=true; try{ p=dlvStkUnlink(c.id,cur.main?undefined:cur._li); }catch(e){ console.warn('[미연결] 해제 오류',e); } finally{ UL.pass=false; }
+  try{ await p; }catch(e){} ulCardDrop(a); ulSaveDone(a); }
+var UL_RSV_FN={rsvOutFromStock:'link',rsvOutFromInbound:'link',rsvAddLinkFromStock:'link',rsvSwapLink:'link',rsvUnlinkStock:'unlink',rsvUnlinkInbound:'unlink',rsvRemoveLink:'unlink'};
+async function ulRsvDo(fn,arg,opt){   /* 예약 — 앱 예약 함수 7개로 보내는 문. 부르기 전에 그 예약을 가볍게 읽어 전역 캐시와 견주고, 다르면 앱 loadReservations()로 통째 새로 */
+  if(!UL_RSV_FN[fn])return; if(!ulGate())return; if(typeof window[fn]!=='function'){ ulToast('이 버전에서는 모아보기 연결을 쓸 수 없어요'); return; }
+  var lid=null, rid=arg; if(fn==='rsvSwapLink'||fn==='rsvRemoveLink'){ lid=arg; var L0=(UL.lnk||[]).find(function(x){ return x.id===arg; }); rid=L0?L0.reservation_id:null; }
+  var r=ulRow('r-'+rid); if(!r){ ulToast('이 예약을 목록에서 찾지 못했어요'); return; }
+  var dFirst=!!(r.r.src_kind&&(r.r.src_product_id||r.r.src_item_id));   /* (2회차) 그린 때 첫 연결이 있었는지(앱 rsvBuildLinksHtml의 firstLinked 식) — 아래에서 줄을 DB 값으로 바꾸기 전에 붙잡아 둠 */
+  var a=ulNewAct(r,'rsv',rid,UL_RSV_FN[fn]); a.lid=(fn==='rsvSwapLink')?lid:null; a.fn=fn; ulActBegin(a);
+  var q1=null, q2=null; try{ q1=await sb.from('reservations').select('id,date_str,status,qty,tire_spec,src_kind,src_product_id,src_item_id,src_dot,src_qty,src_label,stock_done').eq('id',rid).maybeSingle(); if(a!==UL.act)return; q2=await sb.from('reservation_links').select(UL_COLS_L).eq('reservation_id',rid); }catch(e){ q1=q1||{error:e}; q2=q2||{error:e}; }
+  if(a!==UL.act)return;
+  if(!q1||q1.error||!q2||q2.error){ ulToast('예약을 다시 읽지 못했어요 — 잠시 뒤 다시 눌러 주세요'); ulActEnd(a,{noRefresh:true}); return; }
+  var v=q1.data, dl=(q2.data||[]); if(!v||v.status==='취소'){ ulActEnd(a,{noAudit:true}); return; }
+  try{ ['status','qty','tire_spec','src_kind','src_product_id','src_item_id','src_dot','src_qty','src_label','stock_done'].forEach(function(f){ r.r[f]=v[f]; });
+    var dl2=dl.map(function(L){ var x={}; UL_COLS_L.split(',').forEach(function(f){ x[f]=L[f]; }); return x; }); if(UL.lnk)UL.lnk=UL.lnk.filter(function(L){ return L.reservation_id!==rid; }).concat(dl2);
+    r.need=parseInt(r.r.qty,10)||0; r.have=ulWithLinks(function(){ return rsvLinkQtyOf(r.r); }); a.before=ulSnap(r); }catch(e){}   /* (1회차) 누른 뒤 DB 값으로 줄·'전'을 다시 — 목록을 읽은 뒤 남이 한 연결이 이 사람의 연결로 기록되지 않게 */
+  if(opt&&opt.fromRow&&fn==='rsvOutFromStock'&&(v.src_product_id||v.src_item_id||v.stock_done||dl.some(function(L){ return L.stock_done||L.product_id||L.item_id; }))){ ulToast('그 사이 연결된 예약이에요 — 새로 읽었어요'); ulActEnd(a,{noAudit:true}); return; }
+  if(fn==='rsvOutFromStock'&&!(opt&&opt.fromRow)&&!dFirst&&v.src_kind&&(v.src_product_id||v.src_item_id)){ ulToast('그 사이 연결된 예약이에요 — 새로 읽었어요'); ulActEnd(a,{noAudit:true}); return; }   /* (2회차) 펼친 칸의 '📦 첫 연결' 단추 — 그린 때 첫 연결이 없었는데 지금 DB에 있으면 남의 첫 연결을 알리지 않고 앱 '교체'로 덮어쓰지 않게(앱 rsvPickConfirm은 확인 없이 교체). 그린 때 있던 '교체' 단추는 그대로 */
+  var cr=(reservations||[]).find(function(x){ return x.id===rid; }), same=!!cr, sv=function(x){ return x==null?'':String(x); }, ls=function(arr){ return arr.map(function(L){ return L.id+'|'+L.qty+'|'+!!L.stock_done; }).sort().join(';'); };
+  if(cr){ ['status','qty','tire_spec','src_kind','src_product_id','src_item_id','src_dot','src_qty','stock_done'].forEach(function(f){ if(sv(cr[f])!==sv(v[f]))same=false; }); if(ls((rsvLinks||[]).filter(function(L){ return L.reservation_id===rid; }))!==ls(dl))same=false; }
+  if(!same){ try{ await loadReservations(); }catch(e){} if(a!==UL.act)return; if(!(reservations||[]).some(function(x){ return x.id===rid; })){ ulToast('예약을 불러오지 못했어요 — 잠시 뒤 다시 눌러 주세요'); ulActEnd(a,{noRefresh:true}); return; } }
+  if(lid&&!(rsvLinks||[]).some(function(x){ return x.id===lid; })){ ulActEnd(a,{noAudit:true}); return; }   /* 그 추가연결이 없으면 앱이 조용히 돌아오므로 미리 */
+  if(a.verb==='unlink'){ ulSaveBegin(a); try{ await window[fn](arg); }catch(e){ console.warn('[미연결] 예약 해제 오류',e); } finally{ ulSaveDone(a); } return; }
+  ulOpening(a); try{ window[fn](arg); }catch(e){ console.warn('[미연결] 예약 고르기 창 열기 실패',e); }
+  if(a!==UL.act)return; if(a.phase==='opening'&&!ulTargetIs(a))ulActEnd(a,{noRefresh:true}); }
+/* ── 끝난 뒤 그 줄만 다시 읽어 남기거나(여전히 미연결·모자람) 초록 뒤 뺌 ── */
+function ulLinkItems(r){
+  if(r.type==='o')return omStkLinks(r.o).map(function(k){ return {sig:['o',k.pid,k.dot,k.qty,k.at].join('|'),desc:(k.spec||'')+' ×'+(k.qty||1)+' ('+(k.already?'연결만':'재고에서 뺌')+')'}; });
+  if(r.type==='d')return dlvLinks(r.c).map(function(k){ return {sig:['d',k.kind,k.pid,k.item_id,k.dot,k.qty,k.at].join('|'),desc:dlvLinkTxt(k,r.c)+' ×'+(parseInt(k.qty,10)||1)+' ('+(k.kind==='inbound'?'입고분 연결':(k.already?'연결만':'재고에서 뺌'))+')'}; });
+  var v=r.r, out=[]; if(v.src_kind&&(v.src_product_id||v.src_item_id))out.push({sig:['r',v.src_kind,v.src_product_id,v.src_item_id,v.src_dot,v.src_qty].join('|'),desc:(v.tire_spec||'')+' ×'+(v.src_qty||v.qty||1)+' ('+(v.src_kind==='inbound'?'입고분 연결':'재고에서 뺌')+')'});
+  (UL.lnk||[]).forEach(function(L){ if(L.reservation_id===v.id)out.push({sig:['l',L.id,L.qty,L.stock_done].join('|'),desc:(L.tire_spec||'')+' ×'+(L.qty||1)+' (추가 연결)'}); }); return out; }
+function ulSnap(r){ var it=[]; try{ it=ulLinkItems(r); }catch(e){} return {have:r.have,need:r.need,sig:it.map(function(x){ return x.sig; }).join(';'),items:it}; }
+function ulNewDescs(before,after){ var bs={}; (before.items||[]).forEach(function(x){ bs[x.sig]=1; }); return after.items.filter(function(x){ return !bs[x.sig]; }).map(function(x){ return x.desc; }); }
+function ulRoomName(o){ return (((o.dtype||'taekbae')==='taekbae')||o.dtype==='reship')?'택배방':'주문방'; }
+function ulAuditTarget(r){ var x=r.o||r.c||r.r, id8=String(x.id).slice(0,8);
+  if(r.type==='d'){ var c=r.c; return '[직배송방 '+c.date_str+' 카드 #'+id8+'] '+(c.recv||c.trade_client||'')+' · '+(c.spec||c.tire||'')+' ×'+(c.qty||1); }
+  if(r.type==='o'){ var o=r.o; return '['+ulRoomName(o)+' '+o.date_str+' 줄 #'+id8+'] '+(o.platform||'')+' '+(o.recv||'')+' · '+(o.size||'')+' ×'+(o.qty||1); }
+  var v=r.r; return '[예약 '+v.date_str+' '+(v.time_slot||'')+' #'+id8+'] '+ulRsvWho(v)+' · '+(ulRsvTire(v)||'타이어 미기재'); }
+function ulIsPast(r,a){ return !!(r.type==='d'&&a&&a.path==='card'&&r.c.date_str<ulToday()); }
+function ulAudit(r,before,a,fail){   /* 감사 1줄 — 어디서 한 연결인지(자동 감사의 방 칸은 '보고 있던 방') */
+  try{ var past=ulIsPast(r,a), act='미연결 모아보기 — '+(past?'지난 날짜 카드 ':'')+'재고 연결'+(a.verb==='unlink'?' 해제':'');
+    var nw=fail?[]:ulNewDescs(before,ulSnap(r)), af=fail?'확인 못 함 — 끝난 뒤 다시 읽기 실패':('연결 '+r.have+'/'+(r.need||'?')+(nw.length?' · '+nw.join(' / '):''));
+    Promise.resolve(logAudit(act,ulAuditTarget(r),'연결 '+before.have+'/'+(before.need||'?'),af)).catch(function(){}); }catch(e){} }
+function ulHM(){ var d=new Date(); return ('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2); }
+function ulPickQ(txt){ var t=String(txt||''), m=t.match(/(\d{3})\s*[\/ ]\s*(\d{2})\s*[\/ ]?\s*[A-Za-z]{0,2}\s*(\d{2})(?!\d)/), sz=m?(m[1]+' '+m[2]+' '+m[3]):''; if(!sz)return null;   /* (11/11 호준님) 검색어 = 사이즈 + 패턴. 패턴은 재고표에서 그 사이즈 상품 이름이 원문에 들어 있는 것이 딱 하나일 때만 */
+  var low=' '+t.toLowerCase().replace(/[^0-9a-z가-힣+]+/g,' ')+' ', hit={};
+  var hitW={}, hitD={};
+  (stkP||[]).forEach(function(p){ if(!stkMatch(p,sz))return; var nm=String(p.name||''), cm=nm.match(/\(([^)]+)\)/), code=cm?cm[1].trim():'';
+    if(code&&low.indexOf(' '+code.toLowerCase()+' ')>=0){ hit[code]=1; return; }   /* 괄호 속 패턴 번호(RF12·H318)가 원문에 있으면 그것 */
+    var ws=nm.replace(/\([^)]*\)/g,' ').toLowerCase().replace(/[^0-9a-z가-힣+]+/g,' ').trim().split(' ').filter(Boolean); if(ws.length&&ws.every(function(w){ return low.indexOf(' '+w+' ')>=0; }))hitW[code||ws.join(' ')]=ws; else{ var dg=ws.filter(function(w){ return /[0-9]/.test(w)&&/[a-z가-힣]/.test(w); }); if(dg.length&&dg.every(function(w){ return low.indexOf(' '+w+' ')>=0; }))hitD[code||ws.join(' ')]=1; } });
+  var ks=Object.keys(hit); if(!ks.length){ ks=Object.keys(hitW); ks=ks.filter(function(k){ return !ks.some(function(o){ return o!==k&&hitW[o].length>hitW[k].length&&hitW[k].every(function(w){ return hitW[o].indexOf(w)>=0; }); }); }); }   /* 번호가 없으면 이름 낱말이 전부 들어 있는 것 — 더 긴 이름에 포함되는 짧은 이름은 뺌 */
+  if(!ks.length)ks=Object.keys(hitD);   /* 그것도 없으면 모델 번호 낱말(TA21·RA33)만 맞는 것 — 하나일 때만 */
+  return sz+(ks.length===1?' '+ks[0]:''); }
+var _ulPickQ0=_rsvPickShow;
+_rsvPickShow=function(){ var res=_ulPickQ0.apply(this,arguments); try{ if(UL.act){ var q=document.getElementById('rsv-pick-q'), rw=ulRow(UL.act.k), v=q&&ulPickQ(q.value+' '+(rw?ulRowTitle(rw):''));   /* 카드는 검색어에 규격만 올 때가 있어 줄 제목(타이어 이름)도 같이 봄 */ if(v&&v!==q.value){ q.value=v; rsvPickRender(); } } }catch(e){ console.error('ulPickQ',e); } return res; };
+function ulLogAdd(r,before,a){ try{ var after=ulSnap(r), nw=ulNewDescs(before,after), past=ulIsPast(r,a);
+    var where=(r.type==='o'?ulRoomName(r.o)+' 줄':(r.type==='d'?'직배송방 '+ulMD(r.d)+' 카드':'예약 '+ulMD(r.d)));
+    var body=nw.length?'<span style="color:#0f766e;font-weight:800">'+esc(nw.join(' / '))+'</span>':(after.have<before.have||a.verb==='unlink'?'연결 해제':'연결 바뀜');
+    UL.log.unshift('<small style="color:#64748b;font-weight:700">'+ulHM()+' · '+esc((typeof me!=='undefined'&&me&&me.name)||'?')+'</small> ['+where+'] '+esc(ulRowTitle(r))+' → '+body+' · 연결 '+r.have+'/'+(r.need||'?')+(past?' · <b>지난 날짜 '+(a.verb==='unlink'?'해제':'연결')+'</b>':'')); if(UL.log.length>50)UL.log.length=50; }catch(e){} }
+function ulDoneToast(r,before,a,still){ try{ var after=ulSnap(r), nw=ulNewDescs(before,after), past=ulIsPast(r,a);
+    if(nw.length)ulToast('🔗 재고 연결 — '+nw.join(' / ')+' · 연결 '+r.have+'/'+(r.need||'?')+(past?' · 지난 날짜 연결로 기록':'')+(!still?' · 목록에서 빠집니다':''));
+    else if(after.have<before.have)ulToast('↩ 재고 연결 해제 — 연결 '+r.have+'/'+(r.need||'?')); }catch(e){} }
+async function ulRefreshRow(k,a){ var r=ulRow(k); if(!r)return; var before=(a&&a.before)||ulSnap(r), ok=true, still=false, gone=false;
+  r.chk=true; ulListDrawSafe();
+  try{
+    if(r.type==='o'){ var q=await sb.from('jonghap_orders').select(UL_COLS_O).eq('id',r.o.id).maybeSingle(); if(q&&q.error)throw q.error; var o=q&&q.data;
+      if(!o||o.cancelled||(o.origin_id&&o.origin_id!==o.id)||!ulDateOk(o.date_str))gone=true;   /* (1회차) 처음 읽을 때처럼 날짜 꼴 검사(r.d는 날짜 칩 onclick에 들어감) */
+      else { Object.assign(r.o,o); r.o._srcP=null; if(r.o.status==='sent')await ulFetchMirror([r.o],null); still=ulJudgeO(r.o); r.d=r.o.date_str; r.need=parseInt(r.o.qty,10)||0; r.have=omStkQty(r.o); r.links=omStkLinks(r.o); if(still)UL.ro[r.o.id]=r.o; else delete UL.ro[r.o.id]; }
+    } else if(r.type==='d'){ var root=r.root||r.c.origin_id||r.c.id; if(!ulIdOk(root))throw new Error('카드 열쇠 꼴'); var qd=sb.from('deliveries').select(UL_COLS_D).or('id.eq.'+root+',origin_id.eq.'+root).ilike('src','%창%'); if(UL.dlvRoom)qd=qd.eq('room_id',UL.dlvRoom); var q2=await qd; if(q2&&q2.error)throw q2.error;   /* (2회차) 처음 읽기(ulQD)·사슬 뿌리 읽기와 같은 모집단('창'·직배송방) — 출고지가 바뀐 새 복사본이 마지막 장이 되어 처음 목록과 다르게 판정되지 않게 */ var all=((q2&&q2.data)||[]).filter(function(c){ return c&&ulIdOk(c.id)&&ulDateOk(c.date_str); });
+      all.forEach(function(c){ UL.cmin[c.id]=ulCardMin(c); });
+      var live=ulLive(all);
+      if(!live.length)gone=true;
+      else { var lk=live.filter(function(c){ return c.src_kind&&(c.src_product_id||c.src_item_id); }), last=live[live.length-1], cur=lk.length?lk[lk.length-1]:last;
+        if(cur.id===r.c.id)Object.assign(r.c,cur); else { delete UL.cfull[r.c.id]; r.c=cur; }
+        r.d=r.c.date_str; r.need=parseInt(r.c.qty,10)||0; r.have=dlvLinkQty(r.c); r.links=dlvLinks(r.c);
+        still=lk.length?(stkLinkState(r.have,r.need)==='short'):dlvNeedLink(last); r.stay=!!(lk.length&&still);   /* 앱 판정은 첫 연결이 생기면 미연결 아님 — 패널이 열려 있는 동안만 🟡로 남김 */
+        if(dlvNeedLink(r.c))UL.cfull[r.c.id]=r.c; else delete UL.cfull[r.c.id]; }
+    } else { var id=r.r.id, v=null, lks=null;
+      if(a&&a.path==='rsv'){ v=(reservations||[]).find(function(x){ return x.id===id; })||null; if(v)lks=(rsvLinks||[]).filter(function(L){ return L.reservation_id===id; }); }   /* 앱이 방금 loadReservations()로 채운 전역에서 */
+      if(!v){ var q3=await sb.from('reservations').select(UL_COLS_R).eq('id',id).maybeSingle(); if(q3&&q3.error)throw q3.error; v=q3&&q3.data; var q4=await sb.from('reservation_links').select(UL_COLS_L).eq('reservation_id',id); if(q4&&q4.error)throw q4.error; lks=(q4&&q4.data)||[]; }
+      if(!v||v.status==='취소'||!ulDateOk(v.date_str))gone=true;
+      else { var nv={}; UL_COLS_R.split(',').forEach(function(f){ nv[f]=v[f]; }); Object.assign(r.r,nv);
+        var mine=(lks||[]).map(function(L){ var x={}; UL_COLS_L.split(',').forEach(function(f){ x[f]=L[f]; }); return x; }), merged=(UL.lnk||[]).filter(function(L){ return L.reservation_id!==id; }).concat(mine); if(UL.lnk)UL.lnk=merged;
+        var k0=rsvLinks; rsvLinks=merged; try{ r.have=rsvLinkQtyOf(r.r); still=!(r.r.src_product_id||r.r.src_item_id||r.r.stock_done||rsvHasLink(id)); }finally{ rsvLinks=k0; }
+        r.d=r.r.date_str; r.need=parseInt(r.r.qty,10)||0; if(!still&&r.have>0&&stkLinkState(r.have,r.need)==='short')still=true; UL.rr[id]=r.r; }
+    }
+  }catch(e){ ok=false; console.warn('[미연결] 줄 다시 읽기 실패',e); }
+  r.chk=false;
+  if(!ok){ r.warn='⚠ 다시 읽지 못했어요'; if(a)ulAudit(r,before,a,true); ulDraw(); return; }
+  r.warn='';
+  var after=ulSnap(r), changed=(after.have!==before.have)||(after.sig!==before.sig);
+  if(a&&changed){ ulAudit(r,before,a,false); ulLogAdd(r,before,a); if(r.type!=='o')ulDoneToast(r,before,a,still&&!gone); }   /* 수량이 그대로이고 다시 읽기도 됐으면(취소한 것) 감사 안 남김 */
+  if(gone){ r.gone=true; if(UL.open===r.k)UL.open=null; ulDraw(); }
+  else if(still){ r.flash=0; ulDraw(); }
+  else ulLeave(r.k);
+  if(a&&a.path==='line'&&r.type==='d'){ var o2=ulRow('o-'+a.tid); if(o2&&!o2.gone)ulRefreshRow(o2.k,null).catch(function(){}); } }
+function ulLeave(k){ var r=ulRow(k); if(!r)return; var tok=r.flash=++UL.seq; ulDraw();   /* 목업 규칙: 초록 1.1초 → 0.38초 사라짐 → 빼기 직전에 다시 확인(그 사이 다시 다루면 남김) */
+  setTimeout(function(){ var x=ulRow(k); if(!x||x.flash!==tok)return; if(UL.act&&UL.act.k===k){ x.flash=0; ulDraw(); return; } var el=document.getElementById('ul-'+k); if(el)el.classList.add('ul-leave');
+    setTimeout(function(){ var y=ulRow(k); if(!y||y.flash!==tok)return; y.flash=0; if(!(UL.act&&UL.act.k===k)){ y.gone=true; if(UL.open===k)UL.open=null; } ulDraw(); },380); },1100); }
+/* ── ↗ 그 방에서 보기 — 전체 검색의 이동 함수(gsGo) 그대로. 그 줄 하나만 검색 결과에 잠깐 끼웠다가 되돌림 ── */
+async function ulJump(k){ if(UL.act&&!UL.act.ended){ ulBusyToast(); return; } var r=ulRow(k); if(!r||typeof gsGo!=='function')return; ulClose();
+  var key=(r.type==='o')?'jh':(r.type==='d'?'dlv':'rsv'), row=(r.o||r.c||r.r), keepR=GS.res, keepP=GS.parse, mine={};
+  mine[key]={rows:[row]}; GS.res=Object.assign({},keepR,mine);
+  var pm=(r.type==='o'&&(((r.o.dtype||'taekbae')==='taekbae')||r.o.dtype==='reship')), myP={tokens:pm?['택배방']:[]}; GS.parse=myP;   /* gsGo가 이 값으로 택배방/주문방을 고름 */
+  try{ await gsGo(key,row.id); }catch(e){ console.warn('[미연결] 이동 실패',e); } finally{ if(GS.parse===myP)GS.parse=keepP; if(GS.res&&GS.res[key]===mine[key])GS.res=keepR; } }
+/* ── 키 방패: 패널이 맨 위이고 커서가 입력칸이 아닐 때 키·붙여넣기가 밑 화면(주문방 ↑↓·재고표 편집·종합방 시트)에 닿지 않게. Esc = 패널 닫기 ── */
+function ulTopIsMine(){ try{ var b=document.getElementById('ul-box'); if(!b)return false; var q=b.getBoundingClientRect(); if(!q.width||!q.height)return false; var el=document.elementFromPoint(q.left+q.width/2,q.top+q.height/2); return !!(el&&el.closest&&el.closest('#ul-panel')); }catch(e){ return false; } }
+function ulShield(e){ try{ if(e.defaultPrevented||!ulIsOpen())return; var t=e.target, tg=t&&t.tagName; if(tg==='INPUT'||tg==='TEXTAREA'||tg==='SELECT'||(t&&t.isContentEditable))return; if(!ulTopIsMine())return;
+    if(e.type==='keydown'&&e.key==='Escape'){ e.preventDefault(); e.stopPropagation(); ulClose(); return; }
+    e.stopPropagation(); }catch(x){} }   /* 기본 동작(목록 스크롤·복사)은 그대로, 전파만 멈춤 */
+/* ════ 감싸기 18개 — 새 블록이 실행되는 즉시(동기). 주문방 권한 지킴이(DOMContentLoaded 때 설치)만 이보다 바깥 ════ */
+function ulWrapAll(){ var ok=true;
+  var W=function(n,mk){ try{ var f=window[n]; if(typeof f!=='function'){ console.warn('[미연결] 감쌀 함수 없음',n); ok=false; return; } UL.f[n]=f; var g=mk(f); g._ulOrig=f; window[n]=g; }catch(e){ ok=false; console.warn('[미연결] 감싸기 실패',n,e); } };
+  var actOn=function(path){ var a=UL.act; return (a&&!a.ended&&a.path===path)?a:null; };
+  var lost=function(path){ if(!UL.act&&UL.own&&UL.own.path===path&&ulTargetIs(UL.own)){ try{ rsvPickClose(); }catch(e){} ulToast('모아보기 연결이 끊겼어요 — 다시 눌러 주세요'); return true; } return false; };   /* 이중 안전: 패널이 띄운 창인데 다루는 줄이 없으면 저장 안 함 */
+  /* W1 */ W('gsOpen',function(f){ return function(){ try{ if(ulIsOpen())ulClose(); }catch(e){} return f.apply(this,arguments); }; });
+  /* W2 */ W('dlvGuardEdit',function(f){ return function(){ if(UL.pass){ var n=kstNow(), h=n.getUTCHours(), m=n.getUTCMinutes(); if((h===23&&m>=59)||(h===0&&m<=1)){ alert('🌙 자정 이월 중이에요 (23:59~00:01).\n약 1분 후 다시 시도해주세요.'); return false; } return true; } return f.apply(this,arguments); }; });   /* 결정 ①: 통과 중에도 자정 잠금은 그대로 */
+  /* W3 */ W('dlvLog',function(f){ return async function(txt,c){ var a=actOn('card'); if(!(a&&c&&c.id===a.tid))return f.apply(this,arguments);
+      var cc=a.cobj||c, room=c.room_id||cc.room_id, ds=c.date_str||cc.date_str, who=(typeof me!=='undefined'&&me)?me.name:'?';
+      var text=who+'님이 '+txt+ulPastTag({date_str:ds},a.verb)+(c.id?' [#'+_dlvId8(c)+']':''), row={room_id:room,date_str:ds,text:text,user_name:(typeof me!=='undefined'&&me)?me.name:''}, done=false, err=null;   /* 카드의 방·카드 날짜·꼬리표로 — 부를 때(동기) 붙잡아 둠 */
+      for(var i=0;i<2&&!done;i++){ try{ var r=await sb.from('delivery_logs').insert(row); if(r&&r.error)err=r.error; else done=true; }catch(e){ err=e; } }
+      if(!done){ console.warn('[미연결] 직배송 기록 실패',err); ulToast('직배송 기록을 남기지 못했어요 — 감사 기록에 남겼습니다'); try{ Promise.resolve(logAudit('미연결 모아보기 — 직배송 기록 실패','[직배송방 '+ds+' 카드 #'+_dlvId8(c)+']','',text)).catch(function(){}); }catch(e){} } }; });
+  /* W4 */ W('loadDeliveries',function(f){ return async function(){ var a=actOn('card'); if(a&&a.saving>0){ a.deferLoad=true; return; } return f.apply(this,arguments); }; });   /* 카드 경로 저장·해제 중엔 미뤘다가 끝날 때 그 방이면 1번 */
+  /* W5 */ W('dlvStkSync',function(f){ return async function(id,want){ var a=actOn('card'); if(a&&a.saving>0&&id===a.tid&&a.cref){ try{ if(!Array.isArray(deliveriesCache))deliveriesCache=[]; var arr=deliveriesCache, i=-1; for(var j=0;j<arr.length;j++){ if(arr[j]&&arr[j].id===id){ i=j; break; } } if(i<0){ arr.push(a.cref); a.put=true; } else if(arr[i]!==a.cref)arr[i]=a.cref; }catch(e){} } return f.apply(this,arguments); }; });   /* 차감 함수가 캐시에서 찾는 그 자리를 저장 함수가 집은 객체로 */
+  var cardSave=function(f){ return async function(){ var a=actOn('card'); if(!(a&&dlvPickCardId===a.tid)){ if(lost('card'))return; return f.apply(this,arguments); }
+      ulSaveBegin(a);
+      try{ if(!ulCacheHas(a.tid)){ var okc=await ulCardFresh(a); if(!okc){ ulToast('카드를 다시 읽지 못했어요 — 고르기 창에서 다시 골라 주세요'); return; } }
+        ulCardEnsure(a); return await f.apply(this,arguments); }   /* 넣기와 원본 첫 줄(캐시 찾기)이 같은 동기 구간 */
+      finally{ ulCardDrop(a); ulSaveDone(a); } }; };
+  /* W6·W7 */ W('dlvPickChoose',cardSave); W('dlvInbChoose',cardSave);
+  /* W8 */ W('omRowAny',function(f){ return function(id){ var x=f.apply(this,arguments); if(x)return x; var a=actOn('line'); if(a&&a.oref&&String(a.tid)===String(id)){ ulMirIn(a,a.oref); return a.oref; } return x; }; });   /* 방 캐시에 넣지 않고 그 id일 때만 패널의 줄 */
+  /* W9 */ W('omFreshRow',function(f){ return async function(id){ var r=await f.apply(this,arguments); try{ var a=actOn('line'); if(r&&a&&String(a.tid)===String(id)){
+        if(a.type==='o'&&(a.phase==='opening'||a.phase==='picking'||(a.verb==='unlink'&&!a.bfix))){ a.before=ulSnap({type:'o',o:r,have:omStkQty(r),need:parseInt(r.qty,10)||0}); if(a.verb==='unlink')a.bfix=1; }   /* (1회차) 앱이 쓰기 전에 읽은 DB의 지금 줄로 '전'을 다시(권한 지킴이·저장 함수 첫머리) — 목록을 읽은 뒤 남이 한 연결이 이 사람의 연결로 기록되지 않게. 해제는 첫 번째 읽기만(보낸 줄 겹이 해제 뒤에 한 번 더 읽음) */
+        if(a.oref&&!UL.f.omRowAny(id)){ if(r!==a.oref)Object.assign(a.oref,r); ulMirIn(a,a.oref); return a.oref; } } }catch(e){} return r; }; });   /* omRowAny와 같은 객체를 돌려줌(보낸 줄 겹이 status를 잠깐 바꾸는 객체) */
+  /* W10 */ W('omReloadAny',function(f){ return async function(){ if(actOn('line')&&!ulOmVisible())return; return f.apply(this,arguments); }; });   /* 주문방·택배방이 안 보이면 건너뜀(들어갈 때 다시 읽음) */
+  var lineSave=function(f){ return async function(){ var a=actOn('line'); if(!(a&&ulTargetIs(a))){ if(lost('line'))return; return f.apply(this,arguments); } ulSaveBegin(a); try{ return await f.apply(this,arguments); } finally{ ulSaveDone(a); } }; };
+  /* W11·W12 */ W('omPickChoose',lineSave); W('omInbChoose',lineSave);
+  var rsvSave=function(f){ return async function(){ var a=actOn('rsv'); if(!(a&&ulTargetIs(a))){ if(lost('rsv'))return; return f.apply(this,arguments); } ulSaveBegin(a); try{ return await f.apply(this,arguments); } finally{ ulSaveDone(a); } }; };
+  /* W13·W14 */ W('rsvPickConfirm',rsvSave); W('rsvInbConfirm',rsvSave);
+  /* W15 */ W('rsvShowDetail',function(f){ return function(id){ var a=actOn('rsv'); if(a&&id===a.tid)return; return f.apply(this,arguments); }; });   /* 연결 뒤 예약 상세·견적서가 뜨지 않게(패널에 머묾) */
+  /* W16 */ W('rsvPickClose',function(f){ return function(){ var res=f.apply(this,arguments); try{ UL.own=null; var a=UL.act; if(a&&!a.ended&&a.phase==='picking'&&!a.saving)ulActEnd(a); }catch(e){} return res; }; });   /* ① 창이 닫혔고 저장 중이 아님 */
+  /* W17 */ W('_rsvPickShow',function(f){ return function(){ var g=null, a=UL.act, mine=false;
+      try{ g=ulGhostLive(); if(g&&ulTargetIs(g)){ UL.ghost=null; setTimeout(function(){ try{ if(!ulPickerOn()&&(rsvPickCtx==='dlv'||rsvPickCtx==='om'))rsvPickCtx='rsv'; }catch(e){} },0); return; }   /* 그만둔 줄의 늦은 창은 안 띄움. (2회차) 다루는 줄이 있어도 먼저 삼킴(새 누름은 ulGate가 막으므로 보통 없음) · 대상 전역이 아직 안 섰으면(열기 함수가 도는 중) 표시를 남겨 둠 — 다른 창이 떠도 지우지 않음 */
+        if(a&&!a.ended&&a.phase==='opening'&&ulTargetIs(a)){ mine=true; a.phase='picking'; UL.own={path:a.path,tid:a.tid,lid:a.lid||null}; } }catch(e){}
+      var res=f.apply(this,arguments);
+      if(mine){ try{ if(a.inb&&a.path==='card')Promise.resolve(rsvLoadInbound()).then(function(){ if(UL.act===a)rsvPickSetSrc('inbound'); }); }catch(e){} ulListDrawSafe(); }   /* 📥 입고분 연결로 연 카드 = 앱 rsvOutFromInbound와 같은 한 줄 */
+      return res; }; });
+  /* W18 */ W('jhVersionBusy',function(f){ return function(){ try{ if(ulIsOpen()||(UL.act&&!UL.act.ended))return true; }catch(e){} return f.apply(this,arguments); }; });   /* 새 판 자동 새로고침은 패널이 열려 있거나 다루는 중이면 기다림 */
+  var need=['dlvPickOpen','dlvStkUnlink','omPickOpen','omStkUnlink','dlvOrderLineOf','dlvLinked','loadReservations','rsvOutFromStock','rsvAddLinkFromStock','rsvOutFromInbound','rsvSwapLink','rsvUnlinkStock','rsvUnlinkInbound','rsvRemoveLink','rsvBuildLinksHtml','rsvLoadInbound','rsvPickSetSrc','logAudit','stkTbl','gsGo','_dlvId8','kstNow'];
+  need.forEach(function(n){ if(typeof window[n]!=='function'){ console.warn('[미연결] 앱 함수 없음',n); ok=false; } });
+  UL.ok=ok; }
+function ulBtnAdd(){ try{ if(document.getElementById('ul-open'))return true; var bar=document.getElementById('gs-bar'); if(!bar)return false;
+    bar.insertAdjacentHTML('beforeend','<button id="ul-open" onclick="ulToggleOpen()" title="재고 미연결 모아보기 — 주문·택배 줄 / 직배송 전용 카드 / 예약 (눌러서 열면 최근 7일 건수를 셉니다)">🔗<span class="ul-btxt"> 미연결</span> <b id="ul-n" style="display:none"></b></button>'); return true; }catch(e){ return false; } }   /* 검색 줄 ✕ 뒤 — 숫자는 패널을 한 번 연 뒤부터 */
+function ulInit(){
+  try{ if(!document.getElementById('ul-panel'))document.body.insertAdjacentHTML('beforeend','<div id="ul-panel" onclick="if(event.target===this)ulClose()"><div id="ul-box"><div id="ul-head"></div><div id="ul-list"></div></div></div>'); }catch(e){ console.warn('[미연결] 패널 틀 실패',e); }
+  try{ ulWrapAll(); }catch(e){ UL.ok=false; console.warn('[미연결] 감싸기 실패',e); }
+  ulBtnAdd();
+  try{ window.addEventListener('keydown',ulShield,true); window.addEventListener('paste',ulShield,true); }catch(e){}   /* 창 캡처 단계 — 문서 캡처보다 먼저 */
+  try{ window.addEventListener('resize',function(){ if(ulIsOpen())ulPlace(); }); }catch(e){}
+  try{ document.addEventListener('DOMContentLoaded',ulBtnAdd); window.addEventListener('load',ulBtnAdd); setTimeout(ulBtnAdd,2000); setTimeout(ulBtnAdd,8000); }catch(e){}   /* 버튼 붙이기만 만일을 위해 몇 번 더(한 번씩 — 주기 타이머 아님) */
+}
+try{ ulInit(); }catch(e){ console.warn('[미연결] 시작 실패',e); }
+</script>
+<!-- ▲ ul-block end -->
 </body>
 </html>
