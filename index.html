@@ -27060,6 +27060,89 @@ async function rsvDelete(id){
 }
 
 
+/* ▼TMR1111 (11/11 호준님) 📅 내일 처리 예정 + 번호 없는 줄에서 한 송장 자동 이어받기 — 테스트판 */
+function omTmrToday(){ return (typeof getTodayISO==='function')?getTodayISO():new Date().toISOString().slice(0,10); }
+function omTmrSrcDay(o){ try{ var m=/(\d{1,2})\s*일[^0-9]{0,10}출고/.exec(String((o&&o.src)||'')); if(!m)return ''; var dd=parseInt(m[1],10); if(!(dd>=1&&dd<=31))return ''; var base=String(o.date_str||''); if(!/^\d{4}-\d\d-\d\d$/.test(base))return ''; var y=+base.slice(0,4), mo=+base.slice(5,7), bd=+base.slice(8,10); if(dd<bd-15){ mo++; if(mo>12){ mo=1; y++; } } var ds=y+'-'+('0'+mo).slice(-2)+'-'+('0'+dd).slice(-2); var t=new Date(ds+'T00:00:00Z'); if(isNaN(t.getTime())||t.toISOString().slice(0,10)!==ds)return ''; return ds; }catch(e){ return ''; } }   /* 출고지 칸의 "12일출고"·"12일입고 및 출고" → 그 날짜 */
+function omTmrDay(o){ var L=Array.isArray(o&&o.logs)?o.logs:[]; for(var i=L.length-1;i>=0;i--){ var t=L[i]&&L[i].t; if(t==='내일 처리 취소')return ''; if(t==='내일 처리')return String(L[i].until||''); } return omTmrSrcDay(o); }   /* 처리하기로 한 날 — 버튼이 먼저, 없으면 출고지 칸 */
+function omTmrOpen(o){ try{ if(!o||o.cancelled||o.status!=='wait'||o.dtype==='dx')return false; if(typeof pmWb==='function'&&pmWb(o).length)return false; if(typeof jhDone==='function'&&jhDone(o))return false; return true; }catch(e){ return false; } }
+function omTmrOn(o){ if(!omTmrOpen(o))return false; var d=omTmrDay(o); return !!d&&d>omTmrToday(); }   /* 오늘은 안 하고 다음 날 하기로 한 줄 */
+function omTmrCame(o){ if(!omTmrOpen(o))return false; var d=omTmrDay(o); if(!d||d>omTmrToday())return false; var c=''; try{ c=kstDateStr(o.created_at)||''; }catch(e){} return String(o.date_str||'')<d||(!!c&&c<d); }   /* 전날 확인해 두고 오늘 처리하는 줄 */
+function omTmrLabel(o){ var d=omTmrDay(o); return '📅 내일 처리 예정'+(d?' ('+d.slice(5).replace('-','/')+')':''); }
+function omTmrCameBadge(){ return ' <span class="stbadge" style="background:#7c3aed" title="전날 확인해 둔 주문을 오늘 처리하는 줄이에요 (재출고 아님)">⏰ 전날 확인한 주문 · 오늘 처리</span>'; }
+function omTmrBtn(o){ var sid=String(o.id).replace(/'/g,''); if(omTmrOn(o))return '<button class="dact" style="background:#f5f3ff;color:#6d28d9;border-color:#c4b5fd;font-weight:800" onclick="omTmrSet([\''+sid+'\'],false)" title="내일 처리 예정을 풀고 오늘 미처리로 되돌립니다">↩ 오늘 처리로</button>'; if(omTmrOpen(o))return '<button class="dact" style="background:#7c3aed;color:#fff;border-color:#7c3aed;font-weight:800" onclick="omTmrSet([\''+sid+'\'],true)" title="오늘은 미처리에서 빼고 내일 날짜에 다시 보이게 합니다 — 기록에 남고 되돌릴 수 있음">📅 내일 처리</button>'; return ''; }
+async function omTmrSet(ids,on){ if(window._omTmrBusy){ if(typeof stkToast==='function')stkToast('처리 중이에요 — 잠깐만요'); return; } window._omTmrBusy=true; var ok=0, fail=[], who=(me&&me.name)||'?', until=jhAddDay(omTmrToday(),1);
+  try{ for(var i=0;i<(ids||[]).length;i++){ var o=await omFreshRow(ids[i]); if(!o){ fail.push('(줄을 다시 읽지 못함)'); continue; } var nm=((o.recv||'')+' '+(o.size||'')).trim();
+      if(o.cancelled||o.status!=='wait'){ fail.push(nm+' — 이미 '+(o.cancelled?'취소된':(o.status==='sent'?'직배송방으로 보낸':'완료된'))+' 줄'); continue; }
+      if(on){ if(o.dtype==='dx'){ fail.push(nm+' — 거래처 직접출고 줄'); continue; } if(pmWb(o).length){ fail.push(nm+' — 송장이 이미 있음'); continue; } if(omTmrOn(o)){ fail.push(nm+' — 이미 내일 처리 예정'); continue; } }
+      else { if(!omTmrOn(o)){ fail.push(nm+' — 내일 처리 예정이 아님'); continue; } }
+      var at=new Date().toISOString(); var lg=(Array.isArray(o.logs)?o.logs:[]).concat([on?{t:'내일 처리',until:until,by:who,at:at}:{t:'내일 처리 취소',by:who,at:at}]);
+      var r=await sb.from('jonghap_orders').update({logs:lg}).eq('id',o.id).eq('status','wait').select('id');
+      if(r&&r.error){ fail.push(nm+' — 저장 실패: '+r.error.message); continue; } if(!r||!(r.data||[]).length){ fail.push(nm+' — 그 사이 다른 사람이 처리함(저장 안 함)'); continue; }
+      o.logs=lg; [OM.rows,(typeof PM!=='undefined'&&PM.rows)||[]].forEach(function(a){ (a||[]).forEach(function(x){ if(x&&String(x.id)===String(o.id))x.logs=lg; }); }); ok++; } }
+  catch(e){ fail.push('중간에 멈춤: '+((e&&e.message)||e)); }
+  finally{ window._omTmrBusy=false; }
+  if(ok&&typeof stkToast==='function')stkToast(on?('📅 내일 처리 예정 '+ok+'건'):('↩ 오늘 처리로 '+ok+'건'));
+  if(fail.length)alert((on?'📅 내일 처리':'↩ 오늘 처리로')+' — 된 것 '+ok+'건 · 안 된 것 '+fail.length+'건\n\n'+fail.join('\n'));
+  try{ if(typeof omInParcel==='function'&&omInParcel())pmRender(); else otRender(); }catch(e){} }
+function omTmrBulk(room,on){ var L=(room==='pm')?pmRows().filter(function(o){return PM.chk[o.id];}):otRows().filter(function(o){return OM.chk[o.id];}); if(!L.length){ if(typeof stkToast==='function')stkToast('체크한 줄이 없어요'); return; } omTmrSet(L.map(function(o){return o.id;}),on); }
+/* 전날 줄이 처리하기로 한 날 화면에도 보이게 — 지난 14일 미처리 줄 중 '내일 처리'·'N일출고'만 더 읽음 */
+async function omTmrExtra(room){ var isPm=(room==='pm'); var r=isPm?pmRange():omRange(); var period=isPm?PM.period:OM.period; if(period==='old')return 0; var arr=isPm?PM.rows:OM.rows; if(!Array.isArray(arr))return 0; var lo=jhAddDay(r[0],-14), hi=jhAddDay(r[0],-1); var got=[], errs=[];
+  var base=function(){ return sb.from('jonghap_orders').select('*').eq('status','wait').gte('date_str',lo).lte('date_str',hi).or('cancelled.is.null,cancelled.eq.false'); };
+  try{ got=got.concat(await sbFetchAll(function(){ return base().ilike('src','%일%출고%'); })); }catch(e){ errs.push('출고일 적힌 줄: '+((e&&e.message)||e)); }
+  try{ got=got.concat(await sbFetchAll(function(){ return base().contains('logs',JSON.stringify([{t:'내일 처리'}])); })); }catch(e){ errs.push('내일 처리 누른 줄: '+((e&&e.message)||e)); }
+  if(errs.length){ console.error('내일 처리 줄 읽기',errs); if(typeof stkToast==='function')stkToast('⚠ 전날 넘어온 줄을 다 못 읽었어요 — '+errs.join(' / ')); }
+  if((isPm?PM.rows:OM.rows)!==arr)return 0;   /* 그 사이 화면을 새로 읽었으면 버림 */
+  var have={}; arr.forEach(function(o){ have[o.id]=1; }); var n=0;
+  got.forEach(function(o){ if(!o||have[o.id])return; if(o.origin_id&&o.origin_id!==o.id)return; var d=omTmrDay(o); if(!d||d<r[0]||d>r[1])return; have[o.id]=1; o._tmrFrom=true; arr.push(o); n++; });
+  return n; }
+/* 번호 없는 줄에서 한 송장을, 나중에 번호가 채워진 줄로 저절로 옮겨 붙임 (버튼 없음) */
+async function jhTwinCarry(force){ if(window._jhTwinBusy)return; var now=Date.now(); if(!force&&window._jhTwinAt&&now-window._jhTwinAt<60000)return; window._jhTwinBusy=true; window._jhTwinAt=now; var moved=[], fail=[], skip=[];
+  try{ var td=omTmrToday(); var tw=await sbFetchAll(function(){ return sb.from('jonghap_orders').select('*').eq('cancelled',true).gte('date_str',jhAddDay(td,-3)).or('order_no.is.null,order_no.eq.'); });
+    for(var i=0;i<tw.length;i++){ var t=tw[i], L=Array.isArray(t.logs)?t.logs:[]; if(!L.length)continue; if(L.some(function(l){return l&&l.t==='번호 채워진 줄로 이어줌';}))continue;
+      var why=null; for(var j=L.length-1;j>=0;j--){ if(L[j]&&L[j].t==='시트에서 지워짐'){ why=/주문번호 채워진 줄\((.+)\)로 바뀜/.exec(String(L[j].why||'')); break; } } if(!why)continue;
+      var g=pmLogLast(t,'송장'); var nos=(g&&Array.isArray(g.nos))?g.nos.map(String).filter(Boolean):[]; if(!nos.length)continue;
+      var no=why[1], nm=((t.recv||'')+' '+(t.size||'')+' (주문 '+no+')').trim();
+      var q=await sb.from('jonghap_orders').select('*').eq('order_no',no).eq('platform',t.platform).or('cancelled.is.null,cancelled.eq.false').order('id');
+      if(q.error){ fail.push(nm+' — 번호 채워진 줄 읽기 실패: '+q.error.message); continue; }
+      var C=(q.data||[]).filter(function(x){ return x.id!==t.id&&jhSzDigits(x.size)===jhSzDigits(t.size)&&String(parseInt(x.qty,10)||0)===String(parseInt(t.qty,10)||0); });
+      if(C.length!==1){ skip.push(nm+' — 번호 채워진 줄이 '+C.length+'개라 어느 줄인지 못 정함'); continue; }
+      var x=C[0], xl=Array.isArray(x.logs)?x.logs:[]; var xg=pmLogLast(x,'송장'); var xn=(xg&&Array.isArray(xg.nos))?xg.nos.map(String):[]; var at=new Date().toISOString();
+      var same=nos.every(function(n){return xn.indexOf(n)>=0;});
+      if(!same){ if(xn.length){ skip.push(nm+' — 번호 채워진 줄에 다른 송장이 이미 있음'); continue; } if(x.status!=='wait'){ skip.push(nm+' — 번호 채워진 줄이 이미 처리됨'); continue; }
+        var nl=xl.concat([{t:'송장',nos:nos,by:'자동',at:at,how:'번호 없는 줄에서 이어받음 ('+(g.how||'')+' · '+(g.by||'?')+')',from_id:t.id}]);
+        var w=await sb.from('jonghap_orders').update({logs:nl}).eq('id',x.id).eq('status','wait').select('id');
+        if(w.error){ fail.push(nm+' — 저장 실패: '+w.error.message); continue; } if(!(w.data||[]).length){ skip.push(nm+' — 그 사이 상태가 바뀜'); continue; }
+        [PM.rows,OM.rows].forEach(function(a){ (a||[]).forEach(function(r0){ if(r0&&r0.id===x.id)r0.logs=nl; }); }); moved.push(nm+' 송장 '+nos.length+'장'); }
+      var w2=await sb.from('jonghap_orders').update({logs:L.concat([{t:'번호 채워진 줄로 이어줌',to:x.id,nos:nos,by:'자동',at:at}])}).eq('id',t.id).select('id');
+      if(w2.error||!(w2.data||[]).length)fail.push(nm+' — 옮겼다는 표시를 못 남김'+(w2.error?': '+w2.error.message:'')); } }
+  catch(e){ fail.push('번호 없는 줄 확인 중 멈춤: '+((e&&e.message)||e)); }
+  finally{ window._jhTwinBusy=false; }
+  window._jhTwinLast={moved:moved,fail:fail,skip:skip,at:new Date().toISOString()};
+  if(skip.length)console.warn('번호 없는 줄 이어받기 — 못 정한 것',skip);
+  if(moved.length){ if(typeof stkToast==='function')stkToast('🔗 번호 없을 때 뽑은 송장을 번호 채워진 줄로 옮겼어요 — '+moved.join(', ')); try{ if(typeof omInParcel==='function'&&omInParcel())pmRender(); else if(document.getElementById('ot-tbd'))otRender(); }catch(e){} }
+  if(fail.length)alert('번호 없는 줄에서 한 송장을 옮기다 안 된 것 '+fail.length+'건\n\n'+fail.join('\n'));
+  var sk=skip.filter(function(s){ window._jhTwinSkipSeen=window._jhTwinSkipSeen||{}; if(window._jhTwinSkipSeen[s])return false; window._jhTwinSkipSeen[s]=1; return true; }); if(sk.length&&typeof stkToast==='function')stkToast('⚠ 번호 없을 때 뽑은 송장 '+sk.length+'건은 저절로 못 옮겼어요 — '+sk.join(' / ')); }
+(function(){ if(window._jhTmrWrapped)return; window._jhTmrWrapped=true;
+  try{ PM_STEP.tmr='📅 내일 처리 예정'; PM_STEPC.tmr='#7c3aed'; OT_STEPS_X.push(['tmr','📅 내일 처리 예정','warn']); }catch(e){ console.error('내일 처리 칩',e); }
+  var _jp=jhPending; jhPending=function(o){ try{ if(omTmrOn(o))return false; }catch(e){} return _jp.apply(this,arguments); };   /* 내일 처리 예정은 미처리에 안 셈 */
+  var _pu=pmUnk; pmUnk=function(o){ try{ if(omTmrOn(o))return false; }catch(e){} return _pu.apply(this,arguments); };
+  var _sk=pmStepKey; pmStepKey=function(o){ try{ if(omTmrOn(o))return 'tmr'; }catch(e){} return _sk.apply(this,arguments); };
+  var _op=otStepPass; otStepPass=function(o,k){ if(k==='tmr'){ try{ return omTmrOn(o); }catch(e){ return false; } } return _op.apply(this,arguments); };
+  var _ps=pmSteps; pmSteps=function(){ var h=_ps.apply(this,arguments); try{ if(PM.tab==='dx')return h; var n=pmBase().filter(pmMain).filter(omTmrOn).length, S=pmStepList(); if(n||S.indexOf('tmr')>=0)h+='<span class="pm-step'+(S.indexOf('tmr')>=0?' on':'')+'" onclick="pmStepToggle(\'tmr\')" title="오늘은 안 하고 다음 날 처리하기로 한 줄 — 미처리에 안 셈"><i style="background:'+PM_STEPC.tmr+'"></i>'+PM_STEP.tmr+' '+n+'</span>'; }catch(e){ console.error(e); } return h; };
+  var _pt=pmStepTxt; pmStepTxt=function(o){ try{ if(omTmrOn(o))return '<span class="ot-lk" style="color:'+PM_STEPC.tmr+'"><i></i>'+esc(otStrip(omTmrLabel(o)))+'</span>'; }catch(e){} var h=_pt.apply(this,arguments); try{ if(omTmrCame(o))h+=omTmrCameBadge(); }catch(e){} return h; };
+  var _lt=otLinkTxt; otLinkTxt=function(o,short){ var h=_lt.apply(this,arguments); try{ if(omTmrOn(o))h+=' <span class="stbadge" style="background:#7c3aed">'+(short?'📅 내일':esc(omTmrLabel(o)))+'</span>'; else if(!short&&omTmrCame(o))h+=omTmrCameBadge(); }catch(e){} return h; };
+  var _oc=otCell; otCell=function(o,k){ var h=_oc.apply(this,arguments); try{ if(k==='st'&&omTmrOn(o))h=String(h).replace('<span style="font-weight:700">미처리</span>','<span style="font-weight:700;color:#7c3aed">📅 내일 처리 예정</span>'); }catch(e){} return h; };
+  try{ var _c=otCol('st'); if(_c){ var _f=_c[3]; _c[3]=function(o){ try{ if(omTmrOn(o))return '내일 처리 예정'; }catch(e){} return _f.apply(this,arguments); }; } }catch(e){}
+  var _ins=function(h,o){ try{ var b=omTmrBtn(o); if(!b)return h; var key='<button class="dact" onclick="jhShowRaw('; var i=String(h).indexOf(key); return i<0?(h+b):(h.slice(0,i)+b+h.slice(i)); }catch(e){ return h; } };
+  var _od=otDetail; otDetail=function(o){ return _ins(_od.apply(this,arguments),o); };
+  var _pd=pmDetail; pmDetail=function(o){ return _ins(_pd.apply(this,arguments),o); };
+  var _bar=function(el,room){ try{ if(!el||el.style.display==='none'||el.querySelector('.tmr-b'))return; var sp=el.querySelector('span[style*="flex"]'); var b=document.createElement('button'); b.className='dact tmr-b'; b.style.cssText='background:#7c3aed;color:#fff;border-color:#7c3aed;font-weight:800'; b.textContent='📅 내일 처리'; b.title='체크한 줄을 오늘 미처리에서 빼고 내일 날짜에 다시 보이게'; b.onclick=function(){ omTmrBulk(room,true); }; var b2=document.createElement('button'); b2.className='dact tmr-b'; b2.textContent='↩ 오늘 처리로'; b2.title='체크한 내일 처리 예정 줄을 다시 오늘 미처리로'; b2.onclick=function(){ omTmrBulk(room,false); }; if(sp){ el.insertBefore(b,sp); el.insertBefore(b2,sp); } else { el.appendChild(b); el.appendChild(b2); } }catch(e){ console.error(e); } };
+  var _ob=otBulkBar; otBulkBar=function(){ var x=_ob.apply(this,arguments); _bar(document.getElementById('ot-bulk'),'om'); return x; };
+  var _pb=pmBulkBar; pmBulkBar=function(){ var x=_pb.apply(this,arguments); _bar(document.getElementById('pm-bulk'),'pm'); return x; };
+  var _pl=pmLoad; pmLoad=async function(){ var x=await _pl.apply(this,arguments); try{ if(await omTmrExtra('pm'))pmRender(); }catch(e){ console.error('내일 처리 줄',e); if(typeof stkToast==='function')stkToast('⚠ 전날 넘어온 줄 읽기 실패: '+((e&&e.message)||e)); } try{ jhTwinCarry(); }catch(e){} return x; };
+  var _ol=omLoad; omLoad=async function(){ var x=await _ol.apply(this,arguments); try{ if(await omTmrExtra('om'))otRender(); }catch(e){ console.error('내일 처리 줄',e); if(typeof stkToast==='function')stkToast('⚠ 전날 넘어온 줄 읽기 실패: '+((e&&e.message)||e)); } try{ jhTwinCarry(); }catch(e){} return x; };
+})();
+/* ▲TMR1111 */
 </script>
 <div class="stkdlgbg" id="stk-dlgCell" onclick="if(event.target===this)stkCloseDlg()"><div class="stkdlg">
   <h3 id="stk-cdName"></h3><div class="sub2" id="stk-cdSub"></div>
