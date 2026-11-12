@@ -2093,7 +2093,7 @@ tr.qr-align.off td input{color:#94a3b8}
         <button class="item-tab" data-tab="recon" onclick="switchItemTab('recon')">🚚 출고대조</button>
       </div>
       <div class="item-search" id="item-search" style="display:none">
-        <input id="item-search-input" placeholder="🔍 모델·규격·출처·용도 검색" oninput="onSearchInput()">
+        <input id="item-search-input" type="search" autocomplete="off" name="tg-noauto-q" data-lpignore="true" data-form-type="other" onkeydown="this._u=1" onpaste="this._u=1" onpointerdown="this._u=1" placeholder="🔍 모델·규격·출처·용도 검색" oninput="onSearchInput()">
         <button class="isearch-clear" id="isearch-clear" onclick="clearItemSearch()" style="display:none">✕</button>
       </div>
       <div id="item-dlbar" style="display:none;padding:2px 12px 8px"><button onclick="openItemExport()" style="width:100%;padding:11px;border:none;background:#eef4fb;color:#0c447c;border-radius:9px;font-size:13px;font-weight:800;cursor:pointer">📥 입고표 엑셀 다운로드 (기간 선택)</button></div>
@@ -12309,18 +12309,22 @@ async function _ibsGoCore(){ if(!ibsOn())return; var id=IBS.id, who=(me&&me.name
     try{ stkLog('📛편입실패',pname+' · ⚠️입고방 편입 실패(+'+n+'개 시도) · 사유: '+em+back,{product_id:p.id,dot:dotv,qty:n,channel:STK_IN_CH,ref:ref+' [실패]'},true); }catch(e3){}
     alert('❌ 편입 안 됨: '+em+back); }
   try{ await stkLoad(); }catch(e){} try{ if(typeof loadItems==='function')await loadItems(); }catch(e){} }
-async function ibsStockBack(s,why){   /* 재고 쪽 되돌리기 — 기록에 [취소됨]이 이미 있으면 재고는 안 건드림(두 번 눌러도 한 번만) */
+async function ibsStockBack(s,why,allowNeg){   /* (11/12 FNG1112) allowNeg=사람이 누른 편입 취소: 미배치에 재고가 모자라면 물어본 뒤 마이너스로 잡음 · 재고 쪽 되돌리기 — 기록에 [취소됨]이 이미 있으면 재고는 안 건드림(두 번 눌러도 한 번만) */
   var n=Math.abs(parseInt(s.qty,10)||0); if(n<1)return {ok:false,msg:'수량 없음'};
   var g=null; var fr=await sb.from('stock_logs').select('id,ref,qty,product_id,dot').eq('ref',s.ref).limit(1); if(fr.error)return {ok:false,msg:'기록 읽기 실패: '+fr.error.message}; g=fr.data&&fr.data[0];
   if(!g){ var f2=await sb.from('stock_logs').select('id').eq('ref',s.ref+' [취소됨]').limit(1); if(f2.error)return {ok:false,msg:'기록 읽기 실패: '+f2.error.message}; if(f2.data&&f2.data[0])return {ok:true,already:true}; }
   var lr=await sb.from('stock_lots').select('id,qty,loc,dot').eq('product_id',s.pid); if(lr.error)return {ok:false,msg:'재고 읽기 실패: '+lr.error.message};
   var yy=ibsYY(s.dot), same=(lr.data||[]).filter(function(l){ return ibsYY(l.dot)===yy; }); var tot=same.reduce(function(a,l){ return a+(parseInt(l.qty,10)||0); },0);
   var u=same.filter(function(l){ return String(l.id)===String(s.lot_id)&&(parseInt(l.qty,10)||0)>=n; })[0]||same.filter(function(l){ return (l.loc||'U')==='U'&&(parseInt(l.qty,10)||0)>=n; })[0]||null;
-  if(!u)return {ok:false,msg:'미배치 칸에 '+n+'개가 안 남아 있어요(그 연식 재고 합 '+tot+'개) — 이미 출고됐거나 자리를 옮긴 것 같아요. 재고방에서 수량을 직접 맞춘 뒤 다시'};
+  var _neg=false, _mk=false;
+  if(!u){ if(!allowNeg)return {ok:false,msg:'미배치 칸에 '+n+'개가 안 남아 있어요(그 연식 재고 합 '+tot+'개) — 이미 출고됐거나 자리를 옮긴 것 같아요. 재고방에서 수량을 직접 맞춘 뒤 다시'};
+    /* (11/12 FNG1112 호준님 "편입 취소 안 됨이 아니라 마이너스로 잡아 줘") */
+    if(!confirm('미배치 칸에 '+n+'개가 안 남아 있어요 (그 연식 재고 합 '+tot+'개 — 이미 출고됐거나 자리를 옮긴 것 같아요).\n\n그래도 편입을 취소하면 재고표의 그 연식 재고가 '+(tot-n)+'개(마이너스)로 잡힙니다.\n계속할까요?'))return {ok:false,quiet:true,msg:'취소하지 않았어요 — 재고는 그대로'};
+    u=same.filter(function(l){ return (l.loc||'U')==='U'; })[0]||same.filter(function(l){ return String(l.id)===String(s.lot_id); })[0]||same[0]||null; _neg=true; if(!u)_mk=true; }
   if(g){ var m1=await sb.from('stock_logs').update({ref:String(g.ref||'')+' [취소됨]'}).eq('id',g.id).eq('ref',g.ref).select('id'); if(m1.error)return {ok:false,msg:'기록 표시 실패: '+m1.error.message}; if(!m1.data||!m1.data.length)return {ok:true,already:true}; }   /* 표시를 먼저 — 같은 순간 두 화면이 눌러도 한쪽만 통과 */
-  var u1=await sb.from('stock_lots').update({qty:(parseInt(u.qty,10)||0)-n,updated_at:new Date().toISOString()}).eq('id',u.id); if(u1&&u1.error){ if(g){ try{ await sb.from('stock_logs').update({ref:g.ref}).eq('id',g.id); }catch(e){} } return {ok:false,msg:'재고 빼기 실패: '+u1.error.message}; }
-  try{ await stkLog('↩️편입취소',(s.pname||'상품')+' '+(s.dot||'')+'년식 · 재고 '+tot+'→'+(tot-n)+'개 (−'+n+') · 입고방 재고편입 취소'+(why?' · '+why:''),{product_id:s.pid,dot:s.dot||'',qty:n,from_loc:(u.loc||'U'),channel:STK_IN_CH},true); }catch(e){}
-  return {ok:true}; }
+  var u1=_mk?(await sb.from('stock_lots').insert({product_id:s.pid,dot:(s.dot||ibsDotFmt(yy,same)),qty:-n,loc:'U'}).select('id')):(await sb.from('stock_lots').update({qty:(parseInt(u.qty,10)||0)-n,updated_at:new Date().toISOString()}).eq('id',u.id)); if(u1&&u1.error){ if(g){ try{ await sb.from('stock_logs').update({ref:g.ref}).eq('id',g.id); }catch(e){} } return {ok:false,msg:'재고 빼기 실패: '+u1.error.message}; }
+  try{ await stkLog('↩️편입취소',(s.pname||'상품')+' '+(s.dot||'')+'년식 · 재고 '+tot+'→'+(tot-n)+'개 (−'+n+') · 입고방 재고편입 취소'+(why?' · '+why:'')+(_neg?' · ⚠ 미배치에 재고가 모자라 마이너스로 잡음':''),{product_id:s.pid,dot:s.dot||'',qty:n,from_loc:((u&&u.loc)||'U'),channel:STK_IN_CH},true); }catch(e){}
+  return {ok:true,neg:_neg,after:tot-n}; }
 async function ibsCancel(ref){ if(IBS.busy)return; IBS.busy=true; try{ return await _stkSerial(function(){ return _ibsCancelCore(ref); }); } finally{ IBS.busy=false; } }
 async function _ibsCancelCore(ref){ if(!ibsOn()||!ref)return; var id=IBS.id, who=(me&&me.name)||'?';
   if(STK_STORE!=='ping'){ ibsMsg('지금 화면 상태에서는 취소 못 함 — 새로고침 후 다시'); return; }
@@ -12328,13 +12332,13 @@ async function _ibsCancelCore(ref){ if(!ibsOn()||!ref)return; var id=IBS.id, who
   var L=Array.isArray(it.logs)?it.logs:[]; var ix=-1; L.forEach(function(g,i){ if(g&&g.stk_in&&g.stk_in.ref===ref)ix=i; }); if(ix<0){ ibsMsg('이 편입 기록을 못 찾았어요'); return; }
   var s=L[ix].stk_in; if(s.cancelled){ IBS.it=it; ibsPaint('이미 취소된 편입입니다 — 재고는 그대로'); return; }
   if(!confirm('이 편입 +'+(parseInt(s.qty,10)||0)+'개를 취소할까요?\n재고표에서 그만큼 다시 빠지고, 입고분의 남은 수량이 돌아옵니다.'))return;
-  var rb=await ibsStockBack(s,'입고방에서 취소 · '+who); if(!rb.ok){ ibsMsg('취소 안 됨 — '+rb.msg); alert('❌ 편입 취소 안 됨\n'+rb.msg); return; }
+  var rb=await ibsStockBack(s,'입고방에서 취소 · '+who,true); if(!rb.ok){ ibsMsg(rb.quiet?rb.msg:('취소 안 됨 — '+rb.msg)); if(!rb.quiet)alert('❌ 편입 취소 안 됨\n'+rb.msg); return; }
   var n=parseInt(s.qty,10)||0; var logs=L.map(function(g,i){ return i===ix?Object.assign({},g,{text:String(g.text||'')+' → 취소됨 '+who+' ('+getTodayISO()+')',stk_in:Object.assign({},s,{cancelled:true,cancelled_by:who,cancelled_at:Date.now()})}):g; }).concat([{type:'edit',text:'↩️ 재고편입 취소 '+n+'개 — 재고표에서 다시 뺌'+(rb.already?' (재고는 이미 빠져 있었음)':'')+' · '+who+' ('+getTodayISO()+')',at:Date.now()}]);
   var left=logs.filter(function(g){ return g&&g.stk_in&&!g.stk_in.cancelled; }).length; var ot=String(it.out_to||'').split(/\s*,\s*/).filter(Boolean); var k=ot.lastIndexOf('재고편입'); if(k>=0)ot.splice(k,1);
   var ou=await sb.from('items').update({logs:logs,out_qty:Math.max(0,(parseInt(it.out_qty,10)||0)-n),out_done:false,out_to:(ot.join(', ')||null)}).eq('id',id).select('id');
   if(ou.error||!ou.data||!ou.data.length){ alert('⚠ 재고는 다시 뺐는데 입고분 표시를 못 고쳤어요'+(ou.error?' ('+ou.error.message+')':'')+'\n[편입 취소]를 한 번 더 누르면 표시만 고쳐집니다(재고는 또 빠지지 않아요).'); return; }
   try{ logAudit('↩ 입고방 재고편입 취소','['+(it.src||'')+'] '+(it.model||'')+' '+(it.spec||'')+' ×'+n+' ← '+(s.pname||'')); }catch(e){}
-  if(typeof stkToast==='function')stkToast('↩️ 편입 취소 · 재고 '+n+'개 다시 빠짐'+(s.made_new?' (새로 만든 줄은 0개로 남아 있어요)':''));
+  if(typeof stkToast==='function')stkToast('↩️ 편입 취소 · 재고 '+n+'개 다시 빠짐'+(rb.neg?' · ⚠ 재고가 모자라 마이너스('+rb.after+'개)로 잡힘':'')+(s.made_new?' (새로 만든 줄은 0개로 남아 있어요)':''));
   try{ await stkLoad(); }catch(e){} try{ if(typeof loadItems==='function')await loadItems(); }catch(e){}
   var f3=null; try{ f3=await sb.from('items').select('*').eq('id',id).maybeSingle(); }catch(e){} if(f3&&f3.data)IBS.it=f3.data; if(ibsOn())ibsPaint(); }
 function jhInbItemOf(o,seg,who){ if(!(seg&&seg.inq))return _jhInbItemOf0(o,seg,who); var r=_jhInbItemOf0(Object.assign({},o,{dtype:''}),seg,who); r.use_note='📥 재고편입 예정 · '+r.use_note; r.logs=r.logs.concat([{type:'',text:'📥 출고지에 재고편입 '+seg.qty+'개라고 적힘 ('+(o.src||'')+') — 도착하면 [📥 재고편입]을 눌러 재고표에 넣으세요',at:Date.now()}]); return r; }   /* 재고로 받을 몫은 직접출고여도 우리 창고로 오므로 보통 입고분으로 */
@@ -12973,11 +12977,12 @@ async function listBulkUndoJh(){
 function renderItemList(){
   const el=document.getElementById('item-body');
   el.innerHTML='<div class="iguide"><b>입력</b>: 스페이스=다음칸 / 규격칸만 스페이스 2번 / 빈칸 백스페이스=앞칸 / Enter=추가<br><b>실물입고</b>: 주문 입력 후 실물 도착하면 카드의 📦 실물입고 버튼을 누르세요(이중 입력 방지)<br><b>표시범위</b>: 최근 30일 + 미완료 건(날짜 무관 상시 표시) · 30일 이전 기록은 입고표 엑셀 다운로드로 보세요</div>'
-    +'<div class="sbox" style="margin-bottom:10px"><input id="list-q" placeholder="🔍 출처·패턴·규격·연도·용도·작성자·날짜 검색 (띄어쓰기로 여러 조건)" value="'+esc(itemSearchQuery)+'" oninput="listSearchInput(this.value)"><button onclick="(document.getElementById(\'list-q\')||{}).focus&&document.getElementById(\'list-q\').focus()">🔍</button></div>'
+    +'<div class="sbox" style="margin-bottom:10px"><input id="list-q" type="search" autocomplete="off" name="tg-noauto-q" data-lpignore="true" data-form-type="other" onkeydown="this._u=1" onpaste="this._u=1" onpointerdown="this._u=1" placeholder="🔍 출처·패턴·규격·연도·용도·작성자·날짜 검색 (띄어쓰기로 여러 조건)" value="'+esc(itemSearchQuery)+'" oninput="listSearchInput(this.value)"><button onclick="(document.getElementById(\'list-q\')||{}).focus&&document.getElementById(\'list-q\').focus()">🔍</button></div>'
     +'<div id="list-chipbar"></div><div id="list-body"></div>';
   listPaint();
 }
-function listSearchInput(v){ itemSearchQuery=(v||'').trim().toLowerCase(); var c=document.getElementById('isearch-clear'); if(c)c.style.display=itemSearchQuery?'block':'none'; var top=document.getElementById('item-search-input'); if(top&&top.value!==v)top.value=v; listPaint(); }
+function listSearchInput(v){ var _lq=document.getElementById('list-q'); if(_lq&&!_lq._u&&v&&!itemSearchQuery){ _lq.value=''; return; }   /* (11/12 NAF1112) 손대지 않은 검색 칸에 브라우저가 로그인 이름을 채워 넣으면 검색 상태가 돼 접기가 풀리고 느려짐 → 무시 */
+  itemSearchQuery=(v||'').trim().toLowerCase(); var c=document.getElementById('isearch-clear'); if(c)c.style.display=itemSearchQuery?'block':'none'; var top=document.getElementById('item-search-input'); if(top&&top.value!==v)top.value=v; listPaint(); }
 function listPaint(){
   var cb=document.getElementById('list-chipbar'), bd=document.getElementById('list-body'); if(!cb||!bd)return;
   const list0all=searchedItemsAll();
@@ -13035,14 +13040,14 @@ function listPaint(){
   }else{
     h+=itemListDxLast(list);   /* (10/28 호준님) 직접출고 자동분은 맨 아래 */
   }
-  if(_arf.length){ h+='<div class="date-divider" id="list-arf-h" onclick="listArfToggle()" style="cursor:pointer;background:#ecfdf5;color:#047857;margin-top:14px">'+(LIST_ARF_OPEN?'▼':'▶')+' 📦 실물입고확인 ('+_arf.length+'건) — '+(LIST_ARF_OPEN?'눌러서 접기':'눌러서 펼치기 · 검색하면 접힌 것도 같이 찾아요')+'</div>'; if(LIST_ARF_OPEN)h+=listArfHtml(_arf); }
+  if(_arf.length){ h+='<div class="date-divider" id="list-arf-h" onclick="listArfToggle()" style="cursor:pointer;background:#ecfdf5;color:#047857;margin-top:14px">'+(LIST_ARF_OPEN?'▼':'▶')+' 📦 실물입고확인 ('+_arf.length+'건) — '+(LIST_ARF_OPEN?'눌러서 접기':'눌러서 펼치기 · 검색하면 접힌 것도 같이 찾아요')+(function(){ var n=0; try{ n=_arf.filter(function(x){ return !!inbSheetOpen(x); }).length; }catch(e){} return n?' <span style="background:#fee2e2;color:#b91c1c;border-radius:8px;padding:1px 8px;margin-left:6px;font-weight:800">🔔 그중 시트 확인 필요 '+n+'건</span>':''; })()+'</div>'; if(LIST_ARF_OPEN)h+=listArfHtml(_arf); }
   if(_cxf.length){ h+='<div class="date-divider" id="list-cxf-h" onclick="listCxfToggle()" style="cursor:pointer;background:#f1f5f9;color:#475569;margin-top:14px">'+(LIST_CXF_OPEN?'▼':'▶')+' 🚫 취소 ('+_cxf.length+'건) — '+(LIST_CXF_OPEN?'눌러서 접기':'눌러서 펼치기 · 검색하면 접힌 것도 같이 찾아요')+'</div>'; if(LIST_CXF_OPEN)h+=listArfHtml(_cxf); }   /* (11/11 CXF1111) */
   bd.innerHTML=h;
 }
 function listInqIs(it){ try{ return !!it&&!it.cancelled&&!isReturnItem(it)&&(ibsPlanned(it)||ibsLogs(it).length>0||ibsUseIs(it)); }catch(e){ return false; } }   /* (11/11 IBQ1111) 재고편입 칩 */
 var LIST_ARF_OPEN=false;
 function listArfDay(it){ try{ if(!it.arrived_at)return ''; return new Date(new Date(it.arrived_at).getTime()+9*3600000).toISOString().slice(0,10); }catch(e){ return ''; } }
-function listArfIs(it){ if(!it||!it.arrived||it.cancelled||isReturnItem(it))return false; try{ if(inbSheetOpen(it))return false; }catch(e){}   /* 시트와 달라 확인이 필요한 줄은 접지 않음 */ return listArfDay(it)<getTodayISO(); }   /* 실물입고 누른 날(한국 날짜)에는 그대로, 다음 날부터 접힘 */
+function listArfIs(it){ if(!it||!it.arrived||it.cancelled||isReturnItem(it))return false; return listArfDay(it)<getTodayISO(); }   /* (11/12 FNG1112 호준님 "이건 왜 안 접히는데, 접어 달라고 로딩 기니까") 시트와 달라 확인이 필요한 줄도 실물입고가 끝났으면 접음 — 묶음 머리에 몇 건인지 따로 알림 */   /* 실물입고 누른 날(한국 날짜)에는 그대로, 다음 날부터 접힘 */
 function listArfToggle(){ LIST_ARF_OPEN=!LIST_ARF_OPEN; listPaint(); if(LIST_ARF_OPEN){ var e=document.getElementById('list-arf-h'); if(e){ try{ e.scrollIntoView({block:'start'}); }catch(x){} } } }
 function listArfHtml(L){ var h=''; if(listDateSel==='all'||listFrom||listTo){ var byDate={}; L.forEach(function(it){(byDate[it.date_str]=byDate[it.date_str]||[]).push(it);}); Object.keys(byDate).sort().reverse().forEach(function(ds){ h+='<div class="date-divider">'+fmtDateLabel(ds)+' ('+byDate[ds].length+'건)</div>'+itemListDxLast(byDate[ds]); }); }else{ h+=itemListDxLast(L); } return h; }   /* 펼치면 위 목록과 같은 모양(날짜·출처 묶음·카드) */
 var LIST_CXF_OPEN=false;   /* (11/11 CXF1111) */
@@ -13404,7 +13409,7 @@ var curAnalysisChip='sum';
 function setAnalysisChip(c){ curAnalysisChip=c; if(document.getElementById('analysis-body')){ anChips(); anPaint(); } else renderItemAnalysis(); }
 function renderItemAnalysis(){
   var el=document.getElementById('item-body'); if(!el)return;
-  el.innerHTML='<div class="sbox" style="margin-bottom:10px"><input id="an-q" placeholder="🔍 출처·패턴·규격·연도·용도·작성자 검색 (띄어쓰기로 여러 조건)" value="'+esc(itemSearchQuery)+'" oninput="analysisSearchInput(this.value)"><button onclick="(document.getElementById(\'an-q\')||{}).focus&&document.getElementById(\'an-q\').focus()">🔍</button></div>'
+  el.innerHTML='<div class="sbox" style="margin-bottom:10px"><input id="an-q" type="search" autocomplete="off" name="tg-noauto-q" data-lpignore="true" data-form-type="other" onkeydown="this._u=1" onpaste="this._u=1" onpointerdown="this._u=1" placeholder="🔍 출처·패턴·규격·연도·용도·작성자 검색 (띄어쓰기로 여러 조건)" value="'+esc(itemSearchQuery)+'" oninput="analysisSearchInput(this.value)"><button onclick="(document.getElementById(\'an-q\')||{}).focus&&document.getElementById(\'an-q\').focus()">🔍</button></div>'
     +'<div id="analysis-chipbar"></div><div id="analysis-body"></div>';
   anChips(); anPaint();
 }
@@ -14274,6 +14279,11 @@ function stkTMapSet(p,dot,val){                   // val=null 이면 그 행만 
   return m;
 }
 function stkTMapStr(m){ return Object.keys(m).length?JSON.stringify(m):null; }
+/* (11/12 TMP1112 호준님 "화면에 안 보이는 목표수량이 남아 있으면 안 돼 — 자동 주문 때 오류") 그 상품에 줄(연식)이 없는 목표수량을 지움. DB에서 다시 읽어 '읽은 값 그대로일 때만' 씀. 지운 것은 재고 기록에 전·후 값으로 남김 */
+async function stkTMapPrune(pid){ try{ for(var _i=0;_i<4;_i++){ var c=await sb.from('stock_products').select('target_map').eq('id',pid).maybeSingle(); if((c&&c.error)||!c||!c.data)return false; var base=c.data.target_map; if(base==null||base==='')return true; var m=null; try{ m=(typeof base==='string')?JSON.parse(base):base; }catch(e){ return false; } if(!m||typeof m!=='object'||Array.isArray(m))return false;
+    var lr=await sb.from('stock_lots').select('dot').eq('product_id',pid); if(lr&&lr.error)return false; var have={}; ((lr&&lr.data)||[]).forEach(function(l){ have[stkTKey(l.dot)]=1; }); var n={}, drop=[]; Object.keys(m).forEach(function(k){ if(have[k])n[k]=m[k]; else drop.push(k+'년 목표 '+m[k]); }); if(!drop.length)return true;
+    var next=Object.keys(n).length?JSON.stringify(n):null; if(typeof base!=='string')return false; var w=await sb.from('stock_products').update({target_map:next}).eq('id',pid).eq('target_map',base).select('id'); if(w&&w.error)return false; if(!w.data||!w.data.length)continue;   /* 그 사이 누가 바꿨으면 다시 읽어서 */
+    try{ var p=(stkP||[]).find(function(x){ return x.id===pid; }); if(p){ p.tmapRaw=(next==null?'':next); p._tmap=null; } await stkLog('🧹목표정리',((p&&(p.br+' '+p.name+' '+p.size))||'상품')+' · 재고표에 줄이 없는 연식의 목표수량을 지움: '+drop.join(', '),{product_id:pid,detail:JSON.stringify({before:base,after:next})},true); }catch(e){} return true; } }catch(e){ console.error('stkTMapPrune',e); } return false; }
 // 목표수량 칸의 (부족/초과) 표시 속성 — 부족 (-1) / 초과 (+5) / 같으면 표시 없음 / 목표 없으면 표시 없음.
 // 값은 data-* 속성에만 담고 CSS ::after 로 그린다 → 셀 글자는 목표수량 숫자 하나뿐.
 // 목표수량을 적었을 때 '그 행만' 갱신한다 — 표 전체 재렌더(9천 SKU=수 초)를 피하려는 것.
@@ -17029,6 +17039,7 @@ async function stkRtSplitRow(p,rowDot,field,nv,pre){ /* (10/28 호준님 "확인
     if(field==='cat')p2.cat=v; else if(field==='source')p2.source=v; else if(field==='br')p2.br=v; else if(field==='name')p2.name=v; else if(field==='code')p2.code=v; else if(field==='size')p2.size=v; else if(field==='ply')p2.ply=v; else if(field==='spec')p2.spec=v; else if(field==='fprice')p2.factory_price=v; else if(field==='cost')p2.cost=v; else if(field==='real_cost')p2.real_cost=v; else if(field==='discount_rate')p2.discount_rate=v; else if(field==='price')p2.price=v; else if(field==='inst')p2.inst=v;
     if(field==='discount_rate'){ try{ var _c=stkCalcRC(p2); if(_c!=null){p2.real_cost=_c; await sb.from('stock_products').update({real_cost:_c}).eq('id',newId);} }catch(_e){} }
     var _pi=stkP.indexOf(p); stkP.splice(_pi>=0?_pi+1:stkP.length,0,p2);
+    try{ await stkTMapPrune(p.id); await stkTMapPrune(newId); }catch(_tp){}   /* (11/12 TMP1112) 분리하면 양쪽 상품에 같은 목표수량이 복사돼 '줄 없는 목표'가 남던 것 정리 */
     /* (10/28) 이 연식에 걸린 예약·직배송·추가연결·재고기록은 새 상품 번호로 따라감 — 안 그러면 취소 복구 때 옛 상품에 로트가 다시 생김 */
     var _rmFail=[]; var _rmT=[['reservations','src_product_id','src_dot'],['deliveries','src_product_id','src_dot'],['reservation_links','product_id','dot']];
     for(var _ri=0;_ri<_rmT.length;_ri++){ try{ var _ro={}; _ro[_rmT[_ri][1]]=newId; var _ru=await sb.from(_rmT[_ri][0]).update(_ro).eq(_rmT[_ri][1],p.id).eq(_rmT[_ri][2],_rd).select('id'); if(_ru&&_ru.error)_rmFail.push(_rmT[_ri][0]+': '+_ru.error.message); }catch(_re){ _rmFail.push(_rmT[_ri][0]+': '+(_re.message||_re)); } }
@@ -17561,11 +17572,13 @@ async function stkRtDelRow(pid,dot){
   var p=stkP.find(function(x){return x.id===pid});if(!p){stkToast('상품을 찾을 수 없습니다');return}
   var lots=(p.lots||[]).filter(function(l){return (l.dot||'DOT누락')===(dot||'DOT누락')});
   var totq=lots.reduce(function(s,l){return s+l.q;},0);
-  if(!confirm('이 행을 삭제할까요?\n\n'+p.br+' '+p.name+' '+p.size+'\n연식: '+(dot||'DOT누락')+' / 수량: '+totq+'개\n\n(이 연식만 삭제됩니다. 다른 연식·출고기록은 유지)'))return;
+  var _tgv=stkTargetGet(p,dot);   /* (11/12 TMP1112) */
+  if(!confirm('이 행을 삭제할까요?\n\n'+p.br+' '+p.name+' '+p.size+'\n연식: '+(dot||'DOT누락')+' / 수량: '+totq+'개'+(_tgv!==''?'\n⚠ 이 줄에 적힌 목표수량 '+_tgv+'도 같이 지워집니다':'')+'\n\n(이 연식만 삭제됩니다. 다른 연식·출고기록은 유지)'))return;
   var otherLots=(p.lots||[]).filter(function(l){return (l.dot||'DOT누락')!==(dot||'DOT누락');});
   try{
     for(var i=0;i<lots.length;i++){stkChk(await sb.from('stock_lots').delete().eq('id',lots[i].id),'행삭제');}
     stkLog('🗑️연식삭제',p.br+' '+p.name+' '+p.size+' ('+(dot||'DOT누락')+') '+totq+'개 삭제',{product_id:pid,dot:(dot==='DOT누락'?'':dot),qty:totq});
+    if(otherLots.length){ try{ await stkTMapPrune(pid); }catch(_tp){} }   /* (11/12 TMP1112) 지운 연식의 목표수량이 남지 않게 */
     // 남은 재고(다른 연식)가 없으면 → 상품 통째 삭제 여부 물어봄 (실험용 찌꺼기 정리)
     if(otherLots.length===0){
       if(confirm('이 상품은 남은 재고가 없습니다.\n\n'+p.br+' '+p.name+' '+p.size+'\n\n상품을 목록에서 완전히 삭제할까요?\n(출고기록은 남습니다)')){
@@ -18203,7 +18216,7 @@ async function tgEmSaveAll(){
       _pkg.splits.push({newId:newId,pid:s.pid});
       s.rows.forEach(function(ri4){ var bb=tgEmBuf[ri4],ss=tgEmSnap[ri4]; if(bb)bb.pid=newId; if(ss){ ss.pid=newId; for(var ff4 in s.fin){ ss[ff4]=s.fin[ff4]; if(bb)bb[ff4]=s.fin[ff4]; } } }); // 성공분 확정 — 실패 시 남은 것만 재시도
       try{ await _origFrom('audit_logs').insert([{who:me.name,room:_room,action:'재고 편집모드 · 상품 분리',target:'stock_products#'+s.pid+'→'+newId,before_val:JSON.stringify({from:s.pid}).slice(0,500),after_val:JSON.stringify(s.values).slice(0,500),at:new Date().toISOString()}]); }catch(_ae2){}
-      stkLog('🔀상품분리(편집모드)',s.label,{product_id:newId});
+      stkLog('🔀상품분리(편집모드)',s.label,{product_id:newId}); try{ await stkTMapPrune(s.pid); await stkTMapPrune(newId); }catch(_tp){}   /* (11/12 TMP1112) */
     }
     var _dks=Object.keys(tgEmDel);
     for(var dd=0;dd<_dks.length;dd++){ var _dk=_dks[dd],del=tgEmDel[_dk]; prog('삭제 '+(dd+1)+'/'+_dks.length+'…');
@@ -18212,7 +18225,7 @@ async function tgEmSaveAll(){
       var drr=await sb.from('stock_lots').delete().eq('product_id',del.pid).eq('dot',dotv);
       if(drr.error)throw new Error('삭제 실패('+del.label+'): '+drr.error.message);
       delete tgEmDel[_dk]; // v17: 성공분 확정 — 실패 시 남은 것만 재시도
-      stkLog('🗑️행삭제(편집모드)',del.label,{product_id:del.pid,dot:dotv}); }
+      stkLog('🗑️행삭제(편집모드)',del.label,{product_id:del.pid,dot:dotv}); try{ await stkTMapPrune(del.pid); }catch(_tp){} }   /* (11/12 TMP1112) */
     // 5) 신규 상품
     for(var n2=0;n2<d.news.length;n2++){ var nr=d.news[n2]; prog('신규 '+(n2+1)+'/'+d.news.length+'…');
       var payload={brand:nr.br,name:nr.name||nr.code||'(이름미정)',code:nr.code||'',size:tgEmNorm('size',nr.size),category:nr.cat||'일반',source:nr.source||'',ply:nr.ply||'',spec:nr.spec||'',factory_price:tgEmNorm('fprice',nr.fprice),cost:tgEmNorm('cost',nr.cost),price:tgEmNorm('price',nr.price),inst_price:tgEmNorm('inst',nr.inst),real_cost:(typeof stkCanSeeRealcost==='function'&&stkCanSeeRealcost())?tgEmNorm('real_cost',nr.real_cost):null,discount_rate:(typeof stkCanSeeRealcost==='function'&&stkCanSeeRealcost())?tgEmNorm('discount_rate',nr.discount_rate):null};
@@ -27407,7 +27420,7 @@ async function jsrOrdTgData(){ var warn='', now=Date.now(), BR=['한국','라우
   var pNewer=function(p,dk){ var y=parseInt(dk,10), n=0, ys=[]; if(!/^\d{4}$/.test(String(dk)))return {n:0,ys:[]}; Object.keys(cur).forEach(function(k){ var ix=k.lastIndexOf('|'); if(k.slice(0,ix)!==String(p.id))return; var d2=k.slice(ix+1); if(/^\d{4}$/.test(d2)&&parseInt(d2,10)>y&&cur[k]>0){ n+=cur[k]; ys.push(d2.slice(2)+'년 '+cur[k]); } }); return {n:n,ys:ys.sort()}; };
   var ALT={}; try{ var av=await jsrSetGet(JSR_ALT_KEY); if(av&&typeof av==='object'&&av.map&&typeof av.map==='object')ALT=av.map; }catch(e7){ warn=(warn?warn+' / ':'')+'바꿔 둔 주문 상품을 못 읽었어요: '+((e7&&e7.message)||e7); }
   var rows=[], ghost=[], firstOf={}; order.forEach(function(k){ var g=G[k];
-    g.ps.forEach(function(p){ var m=tmapOf(p), TK=[]; Object.keys(m).forEach(function(dk){ var tt=parseInt(m[dk],10); if(isNaN(tt)||tt<0)return; if(!has[p.id+'|'+dk]){ if(tt>0)ghost.push({nm:(p.brand+' '+p.name).trim(),size:String(p.size||''),code:String(p.code||'').trim(),dk:dk,target:tt}); return; } TK.push(dk); }); TK.sort(); var maxK=TK[TK.length-1];
+    g.ps.forEach(function(p){ var m=tmapOf(p), TK=[]; Object.keys(m).forEach(function(dk){ var tt=parseInt(m[dk],10); if(isNaN(tt)||tt<0)return; if(!has[p.id+'|'+dk]){ if(tt>0)ghost.push({pid:p.id,nm:(p.brand+' '+p.name).trim(),size:String(p.size||''),code:String(p.code||'').trim(),dk:dk,target:tt}); return; } TK.push(dk); }); TK.sort(); var maxK=TK[TK.length-1];
       TK.forEach(function(dk){ var tt=parseInt(m[dk],10), c=cur[p.id+'|'+dk]||0, nw=pNewer(p,dk); var fk=k+'|'+dk, first=!firstOf[fk]; firstOf[fk]=1;
         var pl=keep.filter(function(x){ return String(x.pid)===String(p.id)&&x.dk===dk; }); var cm=0; pl.forEach(function(x){ cm+=(parseInt(x.qty,10)||0); });
         var il=IB.filter(function(x){ if(!(x.rem>0))return false; var al=ALT[p.id+'|'+dk]; var mine=x.hk.pid?(String(x.hk.pid)===String(p.id)):((first&&!!g.code&&String(x.hk.code||'')===g.code)||(!!al&&String(x.hk.code||'')===String(al.code))); if(!mine)return false; var xd=String(x.hk.dk||''); return xd===dk||(TK.indexOf(xd)<0&&dk===maxK); }); il.forEach(function(x){ cm+=x.rem; });
@@ -27486,6 +27499,16 @@ function jsrOrdAltHtml(){ var A=JSR.ord.alt; if(!A)return ''; var h='<div style=
   if(A.err)h+='<div class="note blk" style="margin-top:6px">'+esc(A.err)+'</div>';
   if(A.rows){ if(!A.rows.length)h+='<div style="margin-top:6px;color:#64748b;font-size:12px">검색 결과가 없어요.</div>'; else h+='<div style="overflow:auto;max-height:240px;margin-top:6px;border:1px solid #ddd6fe;border-radius:8px;background:#fff"><table style="margin-top:0;font-size:12px"><tr><th>상품코드</th><th>전산 상품 이름</th><th>패턴</th><th class="n">관할 재고</th><th class="n">공장도</th><th></th></tr>'+A.rows.slice(0,60).map(function(x,ix){ var same=(jsrOrdSizeSame(x.name,A.size)===true), cant=/일시품절|단종/.test(x.q); return '<tr'+(cant?' style="background:#fef9c3"':'')+'><td>'+esc(x.code)+'</td><td>'+esc(x.name)+'</td><td>'+esc(x.pat)+'</td><td class="n">'+esc(x.q)+'</td><td class="n">'+(x.lp?x.lp.toLocaleString():'')+'</td><td>'+(same?'<button class="jsr-ordadd" onclick="jsrOrdAltPick('+ix+')">이걸로 주문</button>':'<span style="color:#94a3b8;font-size:11px">사이즈 다름</span>')+'</td></tr>'; }).join('')+'</table></div>'+(A.rows.length>60?'<div style="font-size:11px;color:#94a3b8">'+(A.rows.length-60)+'건 더 — 검색어를 더 적어 좁히세요</div>':''); }
   return h+'</div>'; }
+/* 재고표에 줄이 없는 연식에 남은 목표수량 지우기(대표가 누름). 지우기 직전에 DB에서 다시 읽어, 여전히 그 연식 줄이 없을 때만 그 연식 것만 지움. 전·후 값은 감사 기록에 */
+async function jsrOrdGhostClean(){ if(!jsrOrdCan()){ alert('대표만'); return; } var T=JSR.ord.tg; if(!T||!T.ghost||!T.ghost.length||JSR.ord.busy)return;
+  if(!confirm('재고표 화면에 안 보이는 목표수량 '+T.ghost.length+'건을 지웁니다.\n\n'+T.ghost.map(function(x){ return '· '+x.nm+' '+x.size+' ['+x.code+'] '+x.dk+'년 목표 '+x.target; }).join('\n')+'\n\n화면에 보이는 목표수량은 건드리지 않습니다. 지울까요?'))return;
+  JSR.ord.busy='ghost'; JSR.ord.err=''; jsrOrdPaint(); var done=0, skip=[], fail=[];
+  for(var i=0;i<T.ghost.length;i++){ var g=T.ghost[i]; try{ var ok=false; for(var k=0;k<4&&!ok;k++){ var c=await sb.from('ping_products').select('target_map').eq('id',g.pid).maybeSingle(); if(c.error)throw c.error; var base=c.data&&c.data.target_map; if(base==null||base===''){ ok=true; break; } var m=(typeof base==='string')?JSON.parse(base):base; if(!m||typeof m!=='object'||!(g.dk in m)){ ok=true; break; }
+        var lr=await sb.from('ping_lots').select('dot').eq('product_id',g.pid); if(lr.error)throw lr.error; if((lr.data||[]).some(function(l){ return jsrOrdTgDk(l.dot)===g.dk; })){ skip.push(g.nm+' '+g.size+' '+g.dk+'년(지금은 재고표에 그 줄이 있어 안 지움)'); ok=true; break; }
+        var n={}; Object.keys(m).forEach(function(x){ if(x!==g.dk)n[x]=m[x]; }); var next=Object.keys(n).length?JSON.stringify(n):null; if(typeof base!=='string')throw new Error('목표수량 칸 모양이 예상과 달라요');
+        var w=await sb.from('ping_products').update({target_map:next}).eq('id',g.pid).eq('target_map',base).select('id'); if(w.error)throw w.error; if(w.data&&w.data.length){ ok=true; done++; try{ logAudit('재고표 숨은 목표수량 지움',g.nm+' '+g.size+' ['+g.code+'] '+g.dk+'년',String(base),String(next)); }catch(e0){} } }
+      if(!ok)fail.push(g.nm+' '+g.size+' (다른 사람이 계속 바꾸는 중)'); }catch(e){ fail.push(g.nm+' '+g.size+' ('+((e&&e.message)||e)+')'); } }
+  JSR.ord.busy=''; await jsrOrdTgLoad(); var msg='숨은 목표 '+done+'건 지움'+(skip.length?' · 안 지움: '+skip.join(', '):''); if(fail.length)JSR.ord.err='⚠ '+msg+' · 못 지움 '+fail.length+'건: '+fail.join(', '); else stkToast('🧹 '+msg); if(fail.length)jsrOrdPaint(); }
 function jsrOrdTgHtml(){ var O=JSR.ord, T=O.tg, busy=!!O.busy; var h='<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px"><button class="jsr-btn pri" style="height:32px" '+(busy?'disabled ':'')+'onclick="jsrOrdTgLoad()">'+(O.busy==='tgt'?'⏳ 재고표 읽는 중…':'↻ 새로 고침')+'</button>';
   if(!T)return h+'</div><div style="padding:16px 4px;color:#64748b">'+(busy?'재고표에서 목표수량과 재고를 읽는 중…':'[새로 고침]을 누르면 재고표를 읽어 옵니다.')+'</div>';
   var S0=T.rows.filter(function(r){ return r.short>0; }), nNo=S0.filter(function(r){ var k=jsrOrdTgSt(r); return k&&k.st==='no'; }).length; var S=S0.filter(function(r){ var k=jsrOrdTgSt(r); return !(k&&k.st==='no'); }), sq=0; S.forEach(function(r){ sq+=r.short; }); var cm=T.rows.filter(function(r){ return r.coming>0; }).length;
@@ -27494,7 +27517,7 @@ function jsrOrdTgHtml(){ var O=JSR.ord, T=O.tg, busy=!!O.busy; var h='<div style
   if(T.gone&&T.gone.length)h+='<div class="note" style="margin-top:6px">ℹ "오는 중" '+T.gone.length+'건을 지웠어요: '+T.gone.map(function(x){ return esc(String(x.code||''))+' '+x.qty+'개('+esc(x._why||'')+')'; }).join(' · ')+'</div>';
   var CK=JSR.ord.chk; h+='<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px;font-size:12px"><button class="jsr-btn" style="height:28px" '+((busy||(CK&&CK.busy))?'disabled ':'')+'onclick="jsrOrdTgStock()">'+((CK&&CK.busy)?'⏳ 전산 확인 중…':'🔎 전산 재고 다시 확인')+'</button>'+(CK&&CK.err?'<span style="color:#b45309;font-weight:700">⚠ 전산 상태를 확인하지 못했어요: '+esc(CK.err)+'</span>':(CK&&CK.at?'<span style="color:#64748b">전산 상태 '+new Date(CK.at).toLocaleTimeString()+' 확인'+(nNo?' · <b style="background:#fef08a;color:#854d0e;padding:1px 6px;border-radius:6px">노란 줄 '+nNo+'개 = 전산에서 지금 주문 못 함</b>':'')+'</span>':'<span style="color:#94a3b8">전산 상태 아직 확인 안 됨</span>'))+'</div>';
   h+=jsrOrdAltHtml();
-  if(T.ghost&&T.ghost.length)h+='<div class="note" style="margin-top:6px;font-weight:600">ℹ 재고표에 그 연식 줄이 없는 상품에 적힌 목표 '+T.ghost.length+'건은 셈에서 뺐어요(재고표 화면에도 안 보이는 목표): '+T.ghost.map(function(x){ return esc(x.nm+' '+x.size+' ['+x.code+'] '+x.dk+'년 목표 '+x.target); }).join(' · ')+'</div>';
+  if(T.ghost&&T.ghost.length)h+='<div class="note" style="margin-top:6px;font-weight:600">ℹ 재고표에 그 연식 줄이 없는 상품에 적힌 목표 '+T.ghost.length+'건은 셈에서 뺐어요(재고표 화면에도 안 보이는 목표): '+T.ghost.map(function(x){ return esc(x.nm+' '+x.size+' ['+x.code+'] '+x.dk+'년 목표 '+x.target); }).join(' · ')+' <button class="jsr-btn" style="height:26px;margin-left:6px;border-color:#f59e0b;color:#92400e" '+(busy?'disabled ':'')+'onclick="jsrOrdGhostClean()">🧹 이 목표 지우기</button></div>';
   if(!T.rows.length)return h+'<div style="padding:16px 4px;color:#64748b">재고표에 목표수량이 적힌 한국타이어·라우펜 줄이 없어요.</div>';
   h+='<div style="overflow:auto;max-height:60vh;margin-top:8px;border:1px solid #e2e8f0;border-radius:8px"><table style="margin-top:0"><tr><th>상품</th><th>제품번호</th><th>연식</th><th class="n">목표</th><th class="n">변동재고</th><th class="n">오는 중</th><th class="n">부족</th><th></th></tr>'
     +T.rows.map(function(r,i){ var inC=JSR.ord.cart.find(function(c){ return c.id===r.ocode; }); var ck=(r.short>0)?jsrOrdTgSt(r):null, noOrd=!!(ck&&ck.st==='no'); var act;
