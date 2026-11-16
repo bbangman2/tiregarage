@@ -12327,6 +12327,25 @@ async function ibsStockBack(s,why,allowNeg){   /* (11/12 FNG1112) allowNeg=사�
   var u1=_mk?(await sb.from('stock_lots').insert({product_id:s.pid,dot:(s.dot||ibsDotFmt(yy,same)),qty:-n,loc:'U'}).select('id')):(await sb.from('stock_lots').update({qty:(parseInt(u.qty,10)||0)-n,updated_at:new Date().toISOString()}).eq('id',u.id)); if(u1&&u1.error){ if(g){ try{ await sb.from('stock_logs').update({ref:g.ref}).eq('id',g.id); }catch(e){} } return {ok:false,msg:'재고 빼기 실패: '+u1.error.message}; }
   try{ await stkLog('↩️편입취소',(s.pname||'상품')+' '+(s.dot||'')+'년식 · 재고 '+tot+'→'+(tot-n)+'개 (−'+n+') · 입고방 재고편입 취소'+(why?' · '+why:'')+(_neg?' · ⚠ 미배치에 재고가 모자라 마이너스로 잡음':''),{product_id:s.pid,dot:s.dot||'',qty:n,from_loc:((u&&u.loc)||'U'),channel:STK_IN_CH},true); }catch(e){}
   return {ok:true,neg:_neg,after:tot-n}; }
+/* (11/16 UAR1116) 입고분 하나의 살아 있는 편입을 전부 취소 — 카드의 [입고취소]·[선택 입고취소]가 부름. 재고 빼기는 편입 취소와 같은 ibsStockBack(기록에 [취소됨]을 먼저 찍어 두 번 눌러도 한 번만 · 모자라면 물어본 뒤 마이너스) */
+async function ibsUndoAll(id){ return await _stkSerial(function(){ return _ibsUndoAllCore(id); }); }
+async function _ibsUndoAllCore(id){ var who=(me&&me.name)||'?';
+  if(STK_STORE!=='ping')return {ok:false,done:0,msg:'지금 화면 상태에서는 편입 재고를 못 빼요 — 새로고침 후 다시'};
+  var fr=await sb.from('items').select('*').eq('id',id).maybeSingle(); if(fr.error||!fr.data)return {ok:false,done:0,msg:'입고분을 다시 못 읽었어요'+(fr.error?' ('+fr.error.message+')':'')};
+  var it=fr.data, L=Array.isArray(it.logs)?it.logs.slice():[], add=[], done=0, cnt=0, neg=false, fail='';
+  for(var i=0;i<L.length;i++){ var g=L[i]; if(!(g&&g.stk_in)||g.stk_in.cancelled)continue; var s=g.stk_in;
+    var rb=await ibsStockBack(s,'입고취소와 함께 · '+who,true); if(!rb.ok){ fail=rb.quiet?rb.msg:('편입 재고를 못 뺐어요 — '+rb.msg); break; }
+    var n=parseInt(s.qty,10)||0; done+=n; cnt++; if(rb.neg)neg=true;
+    L[i]=Object.assign({},g,{text:String(g.text||'')+' → 취소됨 '+who+' ('+getTodayISO()+')',stk_in:Object.assign({},s,{cancelled:true,cancelled_by:who,cancelled_at:Date.now()})});
+    add.push({type:'edit',text:'↩️ 재고편입 취소 '+n+'개 — 입고취소와 함께 재고표에서 다시 뺌'+(rb.already?' (재고는 이미 빠져 있었음)':'')+(rb.neg?' · ⚠ 재고가 모자라 마이너스로 잡음':'')+' · '+who+' ('+getTodayISO()+')',at:Date.now()}); }
+  if(cnt){ var ot=String(it.out_to||'').split(/\s*,\s*/).filter(Boolean); for(var c=0;c<cnt;c++){ var k=ot.lastIndexOf('재고편입'); if(k>=0)ot.splice(k,1); }
+    var patch={logs:L.concat(add),out_qty:Math.max(0,(parseInt(it.out_qty,10)||0)-done),out_done:false,out_to:(ot.join(', ')||null)};
+    var ou=await sb.from('items').update(patch).eq('id',id).select('id');
+    if(ou.error||!ou.data||!ou.data.length)return {ok:false,done:done,neg:neg,msg:'재고는 다시 뺐는데 입고분 표시를 못 고쳤어요'+(ou.error?' ('+ou.error.message+')':'')+' — [입고취소]를 다시 누르면 표시만 고쳐집니다(재고는 또 빠지지 않아요)'};
+    it=Object.assign({},it,patch);
+    try{ logAudit('↩ 입고방 입고취소 — 편입 재고 같이 뺌','['+(it.src||'')+'] '+(it.model||'')+' '+(it.spec||'')+' ×'+done+(neg?' (마이너스)':'')); }catch(e){} }
+  if(fail)return {ok:false,done:done,neg:neg,msg:fail,it:it};
+  return {ok:true,done:done,neg:neg,it:it}; }
 async function ibsCancel(ref){ if(IBS.busy)return; IBS.busy=true; try{ return await _stkSerial(function(){ return _ibsCancelCore(ref); }); } finally{ IBS.busy=false; } }
 async function _ibsCancelCore(ref){ if(!ibsOn()||!ref)return; var id=IBS.id, who=(me&&me.name)||'?';
   if(STK_STORE!=='ping'){ ibsMsg('지금 화면 상태에서는 취소 못 함 — 새로고침 후 다시'); return; }
@@ -12861,9 +12880,10 @@ function itemCardHtml(it){
   const _unreg=(!it.cancelled&&!ret&&it.model&&( _pirNoCode || (!/피렐리/.test(it.model)&&typeof jhNormModel==='function'&&!jhNormModel(it.model)) ));
   const unregTag=_unreg?'<span style="background:#fde68a;color:#92400e;font-size:10px;font-weight:800;padding:1px 7px;border-radius:8px;margin-right:5px">'+(_pirNoCode?'⚠️ 피렐리 코드필요':'⚠️ 사전미등록')+'</span>':'';
   const noSrcTag=(!it.cancelled&&(!String(it.src||'').trim()||it.src==='알수없음'))?'<span style="background:#b91c1c;color:#fff;font-size:10px;font-weight:800;padding:1px 7px;border-radius:8px;margin-right:5px" title="출처(거래처)를 안 적고 등록한 줄 — [수정]에서 적어 주세요">⚠ 출처 누락</span>':'';   /* (10/28 호준님) */
-  return '<div class="icardB '+(it.cancelled?'cancelled':'')+(ret?' is-return':'')+'" data-iid="'+it.id+'"'+(retDone?' style="opacity:.55;border-left:3px solid #9ca3af;background:#f7f7f7"':(ret?' style="border-left:3px solid #dc2626;background:#fff8f8"':(_unreg?' style="border-left:3px solid #f59e0b;background:#fffbeb"':(arr?' style="border-left:3px solid #16a34a"':''))))+'>'
-    +'<div class="irow1">'+((!ret&&!it.cancelled)?'<input type="checkbox" class="list-chk" value="'+it.id+'" onclick="event.stopPropagation()" style="margin-right:6px;transform:scale(1.15);cursor:pointer;vertical-align:middle">':'')+inbSheetTag(it)+retTag+noSrcTag+arrTag+preTag+unregTag+inbSameTag(it)+ibsTag(it)+'<span class="icb-model">'+esc(it.model)+'</span><span class="icb-spec">'+esc(it.spec)+'</span><span class="icb-qty">'+qtyDisp+'</span></div>'
-    +'<div class="irow2"><span class="icb-date" style="color:#94a3b8;font-size:11px;margin-right:6px">📅 '+fmtDateLabel(it.date_str)+'</span><span class="icb-use">'+esc(it.use_note||'미기입')+'</span><span class="icb-who">'+esc(it.user_name)+'</span>'+acts+'</div>'
+  var _inq=false; try{ _inq=(typeof listInqIs==='function')&&listInqIs(it); }catch(e){ _inq=false; }   /* (11/16 IBC1116 호준님 "재고로 들어가는 것들 글자랑 수량 강조 · 카드 색상도 다르게") 재고편입 칩에 잡히는 줄 = 남색 카드 */
+  return '<div class="icardB '+(it.cancelled?'cancelled':'')+(ret?' is-return':'')+(_inq?' is-inq':'')+'" data-iid="'+it.id+'"'+(retDone?' style="opacity:.55;border-left:3px solid #9ca3af;background:#f7f7f7"':(ret?' style="border-left:3px solid #dc2626;background:#fff8f8"':(_unreg?' style="border-left:3px solid #f59e0b;background:#fffbeb"':(_inq?' style="border-left:5px solid #4338ca;background:#eef2ff"':(arr?' style="border-left:3px solid #16a34a"':'')))))+'>'
+    +'<div class="irow1">'+((!ret&&!it.cancelled)?'<input type="checkbox" class="list-chk" value="'+it.id+'" onclick="event.stopPropagation()" style="margin-right:6px;transform:scale(1.15);cursor:pointer;vertical-align:middle">':'')+inbSheetTag(it)+retTag+noSrcTag+arrTag+preTag+unregTag+inbSameTag(it)+ibsTag(it)+'<span class="icb-model">'+esc(it.model)+'</span><span class="icb-spec">'+esc(it.spec)+'</span><span class="icb-qty"'+(_inq?' style="background:#4338ca;color:#fff;border-radius:8px;padding:0 9px;font-weight:900"':'')+'>'+qtyDisp+'</span></div>'
+    +'<div class="irow2"><span class="icb-date" style="color:#94a3b8;font-size:11px;margin-right:6px">📅 '+fmtDateLabel(it.date_str)+'</span><span class="icb-use"'+(_inq?' style="font-weight:900;font-size:13.5px;color:#312e81;background:#c7d2fe;border:1px solid #818cf8;border-radius:6px;padding:1px 8px"':'')+'>'+esc(it.use_note||'미기입')+'</span><span class="icb-who">'+esc(it.user_name)+'</span>'+acts+'</div>'
     +logHtml+'</div>';
 }
 async function itemArrive(id){
@@ -12877,14 +12897,23 @@ async function itemArrive(id){
   await loadItems();
 }
 async function itemUnarrive(id){
-  if(!confirm('실물입고 확인을 취소할까요? (입고대기로 되돌립니다)'))return;
   var it=(itemsCache||[]).concat(returnsCache||[]).find(function(x){return x.id===id;});
+  /* (11/16 UAR1116 호준님 "입고취소는 편입한 거 재고표에서 빼고 실물입고 표시 되돌리고, 이미 사용한 거면 마이너스 경고 띄우고 마이너스로") */
+  var _inN=0, _ur=null; try{ _inN=(it&&typeof ibsDone==='function')?ibsDone(it):0; }catch(e){ _inN=0; }
+  if(_inN>0){
+    if(!confirm('이 입고분은 재고표에 '+_inN+'개 편입돼 있어요.\n\n입고취소를 하면\n ① 편입한 '+_inN+'개를 재고표에서 다시 빼고\n ② 실물입고를 입고대기로 되돌립니다.\n(이미 나가서 재고가 모자라면 한 번 더 물어본 뒤 마이너스로 잡습니다)\n\n계속할까요?'))return;
+    try{ _ur=await ibsUndoAll(id); }catch(e){ _ur={ok:false,done:0,msg:String((e&&e.message)||e)}; }
+    if(!_ur.ok){ alert('❌ 입고취소를 하지 않았어요\n'+_ur.msg+(_ur.done?'\n\n편입 '+_ur.done+'개는 이미 재고표에서 뺐어요. [입고취소]를 다시 누르면 남은 것부터 이어집니다.':'')); try{ if(_ur.done)await stkLoad(); }catch(e){} await loadItems(); return; }
+    it=_ur.it;
+    if(!it.arrived){ if(typeof stkToast==='function')stkToast('↩️ 편입 '+_ur.done+'개를 재고표에서 뺌 · 이 입고분은 이미 입고대기였어요'); try{ await stkLoad(); }catch(e){} await loadItems(); return; }
+  } else if(!confirm('실물입고 확인을 취소할까요? (입고대기로 되돌립니다)'))return;
   var logs=it&&Array.isArray(it.logs)?it.logs.slice():[];
   logs.push({type:'edit',text:'↩️ 실물입고 확인취소 — '+(me?me.name:'?')+' ('+fmtDateLabel(getTodayISO())+')'});
   try{
     var _ro=await _recvAutoOff(id,{arrived:false,arrived_at:null,arrived_by:null,logs:logs},it);
     if(_ro&&_ro.error)throw _ro.error;
-  }catch(e){alert('입고취소 실패: '+e.message);return;}
+  }catch(e){alert('입고취소 실패: '+e.message+((_ur&&_ur.done)?'\n(편입 '+_ur.done+'개는 재고표에서 이미 뺐어요 — [입고취소]를 다시 눌러 주세요)':''));try{ if(_ur&&_ur.done)await stkLoad(); }catch(e2){} await loadItems();return;}
+  if(_ur&&_ur.done){ if(typeof stkToast==='function')stkToast('↩️ 입고취소 · 편입 '+_ur.done+'개도 재고표에서 뺌'+(_ur.neg?' · ⚠ 재고가 모자라 마이너스로 잡힘':'')); try{ await stkLoad(); }catch(e){} }   /* UAR1116 */
   await loadItems();
 }
 function itemListBySrc(items){
@@ -12935,14 +12964,18 @@ async function listBulkUnarrive(){
   if(!ids.length){alert('선택된 항목이 없어요 (입고완료 카드의 체크박스를 선택하세요)');return;}
   var targets=ids.map(function(id){return (itemsCache||[]).find(function(x){return x.id===id;});}).filter(function(it){return it&&it.arrived;});
   if(!targets.length){alert('선택된 항목 중 입고완료 상태가 없어요');return;}
-  if(!confirm(targets.length+'건의 실물입고를 취소할까요? (입고대기로 되돌립니다)'))return;
-  var who=(me?me.name:'?');
+  var _inT=targets.filter(function(x){ try{ return ibsDone(x)>0; }catch(e){ return false; } }), _inQ=_inT.reduce(function(s0,x){ return s0+ibsDone(x); },0);   /* (11/16 UAR1116) 편입한 줄은 편입 재고도 같이 뺌 */
+  if(!confirm(targets.length+'건의 실물입고를 취소할까요? (입고대기로 되돌립니다)'+(_inT.length?'\n\n그중 '+_inT.length+'건은 재고표에 편입돼 있어요 — 편입한 '+_inQ+'개도 재고표에서 다시 뺍니다.\n(재고가 모자라면 줄마다 한 번 더 물어본 뒤 마이너스로 잡습니다)':'')))return;
+  var who=(me?me.name:'?'); var _fails=[], _inDone=0;
   for(var i=0;i<targets.length;i++){
-    var it=targets[i];
+    var it=targets[i]; var _nm=String(it.model||'')+' '+String(it.spec||'');
+    if(_inT.indexOf(it)>=0){ var _ur=null; try{ _ur=await ibsUndoAll(it.id); }catch(e){ _ur={ok:false,done:0,msg:String((e&&e.message)||e)}; } _inDone+=(_ur.done||0); if(!_ur.ok){ _fails.push(_nm+' — '+_ur.msg); continue; } it=_ur.it; if(!it.arrived)continue; }
     var logs=Array.isArray(it.logs)?it.logs.slice():[];
     logs.push({type:'edit',text:'↩️ 실물입고 확인취소(일괄) — '+who+' ('+fmtDateLabel(getTodayISO())+')'});
-    try{ await _recvAutoOff(it.id,{arrived:false,arrived_at:null,arrived_by:null,logs:logs},it); }catch(e){}
+    var _r0=null; try{ _r0=await _recvAutoOff(it.id,{arrived:false,arrived_at:null,arrived_by:null,logs:logs},it); }catch(e){ _r0={error:e}; } if(_r0&&_r0.error)_fails.push(_nm+' — 입고대기로 못 되돌림: '+(_r0.error.message||_r0.error));
   }
+  if(_inDone>0){ try{ await stkLoad(); }catch(e){} if(typeof stkToast==='function')stkToast('↩️ 입고취소 · 편입 '+_inDone+'개도 재고표에서 뺌'); }
+  if(_fails.length)alert('⚠ 입고취소를 못 한 줄 '+_fails.length+'건\n'+_fails.slice(0,8).join('\n')+(_fails.length>8?'\n…':''));
   await loadItems();
 }
 async function listBulkUndoJh(){
@@ -24696,7 +24729,7 @@ function jhDoneWhy(o){ if(!o)return ''; if(o.status==='done')return (o.out_user=
 async function jhDtypeSet(id,dt){ var o=await omFreshRow(id); if(!o)return; if(o.status==='sent'){ alert('직배송방에 보낸 줄은 거기서 처리해 주세요'); return; } var K={taekbae:'📦 택배',direct:'🚚 직배송',dx:'🏭 직접출고',install:'🔧 장착'}; if(!K[dt])return; if(o.dtype===dt)return; var who=(me&&me.name)||'?'; var lg=(Array.isArray(o.logs)?o.logs:[]).concat([{t:'분류 바꿈',by:who,at:new Date().toISOString(),from:o.dtype||'',to:dt}]); var u=await sb.from('jonghap_orders').update({dtype:dt,logs:lg}).eq('id',id); if(u.error){ alert('저장 실패: '+u.error.message); return; } try{ logAudit('주문 분류 바꿈',(o.recv||'')+' '+(o.order_no||'')+' '+(o.dtype||'')+' → '+dt); }catch(e){} if(typeof stkToast==='function')stkToast('분류 → '+K[dt]); try{ if(typeof omReloadAny==='function')omReloadAny(); else await omLoad(); }catch(e){} try{ if(document.getElementById('parcel-screen')&&document.getElementById('parcel-screen').style.display!=='none')await pmLoad(); }catch(e){} }
 (function(){ if(window._jhDtypeBtnWrapped||typeof otDetail!=='function')return; window._jhDtypeBtnWrapped=true; var _d=otDetail; otDetail=function(o){ var h=_d.apply(this,arguments); try{ if(o&&!o.cancelled&&o.status!=='sent'&&(o.dtype==='none'||!o.dtype||o.platform==='오토하이브')){ var sid=String(o.id).replace(/'/g,''); var mk=function(dt,lab){ return '<button class="dact" style="font-weight:800" onclick="jhDtypeSet(\''+sid+'\',\''+dt+'\')">'+lab+'</button>'; }; var btn='<div style="margin:6px 0"><b style="color:#b45309">❔ 구분이 없어요 — 어떻게 나가나요?</b> '+mk('taekbae','📦 택배로')+' '+mk('direct','🚚 직배송으로')+' '+mk('dx','🏭 직접출고로')+' '+mk('install','🔧 장착으로')+'</div>'; h=(typeof h==='string')?btn+h:h; } }catch(e){} return h; }; })();
 /* (11/13 DXM1113 호준님 "직배송방에 보낼 필요 없는 줄로 표시 · 보내야 하면 보낼 수도 있게") 직배송 줄인데 출고지가 전부 거래처가 장착점으로 바로 보내는 곳이면 표시만 — 미처리·단추는 그대로 */
-var OM_DX_DIRECT=/^(핑|사일룬|아파치|레이다|[썬선]베이)/;   /* 호준님: 출고지 핑 = 남양주 장착 아니면 무조건 직접출고 · 아파치=사일룬 · 레이다=선베이. 거래처를 더 넣으려면 여기 */
+var OM_DX_DIRECT=/^(핑|사일룬|아파치|레이다|[썬선]베이|천안미쉐린|그랜드타이어|하나타이어)/;   /* (11/16 DXS1116 호준님) 천안미쉐린·그랜드타이어·하나타이어 추가 */   /* 호준님: 출고지 핑 = 남양주 장착 아니면 무조건 직접출고 · 아파치=사일룬 · 레이다=선베이. 거래처를 더 넣으려면 여기 */
 function omDxDirect(o){ try{ if(!o||o.cancelled||o.status!=='wait'||o.dtype!=='direct')return ''; var P=omSrc(o); if(!P||!P.parts||!P.parts.length||P.cancel||P.nostock)return ''; if(!P.parts.every(function(p){ return p.kind!=='stock'&&OM_DX_DIRECT.test(String(p.name||'')); }))return ''; return P.parts.map(function(p){return String(p.name||'');}).filter(function(x,i,arr){return arr.indexOf(x)===i;}).join('·'); }catch(e){ return ''; } }
 (function(){ if(window._omDxWrapped||typeof otDetail!=='function'||typeof otCell!=='function')return; window._omDxWrapped=true;
   var _c=otCell; otCell=function(o,k){ var h=_c.apply(this,arguments); try{ if(k==='src'){ var d=omDxDirect(o); if(d)h+=' <span class="ot-kn om-dxmark" style="color:#0e7490;font-weight:800;white-space:nowrap" title="출고지가 '+esc(d)+' — 거래처가 장착점으로 바로 보내는 줄이라 직배송방에 안 보내도 됩니다. 확인되면 완료(시트에 완료 또는 강제 완료). 우리가 실어 보내야 하면 줄을 눌러 [➡ 직배송방으로]">🏭 거래처가 바로 보냄</span>'; } }catch(e){} return h; };
