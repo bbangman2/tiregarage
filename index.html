@@ -11139,7 +11139,7 @@ function otLink(o){ if(o.status==='sent'){ var d=OM.mirror[o.id]; return (d&&!d.
 function otWho(o){ if(omIsDone(o))return 'done'; var L=otLink(o); if(omChgLog(o)||L==='need'||L==='none'||L==='unk'||L==='dvmiss')return 'me'; if(L==='pingwait'||L==='inbwait')return 'wait'; return 'auto'; }
 function otStepPass(o,k){ if(!k)return true; if(k==='todo')return jhPending(o);   /* (10/30) ⏳ 미처리 = 완료·보냄 아닌 전부(택배방과 같은 뜻) */ var L=otLink(o); if(k==='nolink')return (o.status==='wait'||o.status==='sent'||omIsDone(o))&&jhNoLink(o);   /* (11/2 호준님) 직배송방으로 보낸 줄도 */   /* (10/30 밤 호준님) 완료돼도 미연결은 미연결 */   /* (10/28 호준님) 미처리인데 재고·입고분 연결 안 된 줄 */ if(k==='me')return otWho(o)==='me'; if(k==='need')return L==='need'; if(k==='unk')return L==='none'||L==='unk'; if(k==='chg')return !!omChgLog(o); if(k==='inb')return L==='inb'||L==='inbarr'||L==='inbdone'; if(k==='inbman')return L==='inbman'; if(k==='stock')return L==='stock'; if(k==='dvsent')return L==='dvsent'; if(k==='done')return omIsDone(o); if(k==='inbwait')return L==='inbwait'; if(k==='pingwait')return L==='pingwait'; if(k==='dvmiss')return L==='dvmiss'||omGap(o); if(k==='unprinted')return omUnprinted(o); if(k==='wait')return L==='pingwait'||L==='inbwait'; if(k==='auto')return otWho(o)==='auto'; return true; }
 function otPool(){ return OM.rows.filter(function(o){ return omPoolPass(OM,o)&&(!OM.f.plat||o.platform===OM.f.plat); }); }   /* (11/5) 담당자·판매처 칩 */   /* 판매처 칩을 누르면 모든 숫자가 그 판매처 기준 */
-function otBase(){ return otPool().filter(function(o){ return !OM.tab||(o.dtype||'etc')===OM.tab; }); }
+function otBase(){ var _nl=(otStepList().indexOf('nolink')>=0); return otPool().filter(function(o){ return !OM.tab||(o.dtype||'etc')===OM.tab||(_nl&&otStepPass(o,'nolink')); }); }   /* CLK1120 재고연결 안 됨 칩을 누르면 다른 구분 탭 줄도 */
 function otMain(o){ if(OM.notDone&&omIsDone(o))return false; return true; }   /* (11/4 호준님) 기본은 전부 보임 · [🔥 완료 안 된 것]만 완료 제외 ('끝난 것도' 토글 없앰) */
 function otPass(o,skip){ var q=((document.getElementById('om-q')||{}).value||'').trim().toLowerCase(); if(q){ var hay=tgAliasHay([o.recv,o.tel,o.brand,o.name,o.code,o.size,o.order_no,o.src,o.addr,o.use_note].join(' ').toLowerCase()); var hd=hay.replace(/[\/\-\s]/g,''); if(!q.split(/\s+/).every(function(t){return hay.indexOf(t)>=0||hd.indexOf(t.replace(/[\/\-\s]/g,''))>=0;}))return false; }
   for(var k in OM.f){ if(k===skip)continue; var v=OM.f[k]; if(!v)continue; var c=otCol(k); if(!c)continue; var x=c[3](o); if(c[2]==='sel'){ if(x!==v)return false; } else if(c[2]==='size'){ if(jhSzDigits(x).indexOf(jhSzDigits(v))<0)return false; } else { var ws=String(v).toLowerCase().split(/\s+/).filter(Boolean), hx=String(x).toLowerCase(); if(!ws.every(function(w){return hx.indexOf(w)>=0;}))return false; } } return true; }
@@ -11331,7 +11331,7 @@ function otPickFold(){ var L=otBase().filter(function(o){return o.status==='wait
 function otStepList(){ return OM.step?String(OM.step).split(',').filter(Boolean):[]; }   /* (11/4 호준님) 칩 여러 개 동시 — 쉼표로 이어 둠 */
 function otStepToggle(k){ var L=otStepList(); var i=L.indexOf(k); if(i>=0)L.splice(i,1); else L.push(k); OM.step=L.join(','); otRender(); }
 function otStepAny(o){ var L=otStepList(); if(!L.length)return true; return L.some(function(k){ return otStepPass(o,k); }); }
-function otSteps(){ var B=otBase(); var c=function(k){return B.filter(function(o){return otStepPass(o,k);}).length;}; var S=otStepList(); var list=OT_STEPS.concat(OT_STEPS_X.filter(function(s){return c(s[0])>0||S.indexOf(s[0])>=0;})); var col={me:'#dc2626',warn:'#d97706',auto:'#16a34a',done:'#9ca3af'}; var nd=B.filter(function(o){return !omIsDone(o);}).length;
+function otSteps(){ var B=otBase(); var c=function(k){return (k==='nolink'?otPool():B).filter(function(o){return otStepPass(o,k);}).length;};   /* CLK1120 재고연결 안 됨은 구분 탭과 상관없이 셈 */ var S=otStepList(); var list=OT_STEPS.concat(OT_STEPS_X.filter(function(s){return c(s[0])>0||S.indexOf(s[0])>=0;})); var col={me:'#dc2626',warn:'#d97706',auto:'#16a34a',done:'#9ca3af'}; var nd=B.filter(function(o){return !omIsDone(o);}).length;
   return '<span class="pm-step'+(!OM.step&&!OM.notDone?' on':'')+'" onclick="OM.step=\'\';OM.notDone=false;otRender()">전체 '+B.length+'</span><span class="pm-step pm-notdone'+(OM.notDone?' on':'')+'" onclick="OM.notDone=!OM.notDone;otRender()" title="완료가 아닌 줄 전부 — 아래 칩을 여러 개 눌러 그 안에서 나눠 보기">🔥 완료 안 된 것 '+nd+'</span>'+list.map(function(s){ var n=c(s[0]); return '<span class="pm-step'+(S.indexOf(s[0])>=0?' on':'')+'" onclick="otStepToggle(\''+s[0]+'\')" title="여러 개 같이 고를 수 있어요"><i style="background:'+col[s[2]]+'"></i>'+s[1]+' '+n+'</span>'; }).join(''); }
 function otSetView(v){ OM.view=v; OM.f={}; OM.step=''; OM.sort=['',1]; OM.multi=false; OM.show=Object.assign({},OT_SHOW_DEF);
   if(v==='창고 출고용'){ OM.f.link=OT_LINK.stock[0]; OM.sort=['size',1]; OM.show.d=1; }
@@ -12013,7 +12013,7 @@ function pmTabs(o){ var k=pmKind(o); var t=[k]; if(k!=='tb'&&pmIsParcelSent(o))t
 function pmNote(o,k){ var m=String(o.use_note||'').match(new RegExp('(?:^|· )'+k+':([^·]+)')); return m?m[1].trim():''; }
 function pmNoteKv(o){ return String(o.use_note||'').split(' · ').map(function(s){ var i=s.indexOf(':'); return i>0?[s.slice(0,i).trim(),s.slice(i+1).trim()]:null; }).filter(Boolean); }
 function pmPool(){ return PM.rows.filter(function(o){ return omPoolPass(PM,o)&&(!PM.f.plat||o.platform===PM.f.plat); }); }   /* (11/5) 담당자·판매처 칩 */
-function pmBase(){ return pmPool().filter(function(o){ return !PM.tab||pmTabs(o).indexOf(PM.tab)>=0; }); }   /* (10/30) [전체] 칩 */
+function pmBase(){ var _nl=(pmStepList().indexOf('nolink')>=0); return pmPool().filter(function(o){ return !PM.tab||pmTabs(o).indexOf(PM.tab)>=0||(_nl&&pmNoLink(o)); }); }   /* CLK1120 재고연결 안 됨 칩을 누르면 다른 구분 탭 줄도 */   /* (10/30) [전체] 칩 */
 function pmMain(o){ if(PM.notDone&&pmIsDoneRow(o))return false; return true; }   /* (11/4 호준님) 기본은 전부 보임 · [🔥 완료 안 된 것]만 완료 제외 */   /* (10/21) 직배송방 보낸 줄도 그 분류 탭에 '처리됨'으로 */
 function pmPass(o,skip){ var q=((document.getElementById('pm-q')||{}).value||'').trim().toLowerCase(); if(q){ var hay=tgAliasHay([o.recv,o.tel,o.brand,o.name,o.code,o.size,o.order_no,o.src,o.addr,o.use_note,pmWb(o).join(' ')].join(' ').toLowerCase()); var hd=hay.replace(/[\/\-\s]/g,''); if(!q.split(/\s+/).every(function(t){return hay.indexOf(t)>=0||hd.indexOf(t.replace(/[\/\-\s]/g,''))>=0;}))return false; }   /* (10/21) 택배방 찾기 칸 */ for(var k in PM.f){ if(k===skip)continue; var v=PM.f[k]; if(!v)continue; var c=pmCol(k); if(!c)continue; var x=c[3](o); if(c[2]==='sel'){ if(x!==v)return false; } else if(c[2]==='size'){ if(jhSzDigits(x).indexOf(jhSzDigits(v))<0)return false; } else { var ws=String(v).toLowerCase().split(/\s+/).filter(Boolean), hx=String(x).toLowerCase(); if(!ws.every(function(w){return hx.indexOf(w)>=0;}))return false; } } return true; }
 function pmRecvKey(o){ var t=String(o.tel||'').replace(/\D/g,'').slice(-8); return t.length>=7?'t'+t:'n'+String(o.recv||'').replace(/\s+/g,''); }
@@ -12086,7 +12086,7 @@ function pmStepPass1(o,k){ return k==='nolink'?pmNoLink(o):(k==='unk'?pmUnk(o):(
 function pmStepAny(o){ var L=pmStepList(); if(!L.length)return true; return L.some(function(k){ return pmStepPass1(o,k); }); }
 function pmIsDoneRow(o){ return o.status==='done'||(o.status!=='sent'&&typeof jhDone==='function'&&jhDone(o)); }
 function pmSteps(){ var B=pmBase().filter(pmMain); var c=function(k){return B.filter(function(o){return k==='wait'?jhPending(o):pmStepKey(o)===k;}).length;}; var keys=['wait','form','wb','sent']; if(PM.tab==='tb')keys.push('tconv'); keys.push('done'); var cand=c('cand'); var S=pmStepList(); var nd=B.filter(function(o){return !pmIsDoneRow(o);}).length;
-  return '<span class="pm-step'+(!PM.step&&!PM.notDone?' on':'')+'" onclick="PM.step=\'\';PM.notDone=false;pmRender()">전체 '+B.length+'</span><span class="pm-step pm-notdone'+(PM.notDone?' on':'')+'" onclick="PM.notDone=!PM.notDone;pmRender()" title="완료가 아닌 줄 전부 — 아래 칩을 여러 개 눌러 그 안에서 나눠 보기">🔥 완료 안 된 것 '+nd+'</span>'+'<span class="pm-step'+(S.indexOf('nolink')>=0?' on':'')+'" onclick="pmStepToggle(\'nolink\')" title="미처리인데 재고·입고분에 연결 안 된 줄만"><i style="background:#dc2626"></i>🔗 재고연결 안 됨 '+B.filter(pmNoLink).length+'</span>'+'<span class="pm-step'+(S.indexOf('unk')>=0?' on':'')+'" onclick="pmStepToggle(\'unk\')" title="미처리인데 시트 출고지가 비었거나 거래처를 못 읽은 줄"><i style="background:#d97706"></i>❓ 출고지 빈칸·모름 '+B.filter(pmUnk).length+'</span>'+keys.map(function(k){return '<span class="pm-step'+(S.indexOf(k)>=0?' on':'')+'" onclick="pmStepToggle(\''+k+'\')" title="여러 개 같이 고를 수 있어요"><i style="background:'+PM_STEPC[k]+'"></i>'+PM_STEP[k]+' '+c(k)+'</span>';}).join('')+(cand?'<span class="pm-step warn'+(S.indexOf('cand')>=0?' on':'')+'" onclick="pmStepToggle(\'cand\')">❓ 송장 고르기 '+cand+'</span>':''); }
+  return '<span class="pm-step'+(!PM.step&&!PM.notDone?' on':'')+'" onclick="PM.step=\'\';PM.notDone=false;pmRender()">전체 '+B.length+'</span><span class="pm-step pm-notdone'+(PM.notDone?' on':'')+'" onclick="PM.notDone=!PM.notDone;pmRender()" title="완료가 아닌 줄 전부 — 아래 칩을 여러 개 눌러 그 안에서 나눠 보기">🔥 완료 안 된 것 '+nd+'</span>'+'<span class="pm-step'+(S.indexOf('nolink')>=0?' on':'')+'" onclick="pmStepToggle(\'nolink\')" title="미처리인데 재고·입고분에 연결 안 된 줄만"><i style="background:#dc2626"></i>🔗 재고연결 안 됨 '+pmPool().filter(pmNoLink).length+'</span>'+'<span class="pm-step'+(S.indexOf('unk')>=0?' on':'')+'" onclick="pmStepToggle(\'unk\')" title="미처리인데 시트 출고지가 비었거나 거래처를 못 읽은 줄"><i style="background:#d97706"></i>❓ 출고지 빈칸·모름 '+B.filter(pmUnk).length+'</span>'+keys.map(function(k){return '<span class="pm-step'+(S.indexOf(k)>=0?' on':'')+'" onclick="pmStepToggle(\''+k+'\')" title="여러 개 같이 고를 수 있어요"><i style="background:'+PM_STEPC[k]+'"></i>'+PM_STEP[k]+' '+c(k)+'</span>';}).join('')+(cand?'<span class="pm-step warn'+(S.indexOf('cand')>=0?' on':'')+'" onclick="pmStepToggle(\'cand\')">❓ 송장 고르기 '+cand+'</span>':''); }
 function pmRender(){ otSheetClose(); var r=pmRange(); var P=[['yest','어제'],['today','오늘'],['7','7일'],['30','30일']]; var nar=otNarrow();   /* (10/21) 목업 B 한 줄 압축형 */
   var pe=document.getElementById('pm-period'); if(pe)pe.innerHTML='<button class="jh-chip" style="cursor:pointer;font-family:inherit;font-weight:800" onclick="pmShiftDay(-1)" title="하루 전">◀</button>'+P.map(function(p){return '<button class="jh-chip'+(PM.period===p[0]?' on':'')+'" style="cursor:pointer;font-family:inherit;font-weight:800" onclick="pmSetPeriod(\''+p[0]+'\')">'+p[1]+'</button>';}).join('')+'<button class="jh-chip" style="cursor:pointer;font-family:inherit;font-weight:800" onclick="pmShiftDay(1)" title="하루 뒤">▶</button>'+(PM.period==='day'?'<span class="jh-chip on" style="font-weight:800">📅 '+jhDayLabel(PM.day)+'</span>':'')+(PM.period==='custom'?'<span class="jh-chip on" style="font-weight:800">📅 '+r[0]+'</span>':'');
   var re=document.getElementById('pm-range'); if(re)re.innerHTML=esc(r[0]===r[1]?jhDayLabel(r[0]):r[0]+' ~ '+r[1])+(PM.period==='old'?' <b style="color:#dc2626">⏳ 지난 미처리만 — 오래된 순</b>'+jhOldSinceBtn():pmOldHtml());   /* (10/30) */
@@ -16905,21 +16905,22 @@ function stkRtBulkPasteIntoCells(txt){
   }else{
     fields=['cat','source','br','name','code','size','ply','spec','dot','cost','fprice','qty'];
   }
+  if(STK_STORE==='ping')fields=['cat','source','br','name','size','spec','code','dot','','','cost',(_rcPaste?'real_cost':''),(_rcPaste?'discount_rate':''),'fprice','','qty'];   /* NRW1120b V2 = 머리 글자 A~P 자리 그대로(I·J·O 자동 칸은 건너뜀) — 옛 재고방 순서로 넣어 밀리던 것 */
   parsed=splitLines.map(function(c){return fields.map(function(_f,_i){return c[_i]||'';});});
   stkRtAddingCount=parsed.length;
   stkRenderTable();
   setTimeout(function(){
-    stkRtAttachNewRowHandlers();
+    stkRtAttachNewRowHandlers(); var _nrwMiss={};
     parsed.forEach(function(row,ri){
       fields.forEach(function(f,fi){
         var cell=document.querySelector('#stk-rtTable td.rt-newed[data-newrow="'+ri+'"][data-newfield="'+f+'"]');
         if(cell){
           var v=row[fi]||'';
           if(v){cell.textContent=v;cell.removeAttribute('data-empty');cell.style.color='';}
-        }
+        } else if(f&&String(row[fi]||'').trim())_nrwMiss[f]=1;   /* NRW1120b 숨긴 열에 들어갈 값 */
       });
     });
-    stkToast(parsed.length+'행 입력됨 — 확인 후 "N행 등록" 버튼');
+    var _mk=Object.keys(_nrwMiss); stkToast(parsed.length+'행 입력됨 — 확인 후 "N행 등록" 버튼'+(_mk.length?' · ⚠ 숨긴 열('+_mk.map(function(k){ return ({cat:'분류',source:'출처',br:'제조사',name:'제품정보',size:'사이즈',spec:'세부정보',code:'제품번호',dot:'생산년도',cost:'원가',real_cost:'실원가',discount_rate:'할인율',fprice:'공장도가',qty:'수량'})[k]||k; }).join('·')+')의 값은 못 넣었어요 — ⚙ 보이는 열에서 켜고 다시 붙여 넣기':''));
   },30);
 }
 // 일괄 등록: 빈 행 모두 읽어서 DB에 insert
@@ -18771,9 +18772,13 @@ function stkRenderTable(){
         // contenteditable 빈 셀
         return '<td'+(extra||'')+' class="rt-newed" contenteditable="true" spellcheck="false" data-newrow="'+idx+'" data-newfield="'+field+'" data-placeholder="'+ph+'" style="background:'+bg+'"></td>';
       }
+      var V=function(f){ return !(STK_STORE==='ping'&&typeof v2ColOn==='function'&&!v2ColOn(f)); };   /* NRW1120 추가 줄도 기존 줄과 같은 규칙(⚙ 보이는 열)으로 칸을 그림 — 안 그러면 밀림 */
+      var bl=function(t,tip){ return '<td style="background:'+bg+';color:#94a3b8;text-align:center;font-size:11px"'+(tip?' title="'+tip+'"':'')+'>'+(t||'')+'</td>'; };
+      var nx=(STK_STORE==='ping'&&typeof V2_X!=='undefined'&&typeof v2ColOn==='function')?V2_X.filter(function(c){ return v2ColOn(c[0]); }).length:0;
       return '<tr class="stk-newrow" data-newrow="'+idx+'" style="background:'+bg+';border-left:4px solid #2563eb">'+
-        ne('cat','분류')+ne('source','출처')+(STK_STORE==='ping'?(ne('br','제조사*')+ne('name','제품정보')+ne('size','사이즈*')+ne('spec','세부정보')+ne('code','제품번호')+ne('dot','생산년도')):(ne('br','브랜드*')+ne('name','패턴')+ne('code','패턴코드')+ne('size','사이즈*')+ne('ply','P수')+ne('spec','재원')+ne('dot','DOT')))+'<td style="background:'+bg+';color:#bbb;text-align:center">자동</td>'+'<td style="background:'+bg+';color:#bbb;text-align:center">자동</td>'+ne('cost','원가')+(_canRC?ne('real_cost','실원가'):'')+(_canRC?ne('discount_rate','할인율%'):'')+ne('fprice','공장도가')+'<td style="background:'+bg+'"></td>'+ne('qty','수량*')+
-        '<td style="background:'+bg+'"></td>'+  // 변동재고 자리 (자동)
+        (V('cat')?ne('cat','분류'):'')+(V('source')?ne('source','출처'):'')+(STK_STORE==='ping'?((V('br')?ne('br','제조사*'):'')+(V('name')?ne('name','제품정보'):'')+(V('size')?ne('size','사이즈*'):'')+(V('spec')?ne('spec','세부정보'):'')+(V('code')?ne('code','제품번호'):'')+(V('dot')?ne('dot','생산년도'):'')+new Array(nx+1).join(bl('','등록 뒤 자동'))):(ne('br','브랜드*')+ne('name','패턴')+ne('code','패턴코드')+ne('size','사이즈*')+ne('ply','P수')+ne('spec','재원')+ne('dot','DOT')))+
+        (V('price')?bl('자동','택배가는 등록 뒤 자동 계산'):'')+(V('inst')?bl('자동','장착가는 등록 뒤 자동 계산'):'')+(V('cost')?ne('cost','원가'):'')+((_canRC&&V('real_cost'))?ne('real_cost','실원가'):'')+((_canRC&&V('discount_rate'))?ne('discount_rate','할인율'):'')+(V('fprice')?ne('fprice','공장도가'):'')+(V('target')?bl():'')+(V('qty')?ne('qty','수량*'):'')+
+        ((STK_STORE==='ping'&&typeof v2ColOn==='function'&&!v2ColOn('cur'))?'':bl())+  // 변동재고 자리 (자동) — 기존 줄처럼 열이 꺼져 있으면 칸도 없음
         STK_CHANS.map(function(){return '<td style="background:'+bg+'"></td>';}).join('')+'<td style="background:'+bg+'"></td>'+
         (idx===0?'<td style="white-space:nowrap;background:'+bg+'"><button onclick="stkRtSaveBulkNew()" style="font-size:11px;padding:3px 7px;border:none;background:#15803d;color:#fff;border-radius:6px;font-weight:800;cursor:pointer;margin-right:3px">N행 등록</button><button onclick="stkRtCancelAdd()" style="font-size:11px;padding:3px 7px;border:1px solid #ccc;background:#fff;color:#666;border-radius:6px;font-weight:800;cursor:pointer">취소</button></td>':'<td style="background:'+bg+'"></td>')+
         '</tr>';
@@ -21746,6 +21751,79 @@ async function rvrTick(why,minGap){ if(RVR.busy||!rvrOn()||rvrQuiet())return; if
   window.addEventListener('focus',function(){ rvrTick('창 다시 보임',5000); }); window.addEventListener('pageshow',function(){ rvrTick('다시 열림',5000); });
   setInterval(function(){ rvrTick('60초',55000); },15000); })();
 /* ▲RVR1120 */
+/* ▼QMT1120 (11/20 호준님 "거래처 뒤 수량과 전체 주문 수량을 매칭하면 어떤 건지 더 잘 알 수 있지 않을까") 출고지 읽은 수량 합 ≠ 주문 수량일 때만 다른 뜻으로 다시 읽어 딱 맞는 쪽 */
+(function(){ if(window._qmtOn||typeof tgSrcParse!=='function')return; window._qmtOn=1; var _o=tgSrcParse;
+  var sumOf=function(R){ return ((R&&R.segs)||[]).concat((R&&R.stock)||[]).reduce(function(a,x){ return a+(+x.qty||0); },0); };
+  var okQ=function(R,q){ var n=((R&&R.segs)||[]).length+((R&&R.stock)||[]).length; return !!(R&&n>0&&!R.amb&&sumOf(R)===q); };
+  tgSrcParse=function(srcRaw,cardQty,opt){ var R=_o.apply(this,arguments); try{ var q=parseInt(cardQty,10)||0, s=String(srcRaw||''); if(q<1||!s.trim()||okQ(R,q)||/취소|재고\s*없음/.test(s))return R;
+      var v1=s.replace(/(\d{1,2})\s*[pP](?![a-zA-Z])\s*(으로|로)?/g,' ');   /* 8P·10p = P수 */
+      var v2=v1.replace(/\(\s*(\d{1,2})\s*(?:개|본)\s*(?:출고|만)?\s*\)/g,' $1 ').replace(/\(?\s*\d{1,2}\s*[\/.]\s*\d{1,2}\s*\)?/g,' ').replace(/\d{1,2}\s*월\s*\d{1,2}\s*일?/g,' ').replace(/(\d{1,2})\s*일(?!\s*(?:출고|입고))/g,' ');   /* (6개출고) = 6 · 5/30·11월 21일·22일 = 날짜 */
+      var v3=v2.replace(/(미치다|메치다|넥센)([^,，\/+&]*?)\s+(양지|시흥|광주|양산|대전|울산|대구|양주|기흥|칠곡)\s*(?:물류|RDC|rdc)?\s*\d{0,2}\s*(?:개|본)?/g,'$1$2 ');   /* 미치다2 양지2(주문 2) = 양지에서 받는 미치다 */
+      var V=[['P수',v1],['날짜',v2],['위치',v3]];
+      for(var i=0;i<V.length;i++){ if(V[i][1]===s)continue; var R2=_o.call(this,V[i][1],cardQty,opt); if(okQ(R2,q)){ R2.qmatch=V[i][0]; R2.raw0=s; return R2; } }
+    }catch(e){} return R; }; })();
+/* ▲QMT1120 */
+/* ▼TSK1120 (11/20 호준님 "어떤 작업이 오래 걸리는 게 있으면 진행 상태 — 얼마나 걸리는지 어디까지 된 건지") 상단 상자: 몇 초째 · 보통 몇 초 · 지금 읽는 것 · 요청 몇 개 끝 */
+var TSK={list:[],seq:0,tick:null,req:{n:0,done:0,cur:'',at:0},step:'',stepAt:0};
+var TSK_TB={jonghap_orders:'주문',items:'입고방',deliveries:'직배송 카드',reservations:'예약',reservation_links:'예약 연결',settings:'설정·체크',ping_products:'재고',ping_lots:'재고 연식',ping_logs:'재고 기록',kd_waybills:'경동 송장',jsr_products:'전산재고',jsr_lots:'전산재고',stock_products:'옛 재고',stock_lots:'옛 재고',rooms:'방',messages:'메시지',users:'직원',audit_log:'기록'};
+function tskHist(){ try{ return JSON.parse(localStorage.getItem('tg_task_ms')||'{}')||{}; }catch(e){ return {}; } }
+function tskTypical(key){ var h=tskHist()[key]; if(!Array.isArray(h)||!h.length)return 0; return Math.round(h.reduce(function(a,b){ return a+b; },0)/h.length); }
+function tskSave(key,ms){ try{ var h=tskHist(); var a=Array.isArray(h[key])?h[key]:[]; a.push(Math.round(ms)); h[key]=a.slice(-5); localStorage.setItem('tg_task_ms',JSON.stringify(h)); }catch(e){} }
+function tskQuiet(){ return !!(window._jhAutoBusy||window._jhAutoRun); }
+function tskStart(label,key,opt){ if(tskQuiet()&&!(opt&&opt.force))return 0; var id=++TSK.seq; if(!TSK.list.length){ TSK.req={n:0,done:0,cur:'',at:0}; TSK.step=''; } TSK.list.push({id:id,label:label,key:key||label,t0:Date.now()}); if(!TSK.tick)TSK.tick=setInterval(tskPaint,500); setTimeout(tskPaint,(opt&&opt.now)?0:1500); return id; }
+function tskEnd(id,ok){ var i=-1; for(var k=0;k<TSK.list.length;k++){ if(TSK.list[k].id===id){ i=k; break; } } if(i<0)return; var t=TSK.list.splice(i,1)[0]; if(ok!==false)tskSave(t.key,Date.now()-t.t0); if(!TSK.list.length){ clearInterval(TSK.tick); TSK.tick=null; var el=document.getElementById('tg-busy'); if(el&&!TG_BUSY.n)el.style.display='none'; } else tskPaint(); }
+function tskStep(txt){ TSK.step=String(txt||''); TSK.stepAt=Date.now(); }
+function tskPaint(){ try{ if(!TSK.list.length)return; var t=TSK.list[0], inner=TSK.list.length>1?TSK.list[TSK.list.length-1]:null, ms=Date.now()-t.t0; if(ms<1400)return; if(ms>180000){ tskEnd(t.id,false); return; }   /* 바깥 작업(예: 방 열기)이 제목, 안쪽(주문 읽기 등)은 '지금' */
+    var el=document.getElementById('tg-busy'); if(!el){ el=document.createElement('div'); el.id='tg-busy'; document.body.appendChild(el); }
+    var sec=Math.floor(ms/1000), typ=tskTypical(t.key), ts=typ?Math.max(1,Math.round(typ/1000)):0;
+    var now=(TSK.step&&Date.now()-TSK.stepAt<8000)?TSK.step:((TSK.req.cur?(TSK.req.cur+' 읽는 중'):'')+(inner?(TSK.req.cur?' · ':'')+inner.label.replace(/ 읽는 중$/,''):''));
+    var rq=TSK.req.n?(' · 요청 '+TSK.req.done+'/'+TSK.req.n+' 끝'):'';
+    var slow=(typ&&ms>typ*2&&ms>5000)?' · <b style="color:#fde68a">평소보다 오래 걸려요</b>':'';
+    var pct=(typ&&ms<typ)?Math.round(ms/typ*100):0;
+    el.style.whiteSpace='normal'; el.style.maxWidth='92vw'; el.style.flexWrap='wrap'; el.style.justifyContent='center'; el.style.textAlign='center';
+    el.innerHTML='<span class="tg-busy-spin"></span><span>'+esc(t.label)+' · <b>'+sec+'초</b>'+(ts?' <span style="opacity:.75;font-weight:600">(보통 '+ts+'초'+(pct?' · 약 '+pct+'%':'')+')</span>':'')+slow+'</span>'+((now||rq)?'<span style="flex-basis:100%;font-size:11.5px;font-weight:600;opacity:.85">'+(now?'지금: '+esc(now):'')+esc(rq)+'</span>':'');
+    el.style.display='flex'; }catch(e){} }
+function tskWrap(name,label,key,opt){ var f=window[name]; if(typeof f!=='function'||f._tsk)return; var w=function(){ var self=this, args=arguments; var id=tskStart(typeof label==='function'?label.apply(self,args):label,key||name,opt); var p; try{ p=f.apply(self,args); }catch(e){ tskEnd(id,false); throw e; } if(p&&typeof p.then==='function'){ return p.then(function(v){ tskEnd(id,true); return v; },function(e){ tskEnd(id,false); throw e; }); } tskEnd(id,true); return p; }; w._tsk=1; window[name]=w; }
+(function(){ if(window._tskFetch||typeof window.fetch!=='function')return; window._tskFetch=1; var _f=window.fetch;
+  window.fetch=function(u){ if(!TSK.list.length)return _f.apply(this,arguments); var s=String((u&&u.url)||u||''), nm='';
+    var m=s.match(/\/rest\/v1\/([a-z_0-9]+)/); if(m)nm=TSK_TB[m[1]]||m[1]; else if(/script\.google(usercontent)?\.com/.test(s))nm='시트·수집기 응답'; else if(/\/storage\/v1\//.test(s))nm='파일'; else if(/\/functions\/v1\//.test(s))nm='서버 작업';
+    if(!nm)return _f.apply(this,arguments); TSK.req.n++; TSK.req.cur=nm; var p=_f.apply(this,arguments); var fin=function(){ TSK.req.done++; }; try{ p.then(fin,fin); }catch(e){} return p; }; })();
+function tskInstall(){ if(window._tskOn)return; window._tskOn=true;
+  /* 기존 tgBusy(방 열기 등)도 같은 상자: 몇 초째·보통·지금 */
+  if(typeof tgBusy==='function'){ var _b=tgBusy, _bo=tgBusyOff, stack=[]; tgBusy=function(text){ _b.apply(this,arguments); stack.push(tskStart(String(text||'불러오는 중…'),'busy:'+String(text||'').replace(/\s*(여는|읽는)\s*중.*$/,''),{force:true})); }; tgBusyOff=function(){ var id=stack.pop(); if(id)tskEnd(id,true); return _bo.apply(this,arguments); }; }
+  tskWrap('jhSheetRefresh','🔄 시트 최신화','jhSheetRefresh');
+  tskWrap('rtRefresh','🔄 재고 시트 최신화','rtRefresh');
+  tskWrap('kdRefreshNow',function(m){ return m==='range'?'🔄 경동 전체 최신화':'🔄 경동 오늘 최신화'; },'kdRefreshNow');
+  tskWrap('omLoad','📋 주문 읽는 중','omLoad'); tskWrap('pmLoad','📮 택배방 읽는 중','pmLoad');
+  tskWrap('loadDeliveries','🚚 직배송 읽는 중','loadDeliveries'); tskWrap('stkLoad','📦 재고 읽는 중','stkLoad');
+  /* 시트 최신화가 적는 진행 글(동기화 기록 칸)을 상자에도 */
+  try{ var si=document.getElementById('jh-syncinfo'); if(si&&window.MutationObserver)new MutationObserver(function(){ if(TSK.list.length)tskStep(String(si.textContent||'').trim().slice(-60)); }).observe(si,{childList:true,characterData:true,subtree:true}); }catch(e){}
+}
+if(document.readyState==='complete')tskInstall(); else window.addEventListener('load',tskInstall);
+/* ▲TSK1120 */
+/* ▼CLK1120 (11/20 호준님) 직배송 카드 ↔ 주문 줄 재고 연결 서로 보이기 — 주문방·택배방이 메인, 직배송방에서 연결한 것도 인정 · 재고는 한쪽에서만 빠짐(표시만 따라감) */
+var CLK={olk:{},olkAt:0,olkBusy:null};
+function clkKeys(o){ var a=[]; try{ [omKey(o),omKeyOld(o)].forEach(function(k){ if(k&&a.indexOf(k)<0)a.push(k); }); }catch(e){} return a; }
+async function clkOrdLoad(force){ if(!force&&CLK.olkAt&&Date.now()-CLK.olkAt<60000)return CLK.olk; if(CLK.olkBusy)return CLK.olkBusy;   /* 주문 줄에 재고 연결이 있는 것(45일) → 열쇠별 연결 수 */
+  CLK.olkBusy=(async function(){ try{ var d0=new Date(Date.now()-45*86400000).toISOString().slice(0,10); var rows=(await sbFetchAll(function(){ return sb.from('jonghap_orders').select('id,platform,order_no,size,use_note,qty,status,cancelled,logs,date_str').filter('logs','cs',JSON.stringify([{t:'재고 연결'}])).gte('date_str',d0).order('id',{ascending:true}); }))||[]; var m={};
+      rows.forEach(function(o){ if(o.cancelled)return; var h=0; try{ h=omStkQty(o); }catch(e){} if(!h)return; clkKeys(o).forEach(function(k){ var e=m[k]||(m[k]={have:0,need:0,n:0}); e.have+=h; e.need+=(parseInt(o.qty,10)||0); e.n++; }); });
+      CLK.olk=m; CLK.olkAt=Date.now(); }catch(e){ console.error('주문 줄 재고 연결 읽기 실패 — 직배송 카드는 전처럼 카드 연결만 봄',e); } finally{ CLK.olkBusy=null; } return CLK.olk; })(); return CLK.olkBusy; }
+function clkCardOrdHave(c){ try{ var k=c&&c.raw_line; if(!k)return 0; var e=CLK.olk[k]; return e?e.have:0; }catch(e){ return 0; } }
+function clkCardOk(c){ var need=parseInt(c&&c.qty,10)||0; return need>0&&dlvLinkQty(c)<need&&clkCardOrdHave(c)>=need; }   /* 카드엔 없지만 주문 줄에 다 연결됨 */
+async function clkCardLoad(rows){ try{ var by={}; (rows||[]).forEach(function(o){ if(!o||o.cancelled)return; clkKeys(o).forEach(function(k){ (by[k]=by[k]||[]).push(o.id); }); }); var keys=Object.keys(by); if(!keys.length)return; var sum={};   /* 주문 줄 열쇠로 직배송 카드(이월 사본 포함) 연결 수 */
+    for(var i=0;i<keys.length;i+=100){ var r=await sb.from('deliveries').select('id,raw_line,qty,cancelled,src_kind,src_product_id,src_item_id,src_qty,src_label,links').in('raw_line',keys.slice(i,i+100)); if(r.error)throw r.error; (r.data||[]).forEach(function(c){ if(c.cancelled)return; sum[c.raw_line]=(sum[c.raw_line]||0)+dlvLinkQty(c); }); }
+    OM.cardLk=OM.cardLk||{}; keys.forEach(function(k){ by[k].forEach(function(id){ OM.cardLk[id]=Math.max(OM.cardLk[id]||0,sum[k]||0); }); }); }catch(e){ console.error('직배송 카드 연결 읽기 실패 — 주문 줄은 전처럼 줄 연결만 봄',e); } }
+function clkInstall(){ if(window._clkOn)return; window._clkOn=true;
+  if(typeof omMirror==='function'){ var _m=omMirror; omMirror=async function(){ var r=await _m.apply(this,arguments); try{ await clkCardLoad((OM.rows||[]).filter(function(o){ return o.dtype==='direct'||o.status==='sent'; })); }catch(e){} return r; }; }
+  if(typeof jhNoLink==='function'){ var _n=jhNoLink; jhNoLink=function(o){ try{ if(o&&!o.cancelled&&OM&&OM.cardLk&&OM.cardLk[o.id]){ var need=(typeof omStkNeed==='function')?omStkNeed(o):(parseInt(o.qty,10)||0); if((typeof omStkQty==='function'?omStkQty(o):0)+OM.cardLk[o.id]>=need)return false; } }catch(e){} return _n.apply(this,arguments); }; }   /* 직배송방에서 연결한 것도 주문 줄 연결로 인정 */
+  if(typeof loadDeliveries==='function'){ var _ld=loadDeliveries; loadDeliveries=async function(){ var r=await _ld.apply(this,arguments); try{ var was=CLK.olkAt; await clkOrdLoad(false); if(CLK.olkAt!==was&&typeof dlvRender==='function')dlvRender(); }catch(e){} return r; }; }
+  if(typeof dlvNeedLink==='function'){ var _nd=dlvNeedLink; dlvNeedLink=function(c){ var r=_nd.apply(this,arguments); try{ if(r&&clkCardOk(c))return false; }catch(e){} return r; }; }   /* 직배송방 [🔗 창고 미연결] 칩 */
+  if(typeof dlvStkBox==='function'){ var _sb=dlvStkBox; dlvStkBox=function(c){ try{ if(clkCardOk(c)&&!dlvLinks(c).length){ var need=parseInt(c.qty,10)||0; return stkLinkBox({have:need,need:need,rows:[{txt:'주문방·택배방 주문 줄에서 연결',sub:'재고는 주문 줄에서 뺐어요 — 여기서 또 연결하지 마세요'}],canEdit:false,note:'🔗 연결됨(주문방에서)'}); } }catch(e){} return _sb.apply(this,arguments); }; }
+  if(typeof ulMkD==='function'){ var _u=ulMkD; ulMkD=function(c){ var x=_u.apply(this,arguments); try{ var oh=clkCardOrdHave(c); if(x&&x.have<x.need&&oh>=x.need){ x.have=x.need; x.byOrder=true; } }catch(e){} return x; }; }   /* 미연결 모아보기 */
+  if(typeof ulLoad==='function'){ var _ul=ulLoad; ulLoad=async function(){ try{ await clkOrdLoad(false); }catch(e){} return _ul.apply(this,arguments); }; }
+}
+if(document.readyState==='complete')clkInstall(); else window.addEventListener('load',clkInstall);
+/* ▲CLK1120 */
 function rsvXtrInstall(){ if(window._rsvXtrOn)return; window._rsvXtrOn=1;
   if(typeof rsvSubmit==='function'){ var _s0=rsvSubmit; rsvSubmit=async function(){ var id=(typeof rsvEditId!=='undefined'&&rsvEditId)||null, before=0; try{ var r0=id?(reservations||[]).find(function(x){ return x.id===id; }):null; if(r0)before=rsvTotOf(r0); else id=null; }catch(e){ id=null; }
       var res=await _s0.apply(this,arguments);
@@ -24837,7 +24915,7 @@ function lcBarHtml(){ var ids=[]; var m={}; lcAllRows().forEach(function(r){ var
   /* 플랫폼별 [미등록 n]·[전체✓]은 표 머리칸 안으로 옮김 — 여기엔 공통 것만 */
   var h='<div class="lc-row"><b style="font-size:12.5px">✅ 플랫폼 등록</b>'+'<span class="rt-chip'+(!LC.mode?' on':'')+'" onclick="LC.mode=\'\';LC.pfOnly=\'\';lcDecorate()">전체 '+ids.length+'</span>'+'<span class="rt-chip'+(LC.mode==='un'&&!LC.pfOnly?' on':'')+'" onclick="LC.mode=\'un\';LC.pfOnly=\'\';lcDecorate()" title="하나라도 안 올린 줄만">미등록만 보기 <i>'+unAny+'</i></span>'+'<span class="rt-chip'+(LC.mode==='new'?' on':'')+'" onclick="LC.mode=\'new\';LC.pfOnly=\'\';lcDecorate()" title="7일 안에 새로 들어온 상품 중 안 올린 것">NEW 미등록 <i>'+nw+'</i></span>'+(LC.undo?'<button class="rt-btn red" onclick="lcUndo()">↩ 방금 체크 되돌리기</button>':'')+(mine.length?'<span style="font-size:11.5px;color:#b45309">👤 내 담당: '+mine.map(function(k){return lcPfName(k);}).join(' · ')+'</span>':'')+'<span style="font-size:11px;color:#94a3b8">· 열 머리의 숫자 = 그 플랫폼 미등록(누르면 그것만) · [전체✓] = 보이는 줄 전체 등록함 · 칸의 <b style="color:#dc2626">미</b> = 미등록(누르면 등록), ✓ = 등록함(누르면 해제)</span><span style="flex:1"></span><span style="font-size:11.5px;color:#475569">담당자:</span>'+LC_PF.map(function(f){ return '<span class="lc-own'+(admin?' ed':'')+'" onclick="'+(admin?'lcOwnerEdit(\''+f[0]+'\')':'')+'" title="'+(admin?'누르면 담당자 바꾸기(대표)':'대표가 정함')+'">'+lcPfName(f[0])+' <b>'+stkEsc(LC.owners[f[0]]||'—')+'</b></span>'; }).join('')+'</div><div class="lc-row" id="lc-hid"></div>'; return h; }
 /* 줄 칸 끼우기 — 가상 표가 줄을 다시 그릴 때마다(스크롤) 호출 */
-function lcRowsDecorate(){ if(!lcOn()||!LC.loaded)return; var t=document.getElementById('stk-rtTable'); var hid=lcHidden(), mine=lcMine(); /* 표의 폭 자동 보정(stkRtFixClip)이 내 열을 넓히지 않게 늘 60/0으로 */ try{ var cg=t.querySelector('colgroup'); if(cg){ var ch=false; [].forEach.call(cg.querySelectorAll('col[data-lc]'),function(c){ var w=(hid.indexOf(c.getAttribute('data-lc'))>=0?0:LC_W)+'px'; if(c.style.width!==w){ c.style.width=w; ch=true; } }); if(ch){ var tot=0; [].forEach.call(cg.querySelectorAll('col'),function(c){ tot+=parseInt(c.style.width,10)||0; }); if(tot)t.style.width=tot+'px'; } } }catch(e){} [].forEach.call(t.querySelectorAll('tbody tr'),function(tr){ if(tr.querySelector('.lc-td')||tr.dataset.lcSp)return; var pid=tr.getAttribute('data-pid'); if(!pid){ var td=tr.firstElementChild; if(td&&td.colSpan>1){ td.colSpan=td.colSpan+LC_PF.length; tr.dataset.lcSp='1'; } return; } tr.insertAdjacentHTML('afterbegin',LC_PF.map(function(f){ return lcCell(pid,f[0],mine.indexOf(f[0])>=0,hid.indexOf(f[0])>=0); }).join('')); }); }
+function lcRowsDecorate(){ if(!lcOn()||!LC.loaded)return; var t=document.getElementById('stk-rtTable'); var hid=lcHidden(), mine=lcMine(); /* 표의 폭 자동 보정(stkRtFixClip)이 내 열을 넓히지 않게 늘 60/0으로 */ try{ var cg=t.querySelector('colgroup'); if(cg){ var ch=false; [].forEach.call(cg.querySelectorAll('col[data-lc]'),function(c){ var w=(hid.indexOf(c.getAttribute('data-lc'))>=0?0:LC_W)+'px'; if(c.style.width!==w){ c.style.width=w; ch=true; } }); if(ch){ var tot=0; [].forEach.call(cg.querySelectorAll('col'),function(c){ tot+=parseInt(c.style.width,10)||0; }); if(tot)t.style.width=tot+'px'; } } }catch(e){} [].forEach.call(t.querySelectorAll('tbody tr'),function(tr){ if(tr.querySelector('.lc-td')||tr.dataset.lcSp)return; var pid=tr.getAttribute('data-pid'); if(!pid){ if(tr.classList.contains('stk-newrow')){ tr.insertAdjacentHTML('afterbegin',LC_PF.map(function(f){ return '<td class="lc-td lc-newtd'+(hid.indexOf(f[0])>=0?' lc-hide':'')+'" style="background:#f1f5f9;color:#cbd5e1;text-align:center;font-size:10px;cursor:default" title="플랫폼 등록은 상품을 등록한 뒤 그 줄에서 체크">·</td>'; }).join('')); return; }   /* NRW1120 추가 줄도 플랫폼 칸 자리(빈 칸) — 없으면 줄 전체가 4칸 밀림 */ var td=tr.firstElementChild; if(td&&td.colSpan>1){ td.colSpan=td.colSpan+LC_PF.length; tr.dataset.lcSp='1'; } return; } tr.insertAdjacentHTML('afterbegin',LC_PF.map(function(f){ return lcCell(pid,f[0],mine.indexOf(f[0])>=0,hid.indexOf(f[0])>=0); }).join('')); }); }
 function lcHeadDecorate(){ var t=document.getElementById('stk-rtTable'); if(!t)return; var hid=lcHidden(), mine=lcMine(); [].forEach.call(t.querySelectorAll('thead .lc-th, colgroup col[data-lc]'),function(e){ e.remove(); });
   var cg=t.querySelector('colgroup'); if(cg){ cg.insertAdjacentHTML('afterbegin',LC_PF.map(function(f){ return '<col data-lc="'+f[0]+'" style="width:'+(hid.indexOf(f[0])>=0?0:LC_W)+'px">'; }).join('')); var tot=0; [].forEach.call(cg.querySelectorAll('col'),function(c){ tot+=parseInt(c.style.width,10)||0; }); if(tot)t.style.width=tot+'px'; }
   /* 머리칸 = 이름 + [미등록 n](누르면 그 플랫폼 미등록만) + [전체✓](보이는 줄 전체 등록함) — 열 바로 위라 줄이 늘 맞음 (10/30 호준님) */
