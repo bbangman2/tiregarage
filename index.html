@@ -10980,7 +10980,7 @@ function jhSrcParse(raw){   // → {raw, parts:[{name,kind:'stock'|'supplier'|'u
     var st=function(x){ var f=false; if(/고객\s*취소|취소/.test(x)){ R.cancel=true; f=true; } if(/재고\s*없음/.test(x)){ R.nostock=true; f=true; } if(/주문\s*중|주문\s*완료|선주문|주문\s*요청|\d+\/\d+\s*주문|주문$|입고\s*예정|다음주|다다음주|발주/.test(x)){ R.ordered=true; } return f&&!(JH_SRC_ALIAS.some(function(a){return a[0].test(x.replace(/^실/,''));})||!!jhSrcUserHit(x)); };
     var _isAl=function(x){ return (JH_SRC_ALIAS.some(function(a){return a[0].test(x.replace(/^실/,''));})||!!jhSrcUserHit(x)); }; seg.forEach(function(x){ st(x); }); var _al=seg.filter(_isAl); var pick=_al.length?_al[_al.length-1]:seg.filter(function(x){ return !st(x); }).pop(); if(!pick)return;   /* (10/19) 거래처 이름 있는 마지막 토막 */   // "창고->고객취소" = 창고(취소) · "재고없음" 혼자면 갈래 없음
     var nm=null, ukind=''; var _uh=jhSrcUserHit(pick); if(_uh){ nm=_uh.to; ukind=_uh.kind||''; } else for(var i=0;i<JH_SRC_ALIAS.length;i++){ if(JH_SRC_ALIAS[i][0].test(pick)){ nm=JH_SRC_ALIAS[i][1]; break; } }   /* (10/20) 직접 넣은 사전 먼저 */
-    var notes=[]; var body=pick.replace(/\(?\s*(\d{1,2}\s*일\s*출고|익일\s*출고|입고|\d{1,2}\s*일\s*주문)\s*\)?/g,function(m){ notes.push(m.replace(/[()]/g,'').trim()); return ' '; }).replace(/(2\d)\s*년\s*(으로|출고|으로\s*출고)?/g,function(m){ notes.push(m.trim()); return ' '; }).replace(/\d{1,3}\s*%/g,function(m){ notes.push(m); return ' '; }).replace(/\d{1,2}\s*p\s*(로|으로)?\s*(출고)?/ig,function(m){ notes.push(m.trim()); return ' '; });
+    var notes=[]; var body=jhSrcDateOut(pick,notes).replace(/\(?\s*(\d{1,2}\s*일\s*출고|익일\s*출고|입고|\d{1,2}\s*일\s*주문)\s*\)?/g,function(m){ notes.push(m.replace(/[()]/g,'').trim()); return ' '; }).replace(/(2\d)\s*년\s*(으로|출고|으로\s*출고)?/g,function(m){ notes.push(m.trim()); return ' '; }).replace(/\d{1,3}\s*%/g,function(m){ notes.push(m); return ' '; }).replace(/\d{1,2}\s*p\s*(로|으로)?\s*(출고)?/ig,function(m){ notes.push(m.trim()); return ' '; });
     var q=null, qm=body.match(/(?:^|[^A-Za-z0-9])(\d{1,2})\s*(본|개)?\s*\)?\s*$/); if(qm&&+qm[1]>0&&+qm[1]<=40)q=+qm[1];
     R.parts.push({name:nm||(body.replace(/(\d{1,2})\s*(본|개)?\s*\)?\s*$/,'').trim()||pick),kind:nm?(ukind||(nm==='창고'?'stock':'supplier')):'unknown',qty:q,note:notes.filter(Boolean).join(' ')}); if(!nm)R.unk=true;
   });
@@ -21701,6 +21701,50 @@ function evdInstall(){ if(window._evdOn)return; window._evdOn=true;
 }
 if(document.readyState==='complete')evdInstall(); else window.addEventListener('load',evdInstall);   /* 모든 스크립트가 끝난 뒤 — 뒤쪽 겉싸개가 완료 줄을 따로 그려도 표시가 붙게 */
 /* ▲EVD1120 */
+/* ▼MIX1120 (11/20 호준님) 섞인 출고지 — "2개 중 1개가 직접출고면 1개만 출력해서 우리가 보냄" · "창고1 핑1 이런 식으로 적어"
+   ① 띄어쓰기로 이어 적은 출고지(창고1 핑1 · 창고1 황제1 · 창고1. 사일룬1)도 나눠 읽음 — 오른쪽 토막이 출고지 이름일 때만
+   ② 택배·재출고·직접출고 줄에 거래처 직송 몫(OM_DX_DIRECT: 핑·사일룬·아파치·레이다·썬베이·천안미쉐린·그랜드·하나)과 우리 몫이 섞이면 경동 접수 수량 = 우리 몫
+   ③ 송장 구분: '거래처(칸에 직접)'로 처음 들어온 번호 = 거래처 송장, 나머지 = 우리 송장 */
+(function(){ if(window._mixSplit||typeof jhSrcSplit!=='function')return; window._mixSplit=1; var _o=jhSrcSplit;
+  var isAl=function(x){ x=String(x||'').trim(); if(!x)return false; try{ if(typeof jhSrcUserHit==='function'&&jhSrcUserHit(x))return true; }catch(e){} try{ return JH_SRC_ALIAS.some(function(a){ return a[0].test(x.replace(/^실/,'')); }); }catch(e){ return false; } };
+  jhSrcSplit=function(t){ var L=_o.apply(this,arguments), out=[]; L.forEach(function(p){ var rest=String(p||''), guard=0; while(guard++<8){ var re=/(\d{1,2}\s*(?:본|개)?\s*\)?)\s*(?:\.\s*|\s+)(?=[가-힣A-Za-z\[])/g, m, cut=false; while((m=re.exec(rest))){ var left=rest.slice(0,m.index+m[1].length), right=rest.slice(re.lastIndex); if(isAl(left)&&isAl(right)){ out.push(left.trim()); rest=right; cut=true; break; } } if(!cut)break; } out.push(rest.trim()); }); return out.filter(Boolean); }; })();
+function jhSrcDateOut(s,notes){ var put=function(m){ m=String(m).trim(); if(m)notes.push(m); };   /* MIX1120b (11/20 호준님 "날짜까지 적었다고 그걸 수량으로 착각하는 일은 없었으면") 날짜는 메모로 · 「21일출고·입고·주문」은 원래 규칙이 처리 */
+  return String(s||'').replace(/(\d{1,2})\s*월\s*(\d{1,2})\s*일?/g,function(m){ put(m); return ' '; })
+    .replace(/(^|[^\d])(\d{1,2}\s*[\/.]\s*\d{1,2})(?![\d])(?!\s*(?:본|개))/g,function(m,p,dt){ put(dt); return p+' '; })
+    .replace(/(^|[^\d~\-])(\d{1,2}\s*일)(?!\s*(?:출고|입고|주문|이후|정도|쯤|본|개|및))/g,function(m,p,dt){ put(dt); return p+' '; }).replace(/\(\s*\)/g,' '); }
+function omMix(o){ try{ if(!o||o.cancelled)return null; var d=o.dtype||''; if(d!=='taekbae'&&d!=='reship'&&d!=='dx')return null; var P=omSrc(o); if(!P||P.cancel||P.nostock||!P.parts||P.parts.length<2)return null; var q=parseInt(o.qty,10)||0; if(q<2)return null;
+    var RX=(typeof OM_DX_DIRECT!=='undefined')?OM_DX_DIRECT:/^(핑|사일룬|아파치|레이다|[썬선]베이|천안미쉐린|그랜드타이어|하나타이어)/, dx=0, nm=[], allQ=true, sum=0;
+    P.parts.forEach(function(p){ if(p.qty==null)allQ=false; else sum+=p.qty; if((d==='dx')?(p.kind!=='stock'):(p.kind==='supplier'&&RX.test(String(p.name||'')))){ if(p.qty==null){ dx=NaN; return; }   /* MIX1120b 직접출고 구분이면 창고 아닌 몫 전부 = 거래처 몫 */ dx+=p.qty; if(nm.indexOf(p.name)<0)nm.push(p.name); } });
+    if(!(dx>0))return null; if(allQ&&sum!==q)return null;   /* 나눈 수량 ≠ 주문 수량이면 손대지 않음(⚠ 표시가 따로 뜸) */ var our=q-dx; if(our<=0)return null; return {our:our,dx:dx,names:nm.join('·'),q:q}; }catch(e){ return null; } }
+function omWbVend(o){ var V={}; (Array.isArray(o&&o.logs)?o.logs:[]).forEach(function(l){ if(l&&l.t==='송장'&&Array.isArray(l.nos)){ var v=!/경동/.test(String(l.how||''));   /* MIX1120b 경동으로 들어온 번호 = 우리 송장, 그 밖(주문방 [직접 넣기]·택배방 칸) = 거래처 송장 */ l.nos.forEach(function(n){ n=String(n); if(!(n in V))V[n]=v; }); } }); return V; }
+function omMixWb(o){ var w=[]; try{ w=pmWb(o); }catch(e){} if(!o||o.dtype!=='dx')return {ours:w,vend:[]};   /* MIX1120b 택배 줄 송장 = 전부 우리 것(전과 같음) */ var V=omWbVend(o); return {ours:w.filter(function(n){ return !V[String(n)]; }),vend:w.filter(function(n){ return !!V[String(n)]; })}; }
+function omMixDone(o,w){ w=w||[]; if(!omMix(o))return w.length?{nos:w}:null; var x=omMixWb(o).ours; return x.length?{nos:x}:null; }   /* 섞인 줄은 거래처 송장만 있으면 아직 우리 몫 접수 전 */
+function omMixMerge(o,nos){ try{ if(!omMix(o))return nos; var all=pmWb(o).map(String); (nos||[]).forEach(function(n){ n=String(n); if(all.indexOf(n)<0)all.push(n); }); return all; }catch(e){ return nos; } }
+function omMixBadge(o){ var m=omMix(o); if(!m)return ''; var W=omMixWb(o), tip='출고지에 거래처가 손님께 바로 보내는 몫('+m.names+' '+m.dx+'개)이 섞여 있어요 — 경동 접수는 우리 몫 '+m.our+'개만(송장 '+m.our+'장 분량)';
+  var h=' <span class="stbadge mixb" style="background:#ecfeff;color:#0e7490;font-weight:900;border:1px solid #a5f3fc" title="'+esc(tip)+'">🔀 '+esc(m.names)+' '+m.dx+' 직접 · 우리 '+m.our+' 경동</span>';
+  if(o.dtype==='dx'&&o.status==='wait')h+=W.ours.length?' <span class="stbadge mixb" style="background:#dcfce7;color:#166534;font-weight:900">📦 우리 몫 송장 '+W.ours.length+'장</span>':' <span class="stbadge mixb" style="background:#dc2626;color:#fff;font-weight:900" title="직접출고 줄이지만 우리 몫이 있어요 — 체크해서 경동 접수(우리 몫만 올라감)">⚠ 우리 몫 송장 등록 안 됨</span>';
+  return h; }
+function omMixNote(o){ var m=omMix(o); if(!m)return ''; return '<div class="om-mixnote" style="margin:6px 0;padding:6px 9px;background:#ecfeff;border:1px solid #a5f3fc;border-radius:8px;font-size:12.5px;color:#155e75"><b>🔀 섞인 출고지</b> — '+esc(m.names)+' '+m.dx+'개는 거래처가 손님께 바로 보내요. <b>우리 몫 '+m.our+'개만</b> 경동 접수됩니다(주문 '+m.q+'개 중).'+(o.dtype==='dx'?' 거래처 송장('+m.dx+'장)은 송장 칸에 같이 넣어 주세요 — 우리 송장 + 거래처 송장이 다 있어야 완료.':'')+'</div>'; }
+function mixInstall(){ if(window._mixOn)return; window._mixOn=true;
+  if(typeof pmPseudoCard==='function'){ var _pc=pmPseudoCard; pmPseudoCard=function(o){ var c=_pc.apply(this,arguments); try{ var m=omMix(o); if(m&&c){ c.qty=String(m.our); c._mix=m; } }catch(e){} return c; }; }   /* 경동 접수·다시 등록 수량 = 우리 몫 */
+  if(typeof jhPending==='function'){ var _jp=jhPending; jhPending=function(o){ try{ if(o&&o.status==='wait'&&o.dtype==='dx'&&!o.cancelled&&omMix(o)&&!omMixWb(o).ours.length)return true; }catch(e){} return _jp.apply(this,arguments); }; }   /* 직접출고 줄의 우리 몫 = 우리가 할 일 */
+  if(typeof jhDone==='function'){ var _jd=jhDone; jhDone=function(o){ try{ if(o&&o.status==='wait'&&o.dtype==='dx'&&!o.cancelled&&omMix(o)){ var W=omMixWb(o); return W.ours.length>0&&W.vend.length>0; } }catch(e){} return _jd.apply(this,arguments); }; }
+  if(typeof otSrcTxt==='function'){ var _st=otSrcTxt; otSrcTxt=function(o){ var h=_st.apply(this,arguments); try{ if(typeof h==='string'&&h.indexOf('mixb')<0)h+=omMixBadge(o); }catch(e){} return h; }; }
+  if(typeof otDetail==='function'){ var _od=otDetail; otDetail=function(o){ var h=_od.apply(this,arguments); try{ if(typeof h==='string')h=omMixNote(o)+h; }catch(e){} return h; }; }
+  if(typeof pmDetail==='function'){ var _pd=pmDetail; pmDetail=function(o){ var h=_pd.apply(this,arguments); try{ if(typeof h==='string')h=omMixNote(o)+h; }catch(e){} return h; }; }
+}
+if(document.readyState==='complete')mixInstall(); else window.addEventListener('load',mixInstall);   /* EVD1120 겉싸개보다 뒤 */
+/* ▲MIX1120 */
+/* ▼RVR1120 (11/20 호준님 "예약등록방은 최신 정보가 필요한 방 · 작업장에서 핸드폰으로만 확인") 예약 화면이 보일 때 — 폰을 다시 켜거나 앱으로 돌아오면 바로 다시 읽기 + 보고 있는 동안 60초마다. 글 입력 중·예약 창이 열려 있으면 건너뜀 */
+var RVR={at:0,busy:false};
+function rvrOn(){ try{ if(document.hidden)return false; var m=(typeof curRoom!=='undefined'&&curRoom&&ROOM_META[curRoom.name])||{}; if(m.mode!=='reserve')return false; var el=document.getElementById('reserve-screen'); return !!(el&&el.style.display!=='none'); }catch(e){ return false; } }
+function rvrQuiet(){ try{ var a=document.activeElement; if(a&&(/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)||a.isContentEditable))return true; var ov=[].slice.call(document.querySelectorAll('.modal-overlay,.modal,[id$="-modal"],[id$="-overlay"]')).some(function(x){ var cs=getComputedStyle(x); return cs.display!=='none'&&cs.visibility!=='hidden'&&x.offsetParent!==null; }); return ov; }catch(e){ return false; } }
+async function rvrTick(why,minGap){ if(RVR.busy||!rvrOn()||rvrQuiet())return; if(Date.now()-RVR.at<minGap)return; if(typeof loadReservations!=='function')return; RVR.busy=true; try{ await loadReservations(); RVR.at=Date.now(); }catch(e){ console.warn('예약 다시 읽기 실패('+why+')',e); } finally{ RVR.busy=false; } }
+(function(){ if(window._rvrOn)return; window._rvrOn=1; if(typeof loadReservations==='function'){ var _lr=loadReservations; loadReservations=async function(){ var r=await _lr.apply(this,arguments); RVR.at=Date.now(); return r; }; }
+  document.addEventListener('visibilitychange',function(){ if(!document.hidden)setTimeout(function(){ rvrTick('화면으로 돌아옴',5000); },400); });
+  window.addEventListener('focus',function(){ rvrTick('창 다시 보임',5000); }); window.addEventListener('pageshow',function(){ rvrTick('다시 열림',5000); });
+  setInterval(function(){ rvrTick('60초',55000); },15000); })();
+/* ▲RVR1120 */
 function rsvXtrInstall(){ if(window._rsvXtrOn)return; window._rsvXtrOn=1;
   if(typeof rsvSubmit==='function'){ var _s0=rsvSubmit; rsvSubmit=async function(){ var id=(typeof rsvEditId!=='undefined'&&rsvEditId)||null, before=0; try{ var r0=id?(reservations||[]).find(function(x){ return x.id===id; }):null; if(r0)before=rsvTotOf(r0); else id=null; }catch(e){ id=null; }
       var res=await _s0.apply(this,arguments);
@@ -26444,73 +26488,93 @@ function rtrBuild(items,ords,dls,rsv,kdDone,RV){ rsv=rsv||{}; kdDone=kdDone||{};
   rows.forEach(function(r){ if(r.kind==='v'&&r.src!==RTR_NOSRC){ var n=rtrSrcNorm(r.src); if(n.g){ r.src=n.g; r.srcSub=n.sub; } } });
   rows.sort(function(a,b){ return [a.brand,a.name,a.size,a.ply,a.yy].join('|').localeCompare([b.brand,b.name,b.size,b.ply,b.yy].join('|'),'ko'); });
   rows._skipDx=skipDx; rows._doneDl=doneN; rows._rsv=rvList.length; return rows; }
-function rtrLoad(){ if(RTR.loading)return RTR.loading;
-  RTR.loading=(async function(){ var D=RTR.date;
-    try{ var roomId=jhInboundRoomId();
-      var items=await sbFetchAll(function(){ return sb.from('items').select('*').eq('room_id',roomId).eq('date_str',D).order('id',{ascending:true}); });
-      var ords=await sbFetchAll(function(){ return sb.from('jonghap_orders').select('*').eq('date_str',D).or('cancelled.is.null,cancelled.eq.false').order('id',{ascending:true}); });
-      var dls=await sbFetchAll(function(){ return sb.from('deliveries').select('id,date_str,tab,car,done,cancelled,brand,tire,spec,qty,recv,shop_name,addr,src,src_kind,src_item_id,src_label,first_date,origin_id,user_name').eq('date_str',D).order('id',{ascending:true}); });
-      var rsvIds=[]; (ords||[]).forEach(function(o){ if(o.dtype!=='install')return; (Array.isArray(o.logs)?o.logs:[]).forEach(function(l){ if(l&&l.t==='예약 등록'&&l.rsv_id&&rsvIds.indexOf(l.rsv_id)<0)rsvIds.push(l.rsv_id); }); }); var rsvMap={}; for(var ri=0;ri<rsvIds.length;ri+=100){ var rq=await sb.from('reservations').select('id,date_str,time_slot,status').in('id',rsvIds.slice(ri,ri+100)); if(rq.error)throw rq.error; (rq.data||[]).forEach(function(v){ rsvMap[v.id]=v; }); }   /* 장착 날짜 */
-      var kdDone={}; try{ var dq=await sb.from('settings').select('value').eq('key','kd_rcpt_done').maybeSingle(); if(dq.error)throw dq.error; if(dq.data&&dq.data.value&&typeof dq.data.value==='object')kdDone=dq.data.value; }catch(eD){ console.warn('실물타이어방: 카드 접수 송장 기록을 못 읽음',eD); }
-      /* RSV1119 예약등록방: 그날 포함 그 이후 · 상태 '예약' (+ 재고·입고 연결, 이어진 장착 주문, 그 입고방 줄) */
-      var RV={list:[],links:[],ords:[],items:{}}, rvErr='', pvErr='', rvPast=(D<getTodayISO());   /* PRV1119 지난 날짜를 볼 때는 그날 예약만 — 오늘·앞날은 그날+이후 */
-      try{ RV.list=(await sbFetchAll(function(){ return sb.from('reservations').select('id,date_str,time_slot,status,qty,tire_spec,customer_name,car_name,car_model,car_no,memo,src_kind,src_product_id,src_item_id,src_dot,src_qty,src_label,user_name')[rvPast?'eq':'gte']('date_str',D).eq('status','예약').order('date_str',{ascending:true}).order('id',{ascending:true}); }))||[];
-        if(RV.list.length){ var rvIds=RV.list.map(function(v){ return v.id; }), rvSet={}; rvIds.forEach(function(x){ rvSet[String(x)]=1; });
-          for(var li=0;li<rvIds.length;li+=100){ var lq=await sb.from('reservation_links').select('id,reservation_id,kind,item_id,product_id,dot,qty,tire_spec,src_label').in('reservation_id',rvIds.slice(li,li+100)); if(lq.error)throw lq.error; RV.links=RV.links.concat(lq.data||[]); }
-          if(!RTR.rvOrd||RTR.rvOrdD!==D||Date.now()-(RTR.rvOrdAt||0)>180000){ var d0=new Date(D+'T00:00:00Z'); d0.setUTCDate(d0.getUTCDate()-45); var d0s=d0.toISOString().slice(0,10); RTR.rvOrd=(await sbFetchAll(function(){ return sb.from('jonghap_orders').select('*').filter('logs','cs',JSON.stringify([{t:'예약 등록'}])).gte('date_str',d0s).or('cancelled.is.null,cancelled.eq.false').order('id',{ascending:true}); }))||[]; RTR.rvOrdAt=Date.now(); RTR.rvOrdD=D; }   /* 예약과 이어진 장착 주문(45일 치) — 3분에 한 번만 다시 읽음, ↻는 바로 */
-          RV.ords=RTR.rvOrd.filter(function(o){ var id=null; (Array.isArray(o.logs)?o.logs:[]).forEach(function(l){ if(l&&l.t==='예약 등록'&&l.rsv_id)id=l.rsv_id; }); return id!=null&&rvSet[String(id)]; });
-          var needIt=[], haveIt={}; (items||[]).forEach(function(it){ haveIt[it.id]=1; }); var want=function(id){ if(id&&!haveIt[id]&&needIt.indexOf(id)<0)needIt.push(id); };
-          RV.list.forEach(function(v){ want(v.src_item_id); }); RV.links.forEach(function(L){ want(L.item_id); }); RV.ords.forEach(function(o){ want(o.inbound_item_id); });
-          for(var ii=0;ii<needIt.length;ii+=100){ var iq=await sb.from('items').select('*').in('id',needIt.slice(ii,ii+100)); if(iq.error)throw iq.error; (iq.data||[]).forEach(function(it){ RV.items[it.id]=it; }); } }
-      }catch(eR){ rvErr=String(eR&&eR.message||eR); RV={list:[],links:[],ords:[],items:{}}; console.error('실물타이어방: 예약을 못 읽음',eR); }
-      var mk=await sbFetchAll(function(){ return sb.from('settings').select('key,value').like('key','rtr:'+D+':%').order('key',{ascending:true}); });
-      if(D!==RTR.date)return;   /* 읽는 사이 날짜를 바꿨으면 버림 */
-      var rows=rtrBuild(items||[],ords||[],dls||[],rsvMap,kdDone,RV), marks={}, pre=('rtr:'+D+':').length; (mk||[]).forEach(function(z){ if(z&&z.value&&typeof z.value==='object')marks[String(z.key).slice(pre)]=z.value; });
-      var rk=rows.filter(function(r){ return r.mk; }).map(function(r){ return rtrMKey(r); }); for(var mi=0;mi<rk.length;mi+=60){ var mq=await sb.from('settings').select('key,value').in('key',rk.slice(mi,mi+60)); if(mq.error)throw mq.error; (mq.data||[]).forEach(function(z){ if(z&&z.value&&typeof z.value==='object')marks[String(z.key).slice(8)]=z.value; }); }   /* 예약 줄의 체크('rtr:rsv:' 뒤가 줄 열쇠) */
-      /* PRV1119 (호준님 "전날 옮기고 처리한 것들 … 전날 처리되었다고 반투명으로") 직배송 카드 줄이 먼저 처리된 적이 있는지 → r.prev={pick,sort}
-         ⓐ 이월 전 카드(같은 뿌리 origin_id)의 체크  ⓑ 이 카드를 만든 주문 줄의 체크(같은 날)  ⓒ 이어진 입고방 줄이 다른 날짜면 그 줄의 체크·실물입고 */
-      rows.forEach(function(r){ var fd=r.card&&r.card.first_date; if(fd&&String(fd)<D)r.first=String(fd); });   /* 며칠부터 넘어온(이월) 카드인지 */
-      try{ var pc=rows.filter(function(r){ return r.card&&String(r.key).indexOf('d:')===0; });
-        var setPrev=function(r,v,date){ if(!v)return; var p=r.prev||{}; ['pick','sort'].forEach(function(w){ var m=v[w]; if(m&&m.at&&(!p[w]||String(m.at)>String(p[w].at)))p[w]={by:m.by||'',at:m.at,date:date}; }); if(p.pick||p.sort)r.prev=p; };
-        if(pc.length){ var roots=[], itIds=[], haveI={}; (items||[]).forEach(function(it){ haveI[it.id]=1; });
-          pc.forEach(function(r){ var c=r.card; if(c.origin_id&&roots.indexOf(c.origin_id)<0)roots.push(c.origin_id); if(c.src_item_id&&!haveI[c.src_item_id]&&itIds.indexOf(c.src_item_id)<0)itIds.push(c.src_item_id); });
-          var chain=[]; for(var ci=0;ci<roots.length;ci+=80){ var part=roots.slice(ci,ci+80); var c1=await sb.from('deliveries').select('id,date_str,origin_id').in('id',part).lt('date_str',D); if(c1.error)throw c1.error; var c2=await sb.from('deliveries').select('id,date_str,origin_id').in('origin_id',part).lt('date_str',D); if(c2.error)throw c2.error; chain=chain.concat(c1.data||[],c2.data||[]); }
-          var pIt={}; for(var pi=0;pi<itIds.length;pi+=80){ var q3=await sb.from('items').select('*').in('id',itIds.slice(pi,pi+80)); if(q3.error)throw q3.error; (q3.data||[]).forEach(function(it){ pIt[it.id]=it; }); }
-          var cand={}, addC=function(r,key,from){ (cand[key]=cand[key]||[]).push({r:r,from:from}); };
-          pc.forEach(function(r){ var c=r.card, root=c.origin_id||null; chain.forEach(function(x){ if(root&&(x.id===root||x.origin_id===root)&&x.id!==c.id)addC(r,'rtr:'+x.date_str+':d:'+x.id,x.date_str); });
-            var it=c.src_item_id?pIt[c.src_item_id]:null; if(it&&!it.cancelled){ addC(r,'rtr:'+it.date_str+':i:'+it.id,it.date_str); if(r.kind==='v'&&!r.item){ r.item=it; r.arrived=!!it.arrived; r.arrHuman=(!!it.arrived&&!/자동/.test(String(it.arrived_by||''))); r.arrBy=it.arrived_by||''; r.arrAt=it.arrived_at||''; r.noInb=false; r.itemDate=it.date_str; } }
-            if(r.order)Object.keys(marks).forEach(function(k){ if(k.indexOf('o:'+r.order.id+':')===0)setPrev(r,marks[k],D); }); });
-          var ck=Object.keys(cand); for(var ki=0;ki<ck.length;ki+=60){ var q4=await sb.from('settings').select('key,value').in('key',ck.slice(ki,ki+60)); if(q4.error)throw q4.error; (q4.data||[]).forEach(function(z){ if(z&&z.value&&typeof z.value==='object')(cand[z.key]||[]).forEach(function(x){ setPrev(x.r,z.value,x.from); }); }); } }
-      }catch(eP){ pvErr=String(eP&&eP.message||eP); console.error('실물타이어방: 먼저 처리된 기록을 못 읽음',eP); }
-      /* GON1119 체크(꺼냄·받음·챙김)한 뒤 그 주문·입고방 줄·직배송 카드가 취소되거나 지워진 것 → 화면 위에 알림(타이어를 제자리에) */
-      var gone=[], gnErr=''; try{ var liveK={}; rows.forEach(function(r){ liveK[r.key]=1; }); var orph=Object.keys(marks).filter(function(k){ var v=marks[k]; return !liveK[k]&&v&&(v.pick||v.sort)&&!v.gone_ack&&/^[oid]:/.test(k); });
-        if(orph.length){ var gid={o:[],i:[],d:[]}, gst={o:{},i:{},d:{}}, gtb={o:'jonghap_orders',i:'items',d:'deliveries'}; orph.forEach(function(k){ var p=k.split(':'); if(gid[p[0]].indexOf(p[1])<0)gid[p[0]].push(p[1]); });
-          var gks=['o','i','d']; for(var gx=0;gx<3;gx++){ var tk=gks[gx]; for(var gi=0;gi<gid[tk].length;gi+=80){ var gq=await sb.from(gtb[tk]).select('id,cancelled').in('id',gid[tk].slice(gi,gi+80)); if(gq.error)throw gq.error; (gq.data||[]).forEach(function(x){ gst[tk][String(x.id)]=x; }); } }
-          orph.forEach(function(k){ var p=k.split(':'), x=gst[p[0]][p[1]], why=!x?'지워짐':(x.cancelled?'취소됨':''); if(!why)return; var v=marks[k], m=v.sort||v.pick||{}; gone.push({key:k,label:v.label||'',why:(p[0]==='o'?'주문 ':(p[0]==='i'?'입고방 줄 ':'직배송 카드 '))+why,by:m.by||'',at:m.at||'',what:v.sort?'챙김':((v.pick&&v.pick.how)||'꺼냄')}); }); }
-      }catch(eG){ gnErr=String(eG&&eG.message||eG); console.error('실물타이어방: 취소된 줄 확인을 못 함',eG); }
-      /* LAT1119 밀린 것 = 지난 3일의 안 끝난 주문·입고방 줄(오늘을 볼 때만). 직배송 카드는 스스로 넘어오므로 직배송방으로 보낸 주문은 뺌. 체크는 그 줄의 원래 날짜 기록 그대로('rtr:<그 날짜>:…') */
-      var late=[], ltErr=''; if(D===getTodayISO()){ try{
+function rtrLoad(){ if(RTR.loading)return RTR.loading;   /* SPD1120 (11/20 호준님 "로딩이 오래 걸리네") 요청 32개를 하나씩 차례로 → 서로 기다릴 필요 없는 것은 한꺼번에(읽는 것·만드는 화면은 전과 같음) · 읽는 사이 날짜를 바꾸면 멈춰 있던 것(loading이 안 풀림, 재현됨) → 바로 새 날짜로 다시 읽음 */
+  var _me=(async function(){ var D=RTR.date;
+    try{ var roomId=jhInboundRoomId(), today=getTodayISO();
+      var chunk=function(arr,n){ var out=[]; for(var i=0;i<arr.length;i+=n)out.push(arr.slice(i,i+n)); return out; };
+      var all=function(ps){ return Promise.all(ps).then(function(rs){ rs.forEach(function(q){ if(q&&q.error)throw q.error; }); return rs; }); };
+      /* ① 서로 상관없는 것 한꺼번에: 입고방 줄·주문·직배송 카드·카드 접수 송장·그날 체크 / 예약(따로 실패 처리) / 밀린 것 원자료(따로 실패 처리) */
+      var pItems=sbFetchAll(function(){ return sb.from('items').select('*').eq('room_id',roomId).eq('date_str',D).order('id',{ascending:true}); });
+      var pOrds=sbFetchAll(function(){ return sb.from('jonghap_orders').select('*').eq('date_str',D).or('cancelled.is.null,cancelled.eq.false').order('id',{ascending:true}); });
+      var pDls=sbFetchAll(function(){ return sb.from('deliveries').select('id,date_str,tab,car,done,cancelled,brand,tire,spec,qty,recv,shop_name,addr,src,src_kind,src_item_id,src_label,first_date,origin_id,user_name').eq('date_str',D).order('id',{ascending:true}); });
+      var pKd=(async function(){ var kdDone={}; try{ var dq=await sb.from('settings').select('value').eq('key','kd_rcpt_done').maybeSingle(); if(dq.error)throw dq.error; if(dq.data&&dq.data.value&&typeof dq.data.value==='object')kdDone=dq.data.value; }catch(eD){ console.warn('실물타이어방: 카드 접수 송장 기록을 못 읽음',eD); } return kdDone; })();
+      var pMk=sbFetchAll(function(){ return sb.from('settings').select('key,value').like('key','rtr:'+D+':%').order('key',{ascending:true}); });
+      /* RSV1119 예약등록방: 그날 포함 그 이후 · 상태 '예약' (+ 재고·입고 연결, 이어진 장착 주문, 그 입고방 줄) · PRV1119 지난 날짜는 그날 예약만 */
+      var rvPast=(D<today);
+      var pRv=(async function(){ try{ var R={list:[],links:[],ords:[],items:{}};
+          R.list=(await sbFetchAll(function(){ return sb.from('reservations').select('id,date_str,time_slot,status,qty,tire_spec,customer_name,car_name,car_model,car_no,memo,src_kind,src_product_id,src_item_id,src_dot,src_qty,src_label,user_name')[rvPast?'eq':'gte']('date_str',D).eq('status','예약').order('date_str',{ascending:true}).order('id',{ascending:true}); }))||[];
+          if(R.list.length){ var rvIds=R.list.map(function(v){ return v.id; }), rvSet={}; rvIds.forEach(function(x){ rvSet[String(x)]=1; });
+            var pL=all(chunk(rvIds,100).map(function(p){ return sb.from('reservation_links').select('id,reservation_id,kind,item_id,product_id,dot,qty,tire_spec,src_label').in('reservation_id',p); }));
+            var pO=(async function(){ if(!RTR.rvOrd||RTR.rvOrdD!==D||Date.now()-(RTR.rvOrdAt||0)>180000){ var d0=new Date(D+'T00:00:00Z'); d0.setUTCDate(d0.getUTCDate()-45); var d0s=d0.toISOString().slice(0,10); var ro=(await sbFetchAll(function(){ return sb.from('jonghap_orders').select('*').filter('logs','cs',JSON.stringify([{t:'예약 등록'}])).gte('date_str',d0s).or('cancelled.is.null,cancelled.eq.false').order('id',{ascending:true}); }))||[]; RTR.rvOrd=ro; RTR.rvOrdAt=Date.now(); RTR.rvOrdD=D; } return RTR.rvOrd; })();   /* 예약과 이어진 장착 주문(45일 치) — 3분에 한 번만 다시 읽음, ↻는 바로 */
+            var x=await Promise.all([pL,pO]); x[0].forEach(function(q){ R.links=R.links.concat(q.data||[]); });
+            R.ords=(x[1]||[]).filter(function(o){ var id=null; (Array.isArray(o.logs)?o.logs:[]).forEach(function(l){ if(l&&l.t==='예약 등록'&&l.rsv_id)id=l.rsv_id; }); return id!=null&&rvSet[String(id)]; }); }
+          return {R:R}; }catch(eR){ return {err:eR}; } })();
+      var pLate=(D===today)?(async function(){ try{
           if(!RTR.lateRaw||RTR.lateRaw.D!==D||Date.now()-RTR.lateRaw.at>600000){ var l0=new Date(D+'T00:00:00Z'); l0.setUTCDate(l0.getUTCDate()-3); var lFrom=l0.toISOString().slice(0,10);
-            var lo=(await sbFetchAll(function(){ return sb.from('jonghap_orders').select('id,date_str,status,dtype,origin_id,inbound_item_id').gte('date_str',lFrom).lt('date_str',D).or('cancelled.is.null,cancelled.eq.false').order('id',{ascending:true}); }))||[];
-            var skipO={}, skipI={}, needO=[]; lo.forEach(function(o){ if(o.origin_id&&o.origin_id!==o.id)return; if(o.status==='sent'||o.dtype==='dx'){ skipO[o.id]=1; if(o.inbound_item_id)skipI[o.inbound_item_id]=1; return; } needO.push(o.id); });
-            var lOrd=[]; for(var lx=0;lx<needO.length;lx+=60){ var lq2=await sb.from('jonghap_orders').select('*').in('id',needO.slice(lx,lx+60)); if(lq2.error)throw lq2.error; lOrd=lOrd.concat(lq2.data||[]); }
-            var lIt=(await sbFetchAll(function(){ return sb.from('items').select('*').eq('room_id',roomId).gte('date_str',lFrom).lt('date_str',D).order('id',{ascending:true}); }))||[];
-            lIt=lIt.filter(function(it){ if(skipI[it.id])return false; var oid=null; (Array.isArray(it.logs)?it.logs:[]).some(function(g){ if(g&&g.order_id){ oid=g.order_id; return true; } return false; }); return !(oid&&skipO[oid]); });
+            var pLo=sbFetchAll(function(){ return sb.from('jonghap_orders').select('id,date_str,status,dtype,origin_id,inbound_item_id').gte('date_str',lFrom).lt('date_str',D).or('cancelled.is.null,cancelled.eq.false').order('id',{ascending:true}); });
+            var pLi=sbFetchAll(function(){ return sb.from('items').select('*').eq('room_id',roomId).gte('date_str',lFrom).lt('date_str',D).order('id',{ascending:true}); });
+            var lo=(await pLo)||[]; var skipO={}, skipI={}, needO=[]; lo.forEach(function(o){ if(o.origin_id&&o.origin_id!==o.id)return; if(o.status==='sent'||o.dtype==='dx'){ skipO[o.id]=1; if(o.inbound_item_id)skipI[o.inbound_item_id]=1; return; } needO.push(o.id); });
+            var lOrd=[]; (await all(chunk(needO,60).map(function(p){ return sb.from('jonghap_orders').select('*').in('id',p); }))).forEach(function(q){ lOrd=lOrd.concat(q.data||[]); });
+            var lIt=((await pLi)||[]).filter(function(it){ if(skipI[it.id])return false; var oid=null; (Array.isArray(it.logs)?it.logs:[]).some(function(g){ if(g&&g.order_id){ oid=g.order_id; return true; } return false; }); return !(oid&&skipO[oid]); });
             var lRi=[], lRsv={}; lOrd.forEach(function(o){ if(o.dtype!=='install')return; (Array.isArray(o.logs)?o.logs:[]).forEach(function(l){ if(l&&l.t==='예약 등록'&&l.rsv_id&&lRi.indexOf(l.rsv_id)<0)lRi.push(l.rsv_id); }); });
-            for(var ly=0;ly<lRi.length;ly+=100){ var lq3=await sb.from('reservations').select('id,date_str,time_slot,status').in('id',lRi.slice(ly,ly+100)); if(lq3.error)throw lq3.error; (lq3.data||[]).forEach(function(v){ lRsv[v.id]=v; }); }
+            (await all(chunk(lRi,100).map(function(p){ return sb.from('reservations').select('id,date_str,time_slot,status').in('id',p); }))).forEach(function(q){ (q.data||[]).forEach(function(v){ lRsv[v.id]=v; }); });
             RTR.lateRaw={D:D,at:Date.now(),from:lFrom,items:lIt,ords:lOrd,rsv:lRsv}; }
-          var LR=RTR.lateRaw; late=rtrBuild(LR.items,LR.ords,[],LR.rsv,kdDone,null).filter(function(r){ var ds=(r.order&&r.order.date_str)||(r.item&&r.item.date_str)||''; if(!ds||ds>=D||liveK[r.key])return false; r.late=String(ds); r.mk=String(ds); return true; });
-          var lDates=[]; late.forEach(function(r){ if(lDates.indexOf(r.late)<0)lDates.push(r.late); }); var lKeys={}; late.forEach(function(r){ lKeys[r.key]=1; });
-          for(var lz=0;lz<lDates.length;lz++){ var lpre='rtr:'+lDates[lz]+':'; var lm=(await sbFetchAll((function(pfx){ return function(){ return sb.from('settings').select('key,value').like('key',pfx+'%').order('key',{ascending:true}); }; })(lpre)))||[]; lm.forEach(function(z){ var kk=String(z.key).slice(lpre.length); if(lKeys[kk]&&z.value&&typeof z.value==='object')marks[kk]=z.value; }); }
-        }catch(eL){ ltErr=String(eL&&eL.message||eL); late=[]; console.error('실물타이어방: 밀린 것을 못 읽음',eL); } }
-      if(D!==RTR.date)return;
+          return {ok:true}; }catch(eL){ return {err:eL}; } })():Promise.resolve(null);
+      var r1=await Promise.all([pItems,pOrds,pDls,pKd,pMk]); var items=r1[0], ords=r1[1], dls=r1[2], kdDone=r1[3], mk=r1[4];
+      if(D!==RTR.date){ await Promise.all([pRv,pLate]); return 'stale'; }   /* 읽는 사이 날짜를 바꿨으면 버리고 새 날짜로 다시 */
+      /* ② 앞의 결과가 있어야 하는 것: 장착 날짜(주문의 예약) · 예약의 입고방 줄 */
+      var rsvIds=[]; (ords||[]).forEach(function(o){ if(o.dtype!=='install')return; (Array.isArray(o.logs)?o.logs:[]).forEach(function(l){ if(l&&l.t==='예약 등록'&&l.rsv_id&&rsvIds.indexOf(l.rsv_id)<0)rsvIds.push(l.rsv_id); }); });
+      var pRsvMap=all(chunk(rsvIds,100).map(function(p){ return sb.from('reservations').select('id,date_str,time_slot,status').in('id',p); }));   /* 장착 날짜 */
+      var RV={list:[],links:[],ords:[],items:{}}, rvErr='', pvErr='';
+      var pRvIt=(async function(){ var g=await pRv; if(g.err)throw g.err; var R=g.R; if(R.list.length){ var needIt=[], haveIt={}; (items||[]).forEach(function(it){ haveIt[it.id]=1; }); var want=function(id){ if(id&&!haveIt[id]&&needIt.indexOf(id)<0)needIt.push(id); };
+          R.list.forEach(function(v){ want(v.src_item_id); }); R.links.forEach(function(L){ want(L.item_id); }); R.ords.forEach(function(o){ want(o.inbound_item_id); });
+          (await all(chunk(needIt,100).map(function(p){ return sb.from('items').select('*').in('id',p); }))).forEach(function(q){ (q.data||[]).forEach(function(it){ R.items[it.id]=it; }); }); } return R; })().then(function(R){ RV=R; },function(eR){ rvErr=String(eR&&eR.message||eR); RV={list:[],links:[],ords:[],items:{}}; console.error('실물타이어방: 예약을 못 읽음',eR); });
+      var rsvMap={}; (await pRsvMap).forEach(function(q){ (q.data||[]).forEach(function(v){ rsvMap[v.id]=v; }); }); await pRvIt;
+      if(D!==RTR.date){ await pLate; return 'stale'; }
+      var rows=rtrBuild(items||[],ords||[],dls||[],rsvMap,kdDone,RV), marks={}, pre=('rtr:'+D+':').length; (mk||[]).forEach(function(z){ if(z&&z.value&&typeof z.value==='object')marks[String(z.key).slice(pre)]=z.value; });
+      var rk=rows.filter(function(r){ return r.mk; }).map(function(r){ return rtrMKey(r); }); (await all(chunk(rk,60).map(function(p){ return sb.from('settings').select('key,value').in('key',p); }))).forEach(function(mq){ (mq.data||[]).forEach(function(z){ if(z&&z.value&&typeof z.value==='object')marks[String(z.key).slice(8)]=z.value; }); });   /* 예약 줄의 체크('rtr:rsv:' 뒤가 줄 열쇠) */
+      rows.forEach(function(r){ var fd=r.card&&r.card.first_date; if(fd&&String(fd)<D)r.first=String(fd); });   /* 며칠부터 넘어온(이월) 카드인지 */
+      var liveK={}; rows.forEach(function(r){ liveK[r.key]=1; });
+      /* ③ 줄이 정해진 뒤 서로 상관없는 세 가지 한꺼번에: 전날 처리 기록(PRV1119) · 체크 뒤 취소된 줄(GON1119) · 밀린 것(LAT1119) — 밀린 것의 체크는 따로 모았다가 맨 뒤에 합침(전과 같은 순서) */
+      var orph=Object.keys(marks).filter(function(k){ var v=marks[k]; return !liveK[k]&&v&&(v.pick||v.sort)&&!v.gone_ack&&/^[oid]:/.test(k); });
+      var pPrev=(async function(){ var pc=rows.filter(function(r){ return r.card&&String(r.key).indexOf('d:')===0; });
+        var setPrev=function(r,v,date){ if(!v)return; var p=r.prev||{}; ['pick','sort'].forEach(function(w){ var m=v[w]; if(m&&m.at&&(!p[w]||String(m.at)>String(p[w].at)))p[w]={by:m.by||'',at:m.at,date:date}; }); if(p.pick||p.sort)r.prev=p; };
+        if(!pc.length)return; var roots=[], itIds=[], haveI={}; (items||[]).forEach(function(it){ haveI[it.id]=1; });
+        pc.forEach(function(r){ var c=r.card; if(c.origin_id&&roots.indexOf(c.origin_id)<0)roots.push(c.origin_id); if(c.src_item_id&&!haveI[c.src_item_id]&&itIds.indexOf(c.src_item_id)<0)itIds.push(c.src_item_id); });
+        var qs=[]; chunk(roots,80).forEach(function(part){ qs.push(sb.from('deliveries').select('id,date_str,origin_id').in('id',part).lt('date_str',D)); qs.push(sb.from('deliveries').select('id,date_str,origin_id').in('origin_id',part).lt('date_str',D)); });
+        var nC=qs.length; chunk(itIds,80).forEach(function(p){ qs.push(sb.from('items').select('*').in('id',p)); });
+        var rs=await all(qs), chain=[], pIt={}; rs.forEach(function(q,i){ if(i<nC)chain=chain.concat(q.data||[]); else (q.data||[]).forEach(function(it){ pIt[it.id]=it; }); });
+        var cand={}, addC=function(r,key,from){ (cand[key]=cand[key]||[]).push({r:r,from:from}); };
+        pc.forEach(function(r){ var c=r.card, root=c.origin_id||null; chain.forEach(function(x){ if(root&&(x.id===root||x.origin_id===root)&&x.id!==c.id)addC(r,'rtr:'+x.date_str+':d:'+x.id,x.date_str); });
+          var it=c.src_item_id?pIt[c.src_item_id]:null; if(it&&!it.cancelled){ addC(r,'rtr:'+it.date_str+':i:'+it.id,it.date_str); if(r.kind==='v'&&!r.item){ r.item=it; r.arrived=!!it.arrived; r.arrHuman=(!!it.arrived&&!/자동/.test(String(it.arrived_by||''))); r.arrBy=it.arrived_by||''; r.arrAt=it.arrived_at||''; r.noInb=false; r.itemDate=it.date_str; } }
+          if(r.order)Object.keys(marks).forEach(function(k){ if(k.indexOf('o:'+r.order.id+':')===0)setPrev(r,marks[k],D); }); });
+        (await all(chunk(Object.keys(cand),60).map(function(p){ return sb.from('settings').select('key,value').in('key',p); }))).forEach(function(q4){ (q4.data||[]).forEach(function(z){ if(z&&z.value&&typeof z.value==='object')(cand[z.key]||[]).forEach(function(x){ setPrev(x.r,z.value,x.from); }); }); });
+      })().catch(function(eP){ pvErr=String(eP&&eP.message||eP); console.error('실물타이어방: 먼저 처리된 기록을 못 읽음',eP); });
+      var gone=[], gnErr='';
+      var pGone=(async function(){ if(!orph.length)return; var gid={o:[],i:[],d:[]}, gst={o:{},i:{},d:{}}, gtb={o:'jonghap_orders',i:'items',d:'deliveries'}; orph.forEach(function(k){ var p=k.split(':'); if(gid[p[0]].indexOf(p[1])<0)gid[p[0]].push(p[1]); });
+        var qs=[], tks=[]; ['o','i','d'].forEach(function(tk){ chunk(gid[tk],80).forEach(function(p){ qs.push(sb.from(gtb[tk]).select('id,cancelled').in('id',p)); tks.push(tk); }); });
+        (await all(qs)).forEach(function(gq,i){ (gq.data||[]).forEach(function(x){ gst[tks[i]][String(x.id)]=x; }); });
+        orph.forEach(function(k){ var p=k.split(':'), x=gst[p[0]][p[1]], why=!x?'지워짐':(x.cancelled?'취소됨':''); if(!why)return; var v=marks[k], m=v.sort||v.pick||{}; gone.push({key:k,label:v.label||'',why:(p[0]==='o'?'주문 ':(p[0]==='i'?'입고방 줄 ':'직배송 카드 '))+why,by:m.by||'',at:m.at||'',what:v.sort?'챙김':((v.pick&&v.pick.how)||'꺼냄')}); });
+      })().catch(function(eG){ gnErr=String(eG&&eG.message||eG); gone=[]; console.error('실물타이어방: 취소된 줄 확인을 못 함',eG); });
+      var late=[], ltErr='', lateMarks={};
+      var pLateB=(async function(){ var g=await pLate; if(!g)return; if(g.err)throw g.err;
+        var LR=RTR.lateRaw; late=rtrBuild(LR.items,LR.ords,[],LR.rsv,kdDone,null).filter(function(r){ var ds=(r.order&&r.order.date_str)||(r.item&&r.item.date_str)||''; if(!ds||ds>=D||liveK[r.key])return false; r.late=String(ds); r.mk=String(ds); return true; });
+        var lDates=[]; late.forEach(function(r){ if(lDates.indexOf(r.late)<0)lDates.push(r.late); }); var lKeys={}; late.forEach(function(r){ lKeys[r.key]=1; });
+        var lms=await Promise.all(lDates.map(function(dd){ var lpre='rtr:'+dd+':'; return sbFetchAll(function(){ return sb.from('settings').select('key,value').like('key',lpre+'%').order('key',{ascending:true}); }).then(function(lm){ return {lpre:lpre,lm:lm||[]}; }); }));
+        lms.forEach(function(o){ o.lm.forEach(function(z){ var kk=String(z.key).slice(o.lpre.length); if(lKeys[kk]&&z.value&&typeof z.value==='object')lateMarks[kk]=z.value; }); });
+      })().catch(function(eL){ ltErr=String(eL&&eL.message||eL); late=[]; lateMarks={}; console.error('실물타이어방: 밀린 것을 못 읽음',eL); });
+      await Promise.all([pPrev,pGone,pLateB]); Object.keys(lateMarks).forEach(function(k){ marks[k]=lateMarks[k]; });
+      if(D!==RTR.date)return 'stale';
+      /* ④ 경동 송장(오늘 줄 + 밀린 줄) — 150개씩 한꺼번에 */
       var lkY=(RTR.lateRaw&&RTR.lateRaw.D===D&&RTR.lateRaw.kdY)||{}, wbT=[]; rows.forEach(function(r){ (r.wb||[]).forEach(function(n){ if(wbT.indexOf(n)<0)wbT.push(n); }); }); var nos=[]; rows.concat(late).forEach(function(r){ (r.wb||[]).forEach(function(n){ if(!lkY[n]&&nos.indexOf(n)<0)nos.push(n); }); });   /* 밀린 줄 송장 중 이미 스캔 Y인 것은 다시 안 읽음 */ var kd={}, kdErr='';
-      try{ var K=(typeof sbKd!=='undefined'&&sbKd)||sb; for(var i=0;i<nos.length;i+=150){ var q=await K.from('kd_waybills').select('waybill_no,status,recv_name,prod_name,qty,arrive_branch,a2:raw->>areaNm2,b2:raw->>branLink2,scan:raw->>moProdScanYn').in('waybill_no',nos.slice(i,i+150)); if(q.error)throw q.error; (q.data||[]).forEach(function(w){ kd[String(w.waybill_no)]=w; }); } }catch(e){ kdErr=String(e&&e.message||e); }
+      try{ var K=(typeof sbKd!=='undefined'&&sbKd)||sb; (await all(chunk(nos,150).map(function(p){ return K.from('kd_waybills').select('waybill_no,status,recv_name,prod_name,qty,arrive_branch,a2:raw->>areaNm2,b2:raw->>branLink2,scan:raw->>moProdScanYn').in('waybill_no',p); }))).forEach(function(q){ (q.data||[]).forEach(function(w){ kd[String(w.waybill_no)]=w; }); }); }catch(e){ kdErr=String(e&&e.message||e); }
       if(RTR.lateRaw&&RTR.lateRaw.D===D){ var lwb={}; late.forEach(function(r){ (r.wb||[]).forEach(function(n){ lwb[n]=1; }); }); var kY=RTR.lateRaw.kdY=RTR.lateRaw.kdY||{}; Object.keys(kd).forEach(function(n){ if(lwb[n]&&kd[n].scan==='Y')kY[n]=kd[n]; }); Object.keys(kY).forEach(function(n){ if(!kd[n])kd[n]=kY[n]; }); }
+      if(D!==RTR.date)return 'stale';
       RTR.rows=rows; RTR.marks=marks; RTR.kd=kd; RTR.gone=gone; RTR.lateRows=late.filter(rtrLateKeep); rows.concat(RTR.lateRows).forEach(function(r){ r.who=rtrWho(r); }); RTR.cnt={items:(items||[]).length,ords:(ords||[]).length,dls:(dls||[]).length,wb:wbT.length,kdFound:wbT.filter(function(n){ return kd[n]; }).length,dx:rows._skipDx||0,dlDone:rows._doneDl||0,rsv:rows._rsv||0,rsvPast:rvPast}; RTR.cnt.late=RTR.lateRows.length; RTR.err=[gnErr?('취소된 줄 확인을 못 했어요: '+gnErr):'',ltErr?('밀린 것을 못 읽었어요: '+ltErr):'',kdErr?('경동 송장을 못 읽었어요: '+kdErr):'',rvErr?('예약을 못 읽었어요: '+rvErr):'',pvErr?('전날 처리 기록을 못 읽었어요: '+pvErr):''].filter(Boolean).join(' · ');
-    }catch(e){ RTR.err='자료를 못 읽었어요: '+String(e&&e.message||e); console.error('실물타이어방',e); }
+    }catch(e){ if(D!==RTR.date)return 'stale'; RTR.err='자료를 못 읽었어요: '+String(e&&e.message||e); console.error('실물타이어방',e); }
     RTR.loadedAt=Date.now(); RTR.loading=null; rtrPaint(); })();
-  return RTR.loading; }
+  RTR.loading=_me.then(function(v){ if(v==='stale'){ if(RTR.loading===_mine)RTR.loading=null; return rtrLoad(); } return v; },function(e){ if(RTR.loading===_mine)RTR.loading=null; throw e; });
+  var _mine=RTR.loading; return RTR.loading; }
 async function rtrOpen(force){ rtrCss(); if(!RTR.date)RTR.date=getTodayISO(); var root=document.getElementById('rtr-root'); if(!root)return; if(!RTR.loadedAt)root.innerHTML='<div class="rtr-empty">실물타이어방 읽는 중…</div>'; if(force||!RTR.loadedAt||Date.now()-RTR.loadedAt>5000)await rtrLoad(); else rtrPaint();
   if(!RTR.timer){ RTR.timer=setInterval(function(){ if(rtrVisible()&&Date.now()-RTR.loadedAt>30000)rtrLoad(); },10000); document.addEventListener('visibilitychange',function(){ if(rtrVisible()&&Date.now()-RTR.loadedAt>5000)rtrLoad(); }); } }   /* 방이 보일 때만 30초마다 다시 읽음 + 화면으로 돌아오면 다시 읽음 */
 function rtrVisible(){ var s=document.getElementById('rtr-screen'); return !!(s&&s.style.display!=='none'&&!document.hidden); }
@@ -35861,11 +35925,11 @@ async function kdRcptDlv(){ if(!me){ kdLabelNote('먼저 로그인해 주세요'
   var done=await kdRcptDoneMap(); kdRcptRun(list.map(function(c){ return {kind:'dlv',id:c.id,card:c,label:(c.recv||c.tire||'?')+(c.qty?' ×'+c.qty:''),done:done[c.id]||null}; })); }
 async function kdRcptPm(){ if(!me){ kdLabelNote('먼저 로그인해 주세요','warn'); return; } var L=pmRows().filter(function(o){return PM.chk[o.id]&&!o.cancelled;}); if(!L.length){ kdLabelNote('경동에 접수할 줄을 체크해 주세요','warn'); return; }   /* (11/4 호준님) 판매처·구분·완료 여부와 상관없이 체크한 줄 전부 — 이미 송장 있으면 접수 단계에서 막힘 */
   if(!(await omShopBookReady()))return;   /* (11/10) 주소록 못 읽으면 접수 멈춤 */
-  kdRcptRun(L.map(function(o){ var w=pmWb(o); return {kind:'pm',id:o.id,ref:o,card:pmPseudoCard(o),label:(o.recv||'?')+' '+(o.size||'')+(o.qty?' ×'+o.qty:''),done:w.length?{nos:w}:null}; })); }
+  kdRcptRun(L.map(function(o){ var w=pmWb(o); return {kind:'pm',id:o.id,ref:o,card:pmPseudoCard(o),label:(o.recv||'?')+' '+(o.size||'')+(o.qty?' ×'+o.qty:'')+(omMix(o)?' (우리 몫 '+omMix(o).our+')':''),done:omMixDone(o,w)}; })); }
 /* (11/4 호준님) 주문방에서도 체크한 줄 바로 경동 접수 — 택배방과 같은 길(kind 'pm' = 주문 줄) */
 async function kdRcptOm(){ if(!me){ kdLabelNote('먼저 로그인해 주세요','warn'); return; } var L=otRows().filter(function(o){return OM.chk[o.id]&&!o.cancelled;}); if(!L.length){ if(typeof stkToast==='function')stkToast('경동에 접수할 줄을 체크해 주세요'); return; } if(typeof jhOmCan==='function'&&!(await jhOmCan(L)))return;   /* 담당자·대표만(택배방과 같은 규칙) */
   if(!(await omShopBookReady()))return;   /* (11/10) 주소록 못 읽으면 접수 멈춤 */
-  kdRcptRun(L.map(function(o){ var w=pmWb(o); return {kind:'pm',id:o.id,ref:o,card:pmPseudoCard(o),label:(o.recv||'?')+' '+(o.size||'')+(o.qty?' ×'+o.qty:''),done:w.length?{nos:w}:null}; })); }
+  kdRcptRun(L.map(function(o){ var w=pmWb(o); return {kind:'pm',id:o.id,ref:o,card:pmPseudoCard(o),label:(o.recv||'?')+' '+(o.size||'')+(o.qty?' ×'+o.qty:'')+(omMix(o)?' (우리 몫 '+omMix(o).our+')':''),done:omMixDone(o,w)}; })); }
 /* (11/4 호준님) 접수 전 교차 확인: 택배방 줄(pm) ↔ 직배송 카드(dlv)가 같은 주문이면 어느 쪽에서 접수했든 '이미 송장 있음'으로 */
 async function kdRcptCrossCheck(items){ var done=await kdRcptDoneMap(); var rootNos={}; Object.keys(done).forEach(function(id){ var v=done[id]||{}; var nos=(v.nos||[]).map(String); if(!nos.length)return; [id,v.root].filter(Boolean).forEach(function(k){ rootNos[k]=(rootNos[k]||[]).concat(nos); }); });
   for(var i=0;i<items.length;i++){ var it=items[i]; if(it.done&&Array.isArray(it.done.nos)&&it.done.nos.length)continue;
@@ -36010,7 +36074,7 @@ async function kdRcptSave(close,btn){ var C=KD_RCPT.cur; if(!C)return; if(!confi
   var who=me.name, now=new Date().toISOString(); var done=await kdRcptDoneMap(); var out=[];
   for(var i=0;i<C.items.length;i++){ var it=C.items[i], nos=byItem[i]||[]; out.push({kind:it.kind,id:it.id,label:it.label,nos:nos});
     if(!nos.length)continue;
-    if(it.kind==='pm'){ try{ await pmLogPush(it.ref,{t:'송장',nos:nos,by:who,at:now,how:'경동 접수'}); }catch(e){} }
+    if(it.kind==='pm'){ try{ await pmLogPush(it.ref,{t:'송장',nos:omMixMerge(it.ref,nos),by:who,at:now,how:'경동 접수'}); }catch(e){} }
     else done[it.id]={nos:nos,at:now,by:who,root:(it.card&&(it.card.origin_id||it.card.id))||it.id}; try{ DLV_TIMES.at=0; }catch(_e){} }
   try{ var dk=Object.keys(done); if(dk.length>3000){ dk.sort(function(a,b){ return String(done[a].at)<String(done[b].at)?-1:1; }).slice(0,dk.length-3000).forEach(function(k){ delete done[k]; }); } await sb.from('settings').upsert({key:'kd_rcpt_done',value:done,updated_at:now},{onConflict:'key'}); }catch(e){ console.error('접수 기록 저장 실패',e); }
   var id=kdLabelNewId(); try{ await sb.from('settings').insert({key:'kd_rcpt_log:'+id,value:{id:id,at:now,by:who,items:out,prodCodes:pcs,channel:'0022'},updated_at:now}); }catch(e){}
