@@ -26665,7 +26665,7 @@ function rtrLateKeep(r){ var u=rtrUse(r), m=RTR.marks[r.key]||{}; if(String(r.ke
 function rtrWhoAll(r){ var a=[], add=function(l,n){ n=String(n||'').trim(); if(n)a.push([l,n]); }, o=r.order;
   if(r.rsv)add('예약',r.rsv.user_name); if(o)add('주문',String(o.reg_user||'')==='시트'?('시트'+(o.assignee?' · 담당 '+o.assignee:'')):(o.reg_user||o.assignee||'')); if(r.item)add('입고방 줄',r.item.user_name); if(r.card)add('직배송 카드',r.card.user_name); return a; }
 function rtrWho(r){ var a=rtrWhoAll(r), k=String(r.key).charAt(0), want=(k==='r'?'예약':(k==='d'?'직배송 카드':(k==='i'?(r.order?'주문':'입고방 줄'):'주문'))); for(var i=0;i<a.length;i++){ if(a[i][0]===want)return a[i][1]; } return a.length?a[0][1]:''; }
-async function rtrFresh(){ try{ if(typeof jhAutoSync==='function')await Promise.race([jhAutoSync('실물타이어방 새로고침'),new Promise(function(ok){ setTimeout(ok,8000); })]); }catch(e){ console.warn('실물타이어방: 시트 새 줄 당겨오기를 못 함',e); } RTR.rvOrdAt=0; RTR.lateRaw=null; return rtrLoad(); }   /* ↻ = 주문 시트에 새로 들어온 줄부터 당겨오고(3분마다 저절로 도는 것과 같은 함수) 여섯 방을 다시 읽음 */
+async function rtrFresh(){ try{ if(typeof jhAutoSync==='function')await Promise.race([jhAutoSync('실물타이어방 새로고침'),new Promise(function(ok){ setTimeout(ok,8000); })]); }catch(e){ console.warn('실물타이어방: 시트 새 줄 당겨오기를 못 함',e); } RTR.rvOrdAt=0; RTR.lateRaw=null; try{ RDS.at=0; RDS.failAt=0; }catch(e){}   /* RDS1124 ↻ = 다른 날짜 자료도 다음 검색 때 새로 */ return rtrLoad(); }   /* ↻ = 주문 시트에 새로 들어온 줄부터 당겨오고(3분마다 저절로 도는 것과 같은 함수) 여섯 방을 다시 읽음 */
 /* 세 방의 줄 → 이 방의 줄 */
 function rtrBuild(items,ords,dls,rsv,kdDone,RV){ rsv=rsv||{}; kdDone=kdDone||{}; var cardWb=function(c){ if(!c)return []; var out=[]; var take=function(v){ if(v&&Array.isArray(v.nos))v.nos.forEach(function(n){ n=String(n); if(out.indexOf(n)<0)out.push(n); }); }; take(kdDone[c.id]); if(c.origin_id)take(kdDone[c.origin_id]); Object.keys(kdDone).forEach(function(id){ var v=kdDone[id]; if(v&&v.root&&(v.root===c.id||(c.origin_id&&v.root===c.origin_id)))take(v); }); return out; };   /* 직배송 카드로 경동 접수한 송장(kd_rcpt_done) */ var wbMix=function(a,b){ var o=(a||[]).slice(); (b||[]).forEach(function(n){ if(o.indexOf(n)<0)o.push(n); }); return o; }; var insOf=function(o){ if(!o||o.dtype!=='install')return null; var id=null; (Array.isArray(o.logs)?o.logs:[]).forEach(function(l){ if(l&&l.t==='예약 등록'&&l.rsv_id)id=l.rsv_id; }); if(!id)return {none:true}; var v=rsv[id]; return v?{date:v.date_str||'',time:v.time_slot||'',status:v.status||''}:{lost:true}; };   /* 장착 주문 → 이어진 예약의 날짜 */ var rows=[], ordById={}, ordByItem={}, cardByItem={}, usedCard={}, itemOfOrder={}, skipDx=0;
   ords=ords.filter(function(o){ return !(o.origin_id&&o.origin_id!==o.id); });   /* 이월로 복사된 줄은 원래 줄만(택배방과 같은 규칙) */
@@ -27028,8 +27028,65 @@ function rt2List(){ var e=esc, isIn=(RT2.scr==='in'), k=RT2.key, A=RTR.rows;
   if(!todo.length)h+='<div class="rt2-empty">'+(F.length?'🎉 다 '+(isIn?'받았어요':'챙겼어요'):'해당하는 줄이 없어요')+'</div>';
   if(done.length){ h+='<div class="rt2-div" onclick="RT2.showDone=!RT2.showDone;rt2Paint()">✓ '+(isIn?'받은 것':'챙긴 것')+' '+done.length+'건 '+(RT2.showDone?'▲ 접기':'▼ 보기')+'</div>'; if(RT2.showDone)done.forEach(function(r){ h+=rt2Row(r,isIn?'in':'out'); }); }
   return h+'</div>'; }
-function rt2Find(){ return '<div class="rt2-hd"><button class="back" onclick="rt2Go(\'home\')" aria-label="뒤로">‹</button><div class="t"><b>🔍 이 타이어 어디 가지?</b><div class="sub">'+esc(rtrMD(RTR.date))+' 전체에서 찾기</div></div></div>'
-  +'<div class="rt2-inp"><input id="rt2-q" type="search" autocomplete="off" enterkeyhint="search" placeholder="2454518" value="'+esc(RT2.q)+'" oninput="RT2.q=this.value;rt2FindPaint()"><button onclick="RT2.q=\'\';var i=document.getElementById(\'rt2-q\');if(i)i.value=\'\';rt2FindPaint()" aria-label="지우기">✕</button></div>'
+/* ▼RDS1124 (11/24 호준님 "실물타이어방 검색할 때는 다른 날짜도 검색 가능하게 · 입고방처럼 안 느려지게 작성하고 나서 검색되게") */
+var RDS={rows:null,mk:{},kd:{},mkBusy:false,mkErr:'',at:0,failAt:0,err:'',loading:null,cb:false,t:0,back:14,fwd:14,from:'',to:'',cnt:{},css:false};   /* back·fwd = 오늘 기준 지난 며칠 ~ 앞으로 며칠 */
+function rdsSoon(fn){ clearTimeout(RDS.t); RDS.t=setTimeout(function(){ try{ fn(); }catch(e){ console.error('실물타이어방 검색 그리기',e); } },200); }   /* 글자를 치는 동안은 안 그리고, 멈춘 뒤 0.2초에 한 번만(입고방 SRL1119와 같음) */
+function rdsRange(){ var t=getTodayISO(), a=new Date(t+'T00:00:00Z'), b=new Date(t+'T00:00:00Z'); a.setUTCDate(a.getUTCDate()-RDS.back); b.setUTCDate(b.getUTCDate()+RDS.fwd); return {from:a.toISOString().slice(0,10),to:b.toISOString().slice(0,10),today:t}; }
+function rdsCss(){ if(RDS.css)return; RDS.css=true; var st=document.createElement('style'); st.id='rds-css'; st.textContent='.rds-h{margin:16px 0 6px;padding:8px 10px;border-radius:8px;background:#eef2ff;color:#3730a3;font-size:13.5px;font-weight:900;line-height:1.4}.rds-h small{font-weight:700;color:#6366f1}.rds-h.none{background:#f1f5f9;color:#64748b}.rds-h.bad{background:#fef2f2;color:#991b1b}.rds-r{display:flex;gap:8px;align-items:stretch;background:#fff;border:1px solid #c7d2fe;border-left:5px solid #6366f1;border-radius:10px;padding:8px;margin:6px 0;cursor:pointer;text-align:left}.rds-r.ok{background:#f8fafc;border-left-color:#94a3b8}.rds-d{flex:none;width:64px;display:flex;flex-direction:column;justify-content:center;text-align:center;background:#eef2ff;border-radius:8px;padding:4px 2px;color:#3730a3;font-weight:900;font-size:14px;line-height:1.3}.rds-d small{display:block;font-size:11.5px;font-weight:800;color:#6366f1}.rds-m{flex:1;min-width:0}.rds-l1{font-size:17px;font-weight:900;color:#0f172a;line-height:1.3}.rds-l1 .p{display:inline-block;margin-left:5px;padding:0 6px;border-radius:5px;background:#1e293b;color:#fde047;font-size:14px}.rds-l1 .y{margin-left:5px;font-size:13px;font-weight:800;color:#475569}.rds-l1 .q{margin-left:6px;color:#6d28d9}.rds-l2{font-size:13.5px;font-weight:700;color:#334155;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.rds-l3{font-size:12.5px;color:#64748b;line-height:1.45;word-break:keep-all}.rds-l3 b{color:#166534}.rds-go{flex:none;align-self:center;font-size:12px;font-weight:900;color:#4f46e5;text-align:center;line-height:1.3}'; document.head.appendChild(st); }
+function rdsLoad(){ if(RDS.loading)return RDS.loading;   /* 한 번에 하나만 — 겹쳐 불러도 같은 약속 · 실패해도 끝남(다시 부르기는 20초 뒤 그릴 때) */
+  RDS.loading=(async function(){ var R=rdsRange();
+    try{ var roomId=jhInboundRoomId();
+      var chunk=function(arr,n){ var out=[]; for(var i=0;i<arr.length;i+=n)out.push(arr.slice(i,i+n)); return out; };
+      var all=function(ps){ return Promise.all(ps).then(function(rs){ rs.forEach(function(q){ if(q&&q.error)throw q.error; }); return rs; }); };
+      var pI=sbFetchAll(function(){ return sb.from('items').select('*').eq('room_id',roomId).gte('date_str',R.from).lte('date_str',R.to).order('id',{ascending:true}); });
+      var pO=sbFetchAll(function(){ return sb.from('jonghap_orders').select('*').gte('date_str',R.from).lte('date_str',R.to).or('cancelled.is.null,cancelled.eq.false').order('id',{ascending:true}); });
+      var pD=sbFetchAll(function(){ return sb.from('deliveries').select('id,date_str,tab,car,done,cancelled,brand,tire,spec,qty,recv,shop_name,addr,src,src_kind,src_item_id,src_label,first_date,origin_id,user_name').gte('date_str',R.from).lte('date_str',R.to).order('id',{ascending:true}); });
+      var pK=(async function(){ try{ var dq=await sb.from('settings').select('value').eq('key','kd_rcpt_done').maybeSingle(); if(dq.error)throw dq.error; return (dq.data&&dq.data.value&&typeof dq.data.value==='object')?dq.data.value:{}; }catch(eK){ console.warn('실물타이어방 다른 날짜: 카드 접수 송장 기록을 못 읽음',eK); return {}; } })();
+      var x=await Promise.all([pI,pO,pD,pK]), items=x[0]||[], ords=x[1]||[], dls=x[2]||[], kdDone=x[3]||{};
+      var rIds=[]; ords.forEach(function(o){ if(o.dtype!=='install')return; (Array.isArray(o.logs)?o.logs:[]).forEach(function(l){ if(l&&l.t==='예약 등록'&&l.rsv_id&&rIds.indexOf(l.rsv_id)<0)rIds.push(l.rsv_id); }); });
+      var rsvMap={}; (await all(chunk(rIds,100).map(function(p){ return sb.from('reservations').select('id,date_str,time_slot,status').in('id',p); }))).forEach(function(q){ (q.data||[]).forEach(function(v){ rsvMap[v.id]=v; }); });
+      var byD={}, B=function(d){ d=String(d||''); return byD[d]=byD[d]||{i:[],o:[],d:[]}; };
+      items.forEach(function(v){ B(v.date_str).i.push(v); }); ords.forEach(function(v){ B(v.date_str).o.push(v); }); dls.forEach(function(v){ B(v.date_str).d.push(v); });
+      var out=[]; Object.keys(byD).forEach(function(d){ if(!/^\d{4}-\d{2}-\d{2}$/.test(d))return; var g=byD[d]; rtrBuild(g.i,g.o,g.d,rsvMap,kdDone,null).forEach(function(r){ r.xd=d; out.push(r); }); });   /* 날짜별로 그날 화면과 같은 방법으로 줄을 만듦 */
+      var last={}, rootOf=function(r){ return (String(r.key).charAt(0)==='d'&&r.card)?String(r.card.origin_id||r.card.id):''; };
+      out.forEach(function(r){ var k=rootOf(r); if(k&&(!last[k]||r.xd>last[k]))last[k]=r.xd; });
+      out=out.filter(function(r){ var k=rootOf(r); return !k||last[k]===r.xd; });   /* 날마다 복사되는(이월) 직배송 카드는 가장 늦은 날짜 것만 */
+      RDS.rows=out; RDS.mk={}; RDS.kd={}; RDS.mkErr=''; RDS.err=''; RDS.at=Date.now(); RDS.failAt=0; RDS.from=R.from; RDS.to=R.to; RDS.cnt={items:items.length,ords:ords.length,dls:dls.length,rows:out.length};
+    }catch(e){ RDS.err=String(e&&e.message||e); RDS.failAt=Date.now(); console.error('실물타이어방: 다른 날짜 자료를 못 읽음',e); }
+    RDS.loading=null; return RDS.rows||[]; })();
+  return RDS.loading; }
+function rdsMarksNeed(L,repaint){ var need=[]; L.forEach(function(r){ var k='rtr:'+r.xd+':'+r.key; if(!(k in RDS.mk)&&need.indexOf(k)<0)need.push(k); }); var wbs=[]; L.forEach(function(r){ if(r.dest!=='택배')return; (r.wb||[]).forEach(function(n){ n=String(n); if(!(n in RDS.kd)&&wbs.indexOf(n)<0)wbs.push(n); }); }); if((!need.length&&!wbs.length)||RDS.mkBusy)return; RDS.mkBusy=true; need.forEach(function(k){ RDS.mk[k]=null; }); wbs.forEach(function(n){ RDS.kd[n]=null; });   /* 보이는 줄의 체크 기록·경동 스캔만 · 한 번 물어본 것은 다시 안 물음 */
+  (async function(){ try{ for(var i=0;i<need.length;i+=60){ var q=await sb.from('settings').select('key,value').in('key',need.slice(i,i+60)); if(q&&q.error)throw q.error; ((q&&q.data)||[]).forEach(function(z){ if(z&&z.value&&typeof z.value==='object')RDS.mk[z.key]=z.value; }); }
+      var K=(typeof sbKd!=='undefined'&&sbKd)||sb; for(var j=0;j<wbs.length;j+=150){ var q2=await K.from('kd_waybills').select('waybill_no,status,scan:raw->>moProdScanYn').in('waybill_no',wbs.slice(j,j+150)); if(q2&&q2.error)throw q2.error; ((q2&&q2.data)||[]).forEach(function(w){ RDS.kd[String(w.waybill_no)]=w; }); }
+      RDS.mkErr=''; }catch(e){ RDS.mkErr=String(e&&e.message||e); console.error('실물타이어방: 다른 날짜 체크 기록을 못 읽음',e); }
+    RDS.mkBusy=false; try{ repaint(); }catch(e2){ console.error(e2); } })(); }
+function rdsRow(r,today){ var e=esc, n=Math.round((Date.parse(r.xd+'T00:00:00Z')-Date.parse(today+'T00:00:00Z'))/86400000), rel=n===0?'오늘':(n===1?'내일':(n===-1?'어제':(n>0?n+'일 뒤':(-n)+'일 전')));
+  var k=rt2OutKey(r), from=r.kind==='s'?'🏠 창고':(r.kind==='u'?'⚠ 출고지 미정':'🚚 '+e(r.src+(r.srcSub?' '+r.srcSub:''))), nw=(r.wb||[]).length;
+  var to=k==='택배'?('📦 택배'+(nw?' · 송장 '+nw+'장':' · 송장 전')):(k==='장착'?('🔧 장착 '+e(rt2InsTxt(r))):(rtrUse(r)==='직배송'?('🚚 '+e(rt2OutLabel(k))):(k==='재고'?'🏠 재고로':'❔ 용도 미정')));
+  var m=RDS.mk['rtr:'+r.xd+':'+r.key]||null, st='', kw=(r.dest==='택배')?(r.wb||[]).map(function(x){ return RDS.kd[String(x)]; }).filter(function(w){ return w&&w.status!=='삭제됨'; }):[];
+  if(kw.length&&kw.every(function(w){ return w.scan==='Y'; }))st='✓ 경동 스캔 Y — 이미 실려 나감';   /* 그날 화면의 판정(rtrScan)과 같음 */
+  else if(m&&m.sort)st='✓ 챙김 '+e(m.sort.by||''); else if(m&&m.pick)st='✓ '+(r.kind==='s'?'꺼냄':'받음')+' '+e(m.pick.by||''); else if(r.kind==='v'&&r.item&&r.arrHuman)st='✓ 입고방 실물입고 '+e(r.arrBy||'');
+  return '<div class="rds-r'+(st?' ok':'')+'" data-d="'+e(r.xd)+'" onclick="rdsGo(this.dataset.d)"><div class="rds-d">'+e(rtrMD(r.xd))+'<small>'+rel+'</small></div><div class="rds-m"><div class="rds-l1">'+e(r.size||'')+(r.ply?'<span class="p">'+e(r.ply)+'</span>':'')+(r.yy?'<span class="y">'+e(r.yy)+'년</span>':'')+'<span class="q">×'+(r.qtyUnk?'?':r.qty)+'</span></div><div class="rds-l2">'+((r.brand&&String(r.name).indexOf(r.brand)!==0)?e(r.brand)+' ':'')+e(r.name||'')+'</div><div class="rds-l3">'+from+' → '+to+(r.plat?' · '+e(r.plat):'')+(r.recv?' · 받는 분 '+e(r.recv):'')+(st?' · <b>'+st+'</b>':'')+'</div></div><div class="rds-go">그날<br>보기 ›</div></div>'; }
+function rdsSection(Q,cur,repaint){ if(!Q||!Q.length)return ''; rdsCss(); var now=Date.now(), R=rdsRange(), fresh=!!(RDS.rows&&RDS.from===R.from&&now-RDS.at<180000), failed=!!(RDS.failAt&&now-RDS.failAt<20000);
+  if(!fresh&&!failed&&!RDS.cb){ RDS.cb=true; var fin=function(){ RDS.cb=false; try{ repaint(); }catch(e){ console.error(e); } }; rdsLoad().then(fin,fin); }   /* 뒤에서 읽고, 끝나면 한 번만 다시 그림 */
+  var rg=rtrMD(R.from)+' ~ '+rtrMD(R.to), bad=RDS.err?'<div class="rds-h bad">⚠ 다른 날짜 자료를 못 읽었어요: '+esc(RDS.err.slice(0,120))+' — 잠시 뒤 다시 찾거나 ↻를 눌러 주세요</div>':'';
+  if(!RDS.rows)return bad||'<div class="rds-h">📅 다른 날짜도 찾는 중… <small>('+esc(rg)+')</small></div>';
+  var have={}, roots={}; (cur||[]).forEach(function(r){ have[r.key]=1; if(r.card)roots[String(r.card.origin_id||r.card.id)]=1; });
+  var L=RDS.rows.filter(function(r){ if(r.xd===RTR.date||have[r.key])return false; if(String(r.key).charAt(0)==='d'&&r.card&&roots[String(r.card.origin_id||r.card.id)])return false; return rtrQMatch(r,Q); });   /* 지금 보고 있는 날짜·이미 위에 나온 줄(밀린 것·같은 카드)은 뺌 */
+  var t0=Date.parse(R.today+'T00:00:00Z'), far=function(r){ return Math.abs(Date.parse(r.xd+'T00:00:00Z')-t0); };
+  L.sort(function(a,b){ return (far(a)-far(b))||String(b.xd).localeCompare(String(a.xd))||rt2NM(a).localeCompare(rt2NM(b),'ko'); });   /* 오늘과 가까운 날짜부터 */
+  if(!L.length)return bad+'<div class="rds-h none">📅 다른 날짜('+esc(rg)+')에도 없어요</div>';
+  var S=L.slice(0,60); rdsMarksNeed(S,repaint);
+  var h=bad+'<div class="rds-h">📅 다른 날짜에서 찾음 '+L.length+'건 · '+rt2Sum(L)+'개 <small>('+esc(rg)+' · 누르면 그 날짜로 가요)</small></div>'+(RDS.mkErr?'<div class="rds-h bad">⚠ 다른 날짜의 체크 기록(받음·챙김·경동 스캔)은 못 읽었어요 — 그날 화면에서 확인해 주세요</div>':'');
+  S.forEach(function(r){ h+=rdsRow(r,R.today); });
+  if(L.length>60)h+='<div class="rds-h none">'+L.length+'건 중 60건만 보여요 — 낱말을 더 넣어 좁혀 주세요</div>';
+  return h; }
+function rdsGo(d){ if(!/^\d{4}-\d{2}-\d{2}$/.test(String(d||''))||d===RTR.date)return;   /* 그 날짜 화면으로 — 검색어는 그대로 */
+  if(typeof rt3Visible==='function'&&rt3Visible()){ rt3SetDate(d); return; }
+  if(typeof rt2Visible==='function'&&rt2Visible()){ var q=RT2.q; rt2SetDate(d); RT2.scr='find'; RT2.q=q; } }
+/* ▲RDS1124 */
+function rt2Find(){ return '<div class="rt2-hd"><button class="back" onclick="rt2Go(\'home\')" aria-label="뒤로">‹</button><div class="t"><b>🔍 이 타이어 어디 가지?</b><div class="sub">'+esc(rtrMD(RTR.date))+' 것부터 · 다른 날짜도 같이 찾아요'+(RTR.date!==getTodayISO()?' <button onclick="rdsGo(getTodayISO())" style="margin-left:6px;border:1px solid #c7d2fe;background:#eef2ff;color:#3730a3;border-radius:6px;padding:1px 8px;font-size:12px;font-weight:800">오늘로</button>':'')+'</div></div></div>'
+  +'<div class="rt2-inp"><input id="rt2-q" type="search" autocomplete="off" enterkeyhint="search" placeholder="2454518" value="'+esc(RT2.q)+'" oninput="RT2.q=this.value;rdsSoon(rt2FindPaint)"><button onclick="RT2.q=\'\';var i=document.getElementById(\'rt2-q\');if(i)i.value=\'\';rt2FindPaint()" aria-label="지우기">✕</button></div>'
   +'<div class="rt2-hint">타이어 옆면 사이즈를 붙여서 치면 됩니다 (예: 1458013 · 2454020). 이름·브랜드·P수(8p)·연식(26년)·거래처·1호차·화성·y체크도 띄어쓰기로 같이.</div><div id="rt2-fres"></div>'; }
 function rt2FindPaint(){ var el=document.getElementById('rt2-fres'); if(!el)return; var Q=rtrQToks(RT2.q); if(!Q.length){ el.innerHTML=''; return; }
   var L=RTR.rows.filter(function(r){ return rtrQMatch(r,Q); }).sort(function(a,b){ return rt2NM(a).localeCompare(rt2NM(b),'ko'); });
@@ -27038,6 +27095,7 @@ function rt2FindPaint(){ var el=document.getElementById('rt2-fres'); if(!el)retu
     var big=k==='택배'?('📦 택배'+(w?' · '+esc(w.b2||'')+' <small>'+esc(w.a2||'')+' · '+rtrScan(r)+' 체크</small>':' <small>'+((r.wb||[]).length?'송장 확인 중':'송장 전')+'</small>')):(k==='장착'?('🔧 장착 '+esc(rt2InsTxt(r))):(isDv?('🚚 '+esc(rt2OutLabel(k))+' <small>'+esc(r.addr||'주소 없음')+'</small>'):(k==='재고'?'🏠 재고로':'❔ 용도 미정')));
     h+=rt2Row(r,'find').replace('<div class="rt2-ctx">','<div class="rt2-where" style="background:'+(RT2_USEC[k]||'#94a3b8')+'">'+big+'</div><div class="rt2-ctx">'); });
   if(L.length>60)h+='<div class="rt2-empty" style="padding:12px">'+L.length+'건 중 60건만 보여요 — 낱말을 더 넣어 좁혀 주세요</div>';
+  h+=rdsSection(Q,RTR.rows,function(){ if(RT2.scr==='find'&&rt2Visible())rt2FindPaint(); });   /* RDS1124 다른 날짜 */
   el.innerHTML=h+'</div>'; }
 function rt2Paint(){ var root=document.getElementById('rt2-root'); if(!root)return; if(RT2.scr==='find'&&document.getElementById('rt2-q')){ rt2FindPaint(); return; }   /* 찾기 중에는 결과만 다시 그림 — 입력 칸·키보드 그대로 */
   var keepY=root.scrollTop; root.innerHTML=(RT2.scr==='home')?rt2Home():(RT2.scr==='find'?rt2Find():rt2List()); if(RT2.scr==='find')rt2FindPaint(); else root.scrollTop=keepY; }
@@ -27115,6 +27173,7 @@ function rt3Body(){ var e=esc, R=rt3Groups(), h='', searching=rt3Toks().length>0
       h+='</div>'; }
     h+='</div>'; });
   if(!R.order.length)h+='<div class="rt3-empty">'+(RTR.rows.length?'맞는 줄이 없어요':'이 날짜에 읽힌 줄이 없어요')+'</div>';
+  if(searching)h+=rdsSection(rt3Toks(),RTR.rows.concat(RTR.lateRows||[]),function(){ if(rt3Visible()&&rt3Toks().length)rt3Paint(); });   /* RDS1124 다른 날짜 */
   h+='<div class="rt3-foot">'+rtrHm(RTR.loadedAt)+' 읽음 · 입고방 '+(RTR.cnt.items||0)+'줄 · 주문 '+(RTR.cnt.ords||0)+'줄 · 직배송 카드 '+Math.max(0,(RTR.cnt.dls||0)-(RTR.cnt.dlDone||0))+'장'+(RTR.cnt.dlDone?'(완료 '+RTR.cnt.dlDone+'장은 뺌)':'')+' · 예약 '+(RTR.cnt.rsv||0)+'건('+(RTR.cnt.rsvPast?'이 날 것만':'이 날부터')+') · 송장 '+(RTR.cnt.kdFound||0)+'/'+(RTR.cnt.wb||0)+'장'+(RTR.cnt.late?' · 밀린 것 '+RTR.cnt.late+'줄':'')+(RTR.cnt.dx?' · 직접출고 '+RTR.cnt.dx+'건은 안 나옴':'')+'<br>실물타이어방 · 실물타이어방2와 같은 체크 기록 — 30초마다 여섯 방(입고·주문·택배·직배송·경동·예약)을 다시 읽고, ↻를 누르면 주문 시트 새 줄까지 당겨와서 바로 읽어요</div>';
   return h; }
 function rt3Leg(){ var el=document.getElementById('rt3-leg'); if(!el)return; var Q=rt3Toks(), A=RTR.rows.filter(function(r){ return !Q.length||rtrQMatch(r,Q); }), c={}, q={}, has={}, left=0;
@@ -27124,7 +27183,7 @@ function rt3Leg(){ var el=document.getElementById('rt3-leg'); if(!el)return; var
 function rt3Top(){ var el=document.getElementById('rt3-top'); if(!el)return;
   if(!RT3.top){ RT3.top=true; el.innerHTML='<div class="t1"><button class="nb" onclick="rt3Day(-1)" aria-label="전날">◀</button><input id="rt3-date" type="date" onchange="rt3SetDate(this.value)"><button class="nb" onclick="rt3Day(1)" aria-label="다음날">▶</button><span id="rt3-at"></span><button class="nb re" id="rt3-re" onclick="rt3Refresh()" aria-label="새로고침">↻</button></div>'
     +'<div class="piv"><button id="rt3-pin" onclick="rt3Piv(\'in\')"><span class="tk">🚚</span><span class="ar">▶</span>🏠 들어오는 곳별</button><button id="rt3-pout" onclick="rt3Piv(\'out\')">🏠<span class="ar">▶</span><span class="tk">🚚</span> 나갈 곳별</button></div>'
-    +'<div class="fq"><input id="rt3-q" type="search" autocomplete="off" enterkeyhint="search" placeholder="🔍 사이즈 붙여서 (1458013) · 이름" oninput="RT3.q=this.value;rt3Paint()"><button id="rt3-hd" onclick="RT3.show=(RT3.show===\'all\'?\'todo\':(RT3.show===\'todo\'?\'done\':\'all\'));rt3Paint()">전체</button><button id="rt3-ao" onclick="rt3AllOpen()">모두 펼침</button></div>'; }
+    +'<div class="fq"><input id="rt3-q" type="search" autocomplete="off" enterkeyhint="search" placeholder="🔍 사이즈 붙여서 (1458013) · 이름" oninput="RT3.q=this.value;rdsSoon(rt3Paint)"><button id="rt3-hd" onclick="RT3.show=(RT3.show===\'all\'?\'todo\':(RT3.show===\'todo\'?\'done\':\'all\'));rt3Paint()">전체</button><button id="rt3-ao" onclick="rt3AllOpen()">모두 펼침</button></div>'; }
   var g=function(id){ return document.getElementById(id); }, d=g('rt3-date'); if(d&&d.value!==RTR.date&&document.activeElement!==d)d.value=RTR.date;
   g('rt3-pin').className=RT3.piv==='in'?'on':''; g('rt3-pout').className=RT3.piv==='out'?'on':''; g('rt3-hd').className=RT3.show==='all'?'':'on'; g('rt3-hd').textContent=RT3.show==='todo'?'남은 것만':(RT3.show==='done'?'한 것만':'전체 보기');   /* 누를 때마다 전체 → 남은 것만 → 한 것만 */
   var R=rt3Groups(); g('rt3-ao').textContent=R.order.some(function(k){ return !RT3.open[RT3.piv+k]; })?'모두 펼침':'모두 접음';
