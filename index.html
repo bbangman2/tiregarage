@@ -4224,7 +4224,7 @@ const ROOM_META={
   '직배송방':{icon:'🚚',ai:false,mode:'delivery',desc:'직배송 · 미출고 · 택배전환'},
   '택배방':{icon:'📮',ai:false,mode:'parcel2',desc:'핑·온라인 택배 — 시트 한 벌 · 송장 · 택배양식'},   // (10/20) 새 택배방(가상 방). 옛 붙여넣기 택배방(parcel)은 잠듦   // 🧪 (10/15) 직배송 표의 택배 탭을 방으로
   '실물타이어방3':{icon:'🚚',ai:false,mode:'realtire3',desc:'실물타이어방·실물타이어방2와 같은 자료·같은 체크 — 한 화면(들어오는 곳별 | 나갈 곳별 · 묶음 펼치기 · 카드를 누르면 체크 · 색 = 나갈 곳)'},   /* (11/18) RT31118 */
-  '실물타이어방2':{icon:'📋',ai:false,mode:'realtire2',desc:'실물타이어방과 같은 자료·같은 체크 — 할 일 중심 화면(📥 받을 것 = 거래처별 · 📤 나갈 것 = 택배·호차·장착·재고 · 🔍 이 타이어 어디 가지)'},   /* (11/18) RT21118 */
+  '실물타이어방2':{icon:'📋',ai:false,mode:'realtire2',desc:'실물타이어방과 같은 자료·같은 체크 — 할 일 중심 화면(받을 것 = 거래처별 · 나갈 것 = 택배·호차·장착·재고 · 🔍 이 타이어 어디 가지)'},   /* (11/18) RT21118 */
   '실물타이어방':{icon:'✅',ai:false,mode:'realtire',desc:'실제로 꺼내고 받은 타이어 확인 — 들어오는 곳(창고·거래처)별 명단 · [꺼냄]/[수령]/[분류] · 입고방·주문방·택배방·직배송방·경동 송장을 그대로 읽음'},   /* (11/18) RTR1118 */
   '전산재고방':{icon:'🏭',ai:false,mode:'jeonsan',desc:'거래처 전산 재고 조회 — 한국타이어 Smart System(관할물류·긴급 SFP·공장도) · 조회만, 주문 없음 · 할인율·원가·택배가·장착가는 우리가 고침'},   /* (11/3) */
   '보관타이어방':{icon:'🛞',ai:false,mode:'storage',desc:'손님 타이어 보관 — 차 1대 = 카드 1장(차량번호·전화·타이어·보관료·위치) · 간편 입력/검색/창고지도(보관 구역) · 우리 재고와 따로'},   /* (10/30) */
@@ -4408,7 +4408,7 @@ async function bootApp(){
   if(data&&!data.some(r=>r.name==='주문방'))data.splice(6,0,{id:'orders-virtual',name:'주문방'});   // 🧪 (10/18) 주문방
   if(data&&!data.some(r=>r.name==='택배방'))data.splice(7,0,{id:'parcel-virtual',name:'택배방'});
   if(data&&!data.some(r=>r.name==='반품교환방'))data.splice(8,0,{id:'returns-virtual',name:'반품교환방'});
-  if(data&&!data.some(r=>r.name==='보관타이어방'))data.splice(9,0,{id:'storage-virtual',name:'보관타이어방'}); if(data&&!data.some(r=>r.name==='전산재고방'))data.splice(10,0,{id:'jeonsan-virtual',name:'전산재고방'}); if(data&&!data.some(r=>r.name==='실물타이어방'))data.splice(11,0,{id:'realtire-virtual',name:'실물타이어방'}); if(data&&!data.some(r=>r.name==='실물타이어방2'))data.splice(12,0,{id:'realtire2-virtual',name:'실물타이어방2'}); if(data&&!data.some(r=>r.name==='실물타이어방3'))data.splice(13,0,{id:'realtire3-virtual',name:'실물타이어방3'});   /* (11/19) OPN1119 세 방 모두에게 보임 — 호준님 "보이게 해줘, 어차피 내가 안 보이게 누르면 가릴 수 있으니까"(방 가리기는 그대로) */   /* (11/18) RT31118 — 일단 대표만 */   /* (11/18) RT21118 — 일단 대표만 */   /* (11/18) RTR1118 실물타이어방(가상) — 일단 대표만 보임(호준님 11/18 일단은 나만 보고 써보게). 모두에게 열 땐 me.name===ADMIN_NAME 조건을 뺌 */   /* (11/3) 전산재고방(가상) */   /* (10/30) 보관타이어방(가상) */   /* (10/29) 모두에게 */   /* (10/28) 교환&반품방 자리 — 안이 만들어지기 전엔 대표만 */   // (10/20) 택배방(가상)
+  if(data&&!data.some(r=>r.name==='보관타이어방'))data.splice(9,0,{id:'storage-virtual',name:'보관타이어방'}); if(data&&!data.some(r=>r.name==='전산재고방'))data.splice(10,0,{id:'jeonsan-virtual',name:'전산재고방'}); if(data&&!data.some(r=>r.name==='실물타이어방2'))data.splice(11,0,{id:'realtire2-virtual',name:'실물타이어방2'}); if(data&&!data.some(r=>r.name==='실물타이어방3'))data.splice(12,0,{id:'realtire3-virtual',name:'실물타이어방3'});   /* RTX1124 (11/24 호준님 "실물타이어방 1번은 삭제하고 2번과 3번만") 1번은 목록에서 뺌 — 코드(rtrLoad 등)는 2·3번이 같이 씀 */   /* (11/19) OPN1119 세 방 모두에게 보임 — 호준님 "보이게 해줘, 어차피 내가 안 보이게 누르면 가릴 수 있으니까"(방 가리기는 그대로) */   /* (11/18) RT31118 — 일단 대표만 */   /* (11/18) RT21118 — 일단 대표만 */   /* (11/18) RTR1118 실물타이어방(가상) — 일단 대표만 보임(호준님 11/18 일단은 나만 보고 써보게). 모두에게 열 땐 me.name===ADMIN_NAME 조건을 뺌 */   /* (11/3) 전산재고방(가상) */   /* (10/30) 보관타이어방(가상) */   /* (10/29) 모두에게 */   /* (10/28) 교환&반품방 자리 — 안이 만들어지기 전엔 대표만 */   // (10/20) 택배방(가상)
   if(data){ var _pi=data.findIndex(function(r){return r.name==='택배방';}), _di=data.findIndex(function(r){return r.name==='직배송방';}); if(_pi>=0&&_di>=0&&_pi!==_di+1){ var _pr=data.splice(_pi,1)[0]; var _di2=data.findIndex(function(r){return r.name==='직배송방';}); data.splice(_di2+1,0,_pr); } }   // 🧪 택배방 = rooms 표의 자기 방(자기 id, 자료 분리) — 직배송방 바로 아래로만 옮김. DB에 줄이 없으면 안 보임
   await tradeLoadViewers();
   await bkLoadUsers();
@@ -6161,14 +6161,14 @@ function _dlvSrcAbbr1(seg){ // 출처 한 조각 → 약어(+숫자 = 그 출처
   else if(seg.indexOf('극동')>=0)base='극';
   else if(seg.indexOf('황제')>=0)base='황';
   else if(seg.indexOf('창고')>=0)base='창';
-  else base=seg.charAt(0);
+  else { base=seg.charAt(0); try{ if(!_dlvSrcAbbr1._in&&typeof jhSrcUserHit==='function'){ var _uh=jhSrcUserHit(seg); if(_uh&&_uh.to){ _dlvSrcAbbr1._in=true; try{ var _b=_dlvSrcAbbr1(String(_uh.to)).replace(/\d+$/,''); if(_b)base=_b; } finally{ _dlvSrcAbbr1._in=false; } } } }catch(e){} }   /* SRF1124 규칙에 없으면 출고지 사전 이름으로(평택물류→한타주문 → 한) */
   var m=seg.match(/(\d+)\s*개/); var n=m?m[1]:'';
   if(!n){ var m2=seg.match(/[가-힣A-Za-z](\d+)(?!\d)(?!\s*년)/); n=m2?m2[1]:''; }
   return base+n;
 }
 function dlvSrcAbbr(src){ // 출처 약어 (호준님 8/28 확정: 기본은 숫자 없이 '창', 숫자=출처별 출고수량, 복수 출처는 '창1 극1'식, 별표 등 기호 안 붙임)
   src=String(src||'').trim(); if(!src)return '';
-  return src.split(/[\/,+]/).map(_dlvSrcAbbr1).filter(function(x){return x!=='';}).join(' ');
+  return src.replace(/(\d)\s*\/\s*(\d)/g,'$1.$2').split(/[\/,+]/).map(_dlvSrcAbbr1).filter(function(x){return x!=='';}).join(' ');
 }
 var DLV_ORIGINS=['한국','중국','베트남','인도네시아','인니','태국','일본','헝가리','유럽','미국','대만','세르비아','폴란드','포르투갈','독일','루마니아'];
 function _dlvFindSize(s){
@@ -10985,6 +10985,8 @@ function jhSrcParse(raw){   // → {raw, parts:[{name,kind:'stock'|'supplier'|'u
     var st=function(x){ var f=false; if(/고객\s*취소|취소/.test(x)){ R.cancel=true; f=true; } if(/재고\s*없음/.test(x)){ R.nostock=true; f=true; } if(/주문\s*중|주문\s*완료|선주문|주문\s*요청|\d+\/\d+\s*주문|주문$|입고\s*예정|다음주|다다음주|발주/.test(x)){ R.ordered=true; } return f&&!(JH_SRC_ALIAS.some(function(a){return a[0].test(x.replace(/^실/,''));})||!!jhSrcUserHit(x)); };
     var _isAl=function(x){ return (JH_SRC_ALIAS.some(function(a){return a[0].test(x.replace(/^실/,''));})||!!jhSrcUserHit(x)); }; seg.forEach(function(x){ st(x); }); var _al=seg.filter(_isAl); var pick=_al.length?_al[_al.length-1]:seg.filter(function(x){ return !st(x); }).pop(); if(!pick)return;   /* (10/19) 거래처 이름 있는 마지막 토막 */   // "창고->고객취소" = 창고(취소) · "재고없음" 혼자면 갈래 없음
     var nm=null, ukind=''; var _uh=jhSrcUserHit(pick); if(_uh){ nm=_uh.to; ukind=_uh.kind||''; } else for(var i=0;i<JH_SRC_ALIAS.length;i++){ if(JH_SRC_ALIAS[i][0].test(pick)){ nm=JH_SRC_ALIAS[i][1]; break; } }   /* (10/20) 직접 넣은 사전 먼저 */
+    if(nm==='한타주문'&&/물류/.test(pick))nm='한타물류';   /* SRF1124 한타에 '물류' 글자 = 한타물류 */
+    if((nm==='넥센물류'||nm==='넥센택배')&&seg.some(function(x){ return /[미메]치다/.test(x); }))nm='타이어에미치다';   /* SRF1124 '타이어에미치다->넥센물류' = 미치다(송장 9/4 규칙과 같게) */
     var notes=[]; var body=jhSrcDateOut(pick,notes).replace(/\(?\s*(\d{1,2}\s*일\s*출고|익일\s*출고|입고|\d{1,2}\s*일\s*주문)\s*\)?/g,function(m){ notes.push(m.replace(/[()]/g,'').trim()); return ' '; }).replace(/(2\d)\s*년\s*(으로|출고|으로\s*출고)?/g,function(m){ notes.push(m.trim()); return ' '; }).replace(/\d{1,3}\s*%/g,function(m){ notes.push(m); return ' '; }).replace(/\d{1,2}\s*p\s*(로|으로)?\s*(출고)?/ig,function(m){ notes.push(m.trim()); return ' '; });
     var q=null, qm=body.match(/(?:^|[^A-Za-z0-9])(\d{1,2})\s*(본|개)?\s*\)?\s*$/); if(qm&&+qm[1]>0&&+qm[1]<=40)q=+qm[1];
     R.parts.push({name:nm||(body.replace(/(\d{1,2})\s*(본|개)?\s*\)?\s*$/,'').trim()||pick),kind:nm?(ukind||(nm==='창고'?'stock':'supplier')):'unknown',qty:q,note:notes.filter(Boolean).join(' ')}); if(!nm)R.unk=true;
@@ -12069,8 +12071,24 @@ function pmHead(){ var V=pmVis(); var h='<tr><th class="pm-bar"></th><th class="
   h+='<tr class="pm-flt"><th class="pm-bar"></th><th class="pm-fz"></th>'+V.map(function(c,i){ var v=PM.f[c[0]]||''; var st=(i===0?'left:30px':''); if(c[2]==='sel'){ return '<th class="'+(i===0?'pm-fz':'')+'" style="'+st+'"><select class="'+(v?'on':'')+'" data-k="'+c[0]+'" onchange="pmSetF(\''+c[0]+'\',this.value)"><option value="">(전체)</option>'+pmSelOpts(c[0]).map(function(p){return '<option value="'+esc(p[0])+'"'+(v===p[0]?' selected':'')+'>'+esc(p[0]||'(빈칸)')+' · '+p[1]+'</option>';}).join('')+'</select></th>'; } return '<th class="'+(i===0?'pm-fz':'')+'" style="'+st+'"><input class="'+(v?'on':'')+'" data-k="'+c[0]+'" value="'+esc(v)+'" placeholder="'+(c[2]==='size'?'2055516':'거르기')+'"></th>'; }).join('')+'</tr>'; return h; }
 function pmBody(L){ var V=pmVis(); var h=''; L.forEach(function(o){ var k=pmStepKey(o); h+='<tr class="pm-r'+((o.status==='done'&&!omNoEvid(o))?' pm-dn':'')+(o.id===PM.sel?' pm-sel':'')+'" data-id="'+o.id+'"><td class="pm-bar" style="background:'+(PM_STEPC[k]||'#cbd5e1')+'"></td><td class="pm-fz" onclick="event.stopPropagation()"><input type="checkbox" class="pm-ck" data-id="'+o.id+'"'+(PM.chk[o.id]?' checked':'')+' onchange="pmChkToggle(this)"></td>'+V.map(function(c,i){ return '<td class="'+(c[0]==='qty'?'pm-num ':'')+(i===0?'pm-fz ':'')+((c[0]==='recv'||c[0]==='pat'||c[0]==='addr')?'pm-ell':'')+'" style="'+(i===0?'left:30px;':'')+(c[0]==='recv'?'max-width:170px':(c[0]==='pat'?'max-width:220px':(c[0]==='addr'?'max-width:220px':'')))+'">'+pmCell(o,c[0])+'</td>'; }).join('')+'</tr>'; if(o.id===PM.sel&&!otNarrow())h+='<tr><td colspan="'+(V.length+2)+'" class="pm-below">'+pmDetail(o)+'</td></tr>'; });
   if(!L.length)h='<tr><td colspan="'+(V.length+2)+'" style="text-align:center;color:#94a3b8;padding:24px">'+(PM.loading?'불러오는 중…':'조건에 맞는 줄이 없어요')+'</td></tr>'; return h; }
+/* ▼RKC1124 (11/24 호준님 "경동택배방 말고 주문방·택배방에서도 택배 취소가 가능하게") 줄의 송장 칸 [📮 경동 발송취소] — 실제 취소·기록 되돌리기는 kdCancelCore 그대로 */
+function pmKdOurs(o){ var V={}; try{ V=omWbVend(o)||{}; }catch(e){} var w=[]; try{ w=pmWb(o)||[]; }catch(e){} return w.map(String).filter(function(n){ return /^\d{10,}$/.test(n)&&V[n]!==true; }); }   /* 우리(경동 접수) 송장만 — 거래처 송장 제외 */
+async function pmKdCancel(id){ if(typeof me==='undefined'||!me){ alert('먼저 로그인해 주세요'); return; } if(window._pmKdcBusy)return; window._pmKdcBusy=true;
+  try{ var o=null; try{ o=await omFreshRow(id); }catch(e){} if(!o){ alert('이 줄을 다시 읽지 못했어요 — 새로고침 뒤 다시 눌러 주세요'); return; }
+    var nos=pmKdOurs(o); if(!nos.length){ alert('이 줄에는 경동으로 접수한 송장이 없어요.\n(거래처가 보낸 송장은 여기서 취소할 수 없어요 — [✏ 고치기]로 지워 주세요)'); return; }
+    var rr=await sbKd.from('kd_waybills').select('waybill_no,recv_name,prod_name,status').in('waybill_no',nos); if(rr&&rr.error){ alert('경동 송장 상태를 못 읽었어요: '+rr.error.message+'\n취소하지 않았어요'); return; }
+    var rows=nos.map(function(n){ return ((rr&&rr.data)||[]).find(function(r){ return String(r.waybill_no)===n; })||{waybill_no:n,status:''}; });
+    var bad=rows.filter(function(r){ return r.status&&r.status!=='발송'&&r.status!=='삭제됨'; });
+    if(bad.length){ alert('발송취소는 집하 전(상태 "발송")인 송장만 돼요.\n\n안 되는 송장:\n'+bad.map(function(r){ return r.waybill_no+' · '+r.status; }).join('\n')+'\n\n집하 뒤 취소는 경동 고객센터에 전화해 주세요.\n아무것도 취소하지 않았어요.'); return; }
+    var gone=rows.filter(function(r){ return r.status==='삭제됨'; }), live=rows.filter(function(r){ return r.status!=='삭제됨'; }), did=false;
+    if(live.length){ var ok=await kdCancelCore(live.map(function(r){ return String(r.waybill_no); }),live,{}); if(!ok)return; did=true; }
+    if(gone.length){ var ok2=await kdCancelCore(gone.map(function(r){ return String(r.waybill_no); }),gone,{oursOnly:true}); did=did||!!ok2; }
+    if(did){ try{ if(typeof omReloadAny==='function')await omReloadAny(); }catch(e){} }
+  }catch(e){ alert('발송취소 중 오류: '+String(e&&e.message||e)+'\n경동택배방에서 그 송장 상태를 확인해 주세요'); }
+  finally{ window._pmKdcBusy=false; } }
+/* ▲RKC1124 */
 function pmWbBox(o){ var w=pmWb(o), cs=pmCand(o), kind=pmKind(o), sid=String(o.id).replace(/'/g,'');
-  var wbH; if(w.length)wbH='<div class="pm-wbl pm-mono">'+w.map(function(n){return '<span>'+esc(n)+'</span>';}).join('')+'</div><div style="margin-top:4px"><button class="dact" onclick="pmCopyWb(\''+sid+'\')">📋 송장 복사</button> <button class="dact" onclick="pmManualWb(\''+sid+'\')">✏ 고치기</button></div>';
+  var wbH; if(w.length)wbH='<div class="pm-wbl pm-mono">'+w.map(function(n){return '<span>'+esc(n)+'</span>';}).join('')+'</div><div style="margin-top:4px"><button class="dact" onclick="pmCopyWb(\''+sid+'\')">📋 송장 복사</button> <button class="dact" onclick="pmManualWb(\''+sid+'\')">✏ 고치기</button>'+(pmKdOurs(o).length?' <button class="dact" style="color:#b91c1c;border-color:#fca5a5;font-weight:800" onclick="pmKdCancel(\''+sid+'\')" title="이 줄의 경동 송장을 경동에 발송취소하고 송장번호를 지웁니다 — 집하 전인 송장만">📮 경동 발송취소</button>':'')+'</div>';   /* RKC1124 */
   else if(cs.length)wbH='<div style="color:#b91c1c;font-weight:800;margin-bottom:4px">❓ 경동에 후보 송장 '+cs.length+'장 — 이 주문 것만 체크하고 [확정]</div>'+cs.map(function(c,i){ var p=String(c).split(' | '); return '<label style="display:block;font-size:12.5px;padding:2px 0"><input type="checkbox" class="pm-cand" data-no="'+esc(p[0])+'"> <span class="pm-mono">'+esc(p[0])+'</span> <span style="color:#64748b">'+esc(p[1]||'')+' · '+esc(p[2]||'')+'</span></label>'; }).join('')+'<div style="margin-top:4px"><button class="dact" style="background:#15803d;color:#fff;border-color:#15803d;font-weight:800" onclick="pmPickCand(\''+sid+'\')">✓ 확정</button> <button class="dact" onclick="pmManualWb(\''+sid+'\')">✏ 직접 넣기</button></div>';
   else wbH='<span style="color:#94a3b8">'+(kind==='dx'?'거래처에서 받은 송장번호를 넣어 주세요':'아직 없음 — 위 [🔗 경동 송장 채우기]')+'</span> <button class="dact" onclick="pmManualWb(\''+sid+'\')">✏ 직접 넣기</button>';
   return wbH; }
@@ -21892,6 +21910,29 @@ function lnkInstall(){ if(window._lnkOn)return; window._lnkOn=true;
   if(typeof ulLoad==='function'){ var _ul=ulLoad; ulLoad=async function(){ try{ await lnkOrdLoad(false); }catch(e){} return _ul.apply(this,arguments); }; }
 }
 if(document.readyState==='complete')lnkInstall(); else window.addEventListener('load',lnkInstall);
+/* ▼KDG1124 (11/24 호준님 "경동에서 취소했는데 송장번호가 택배방·주문방에 그대로 — 이거부터 잘못") 경동에서 지워진(삭제됨) 송장 → 우리 기록 자동으로 되돌림 */
+var KDG={busy:false,chk:{},wait:6*60000};   /* wait = '삭제됨'이 된 뒤 수집(5분마다)이 한 번 더 돌아도 그대로일 때만 — 경동 목록이 덜 내려와 잠깐 '삭제됨'이 된 송장을 지우지 않게 */
+function kdGoneNote(t,bad){ try{ var box=document.getElementById('rso-warn'); if(!box){ box=document.createElement('div'); box.id='rso-warn'; box.style.cssText='position:fixed;left:50%;top:10px;transform:translateX(-50%);z-index:100003;width:min(560px,94vw);display:flex;flex-direction:column;gap:6px'; document.body.appendChild(box); }
+    var d=document.createElement('div'); d.className='kdg-n'; d.style.cssText='background:'+(bad?'#fef2f2':'#eff6ff')+';border:2px solid '+(bad?'#dc2626':'#2563eb')+';color:'+(bad?'#991b1b':'#1e3a8a')+';border-radius:10px;padding:10px 12px;font-size:14px;font-weight:800;line-height:1.45;box-shadow:0 6px 20px rgba(0,0,0,.18);display:flex;gap:8px;align-items:flex-start';
+    d.innerHTML='<div style="flex:1;white-space:pre-line">'+esc(t)+'</div><button style="border:0;background:'+(bad?'#dc2626':'#2563eb')+';color:#fff;border-radius:6px;padding:4px 10px;font-weight:900;cursor:pointer">확인</button>'; d.querySelector('button').onclick=function(){ d.remove(); }; box.appendChild(d); }catch(e){} }
+async function kdGoneScan(room,reload){ if(KDG.busy)return; try{ if(typeof me==='undefined'||!me||typeof sbKd==='undefined'||typeof kdCancelCore!=='function')return;
+    var R=(room==='pm'?((typeof PM!=='undefined'&&PM&&PM.rows)||[]):((typeof OM!=='undefined'&&OM&&OM.rows)||[])), now=Date.now(), nos=[];
+    R.forEach(function(o){ if(!o)return; var w=[]; try{ w=pmWb(o)||[]; }catch(e){} w.forEach(function(n){ n=String(n); if(/^\d{10,}$/.test(n)&&nos.indexOf(n)<0&&!(KDG.chk[n]&&now-KDG.chk[n]<180000))nos.push(n); }); });
+    if(!nos.length)return; KDG.busy=true; var gone=[];
+    for(var i=0;i<nos.length;i+=150){ var q=await sbKd.from('kd_waybills').select('waybill_no,status,recv_name,prod_name,fetched_at').in('waybill_no',nos.slice(i,i+150)).eq('status','삭제됨'); if(q&&q.error)throw q.error; gone=gone.concat((q&&q.data)||[]); }
+    nos.forEach(function(n){ KDG.chk[n]=now; });
+    gone=gone.filter(function(w){ var t=Date.parse(w.fetched_at||'')||0; return t>0&&now-t>=KDG.wait; }); if(!gone.length)return;
+    var opt={oursOnly:true,auto:true}, gn=gone.map(function(w){ return String(w.waybill_no); }); var ok=await kdCancelCore(gn,gone,opt);
+    if(!ok){ kdGoneNote('⚠ 경동에서 취소된 송장 '+gn.length+'장의 우리 기록을 자동으로 못 되돌렸어요'+(opt._err?' ('+String(opt._err).slice(0,80)+')':'')+'\n경동택배방에서 그 송장을 체크하고 [발송취소]를 눌러 주세요: '+gn.slice(0,6).join(', '),true); return; }
+    var r=opt._res||{dlv:0,ord:0,fails:[]}; if(!r.dlv&&!r.ord)return;
+    kdGoneNote('📮 경동에서 취소된 송장 '+gn.length+'장 — 송장번호를 지웠어요 (택배방·주문방 줄 '+r.ord+'줄'+(r.dlv?' · 직배송 카드 확인 '+r.dlv+'장 풂':'')+')\n'+gn.slice(0,8).join(', ')+(gn.length>8?' …':'')+'\n줄이 미처리로 돌아왔어요 — 직배송방으로 보내거나 다시 접수할 수 있어요.'+((r.fails&&r.fails.length)?'\n⚠ 못 한 것(직접 확인): '+r.fails.slice(0,4).join(' / '):''),!!(r.fails&&r.fails.length));
+    if(typeof reload==='function'){ try{ await reload(); }catch(e){} }
+  }catch(e){ try{ console.error('경동 삭제 송장 확인',e); }catch(x){} } finally{ KDG.busy=false; } }
+function kdGoneInstall(){ if(window._kdgOn)return; window._kdgOn=true;
+  if(typeof omLoad==='function'){ var _ol=omLoad; omLoad=async function(){ var a=arguments, me2=this; var r=await _ol.apply(me2,a); try{ kdGoneScan('om',function(){ return _ol.apply(me2,a); }); }catch(e){} return r; }; }   /* 기다리지 않음 — 방 여는 속도와 무관 */
+  if(typeof pmLoad==='function'){ var _pl=pmLoad; pmLoad=async function(){ var a=arguments, me2=this; var r=await _pl.apply(me2,a); try{ kdGoneScan('pm',function(){ return _pl.apply(me2,a); }); }catch(e){} return r; }; } }
+if(document.readyState==='complete')kdGoneInstall(); else window.addEventListener('load',kdGoneInstall);
+/* ▲KDG1124 */
 /* ▲LNK1120 */
 function rsvXtrInstall(){ if(window._rsvXtrOn)return; window._rsvXtrOn=1;
   if(typeof rsvSubmit==='function'){ var _s0=rsvSubmit; rsvSubmit=async function(){ var id=(typeof rsvEditId!=='undefined'&&rsvEditId)||null, before=0; try{ var r0=id?(reservations||[]).find(function(x){ return x.id===id; }):null; if(r0)before=rsvTotOf(r0); else id=null; }catch(e){ id=null; }
@@ -22979,8 +23020,25 @@ function _rsvLogTag(r){ if(!r)return ''; var d=r.date_str?((r.date_str||'')+' '+
   var parts=[d]; var car=r.car_name||r.car_no||''; if(car)parts.push(car); if(r.memo)parts.push(r.memo);
   return parts.join(' · '); }
 function _rsvLogTagById(id){ var r=(typeof reservations!=='undefined'&&reservations)?reservations.find(function(x){return x.id===id;}):null; return _rsvLogTag(r); }
+/* ▼STW1124 (11/24 호준님 "재고 연결 또는 차감한 사람이 빠르게 알아야 · 기존 것이 느려지면 안 됨") rsvStockOut 도우미 */
+async function _rsoDec(id,expect,d,ts,E){ var q=parseInt(expect,10)||0;   /* 읽은 수량(q) 그대로일 때만 q−d로 · 그새 바뀌었으면 다시 읽어 그 값에서 d만큼(최대 4번) → 두 사람이 동시에 빼도 둘 다 반영 */
+  for(var t=0;t<4;t++){ var u=await sb.from('stock_lots').update({qty:q-d,updated_at:ts}).eq('id',id).eq('qty',q).select('id'); if(u&&u.error){ E.push(String(u.error.message||u.error)); return null; } if(u&&u.data&&u.data.length)return q-d;
+    var r=await sb.from('stock_lots').select('qty').eq('id',id).maybeSingle(); if(!r||r.error||!r.data){ E.push('재고 자리를 다시 못 읽음'); return null; } q=parseInt(r.data.qty,10)||0; }
+  E.push('다른 사람이 같은 재고를 계속 바꾸는 중'); return null; }
+function rsoWarn(o,n,neg,E,src){ var nm=String((o&&o.spec)||'').trim()||'이 타이어', dt=String((o&&o.dot)||(neg&&neg.dot)||'').trim(), t='';
+  if(neg){ var oth=[]; try{ (neg.all||[]).forEach(function(l){ var d=String(l.dot||'')||'DOT누락'; if(d!==(dt||'DOT누락')&&(parseInt(l.qty,10)||0)>0)oth.push((d==='DOT누락'?'연식 없음':d+'년')+' '+l.qty+'개'); }); }catch(e){}
+    t='⚠ 재고가 모자라요 — '+nm+(dt&&nm.indexOf(dt)<0?' '+dt+'년':'')+' '+n+'개를 빼서 지금 '+neg.q+'개(마이너스)예요.'+(oth.length?' 다른 연식에 있음: '+oth.join(' · ')+'.':'')+' 실물·연식을 확인해 주세요.'; }
+  if(E&&E.length)t+=(t?' / ':'')+'❌ 재고를 다 못 뺐어요('+String(E[0]).slice(0,60)+') — 재고방에서 수량을 확인해 주세요.';
+  var box=document.getElementById('rso-warn'); if(!box){ box=document.createElement('div'); box.id='rso-warn'; box.style.cssText='position:fixed;left:50%;top:10px;transform:translateX(-50%);z-index:100003;width:min(560px,94vw);display:flex;flex-direction:column;gap:6px'; document.body.appendChild(box); }
+  var who=(typeof me!=='undefined'&&me&&me.name)||'', hm=''; try{ hm=new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'}); }catch(e){}
+  var d=document.createElement('div'); d.className='rso-w'; d.style.cssText='background:#fef2f2;border:2px solid #dc2626;color:#991b1b;border-radius:10px;padding:10px 12px;font-size:14px;font-weight:800;line-height:1.45;box-shadow:0 6px 20px rgba(0,0,0,.18);display:flex;gap:8px;align-items:flex-start';
+  d.innerHTML='<div style="flex:1">'+esc(t)+'<div style="font-size:11.5px;font-weight:600;color:#7f1d1d;margin-top:3px">'+esc(who)+(hm?' · '+esc(hm):'')+(src?' · '+esc(src):'')+'</div></div><button style="border:0;background:#dc2626;color:#fff;border-radius:6px;padding:4px 10px;font-weight:900;cursor:pointer">확인</button>';
+  d.querySelector('button').onclick=function(){ d.remove(); }; box.appendChild(d);
+  try{ logAudit(neg?'⚠ 재고 마이너스 출고':'❌ 재고 빼기 실패',nm+(dt?' '+dt:'')+' −'+n+(neg?' → '+neg.q:'')+(src?' · '+src:''),'',(E||[]).join(' | ').slice(0,200)); }catch(e){} }
+/* ▲STW1124 */
 async function rsvStockOut(o,n,memo,src){
   var ts=new Date().toISOString();
+  var _rsoE=[], _rsoNeg=null;   /* STW1124 이 호출의 쓰기 실패·마이너스 */
   var _locs=[]; _rsvOutLocs=_locs; // ★ 이 호출 전용 배열(전역은 화면 표시용으로 같은 것을 가리킴) — 겹쳐도 서로 안 섞임
   if(o.kind==='inbound'){
     var cur=await sb.from('items').select('qty,cancel_qty,out_qty,out_at,out_to,out_user').eq('id',o.item_id).maybeSingle();
@@ -22994,19 +23052,20 @@ async function rsvStockOut(o,n,memo,src){
   if(o.kind==='lot'){
     var cur=await sb.from('stock_lots').select('qty,loc,product_id,dot').eq('id',o.lot_id).maybeSingle();
     var curQ=(cur&&cur.data)?(cur.data.qty||0):0; var take0=Math.max(0,Math.min(curQ,n)), rem0=n-take0;
-    if(rem0>0&&cur&&cur.data){ /* (10/30) 그 자리에 모자라면 같은 상품·연식의 다른 자리에서 입구순으로 */ var lr0=await sb.from('stock_lots').select('*').eq('product_id',cur.data.product_id); var others=((lr0&&lr0.data)||[]).filter(function(l){return l.id!==o.lot_id&&l.qty>0&&(l.dot||'DOT누락')===((cur.data.dot||'')||'DOT누락');}); if(typeof stkEntranceSort==='function')others=stkEntranceSort(others); for(var oi=0;oi<others.length&&rem0>0;oi++){ var tk=Math.min(others[oi].qty,rem0); await sb.from('stock_lots').update({qty:others[oi].qty-tk,updated_at:ts}).eq('id',others[oi].id); rem0-=tk; _locs.push(others[oi].loc||'U'); } }
-    await sb.from('stock_lots').update({qty:curQ-take0-rem0,updated_at:ts}).eq('id',o.lot_id);   /* 남은 모자람은 이 자리에 마이너스(입고예정) */
+    if(rem0>0&&cur&&cur.data){ /* (10/30) 그 자리에 모자라면 같은 상품·연식의 다른 자리에서 입구순으로 */ var lr0=await sb.from('stock_lots').select('*').eq('product_id',cur.data.product_id); var others=((lr0&&lr0.data)||[]).filter(function(l){return l.id!==o.lot_id&&l.qty>0&&(l.dot||'DOT누락')===((cur.data.dot||'')||'DOT누락');}); if(typeof stkEntranceSort==='function')others=stkEntranceSort(others); for(var oi=0;oi<others.length&&rem0>0;oi++){ var tk=Math.min(others[oi].qty,rem0); await _rsoDec(others[oi].id,others[oi].qty,tk,ts,_rsoE); rem0-=tk; _locs.push(others[oi].loc||'U'); } }
+    var _fin0=await _rsoDec(o.lot_id,curQ,take0+rem0,ts,_rsoE); if(_fin0!=null&&_fin0<0)_rsoNeg={q:_fin0,dot:(cur&&cur.data&&cur.data.dot)||'',all:(typeof lr0!=='undefined'&&lr0&&lr0.data)||null};   /* 남은 모자람은 이 자리에 마이너스(입고예정) · STW1124 읽은 수량 그대로일 때만 */
     _locs.push((cur&&cur.data&&cur.data.loc)||'U');
   }else if(o.kind==='rt'){
     var lr=await sb.from('stock_lots').select('*').eq('product_id',o.product_id);
     var lots=((lr&&lr.data)||[]).filter(function(l){return (l.dot||'DOT누락')===((o.dot||'')||'DOT누락');}); if(typeof stkEntranceSort==='function')lots=stkEntranceSort(lots);   /* (10/30) 입구 가까운 자리부터 */
     var rem=n;
-    for(var i=0;i<lots.length&&rem>0;i++){var take=Math.min(lots[i].qty,rem);if(take<=0)continue;await sb.from('stock_lots').update({qty:lots[i].qty-take,updated_at:ts}).eq('id',lots[i].id);rem-=take;_locs.push(lots[i].loc||'U');}
+    for(var i=0;i<lots.length&&rem>0;i++){var take=Math.min(lots[i].qty,rem);if(take<=0)continue;var _fi=await _rsoDec(lots[i].id,lots[i].qty,take,ts,_rsoE);if(_fi!=null)lots[i]._fin=_fi;rem-=take;_locs.push(lots[i].loc||'U');}   /* STW1124 */
     if(rem>0){
-      if(lots.length){await sb.from('stock_lots').update({qty:(lots[0].qty-Math.min(Math.max(lots[0].qty,0),n))-(rem),updated_at:ts}).eq('id',lots[0].id);_locs.push(lots[0].loc||'U');}   /* MNL1113 이미 마이너스인 칸에서 또 빼도 앞 숫자가 안 지워지게(−2에서 4 → −6) */
-      else{await sb.from('stock_lots').insert({product_id:o.product_id,dot:(o.dot||''),qty:-rem,loc:'U'});_locs.push('미등록');}
+      if(lots.length){var _q0=(lots[0]._fin!=null)?lots[0]._fin:(lots[0].qty-Math.min(Math.max(lots[0].qty,0),n));var _f0=await _rsoDec(lots[0].id,_q0,rem,ts,_rsoE);if(_f0!=null&&_f0<0)_rsoNeg={q:_f0,dot:lots[0].dot||'',all:(lr&&lr.data)||null};_locs.push(lots[0].loc||'U');}   /* STW1124 앞에서 뺀 값에서 모자람만 더 뺌(읽은 수량 그대로일 때만) */   /* MNL1113 이미 마이너스인 칸에서 또 빼도 앞 숫자가 안 지워지게(−2에서 4 → −6) */
+      else{var _ins=await sb.from('stock_lots').insert({product_id:o.product_id,dot:(o.dot||''),qty:-rem,loc:'U'});if(_ins&&_ins.error)_rsoE.push(String(_ins.error.message||_ins.error));else _rsoNeg={q:-rem,dot:o.dot||'',all:(lr&&lr.data)||null};_locs.push('미등록');}   /* STW1124 */
     }
   }
+  if(_rsoNeg||_rsoE.length){ try{ rsoWarn(o,n,_rsoNeg,_rsoE,src); }catch(eW){ console.error('재고 안내',eW); } }   /* STW1124 뺀 사람에게 바로 */
   await stkLog((src&&String(src).indexOf('주문방')===0)?'📦주문출고':'📦장착출고', o.spec+' −'+n+'개 · '+(src||'예약')+(memo?' ['+memo+']':''), {product_id:o.product_id,dot:o.dot||'',qty:n,channel:(src==='직배송'?'당일배송':((src&&String(src).indexOf('주문방')===0)?String(src).replace('주문방·',''):'장착')),from_loc:(_locs.length?_locs[_locs.length-1]:''),ref:(src?src+'출고':'예약등록')+(memo?' '+memo:'')});
   if(typeof stkLoad==='function')await stkLoad();
   return true;
@@ -25824,7 +25883,16 @@ function evcCar(c,text,size){ try{ var p=evcNz((c&&(c.code||c._evPno))||''); if(
     var sk=String(size||'').replace(/\D/g,''); if(!sk)return ''; var t=evcNz(text); for(var i=0;i<EVC_FB.length;i++){ var f=EVC_FB[i]; if(f[0]===sk&&t.indexOf(f[1])>=0)return f[2]; } }catch(e){} return ''; }
 function nxSrcOddSegs(src){ var ss=String(src||'').split(/[\/,+，]/).map(function(x){ return x.trim(); }).filter(Boolean); if(!ss.some(function(x){ return /넥센/.test(x); }))return []; return ss.filter(function(x){ return !/넥센/.test(x)&&NX_REGION_RE.test(x)&&!/창고|[미메]치다|매일|퇴계원|한국|한타|SFP|극동|황제|긴급|핑|사일룬|하나|그랜드|천안\s*미쉐린/i.test(x); }); }   /* NXS1124 '넥센 양지1/ 시흥착불1'의 '시흥착불1' — 넥센택배인지 사람이 확인 */
 function dlvMemoExtra(c,nm){ var out=[]; try{ if(!/\[EV /.test(String(nm||''))){ var tire=String((c&&c.tire)||''), spec=String((c&&c.spec)||''); var car=evcCar(c,tire+' '+spec,pnSize(tire,spec)); if(car)out.push(car==='EV'?'EV용':car); } }catch(e){}
-  try{ var od=nxSrcOddSegs(c&&c.src); if(od.length)out.push('출고지확인('+od.join(',')+')'); }catch(e){} return out.join(' '); }   /* 송장 메모 칸에 덧붙일 말: 전기차 차 이름 · 넥센 출고지 확인 */
+  try{ var od=dlvSrcOdd(c&&c.src); if(od.length)out.push('출고지확인('+od.join(',')+')'); }catch(e){} return out.join(' '); }   /* SRM1124 */
+/* ▼SRM1124 (11/24 호준님 "예외 상황은 메모에 · 식별 안 되는 내용 전체 · 날짜가 있는 건지 확인") 송장 메모 '출고지확인(…)'에 적을 조각 */
+function dlvSrcOdd(src){ var s=String(src||'').trim(); if(!s)return []; var od=[];
+  try{ od=od.concat(nxSrcOddSegs(s)); }catch(e){}
+  (s.match(/(^|[^0-9])\d{1,2}\s*\/\s*\d{1,2}(?![0-9])/g)||[]).forEach(function(m){ od.push(m.replace(/^[^0-9]/,'').replace(/\s+/g,'')); });   /* 날짜처럼 보이는 글 */
+  try{ if(typeof _jhSrcUserLoaded!=='undefined'&&!_jhSrcUserLoaded){ if(typeof me!=='undefined'&&me&&typeof jhSrcAliasLoad==='function')jhSrcAliasLoad(); }
+    else jhSrcSplit(s).forEach(function(seg){ if(jhSrcParse(seg).parts.some(function(p){ return p&&p.kind==='unknown'; }))od.push(String(seg).trim()); }); }catch(e){}   /* 주문방·택배방에서 ❓로 보이는 조각 — 시트에 적힌 그대로 */
+  var u=[]; od.forEach(function(x){ x=String(x||'').trim(); if(!x)return; if(u.some(function(y){ return y.indexOf(x)>=0; }))return; u=u.filter(function(y){ return x.indexOf(y)<0; }); u.push(x); }); return u; }
+(function(){ var t=setInterval(function(){ try{ if(typeof _jhSrcUserLoaded!=='undefined'&&_jhSrcUserLoaded){ clearInterval(t); return; } if(typeof me!=='undefined'&&me&&typeof jhSrcAliasLoad==='function'){ clearInterval(t); jhSrcAliasLoad(); } }catch(e){} },5000); })();   /* 로그인 뒤 출고지 사전 한 번 읽기(송장만 만드는 화면에서도) */
+/* ▲SRM1124 */   /* 송장 메모 칸에 덧붙일 말: 전기차 차 이름 · 넥센 출고지 확인 */
 /* ▲EVC1124 */
 var PN_FEAT_RE=/^\(?(EV|EV용|흡음재|흡음제|흡|NCS|FOAM|폼타입|런플랫|RFT|SSR|R-F|ZP|ROF)\)?$/i;
 function pnBuild(ab,mark,brand,pat,size,ply,yy,qty){   /* 54칸 넘으면 차례로 줄임 */
@@ -26272,11 +26340,11 @@ async function kdCancelSel(){
 async function kdCancelCore(nos,rows,opt){ opt=opt||{}; nos=(nos||[]).map(String);
   if(!rows){ rows=[]; try{ var rr=await sbKd.from('kd_waybills').select('waybill_no,recv_name,prod_name,status').in('waybill_no',nos); rows=(rr&&rr.data)||[]; }catch(e){} rows=nos.map(function(n){ return rows.find(function(r){ return String(r.waybill_no)===n; })||{waybill_no:n}; }); var bad2=rows.filter(function(r){ return r.status!=='발송'; }); if(bad2.length){ alert('발송취소는 집하 전(상태 "발송")인 송장만 돼요: '+bad2.map(function(r){ return r.waybill_no+' · '+(r.status||'상태 모름'); }).join(', ')); return false; } }
   var done=await kdRcptDoneMap(); var dlvIds=Object.keys(done).filter(function(id){ var v=done[id]; return v&&Array.isArray(v.nos)&&v.nos.some(function(x){ return nos.indexOf(String(x))>=0; }); });
-  var ords=[]; try{ ords=await kdCancelFindOrders(nos); }catch(e){ alert('택배방 줄을 찾지 못했어요: '+(e&&e.message||e)+'\n취소하지 않았어요'); return false; }
+  var ords=[]; try{ ords=await kdCancelFindOrders(nos); }catch(e){ if(opt.auto){ opt._err='택배방 줄을 찾지 못함: '+(e&&e.message||e); return false; } alert('택배방 줄을 찾지 못했어요: '+(e&&e.message||e)+'\n취소하지 않았어요'); return false; }   /* KDG1124 자동일 땐 창 안 띄움 */
   var oursOnly=!!opt.oursOnly;   /* KDC1119 경동에서는 이미 취소(삭제)된 송장 — 경동에는 안 보내고 우리 기록만 되돌림 */
   var msg=(oursOnly?'경동에서는 이미 지워진(취소된) 송장 '+nos.length+'장입니다.\n경동에는 아무것도 보내지 않고 우리 기록만 되돌립니다.\n\n':'경동에 송장 '+nos.length+'장을 실제로 발송취소합니다. 되돌릴 수 없어요(다시 보내려면 새로 접수).\n\n')+rows.map(function(r){ return '· '+r.waybill_no+'  '+(r.recv_name||'')+'  '+String(r.prod_name||'').slice(0,30); }).join('\n')
     +'\n\n같이 되돌릴 우리 기록: 직배송 카드 '+dlvIds.length+'장 · 택배방 줄 '+ords.length+'줄'+(dlvIds.length+ords.length?'':' (없음 — 경동만 취소)')+'\n\n계속할까요?';
-  if(!confirm(msg))return false;
+  if(opt.auto){ if(!dlvIds.length&&!ords.length){ opt._res={dlv:0,ord:0,fails:[]}; return true; } } else if(!confirm(msg))return false;   /* KDG1124 자동(경동에서 이미 삭제된 송장)일 땐 안 묻고 · 되돌릴 우리 기록이 없으면 아무것도 안 함 */
   var res=oursOnly?{ok:true}:null; if(!oursOnly){ try{ res=await kdRcptPost({act:'cancelSend',nos:nos}); }catch(e){ res={ok:false,error:String(e&&e.message||e)}; } }
   if(!res||!res.ok){ var em=(res&&(res.error||res.text))||'응답 없음'; if(/모르는 요청/.test(em))em+='\n→ 경동수집 스크립트를 발송취소 들어간 새 코드로 바꾸고 "배포 관리 → 새 버전"이 필요해요'; /* KDC1119 경동이 거절 = 경동 사이트에서 이미 취소했을 수 있음 → 경동 자료를 바로 다시 읽어 그 송장이 지워졌는지 확인 */
     var goneAll=false; try{ var url0=await kdRefreshUrl(); if(url0){ var from0=(typeof kstDateStr==='function')?kstDateStr(new Date(Date.now()-7*86400000).toISOString()):getTodayISO(); await fetch(url0+'&from='+from0+'&to='+getTodayISO()); } var rr2=await sbKd.from('kd_waybills').select('waybill_no,status').in('waybill_no',nos); var st2={}; ((rr2&&rr2.data)||[]).forEach(function(r){ st2[String(r.waybill_no)]=r.status; }); goneAll=nos.length>0&&nos.every(function(n){ return st2[n]==='삭제됨'; }); }catch(e){ console.warn('발송취소 거절 뒤 경동 자료 다시 읽기 실패',e); }
@@ -26284,15 +26352,16 @@ async function kdCancelCore(nos,rows,opt){ opt=opt||{}; nos=(nos||[]).map(String
     else { alert('⚠ 경동이 발송취소를 받지 않았어요: '+em+'\n\n우리 기록은 그대로 두었어요.'+(goneAll?'':' 경동 사이트 발송 목록에서 상태를 확인해 주세요.\n(경동 사이트에서 이미 취소한 송장이면 최대 5분 뒤 「삭제됨」으로 바뀝니다 — 그 뒤 그 송장을 체크하고 다시 누르면 우리 기록만 되돌릴 수 있어요)')); try{ logAudit('📮 경동 발송취소 실패',nos.join(', '),'',String(em).slice(0,300)); }catch(e){} return false; } }
   var who=me.name, now=new Date().toISOString(), fails=[];
   /* 1) 직배송 카드: 확인됨 풀기 + 접수 기록에서 그 송장 빼기 */
-  try{ var cur=await kdRcptDoneMap(); dlvIds.forEach(function(id){ var v=cur[id]; if(!v||!Array.isArray(v.nos))return; var left=v.nos.filter(function(x){ return nos.indexOf(String(x))<0; }); if(left.length){ v.nos=left; v.cancelled=(v.cancelled||[]).concat(nos.filter(function(n){ return (done[id].nos||[]).map(String).indexOf(n)>=0; })); v.cancelAt=now; } else delete cur[id]; });
+  if(dlvIds.length)try{ var cur=await kdRcptDoneMap(); dlvIds.forEach(function(id){ var v=cur[id]; if(!v||!Array.isArray(v.nos))return; var left=v.nos.filter(function(x){ return nos.indexOf(String(x))<0; }); if(left.length){ v.nos=left; v.cancelled=(v.cancelled||[]).concat(nos.filter(function(n){ return (done[id].nos||[]).map(String).indexOf(n)>=0; })); v.cancelAt=now; } else delete cur[id]; });
     var sv=await sb.from('settings').upsert({key:'kd_rcpt_done',value:cur,updated_at:now},{onConflict:'key'}); if(sv&&sv.error)fails.push('접수 기록 저장: '+sv.error.message); }catch(e){ fails.push('접수 기록: '+(e&&e.message||e)); }
   for(var i=0;i<dlvIds.length;i++){ var root=(done[dlvIds[i]]&&done[dlvIds[i]].root)||dlvIds[i];
     try{ var u=await sb.from('deliveries').update({confirmed:false}).or('id.eq.'+root+',origin_id.eq.'+root+',id.eq.'+dlvIds[i]).eq('cancelled',false).select('id'); if(u&&u.error)fails.push('카드 '+dlvIds[i].slice(0,8)+': '+u.error.message); }catch(e){ fails.push('카드 '+dlvIds[i].slice(0,8)+': '+(e&&e.message||e)); } }
   /* 2) 택배방 줄: 송장 취소 기록 + 남은 송장만 다시 */
   for(var k=0;k<ords.length;k++){ var o=ords[k]; var w=pmWb(o).map(String); var gone=w.filter(function(n){ return nos.indexOf(n)>=0; }), left2=w.filter(function(n){ return nos.indexOf(n)<0; });
-    var r=await jhOrdWrite(o,[{t:'송장 취소',nos:gone,by:who,at:now,how:(oursOnly?'경동에서 이미 취소됨 — 우리 기록만 되돌림':'경동 발송취소')},{t:'송장',nos:left2,by:who,at:now,how:'발송취소 뒤 남은 송장'}],(o.status==='done'&&!left2.length)?{status:'wait'}:{},null,'송장 취소',{quiet:true});
+    var r=await jhOrdWrite(o,[{t:'송장 취소',nos:gone,by:who,at:now,how:(oursOnly?'경동에서 이미 취소됨 — 우리 기록만 되돌림'+(opt.auto?' (자동)':''):'경동 발송취소')},{t:'송장',nos:left2,by:who,at:now,how:'발송취소 뒤 남은 송장'}],(o.status==='done'&&!left2.length)?{status:'wait'}:{},null,'송장 취소',{quiet:true});
     if(r!==true)fails.push((o.recv||o.id)+' 줄 기록'); }
   try{ logAudit(oursOnly?'📮 경동에서 이미 취소된 송장 — 우리 기록만 되돌림':'📮 경동 발송취소',nos.join(', '),'',JSON.stringify({dlv:dlvIds,ord:ords.map(function(o){return o.id;}),fails:fails}).slice(0,3000)); }catch(e){}
+  if(opt.auto){ opt._res={dlv:dlvIds.length,ord:ords.length,fails:fails}; return true; }   /* KDG1124 자동: 경동 다시 읽기·알림 창 없이 결과만 */
   KD_PR.sel={}; try{ var url=await kdRefreshUrl(); if(url){ var from=(typeof kstDateStr==='function')?kstDateStr(new Date(Date.now()-7*86400000).toISOString()):getTodayISO(); await fetch(url+'&from='+from+'&to='+getTodayISO()); } }catch(e){}
   try{ await kdLoad(); }catch(e){}
   if(!opt.quiet)alert((oursOnly?'✓ 우리 기록만 되돌림 (경동에서는 이미 취소된 송장) ':'✓ 경동 발송취소 ')+nos.length+'장\n· 직배송 카드 확인됨 해제 '+dlvIds.length+'장\n· 택배방 줄 송장 취소 기록 '+ords.length+'줄'+(fails.length?'\n\n⚠ 못 한 것(직접 확인해 주세요):\n'+fails.join('\n'):'')); else if(typeof stkToast==='function')stkToast('✓ 경동 발송취소 '+nos.length+'장'+(fails.length?' · ⚠ 기록 일부 실패':''));
@@ -26863,7 +26932,7 @@ async function rtrUndo(ev,k){ if(ev)ev.stopPropagation(); var r=rtrRow(k); if(!r
 function rtrCss(){ if(RTR.css)return; RTR.css=true; var st=document.createElement('style'); st.id='rtr-css'; st.textContent='#rtr-root{font-size:15px;color:#0f172a}.rtr-top{position:sticky;top:0;z-index:5;background:#0f172a;color:#fff;padding:10px 12px 0}.rtr-h1{display:flex;align-items:center;gap:6px;font-size:17px;font-weight:900}.rtr-day{margin-left:auto;display:flex;align-items:center;gap:4px}.rtr-day button{border:1px solid #475569;background:#1e293b;color:#fff;border-radius:8px;width:34px;height:34px;font-size:18px;font-weight:900;font-family:inherit;cursor:pointer;line-height:1}.rtr-day input{border:1px solid #475569;background:#1e293b;color:#fff;border-radius:8px;height:34px;padding:0 6px;font-size:14px;font-weight:800;font-family:inherit;color-scheme:dark;max-width:140px}.rtr-seg{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin-top:8px}.rtr-seg button{border:none;border-radius:10px;padding:9px 6px;font-size:14px;font-weight:800;font-family:inherit;background:#1e293b;color:#cbd5e1;cursor:pointer}.rtr-seg button.on{background:#fff;color:#0f172a}.rtr-seg button b{font-size:16px}.rtr-srcs{display:flex;gap:6px;overflow-x:auto;margin:8px -12px 0;padding:0 12px;-webkit-overflow-scrolling:touch;scrollbar-width:none}.rtr-srcs::-webkit-scrollbar{display:none}.rtr-src{flex:0 0 auto;border:none;border-radius:10px 10px 0 0;padding:7px 12px 6px;background:#1e293b;color:#cbd5e1;font-family:inherit;cursor:pointer;text-align:center;min-width:74px}.rtr-src b{display:block;font-size:14.5px;font-weight:900;white-space:nowrap}.rtr-src small{display:block;font-size:11px;font-weight:700;color:#94a3b8;white-space:nowrap}.rtr-src.on{background:#f1f5f9;color:#0f172a}.rtr-src.on small{color:#475569}.rtr-src.stock.on{background:#dcfce7;color:#14532d}.rtr-src.unk b{color:#fca5a5}.rtr-src.unk.on{background:#fee2e2}.rtr-src.unk.on b{color:#b91c1c}.rtr-err{background:#fef2f2;border-bottom:1px solid #fca5a5;color:#b91c1c;font-weight:800;font-size:13px;padding:8px 12px}.rtr-chips{display:flex;gap:6px;overflow-x:auto;padding:7px 12px 0;align-items:center;-webkit-overflow-scrolling:touch;scrollbar-width:none}.rtr-chips::-webkit-scrollbar{display:none}.rtr-l{flex:0 0 auto;font-size:12px;font-weight:800;color:#64748b;margin-right:2px}.rtr-chip{flex:0 0 auto;border:1.5px solid #cbd5e1;background:#fff;color:#334155;border-radius:999px;padding:8px 13px;font-size:14px;font-weight:800;font-family:inherit;cursor:pointer;white-space:nowrap}.rtr-chip small{font-weight:700;color:#64748b;margin-left:3px}.rtr-chip.on{background:#0f172a;border-color:#0f172a;color:#fff}.rtr-chip.on small{color:#e2e8f0}.rtr-chip.sm{padding:6px 11px;font-size:13px}.rtr-chip.sm.y{border-color:#16a34a;color:#166534}.rtr-chip.sm.y.on{background:#16a34a;color:#fff}.rtr-chip.sm.n{border-color:#f59e0b;color:#92400e}.rtr-chip.sm.n.on{background:#f59e0b;border-color:#f59e0b;color:#fff}.rtr-bar{display:flex;align-items:center;justify-content:space-between;gap:6px;padding:8px 12px 0;font-size:12.5px;font-weight:800;color:#475569}.rtr-bar small{font-weight:600;color:#94a3b8}.rtr-bar button{border:1px solid #cbd5e1;background:#fff;border-radius:8px;padding:7px 11px;font-size:13px;font-weight:800;font-family:inherit;color:#334155;cursor:pointer;white-space:nowrap}.rtr-list{padding:8px 10px 30px;max-width:640px;margin:0 auto}.rtr-card{background:#fff;border:1px solid #e2e8f0;border-left:6px solid #94a3b8;border-radius:12px;padding:9px 10px 9px 8px;margin-bottom:8px;display:grid;grid-template-columns:40px minmax(0,1fr) auto;gap:8px;align-items:center;cursor:pointer}.rtr-card.s{border-left-color:#16a34a}.rtr-card.v{border-left-color:#2563eb}.rtr-card.u{border-left-color:#dc2626}.rtr-card.done{background:#f8fafc}.rtr-q{font-size:26px;font-weight:900;color:#6d28d9;text-align:center;line-height:1}.rtr-q small{display:block;font-size:11px;font-weight:700;color:#94a3b8;margin-top:2px}.rtr-nm{font-size:14px;font-weight:700;color:#334155;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-all}.rtr-nm b{color:#0f172a;font-weight:900}.rtr-card:not(.open) .rtr-nm{-webkit-line-clamp:1}.rtr-dest{display:inline-block;border-radius:5px;padding:0 5px;margin-right:5px;font-size:11px;font-weight:900;color:#fff;vertical-align:1px;white-space:nowrap}.rtr-sz{margin-top:3px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}.rtr-sz .s1{font-family:ui-monospace,Consolas,monospace;font-size:20px;font-weight:900;color:#1d4ed8;white-space:nowrap}.rtr-ply{background:#fef08a;color:#713f12;border:1.5px solid #eab308;border-radius:6px;padding:0 6px;font-size:16px;font-weight:900;white-space:nowrap}.rtr-yy{background:#ede9fe;color:#5b21b6;border-radius:6px;padding:1px 6px;font-size:14px;font-weight:900;white-space:nowrap}.rtr-yy.old{background:#ffedd5;color:#9a3412}.rtr-hub{border-radius:6px;padding:1px 7px;font-size:13px;font-weight:900;color:#fff;white-space:nowrap}.rtr-hub.none{background:#e2e8f0;color:#94a3b8;font-size:11.5px}.rtr-meta{margin-top:6px;font-size:12.5px;color:#475569;display:flex;gap:5px;flex-wrap:wrap;align-items:center}.rtr-tag{border-radius:6px;padding:1px 6px;font-size:12px;font-weight:800;white-space:nowrap}.rtr-tag.s{background:#dcfce7;color:#166534}.rtr-tag.v{background:#dbeafe;color:#1e40af}.rtr-tag.u{background:#fee2e2;color:#b91c1c}.rtr-tag.p{background:#f1f5f9;color:#334155}.rtr-tag.w{background:#ffedd5;color:#9a3412}.rtr-sub{margin-top:4px;font-size:12px;color:#9a3412;font-weight:700}.rtr-wb{margin-top:5px;font-size:12.5px;color:#475569;display:flex;gap:5px;flex-wrap:wrap;align-items:center}.rtr-wb .no{font-family:ui-monospace,Consolas,monospace;font-weight:700;color:#0f172a;word-break:break-all}.rtr-wb .none{color:#94a3b8;font-weight:700}.rtr-wb .pn{flex:1 1 100%;font-family:ui-monospace,Consolas,monospace;font-size:12px;color:#334155;background:#f1f5f9;border-radius:6px;padding:3px 6px;word-break:break-all;line-height:1.35}.rtr-scan{border-radius:6px;padding:0 6px;font-size:12px;font-weight:900;white-space:nowrap}.rtr-scan.n{background:#fef3c7;color:#92400e;border:1px solid #f59e0b}.rtr-scan.y{background:#dcfce7;color:#166534;border:1px solid #16a34a}.rtr-who{margin-top:5px;font-size:12.5px;font-weight:800;color:#166534}.rtr-who.v{color:#1e40af}.rtr-who.s{color:#6d28d9}.rtr-go{border:none;border-radius:12px;min-width:64px;min-height:52px;padding:6px 8px;background:#16a34a;color:#fff;font-size:16px;font-weight:900;font-family:inherit;cursor:pointer}.rtr-go:disabled{opacity:.5}.rtr-go.recv{background:#2563eb}.rtr-go.sort{background:#fff;color:#6d28d9;border:2px solid #7c3aed}.rtr-okd{min-width:60px;text-align:center;font-size:12.5px;font-weight:900;color:#6d28d9;line-height:1.3}.rtr-wait{min-width:60px;text-align:center;font-size:12px;font-weight:800;color:#b91c1c;line-height:1.35}.rtr-undo{margin-top:6px;border:1px solid #cbd5e1;background:#fff;color:#475569;border-radius:8px;padding:7px 11px;font-size:12.5px;font-weight:800;font-family:inherit;cursor:pointer}.rtr-chip.zero{opacity:.5}.rtr-srcs .rtr-src{flex:1 1 0;min-width:0;padding:7px 2px 6px}.rtr-src b{overflow:hidden;text-overflow:ellipsis}.rtr-chip.stock{border-color:#16a34a;color:#166534}.rtr-chip.stock.on{background:#16a34a;border-color:#16a34a;color:#fff}.rtr-chip.unk{border-color:#f87171;color:#b91c1c}.rtr-chip.unk.on{background:#dc2626;border-color:#dc2626;color:#fff}.rtr-sort{border:1px solid #cbd5e1;background:#fff;border-radius:8px;height:34px;padding:0 4px;font-size:13px;font-weight:800;font-family:inherit;color:#334155;max-width:118px}.rtr-bar{flex-wrap:wrap}.rtr-note{font-size:12px;font-weight:800;color:#1d4ed8;white-space:normal}@media(max-width:460px){.rtr-src b{font-size:13px}.rtr-src small{font-size:10.5px}}@media(max-width:460px){.rtr-chips .rtr-l{display:none}.rtr-chip{padding:7px 9px;font-size:13px}.rtr-chip.sm{padding:6px 9px;font-size:12.5px}}.rtr-find{display:flex;gap:6px;padding:8px 12px 0}.rtr-find input{flex:1;min-width:0;height:42px;border:1.5px solid #cbd5e1;border-radius:10px;padding:0 12px;font-size:16px;font-family:inherit;background:#fff;color:#0f172a}.rtr-find input:focus{outline:none;border-color:#2563eb}.rtr-find button{flex:0 0 42px;height:42px;border:1px solid #cbd5e1;background:#fff;border-radius:10px;font-size:15px;font-weight:900;color:#64748b;font-family:inherit;cursor:pointer}.rtr-addr{margin-top:3px;font-size:13px;font-weight:700;color:#334155;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.rtr-card.open .rtr-addr{white-space:normal;word-break:break-all}.rtr-src.zero{opacity:.55}.rtr-empty{text-align:center;color:#64748b;padding:44px 10px;font-weight:700}.rtr-foot{text-align:center;color:#94a3b8;font-size:11.5px;padding:0 10px 24px}'; document.head.appendChild(st); }
 /* ▲RTR1118 */
 /* ▼RT21118 (11/18 호준님 "니가 하는 대로 한번 만들어 봐 — 방 하나 더, 바로 정본에") 📋 실물타이어방2 — 실물타이어방과 **같은 자료·같은 체크 기록**을 '할 일' 중심 화면으로.
-   홈 타일판(📥 받을 것 = 거래처별 · 📤 나갈 것 = 택배·호차·장착·재고 · 🔍 이 타이어 어디 가지?) → 타일을 누르면 그 일만 하는 체크 명단.
+   홈 타일판(받을 것 = 거래처별 · 나갈 것 = 택배·호차·장착·재고 · 🔍 이 타이어 어디 가지?) — RTX1124 파일 올리기·내리기 모양 아이콘 안 씀 → 타일을 누르면 그 일만 하는 체크 명단.
    자료·저장은 전부 실물타이어방 것(rtrLoad·rtrBuild·rtrPick·rtrSort·rtrUndo, settings 'rtr:<날짜>:…')을 그대로 씀 → 두 방의 체크가 서로 같음.
    받음(거래처 줄) = 실물타이어방의 [수령](입고방 실물입고도 같이) · 꺼냄(창고 줄) = [꺼냄] · 챙김(거래처 줄을 나갈 곳으로 챙김) = [분류] 기록. */
 var RT2={scr:'home',key:'',chip:'',sort:'',open:{},showDone:false,q:'',css:false,timer:null};
@@ -26899,19 +26968,19 @@ function rt2Home(){ var e=esc, A=RTR.rows;
   h+='<button class="rt2-find" onclick="rt2Go(\'find\')">🔍 이 타이어 어디 가지? — 사이즈로 찾기</button>';
   var V=A.filter(function(r){ return r.kind==='v'; }), by={}; V.forEach(function(r){ (by[r.src]=by[r.src]||[]).push(r); });
   var names=Object.keys(by).sort(function(a,b){ return (rt2Sum(by[b])-rt2Sum(by[a]))||a.localeCompare(b,'ko'); });
-  h+='<div class="rt2-sec">📥 받을 것 <small>거래처 타이어가 오면 여기서 체크</small></div><div class="rt2-tiles">';
+  h+='<div class="rt2-sec">받을 것 <small>거래처 타이어가 오면 여기서 체크</small></div><div class="rt2-tiles">';
   names.forEach(function(k){ var L=by[k], left=L.filter(function(r){ return !rt2Got(r); }), u={}; L.forEach(function(r){ var t=rtrUse(r); t=(t==='기타')?'미정':t; u[t]=(u[t]||0)+1; });
     h+=rt2Tile('','🚚 '+e(k),L.length-left.length,L.length,rt2Sum(left),Object.keys(u).map(function(t){ return t+' '+u[t]; }).join(' · '),'in',k); });
   var U=A.filter(function(r){ return r.kind==='u'; }); if(U.length)h+='<button class="rt2-tile warn" onclick="rt2Go(\'in\',\'출고지 미정\')"><span class="n">⚠ 출고지 미정</span><span class="c">'+U.length+'<small> 건 · '+rt2Sum(U)+'개</small></span><span class="x">주문방·직배송방에서 출고지를 적어야 해요</span></button>';
   if(!names.length&&!U.length)h+='<div class="rt2-empty" style="grid-column:1/-1;padding:18px">이 날짜에 거래처에서 올 것이 없어요</div>';
   h+='</div>';
   var keys=['택배','1호차','2호차','0호차','미배정','장착','재고','미정'], ob={}; A.forEach(function(r){ var k=rt2OutKey(r); (ob[k]=ob[k]||[]).push(r); });
-  h+='<div class="rt2-sec">📤 나갈 것 <small>미리 꺼내고 챙기기</small></div><div class="rt2-tiles">';
+  h+='<div class="rt2-sec">나갈 것 <small>미리 꺼내고 챙기기</small></div><div class="rt2-tiles">';
   keys.forEach(function(k){ var L=ob[k]||[]; if(!L.length)return; var left=L.filter(function(r){ return !rt2Out(r); }), extra;
     if(k==='택배'){ var c={Y:0,N:0,'-':0}; L.forEach(function(r){ c[rtrScan(r)]++; }); extra='송장 N '+c.N+' · Y '+c.Y+' · 전 '+c['-']; }
     else if(k==='장착'){ var ts=L.map(function(r){ return (r.ins&&r.ins.time)||''; }).filter(Boolean).sort(); extra=ts.length?('시간 '+ts.slice(0,4).join(' · ')):'예약 시간 없음'; }
     else { var st=L.filter(function(r){ return r.kind==='s'; }).length; extra='창고 '+st+' · 거래처 '+(L.length-st); }
-    h+=rt2Tile('out',(k==='택배'?'📦 ':(k==='장착'?'🔧 ':(k==='재고'?'📥 ':(k==='미정'?'❔ ':'🚚 '))))+rt2OutLabel(k),L.length-left.length,L.length,rt2Sum(left),extra,'out',k); });
+    h+=rt2Tile('out',(k==='택배'?'📦 ':(k==='장착'?'🔧 ':(k==='재고'?'🏠 ':(k==='미정'?'❔ ':'🚚 '))))+rt2OutLabel(k),L.length-left.length,L.length,rt2Sum(left),extra,'out',k); });
   if(!A.length)h+='<div class="rt2-empty" style="grid-column:1/-1;padding:18px">이 날짜에 읽힌 줄이 없어요</div>';
   h+='</div><div class="rt2-foot"><button id="rt2-re" onclick="rt2Refresh()">↻ 새로고침</button> <span>'+rtrHm(RTR.loadedAt)+' 읽음 · 입고방 '+(RTR.cnt.items||0)+'줄 · 주문 '+(RTR.cnt.ords||0)+'줄 · 직배송 카드 '+(RTR.cnt.dls||0)+'장 · 송장 '+(RTR.cnt.kdFound||0)+'/'+(RTR.cnt.wb||0)+'장'+(RTR.cnt.dx?' · 직접출고 '+RTR.cnt.dx+'건은 안 나옴':'')+'</span></div>';
   return h; }
@@ -26937,7 +27006,7 @@ function rt2SZ(r){ var g=String(r.size||'').split(/[^0-9]+/).filter(Boolean).map
 function rt2List(){ var e=esc, isIn=(RT2.scr==='in'), k=RT2.key, A=RTR.rows;
   var L=A.filter(function(r){ return isIn?(k==='출고지 미정'?r.kind==='u':(r.kind==='v'&&r.src===k)):(rt2OutKey(r)===k); });
   var doneOf=function(r){ return isIn?rt2Got(r):rt2Out(r); }, dn=L.filter(doneOf).length, whereOf=function(r){ return r.kind==='s'?'st':(r.kind==='u'?'unk':(rt2Got(r)?'inn':'wait')); };
-  var h='<div class="rt2-hd"><button class="back" onclick="rt2Go(\'home\')" aria-label="뒤로">‹</button><div class="t"><b>'+(isIn?'📥 '+e(k)+' 받기':'📤 '+e(rt2OutLabel(k))+' 챙기기')+'</b><div class="sub">'+e(rtrMD(RTR.date))+' · '+rtrHm(RTR.loadedAt)+' 읽음</div></div><span class="rt">'+dn+' / '+L.length+'<br>'+(isIn?'받음':'챙김')+'</span></div>';
+  var h='<div class="rt2-hd"><button class="back" onclick="rt2Go(\'home\')" aria-label="뒤로">‹</button><div class="t"><b>'+(isIn?e(k)+' 받기':e(rt2OutLabel(k))+' 챙기기')+'</b><div class="sub">'+e(rtrMD(RTR.date))+' · '+rtrHm(RTR.loadedAt)+' 읽음</div></div><span class="rt">'+dn+' / '+L.length+'<br>'+(isIn?'받음':'챙김')+'</span></div>';
   if(RTR.err)h+='<div class="rt2-err">⚠ '+e(RTR.err)+'</div>';
   h+='<div class="rt2-sum"><span class="rt2-bar" style="margin:0 0 6px;height:8px"><i style="width:'+(L.length?Math.round(dn*100/L.length):0)+'%"></i></span><span class="big">'+(L.length-dn)+'<small> 건 남음 · '+rt2Sum(L.filter(function(r){ return !doneOf(r); }))+'개</small></span></div>';
   var chips, sorts;
@@ -26966,7 +27035,7 @@ function rt2FindPaint(){ var el=document.getElementById('rt2-fres'); if(!el)retu
   var L=RTR.rows.filter(function(r){ return rtrQMatch(r,Q); }).sort(function(a,b){ return rt2NM(a).localeCompare(rt2NM(b),'ko'); });
   var h='<div class="rt2-list">'+(L.length?'<div class="rt2-grp">'+L.length+'건 · '+rt2Sum(L)+'개</div>':'<div class="rt2-empty">이 날짜에 나가는 것 중에는 없어요</div>');
   L.slice(0,60).forEach(function(r){ var k=rt2OutKey(r), w=rt2Kd(r)[0], isDv=(rtrUse(r)==='직배송');
-    var big=k==='택배'?('📦 택배'+(w?' · '+esc(w.b2||'')+' <small>'+esc(w.a2||'')+' · '+rtrScan(r)+' 체크</small>':' <small>'+((r.wb||[]).length?'송장 확인 중':'송장 전')+'</small>')):(k==='장착'?('🔧 장착 '+esc(rt2InsTxt(r))):(isDv?('🚚 '+esc(rt2OutLabel(k))+' <small>'+esc(r.addr||'주소 없음')+'</small>'):(k==='재고'?'📥 재고로':'❔ 용도 미정')));
+    var big=k==='택배'?('📦 택배'+(w?' · '+esc(w.b2||'')+' <small>'+esc(w.a2||'')+' · '+rtrScan(r)+' 체크</small>':' <small>'+((r.wb||[]).length?'송장 확인 중':'송장 전')+'</small>')):(k==='장착'?('🔧 장착 '+esc(rt2InsTxt(r))):(isDv?('🚚 '+esc(rt2OutLabel(k))+' <small>'+esc(r.addr||'주소 없음')+'</small>'):(k==='재고'?'🏠 재고로':'❔ 용도 미정')));
     h+=rt2Row(r,'find').replace('<div class="rt2-ctx">','<div class="rt2-where" style="background:'+(RT2_USEC[k]||'#94a3b8')+'">'+big+'</div><div class="rt2-ctx">'); });
   if(L.length>60)h+='<div class="rt2-empty" style="padding:12px">'+L.length+'건 중 60건만 보여요 — 낱말을 더 넣어 좁혀 주세요</div>';
   el.innerHTML=h+'</div>'; }
