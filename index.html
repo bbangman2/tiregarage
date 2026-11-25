@@ -6167,8 +6167,14 @@ function _dlvSrcAbbr1(seg){ // 출처 한 조각 → 약어(+숫자 = 그 출처
   return base+n;
 }
 /* ▼SFN1125 (11/25 호준님 "SFP가 붙고 지역명이 붙는 경우 송장 품목명의 거래처명에 지역명SFP · 한국타이어(한)는 한국물류·한국 이런 것만") 송장 품목명 맨 앞 출고지 — SFP는 '양주SFP'·'동대문SFP'처럼, 나머지는 전과 같은 줄임말. 줄임말을 비교에 쓰는 다른 자리(dlvSrcAbbr)는 그대로 */
-function dlvSfpName(seg){ var t=String(seg||''); if(!/sfp/i.test(t))return ''; var m=t.match(/([가-힣]{2,6})\s*sfp/i), r=m?m[1]:''; if(!r||/^(한타|한국|한국타이어|타이어)$/.test(r)){ var p=t.match(/sfp\s*\(\s*([가-힣]{2,6})\s*\)/i)||t.match(/sfp\s*([가-힣]{2,6})/i); r=p?p[1]:''; } return r+'SFP'; }
-function dlvSrcAbbrP(src){ src=String(src||'').trim(); if(!src)return ''; return src.replace(/(\d)\s*\/\s*(\d)/g,'$1.$2').split(/[\/,+]/).map(function(seg){ var nm=dlvSfpName(seg); if(!nm)return _dlvSrcAbbr1(seg); var q=String(seg).match(/(\d+)\s*개/)||String(seg).match(/[가-힣A-Za-z](\d+)(?!\d)(?!\s*년)/)   /* 수량 표기는 전과 같은 규칙(붙여 쓴 숫자·N개) */; return nm+(q?' '+q[1]:''); }).filter(function(x){ return x!==''; }).join(' '); }
+var DLV_SFP_AB={'강남':'강남','강릉':'강릉','동대구':'동구','대구':'대구','대전':'대전','창원':'창원'};   /* SFM1125 첫 글자가 겹치는 지역(강남·강릉, 대구·대전, 동대문·동대구, 창원·창고)은 두 글자 */
+function dlvSfpRegion(seg){ var t=String(seg||''); if(!/sfp/i.test(t))return ''; var m=t.match(/([가-힣]{2,6})\s*sfp/i), r=m?m[1]:''; if(!r||/^(한타|한국|한국타이어|타이어)$/.test(r)){ var p=t.match(/sfp\s*\(\s*([가-힣]{2,6})\s*\)/i)||t.match(/sfp\s*([가-힣]{2,6})/i); r=p?p[1]:''; } return r; }
+function dlvSfpName(seg){ if(!/sfp/i.test(String(seg||'')))return ''; var r=dlvSfpRegion(seg); return r?(DLV_SFP_AB[r]||r.charAt(0)):''; }   /* SFM1125 (11/25 호준님 "SFP 같이 안 나오게 · 지역명 첫 글자만 — 한양·한동·한북") 지역 줄임 글자 */
+function dlvSrcAbbrP(src){ src=String(src||'').trim(); if(!src)return ''; var segs=src.replace(/(\d)\s*\/\s*(\d)/g,'$1.$2').split(/[\/,+]/); if(!segs.some(function(g){ return /sfp/i.test(g); }))return segs.map(_dlvSrcAbbr1).filter(function(x){ return x!==''; }).join(' ');   /* SFP가 없는 출고지는 전과 같음 */
+  var num=function(g){ g=String(g); var q=g.match(/(\d+)\s*개/)||g.match(/[가-힣A-Za-z](\d+)(?!\d)(?!\s*년)/)||g.match(/[가-힣A-Za-z)]\s+(\d{1,2})(?!\d)(?!\s*(년|%|일|월|주|시|차))/); return q?q[1]:''; };   /* SFM1125 띄어 쓴 수량(물류 2)도 */
+  var parts=segs.map(function(g){ if(/sfp/i.test(g))return {sfp:true,ab:dlvSfpName(g),n:num(g)}; var b=_dlvSrcAbbr1(g); if(!b)return null; var base=b.replace(/\d+$/,''), n=(b.match(/\d+$/)||[''])[0]||num(g); if(base==='물'&&/^\s*물류/.test(g))base='한';   /* 한국 SFP와 같이 적힌 '물류' = 한국물류 */ return {sfp:false,ab:base,n:n}; }).filter(Boolean);
+  var hasHan=parts.some(function(p){ return !p.sfp&&p.ab==='한'; });
+  return parts.map(function(p){ return (p.sfp?((hasHan&&p.ab)?p.ab:'한'+p.ab):p.ab)+p.n; }).join(' '); }   /* SFM1125 한양·한동2 · 한국물류와 같이면 '한2 동2' */
 /* ▲SFN1125 */
 function dlvSrcAbbr(src){ // 출처 약어 (호준님 8/28 확정: 기본은 숫자 없이 '창', 숫자=출처별 출고수량, 복수 출처는 '창1 극1'식, 별표 등 기호 안 붙임)
   src=String(src||'').trim(); if(!src)return '';
