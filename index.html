@@ -3850,7 +3850,7 @@ function tradeEsc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/
 function tradeMatch(r){
   var q=(document.getElementById('trade-search-input')&&document.getElementById('trade-search-input').value||'').trim().toLowerCase();
   if(!q)return true;
-  return tgAliasHay(['out_src','client','pattern','spec','memo','payer'].map(function(k){return String(r[k]||'');}).join(' ').toLowerCase()).indexOf(q)>=0;   /* (11/2) 검색 사전 */
+  return tgSearchHit(['out_src','client','pattern','spec','memo','payer'].map(function(k){return String(r[k]||'');}).join(' · '),q)/* USR1125 */;   /* (11/2) 검색 사전 */
 }
 function tradeRender(){
   var el=document.getElementById('trade-body'); if(!el)return;
@@ -6747,7 +6747,7 @@ function tabLogRender(scope,contId,query){
   var el=document.getElementById(contId); if(!el)return;
   var rows=(tabLogCache[scope]||[]).slice();
   var toks=String(query||'').trim().toLowerCase().split(/\s+/).filter(Boolean);
-  if(toks.length)rows=rows.filter(function(g){var h=((g.title||'')+' '+(g.chain||'')).toLowerCase();return toks.every(function(t){return h.indexOf(t)>=0;});});
+  if(toks.length)rows=rows.filter(function(g){var h=((g.title||'')+' '+(g.chain||'')).toLowerCase();return tgSearchHit(h,query)/* USR1125 */;});
   var inner=rows.map(function(g){
     return '<div onclick="tabLocate(\''+scope+'\',\''+encodeURIComponent(g.item_key||'')+'\',\''+esc(g.date_str||'')+'\')" style="padding:7px 12px;border-top:1px solid #f1f5f9;font-size:12px;color:#475569;cursor:pointer" title="\ud074\ub9ad\ud558\uba74 \ud574\ub2f9 \uc704\uce58\ub85c \uc774\ub3d9"><b>'+esc(g.title||'')+'</b> <span style="font-size:10px;color:#2563eb">🔎</span><br><span style="color:#64748b">'+esc(g.chain||'')+'</span></div>';
   }).join('');
@@ -7286,7 +7286,7 @@ function _sdvMatch(c,q){   // ★ 띄어쓰기로 나눈 낱말이 모두 들어
   var toks=String(q||'').trim().toLowerCase().split(/\s+/).filter(function(t){return t;});
   if(!toks.length)return true;
   var hay=_sdvHay(c), flat=hay.replace(/\s+/g,'');
-  return toks.every(function(t){ return hay.indexOf(t)>=0 || flat.indexOf(t.replace(/\s+/g,''))>=0; });
+  return tgSearchHit(hay,q);   /* USR1125 */
 }
 function _sdvLinkFill(){   // ★ 목록만 다시 그린다 — 검색창을 건드리지 않으므로 커서가 유지됨
   var box=document.getElementById('sdv-lnk-list'); if(!box)return;
@@ -9010,7 +9010,7 @@ function clearItemSearch(){
 function tgSearchCanon(s){
   var u=String(s||'').toLowerCase();
   u=u.replace(/(\d{2}\s*[x×*\s]\s*)(\d{1,2})\.5(?=\s*z?r?\s*\d{2}(?!\d))/g,'$1$2.50');   /* SRC1120 31x10.5r15 = 31x10.50r15 (폭·림 사이일 때만) */
-  u=u.replace(/(^|[^a-z0-9])(lt|p)(\d{3})(?=[\/\s-])/g,'$1$2 $3');   /* SRC1120 LT265/75R16 → lt 265 75 16 */
+  u=u.replace(/(^|[^a-z0-9])(lt|hl|p)(\d{3})(?=[\/\s-])/g,'$1$2 $3');   /* USR1125 HL275 40 19 도 */   /* SRC1120 LT265/75R16 → lt 265 75 16 */
   u=u.replace(/(^|[^\dx.])(\d)\.(\d{2})(?=[^0-9]|$)/g,function(m,pf,a,b){return pf+a+b;}); // 5.00 → 500 (소수형 상용)
   u=u.replace(/(\d)\s*[x×*]\s*(\d)/g,'$1 $2');   // 35x12 → 35 12
   u=u.replace(/(\d)\.(\d)/g,'$1 $2');            // 12.50 → 12 50
@@ -9029,17 +9029,31 @@ function tgSizeKeys(canon){ // 정규화 문장 속 숫자 연속 토막에서 �
     if(n===2&&parseInt(w[0],10)>=100){ var k2=w[0]+'80'+w[1]; keys[k2]=1; plys.forEach(function(p){keys[k2+p]=1;}); }
     if(n===3&&w[1]==='80'&&w[0].length===3&&parseInt(w[0],10)>=100&&w[2].length===2){ var k3=w[0]+w[2]; keys[k3]=1; plys.forEach(function(p){keys[k3+p]=1;}); }   /* S80_1119 반대 방향도: '195 80 14' 저장분을 '19514'·'195r14'로도 찾게 */ } } run=[]; }
   toks.forEach(function(t){ if(/^\d+$/.test(t))run.push(t); else flush(); }); flush();
+  for(var _i=0;_i+2<toks.length;_i++){ var _a=toks[_i], _b=toks[_i+1], _d=toks[_i+2]; if(/^\d{3}$/.test(_a)&&/^\d{2}$/.test(_b)&&/^\d{2}$/.test(_d)&&usrSzLike(_a+_b+_d)){ var _k=_a+_b+_d; keys[_k]=1; plys.forEach(function(p){ keys[_k+p]=1; }); if(_b==='80'){ keys[_a+_d]=1; plys.forEach(function(p){ keys[_a+_d+p]=1; }); } } }   /* USR1125 숫자가 이어진 글 중간의 사이즈도(앞 칸이 숫자로 끝나도) */
   return keys;
 }
+/* ▼USR1125 (11/25 호준님 "검색을 할 수 있는 모든 곳 · 다 동일하게 맞춰서 장점만") 공통 검색 규칙 — 모든 검색 칸이 이 한 벌을 씀 */
+function usrSzLike(t){ t=String(t); if(!/^\d{7}$/.test(t))return false; var w=+t.slice(0,3), a=+t.slice(3,5), r=+t.slice(5); return w>=125&&w<=395&&a>=25&&a<=95&&a%5===0&&r>=10&&r<=26; }   /* 사이즈처럼 생긴 7자리(전산재고방 jsrParseQ와 같은 기준) */
+function usrQ(q){ return String(q==null?'':q).replace(/(^|[^a-z0-9])(lt|hl|p)(?=\d{3}\s*[\/\-. ]\s*\d{2}(?!\d))/gi,'$1')/* LT235/85R16 · P235/65R17 · HL275/40R19 의 앞 글자는 뗌(전에도 사이즈만 봤음) */.replace(/(^|[^0-9.])(\d{3})\s*[\/\-. ]\s*(\d{2})(?:\s*[\/\-. ]\s*z?r?\s*|\s*z?r\s*)(\d{2})(?![0-9]|\.[0-9])/gi,function(m,p,w,a,r){ return usrSzLike(w+a+r)?(p+(/[a-z]/i.test(p)?' ':'')+w+a+r):m; }); }   /* 검색어 속 사이즈 표기(235 65 17 · 235/65R17 · 235-65-17 · 235.65.17) → 붙여 쓴 사이즈 */
+var _usrHC=new Map(), _usrHA=null;
+function usrHayC(hay){ var s=String(hay==null?'':hay); try{ tgAliasReady(); if(_usrHA!==_tgAliasCache){ _usrHC=new Map(); _usrHA=_tgAliasCache; } }catch(e){}   /* 검색 사전이 바뀌면 비움 */
+  var c=_usrHC.get(s); if(c)return c; var h=tgAliasHay(tgSearchCanon(s)), l=null, f=null;
+  c={h:h,k:tgSizeKeys(h),L:function(){ if(l===null){ var rw=s.toLowerCase().replace(/(\d)[\-.](?=\d)/g,'$1'); l=((rw.match(/\d{6,}/g)||[]).concat(h.match(/\d{6,}/g)||[])).join(' '); } return l; },F:function(){ if(f===null)f=h.replace(/ /g,''); return f; }};
+  try{ if(_usrHA!==_tgAliasCache)_usrHA=_tgAliasCache; }catch(e){} if(_usrHC.size>30000)_usrHC=new Map(); _usrHC.set(s,c); return c; }
+/* ▲USR1125 */
 function tgSearchHit(hay,q){
-  var Q=String(q||''); if(!Q.trim())return true;
-  var h=tgAliasHay(tgSearchCanon(hay));
-  function _bd(t){ return new RegExp('(^| )'+t.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'( |$)').test(h); }
+  var Q=usrQ(String(q||'')); if(!Q.trim())return true;   /* USR1125 */
+  var _c=usrHayC(hay), h=_c.h, _K=_c.k;
+  function _bd(t){ return new RegExp('(^|[^0-9])'+t.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'([^0-9]|$)').test(h); }   /* USR1125 숫자 덩어리로 맞춤 — 글자에 붙은 숫자(12가3456의 3456)도 */
+  function _num(t){ if(_bd(t))return true; if(t.length>=5){ if(_K[t])return true; if(usrSzLike(t))return false; return h.indexOf(t)>=0||_c.L().indexOf(t)>=0; } return t.length===4&&(_c.L().indexOf(t)>=0||new RegExp(t+'([^0-9]|$)').test(h)); }   /* USR1125 사이즈처럼 생긴 7자리 = 그 사이즈만 · 그 밖의 긴 숫자 = 번호 속 일부도 · 4자리 = 6자리 이상 번호(전화·주문번호·송장) 속 일부도, 번호의 끝 4자리도 */
+  function _ply(t){ return new RegExp('(^|[^0-9])'+t.replace(/[^0-9]/g,'')+' ?pr?([^a-z0-9]|$)').test(h); }
   if(!/\s/.test(Q.trim())){ // 붙여쓴 검색어
     var qc=tgSearchCanon(Q), qd=qc.replace(/[^0-9]/g,'');
     if(/^[\d ]+(pr?)?$/.test(qc)){ // 숫자(+P)만 = 사이즈 통짜 → 정확히 그 사이즈만
-      if(qd.length>=5)return !!tgSizeKeys(h)[qd];
-      return _bd(qd); // 짧은 숫자(연식·인치·P수)는 토막 일치
+      if(/^\d{1,2}pr?$/.test(qc))return _ply(qc);   /* USR1125 8p = P수로만 */
+      if(/p/.test(qc))return !!_K[qd];
+      if(qc.indexOf(' ')>=0)return !!_K[qd]||qc.split(' ').every(_num);
+      return qd.length>=4?_num(qd):_bd(qd); // 짧은 숫자(연식·인치·P수)는 토막 일치
     }
     if(qc.indexOf(' ')>=0){ // 35x1250r17 처럼 기호 섞인 통짜 → 숫자만 떼어 사이즈 키 대조, 아니면 토막 AND
       if(qd.length>=5&&tgSizeKeys(h)[qd])return true;
@@ -9053,8 +9067,9 @@ function tgSearchHit(hay,q){
   if(_N.length===3&&_N[1]==='80'&&_N[0].length===3&&_N[2].length===2)_sq=_N[0]+'80'+_N[2];
   var _sOk=!!(_sq&&tgSizeKeys(h)[_sq]);
   return _T.every(function(t){
-    if(/^\d+$/.test(t)){ if(_bd(t))return true; if(_sOk&&_N.indexOf(t)>=0)return true; return t.length>=5?!!tgSizeKeys(h)[t]:false; }
-    return h.indexOf(t)>=0;
+    if(/^\d+$/.test(t)){ if(_sOk&&_N.indexOf(t)>=0)return true; return _num(t); }
+    if(/^\d{1,2}pr?$/.test(t))return _ply(t)||h.indexOf(t)>=0;
+    return h.indexOf(t)>=0||((t.length>=3||/[a-z0-9]/.test(t))&&_c.F().indexOf(t)>=0);   /* USR1125 띄어쓰기를 뺀 표기로도 */
   });
 }
 function tgSizeCanon(s){
@@ -11148,7 +11163,7 @@ function otStepPass(o,k){ if(!k)return true; if(k==='todo')return jhPending(o); 
 function otPool(){ return OM.rows.filter(function(o){ return omPoolPass(OM,o)&&(!OM.f.plat||o.platform===OM.f.plat); }); }   /* (11/5) 담당자·판매처 칩 */   /* 판매처 칩을 누르면 모든 숫자가 그 판매처 기준 */
 function otBase(){ var _nl=(otStepList().indexOf('nolink')>=0); return otPool().filter(function(o){ return !OM.tab||(o.dtype||'etc')===OM.tab||(_nl&&otStepPass(o,'nolink')); }); }   /* LNK1120 재고연결 안 됨 칩을 누르면 다른 구분 탭 줄도 */
 function otMain(o){ if(OM.notDone&&omIsDone(o))return false; return true; }   /* (11/4 호준님) 기본은 전부 보임 · [🔥 완료 안 된 것]만 완료 제외 ('끝난 것도' 토글 없앰) */
-function otPass(o,skip){ var q=((document.getElementById('om-q')||{}).value||'').trim().toLowerCase(); if(q){ var hay=tgAliasHay([o.recv,o.tel,o.brand,o.name,o.code,o.size,o.order_no,o.src,o.addr,o.use_note].join(' ').toLowerCase()); var hd=hay.replace(/[\/\-\s]/g,''); if(!q.split(/\s+/).every(function(t){return hay.indexOf(t)>=0||hd.indexOf(t.replace(/[\/\-\s]/g,''))>=0;}))return false; }
+function otPass(o,skip){ var q=((document.getElementById('om-q')||{}).value||'').trim().toLowerCase(); if(q){ var hay=tgAliasHay([o.recv,o.tel,o.brand,o.name,o.code,o.size,o.order_no,o.src,o.addr,o.use_note].join(' ').toLowerCase()); var hd=hay.replace(/[\/\-\s]/g,''); if(!tgSearchHit(hay,q)/* USR1125 */)return false; }
   for(var k in OM.f){ if(k===skip)continue; var v=OM.f[k]; if(!v)continue; var c=otCol(k); if(!c)continue; var x=c[3](o); if(c[2]==='sel'){ if(x!==v)return false; } else if(c[2]==='size'){ if(jhSzDigits(x).indexOf(jhSzDigits(v))<0)return false; } else { var ws=String(v).toLowerCase().split(/\s+/).filter(Boolean), hx=String(x).toLowerCase(); if(!ws.every(function(w){return hx.indexOf(w)>=0;}))return false; } } return true; }
 function otRows(){ var L=otBase().filter(function(o){ return otMain(o)&&otStepAny(o)&&otPass(o); });
   if(OM.multi){ var cnt={}; otBase().forEach(function(o){ cnt[pmRecvKey(o)]=(cnt[pmRecvKey(o)]||0)+1; }); L=L.filter(function(o){return cnt[pmRecvKey(o)]>1;}); L.sort(function(a,b){return pmRecvKey(a).localeCompare(pmRecvKey(b));}); return L; }
@@ -11732,7 +11747,7 @@ function jhRenderList(arr,showAge){
   if(JH_PLAT&&JH_PLAT!=='all')arr=arr.filter(function(o){return (o.platform||'')===JH_PLAT;});
   if(JH_SRC&&JH_SRC!=='all')arr=arr.filter(jhSrcPass);
   var _jhq=(jhSearchQuery||'').trim().toLowerCase();
-  if(_jhq)arr=arr.filter(function(o){return ['name','brand','src','size','ply','platform','recv','order_no','tel','addr','memo','use_note','code'].some(function(k){return String(o[k]||'').toLowerCase().indexOf(_jhq)>=0;});});
+  if(_jhq)arr=arr.filter(function(o){return tgSearchHit(['name','brand','src','size','ply','platform','recv','order_no','tel','addr','memo','use_note','code'].map(function(k){return String(o[k]||'');}).join(' · '),_jhq)/* USR1125 */;});
   var doneN=arr.filter(function(o){return o.status==='done'}).length;
   var waitN=arr.filter(function(o){return o.status==='wait'}).length;
   var html='<div class="jh-datebar" style="display:flex;align-items:center;justify-content:space-between;gap:8px"><span><b>📅 '+JH_DATE+'</b> · 전체 '+arr.length+'건 · 대기 '+waitN+(showAge?'건':'건 · 완료 '+doneN+'건')+'</span>'+
@@ -12022,7 +12037,7 @@ function pmNoteKv(o){ return String(o.use_note||'').split(' · ').map(function(s
 function pmPool(){ return PM.rows.filter(function(o){ return omPoolPass(PM,o)&&(!PM.f.plat||o.platform===PM.f.plat); }); }   /* (11/5) 담당자·판매처 칩 */
 function pmBase(){ var _nl=(pmStepList().indexOf('nolink')>=0); return pmPool().filter(function(o){ return !PM.tab||pmTabs(o).indexOf(PM.tab)>=0||(_nl&&pmNoLink(o)); }); }   /* LNK1120 재고연결 안 됨 칩을 누르면 다른 구분 탭 줄도 */   /* (10/30) [전체] 칩 */
 function pmMain(o){ if(PM.notDone&&pmIsDoneRow(o))return false; return true; }   /* (11/4 호준님) 기본은 전부 보임 · [🔥 완료 안 된 것]만 완료 제외 */   /* (10/21) 직배송방 보낸 줄도 그 분류 탭에 '처리됨'으로 */
-function pmPass(o,skip){ var q=((document.getElementById('pm-q')||{}).value||'').trim().toLowerCase(); if(q){ var hay=tgAliasHay([o.recv,o.tel,o.brand,o.name,o.code,o.size,o.order_no,o.src,o.addr,o.use_note,pmWb(o).join(' ')].join(' ').toLowerCase()); var hd=hay.replace(/[\/\-\s]/g,''); if(!q.split(/\s+/).every(function(t){return hay.indexOf(t)>=0||hd.indexOf(t.replace(/[\/\-\s]/g,''))>=0;}))return false; }   /* (10/21) 택배방 찾기 칸 */ for(var k in PM.f){ if(k===skip)continue; var v=PM.f[k]; if(!v)continue; var c=pmCol(k); if(!c)continue; var x=c[3](o); if(c[2]==='sel'){ if(x!==v)return false; } else if(c[2]==='size'){ if(jhSzDigits(x).indexOf(jhSzDigits(v))<0)return false; } else { var ws=String(v).toLowerCase().split(/\s+/).filter(Boolean), hx=String(x).toLowerCase(); if(!ws.every(function(w){return hx.indexOf(w)>=0;}))return false; } } return true; }
+function pmPass(o,skip){ var q=((document.getElementById('pm-q')||{}).value||'').trim().toLowerCase(); if(q){ var hay=tgAliasHay([o.recv,o.tel,o.brand,o.name,o.code,o.size,o.order_no,o.src,o.addr,o.use_note,pmWb(o).join(' ')].join(' ').toLowerCase()); var hd=hay.replace(/[\/\-\s]/g,''); if(!tgSearchHit(hay,q)/* USR1125 */)return false; }   /* (10/21) 택배방 찾기 칸 */ for(var k in PM.f){ if(k===skip)continue; var v=PM.f[k]; if(!v)continue; var c=pmCol(k); if(!c)continue; var x=c[3](o); if(c[2]==='sel'){ if(x!==v)return false; } else if(c[2]==='size'){ if(jhSzDigits(x).indexOf(jhSzDigits(v))<0)return false; } else { var ws=String(v).toLowerCase().split(/\s+/).filter(Boolean), hx=String(x).toLowerCase(); if(!ws.every(function(w){return hx.indexOf(w)>=0;}))return false; } } return true; }
 function pmRecvKey(o){ var t=String(o.tel||'').replace(/\D/g,'').slice(-8); return t.length>=7?'t'+t:'n'+String(o.recv||'').replace(/\s+/g,''); }
 function pmNoLink(o){ return (o.status==='wait'||o.status==='done'||o.status==='sent')&&jhNoLink(o); }   /* (11/2 호준님) 직배송방으로 보낸 줄도 */   /* (10/30 밤 호준님) 완료돼도 미연결은 미연결 */
 function pmUnk(o){ var P=omSrc(o); return o.status==='wait'&&!!(P.empty||P.unk); }   /* (10/29 호준님) 택배방에도 출고지 빈칸·모름 칩 — 주문방 '❓'와 같은 기준 */   /* (10/28 호준님) 재고연결 안 됨 = 주문방과 같은 기준 */
@@ -15896,7 +15911,7 @@ function stkMatch(p,q){
   // 소수점 상용형 통일: 5.00 12 = 500 12 (검색어·저장값 양쪽, X형 플로테이션은 보존 — 호준님 9/2)
   function _dcanon(s){return String(s||'').replace(/(\d{2}\s*[xX×*\s]\s*)(\d{1,2})\.5(?=\s*[zZ]?[rR]?\s*\d{2}(?!\d))/g,'$1$2.50').replace(/(^|[^\dxX.])(\d)\.(\d{2})(?=[^0-9]|$)/g,function(m,pf,a,b){return pf+a+b;});}   /* SRC1120 10.5 = 10.50 */
   p={__proto__:p, size:_dcanon(p.size)};
-  q=_dcanon(q);
+  q=usrQ(_dcanon(q));   /* USR1125 */
   var sd=p.size.replace(/[^0-9]/g,'');
   var dm=p.lots.some(function(l){return l.q>0&&!l.dot});
   var locs=p.lots.map(function(l){return (l.loc&&l.loc!=='U')?l.loc:'미배치';}).join(' ');
@@ -18112,7 +18127,7 @@ function tgEmBuildView(){ // 버퍼는 그대로, 보이는 행(순서·범위)�
     if(fCat&&(r.cat||'일반')!==fCat)continue;
     var _cv=(parseInt(r.cur)||0); if(!soldOut&&_cv===0)continue; // 0(품절)만 숨김 — 마이너스는 항상 표시
     if(toks.length){ var hay=((r.cat||'')+' '+(r.source||'')+' '+r.br+' '+r.name+' '+(r.code||'')+' '+r.size+' '+(r.ply||'')+' '+(r.spec||'')+' '+(r.dot||'')).toLowerCase();
-      var ok=toks.every(function(t){return hay.indexOf(t)>=0;}); if(!ok)continue; }
+      var ok=tgSearchHit(hay,q)/* USR1125 */; if(!ok)continue; }
     idx.push(i); }
   if(tgEmSort.ci>=0){ var f=TG_EM_COLS[tgEmSort.ci][0], dir=tgEmSort.dir;
     idx.sort(function(a,b){ var x=tgEmBuf[a][f],y=tgEmBuf[b][f];
@@ -22052,7 +22067,7 @@ function rsvRenderSearchList(q){
       if(r.chk_tpms)_chk.push('TPMS');
       var _qs=rsvQuoteState(r), _dn=rsvDoneBy(r); if(_qs==='done')_chk.push('견적서 작성됨 견적작성 작성'); else if(_qs==='none')_chk.push('견적서 미작성 견적미작성 미작성'); else if(_qs==='old')_chk.push('구견적서 구견적 옛견적서 구견적서작성'); if(rsvExtraTxt(r))_chk.push('추가작업 추가 ➕ '+rsvExtraTxt(r)); if(_dn)_chk.push('완료 '+_dn); if(rsvOrdOf(r).length)_chk.push('주문방 주문연결 📋 '+rsvOrdOf(r).map(rsvOrdTxt).join(' ')); if(r.pay_method==='이체')_chk.push('이체 계좌이체 🏦'); var _mg=rsvMgr(r); if(_mg)_chk.push('담당 담당자 '+_mg);
       var hay=[r.memo,r.work_note,r.tire_spec,r.tire_pattern,r.phone,r.car_no,r.car_name,r.user_name,r.date_str,r.time_slot,r.status].concat(_amts).concat(_chk).filter(Boolean).join(' ').toLowerCase(); hay=tgAliasHay(hay);
-      if(!ql.split(/\s+/).filter(Boolean).every(function(tk){ return hay.indexOf(tk)>=0; })) return false;   // (10/19) 띄어 쓴 낱말 모두
+      if(!tgSearchHit(hay,ql)/* USR1125 */) return false;   // (10/19) 띄어 쓴 낱말 모두
     }
     if(RSV_QF==='bank'){ if(r.pay_method!=='이체'||r.status==='취소')return false; } else if(RSV_QF){ var _q2=rsvQuoteState(r); if(RSV_QF==='done'&&_q2!=='done')return false; if(RSV_QF==='none'&&(_q2==='done'||_q2==='old'))return false; if(RSV_QF==='old'&&_q2!=='old')return false; if(RSV_QF==='extra'&&!rsvExtraTxt(r))return false; if(r.status==='취소')return false; }   // (10/19) 견적서 칩
     return true;
@@ -24369,7 +24384,7 @@ function tsrAlarm(o){ return o.status==='keep'&&(tsrDue(o)||(tsrSeason(o)&&!tsrC
 function tsrKindTag(o){ return o.kind==='summer'?'<span class="tsr-tag b">☀ 서머 보관</span>':(o.kind==='winter'?'<span class="tsr-tag p">❄ 윈터 보관</span>':'<span class="tsr-tag g">기타</span>'); }
 function tsrStTag(o){ if(o.status==='out')return '<span class="tsr-tag g">↩ 돌려드림</span>'; var h='',d=tsrDays(o.paid_until); if(d<0)h+='<span class="tsr-tag r">💰 미납 '+(-d)+'일</span>'; else if(d<=14)h+='<span class="tsr-tag o">💰 보관료 '+d+'일 뒤</span>'; if(tsrSeason(o))h+=tsrContacted(o)?'<span class="tsr-tag k">🍂 연락함</span>':'<span class="tsr-tag o">🍂 교체 시기</span>'; return h||'<span class="tsr-tag k">📦 보관 중</span>'; }
 function tsrLocTxt(o){ return o.loc?(o.loc+(o.stk>=0&&o.stk!=null?' '+TSR_SN[o.stk]+'줄':'')):'(위치 없음)'; }
-function tsrMatch(o,q){ q=String(q||'').replace(/[\s\-]/g,'').toLowerCase(); if(!q)return true; return tgAliasHay([o.car,o.name,o.tel,o.model,o.brand,o.pattern,o.size,o.loc,o.memo].join(' ').toLowerCase()).replace(/[\s\-]/g,'').toLowerCase().indexOf(q)>=0; }
+function tsrMatch(o,q){ if(!String(q||'').trim())return true; if(tgSearchHit([o.car,o.name,o.tel,o.model,o.brand,o.pattern,o.size,o.loc,o.memo].join(' · '),q))return true;   /* USR1125 공통 판정 먼저, 아래는 전부터 있던 판정 */ q=String(q||'').replace(/[\s\-]/g,'').toLowerCase(); if(!q)return true; return tgAliasHay([o.car,o.name,o.tel,o.model,o.brand,o.pattern,o.size,o.loc,o.memo].join(' ').toLowerCase()).replace(/[\s\-]/g,'').toLowerCase().indexOf(q)>=0; }
 function tsrSets(cd){ return TSR.rows.filter(function(o){return o.status==='keep'&&o.loc===cd;}); }
 async function tsrUpdate(id,up,logT,extra){ var o=tsrRow(id); if(!o)return false; var who=(me&&me.name)||'?'; var diff=[]; Object.keys(up).forEach(function(k){ var a=String(o[k]==null?'':o[k]), b=String(up[k]==null?'':up[k]); if(a!==b)diff.push({k:k,b:a,a:b}); }); var lg=(Array.isArray(o.logs)?o.logs:[]).concat([Object.assign({t:logT,by:who,at:new Date().toISOString(),diff:diff},extra||{})]); var payload=Object.assign({},up,{logs:lg,updated_at:new Date().toISOString()}); var r=await sb.from('stored_sets').update(payload).eq('id',id); if(r.error){ alert('저장 실패: '+r.error.message); return false; } Object.assign(o,payload); try{ logAudit('🛞 보관 '+logT,(o.car||'')+' '+(o.name||'')+' '+(o.brand||'')+' '+(o.size||'')+' · '+diff.map(function(d){return d.k+' '+(d.b||'빈칸')+'→'+(d.a||'빈칸');}).join(' · ').slice(0,200)); }catch(e){} return true; }
 /* ── 열기·그리기 ── */
@@ -26822,13 +26837,18 @@ function rtrPicked(r){ var m=rtrMark(r); if(m.pick)return m.pick; if(r.kind==='v
 function rtrVerb(r){ return r.kind==='v'?'수령':'꺼냄'; }
 function rtrScan(r){ var L=(r.wb||[]).map(function(n){ return RTR.kd[n]; }).filter(function(w){ return w&&w.status!=='삭제됨'; }); if(!L.length)return '-'; return L.every(function(w){ return w.scan==='Y'; })?'Y':'N'; }
 /* 검색: 띄어쓰기로 나눈 낱말이 전부 맞는 줄 */
-function rtrQToks(q){ return String(q||'').toLowerCase().replace(/(\d{3})\s*\/\s*(\d{2})\s*z?r\s*(\d{2})(?!\d)/g,'$1$2$3').replace(/(^|[^0-9])(\d{3})\s*[\/\-.]\s*(\d{2})\s*[\/\-.\s]\s*z?r?\s*(\d{2})(?!\d)/g,'$1$2$3$4').replace(/(^|[^0-9])(\d{3})\s+(\d{2})\s*z?r\s*(\d{2})(?!\d)/g,'$1$2$3$4')/* RSX1125 225/45/18·225-45-18·225.45.18·225/45 18·225 45r18 → 2254518 */.replace(/(\d{3})\s*z?r\s*(\d{2})(?!\d)/g,'$1$2').split(/\s+/).filter(Boolean); }   /* S80_1119 195r14 → 19514 · 195/80r14 → 1958014 · 205/55r16 → 2055516 (R·빗금을 넣어 쳐도 사이즈로) */
+function rtrSzJoin(T){ var out=[]; for(var i=0;i<T.length;i++){ if(/^\d{3}$/.test(T[i])&&/^\d{2}$/.test(T[i+1]||'')&&/^\d{2}$/.test(T[i+2]||'')){ out.push(T[i]+T[i+1]+T[i+2]); i+=2; } else out.push(T[i]); } return out; }   /* RSZ1125 (11/25 호준님 "고쳐") "235 65 17"처럼 3·2·2자리 숫자가 이어지면 붙여 쓴 사이즈(2356517)로 — 띄어 쓰나 붙여 쓰나 같은 결과. "235 17"처럼 두 덩어리는 전처럼 자유롭게 */
+function rtrSzCore(r){ if(r._szc)return r._szc; var t=' '+String(r.size||'').toLowerCase()+' ', out=[], m, re=/[^0-9](\d{3})\s*[\/\-. ]\s*(\d{2})\s*[\/\-. ]?\s*z?r?\s*(\d{2})(?![0-9])/g, re2=/[^0-9](\d{3})\s*z?r\s*(\d{2})(?![0-9])/g;   /* RSZ1125 사이즈 칸에 다른 글이 같이 든 줄("265 60 18 4P" · "225 45 18 95/W 4 0 0") — 사이즈 부분만 떼어 냄 */
+  while((m=re.exec(t))){ out.push(m[1]+m[2]+m[3]); if(m[2]==='80')out.push(m[1]+m[3]); re.lastIndex=m.index+1; }
+  while((m=re2.exec(t))){ out.push(m[1]+m[2]); out.push(m[1]+'80'+m[2]); re2.lastIndex=m.index+1; }
+  r._szc=out; return out; }
+function rtrQToks(q){ return rtrSzJoin(String(q||'').toLowerCase().replace(/(\d{3})\s*\/\s*(\d{2})\s*z?r\s*(\d{2})(?!\d)/g,'$1$2$3').replace(/(^|[^0-9])(\d{3})\s*[\/\-.]\s*(\d{2})\s*[\/\-.\s]\s*z?r?\s*(\d{2})(?!\d)/g,'$1$2$3$4').replace(/(^|[^0-9])(\d{3})\s+(\d{2})\s*z?r\s*(\d{2})(?!\d)/g,'$1$2$3$4')/* RSX1125 225/45/18·225-45-18·225.45.18·225/45 18·225 45r18 → 2254518 */.replace(/(\d{3})\s*z?r\s*(\d{2})(?!\d)/g,'$1$2').split(/\s+/).filter(Boolean)); }   /* S80_1119 195r14 → 19514 · 195/80r14 → 1958014 · 205/55r16 → 2055516 (R·빗금을 넣어 쳐도 사이즈로) */
 function rtrHay(r){ if(r._hay)return r._hay; var kd=(r.wb||[]).map(function(n){ var w=RTR.kd[n]; return n+' '+(w?[(w.prod_name||''),(w.recv_name||''),(w.b2||''),(w.a2||''),(w.arrive_branch||'')].join(' '):''); }).join(' '); var o=r.order||{}, c=r.card||{}, it=r.item||{};
   var h=[r.src,r.srcSub,(r.src||'')+(r.srcSub||''),r.dest,rtrUse(r),(r.dest==='택배'?({Y:'y체크',N:'n체크','-':'송장전'})[rtrScan(r)]:''),r.brand,r.name,r.size,r.ply,(r.yy?r.yy+'년':''),r.recv,r.plat,r.note,r.addr,o.order_no,o.code,o.tel,o.addr,it.model,it.spec,c.tire,c.spec,c.shop_name,c.recv,kd].filter(Boolean).join(' ').toLowerCase(); try{ if(typeof tgAliasHay==='function')h=tgAliasHay(h); }catch(e){} r._hay=h; return h; }
 function rtrQMatch(r,Q){ var hay=rtrHay(r), sd=String(r.size||'').replace(/[^0-9]/g,''), groups=String(r.size||'').split(/[^0-9]+/).filter(Boolean);
   return Q.every(function(t){ var d=t.replace(/[^0-9]/g,'');
     if(/^\d+$/.test(t)){ if(t.length>=5&&t.length<=8&&!sd)return rtrSzAlt(r).indexOf(t)>=0;   /* RSX1125 사이즈 칸이 빈 줄은 이름·규격 글에 적힌 사이즈로 */
-      if(t.length>=5&&t.length<=8)return sd===t||(groups.length===3&&groups[1]==='80'&&(groups[0]+groups[2])===t)||(groups.length===2&&(groups[0]+'80'+groups[1])===t);   /* 붙여 쓴 사이즈 = 정확히(80 줄여 쓴 표기는 같은 사이즈) */
+      if(t.length>=5&&t.length<=8)return sd===t||(groups.length===3&&groups[1]==='80'&&(groups[0]+groups[2])===t)||(groups.length===2&&(groups[0]+'80'+groups[1])===t)||rtrSzCore(r).indexOf(t)>=0/* RSZ1125 */;   /* 붙여 쓴 사이즈 = 정확히(80 줄여 쓴 표기는 같은 사이즈) */
       if(t.length<=4){ if(groups.indexOf(t)>=0)return true; if(t==='80'&&groups.length===2&&groups[0].length===3)return true;   /* S80_1119 "195 80 14"로 찾아도 '195 14'가 나오게(편평비 생략 = 80) */ if(r.yy&&(r.yy===t||('20'+r.yy)===t))return true; if(r.ply&&r.ply.replace(/\D/g,'')===t)return true; return false; }
       return hay.indexOf(t)>=0; }   /* 긴 숫자 = 송장·주문번호 */
     if(/^\d{1,2}p$/.test(t))return String(r.ply||'4P').toLowerCase()===t;
@@ -27740,7 +27760,9 @@ var TG_ALIAS_EXTRA=[
   /* RSX1125 11/25 정본 4주 치 자료에서 한글↔영문이 서로 안 걸리던 낱말 */
   ['vantra','밴트라','벤트라'],['evo','에보'],['evo2','에보2'],['evo3','에보3'],['evo4','에보4'],['snow','스노우'],['ice','아이스'],['winspike','윈스파이크'],['weatherflex','웨더플렉스'],['ennov','이노뷔'],
   ['crosscontact','크로스컨택트','크로스콘택트'],['procontact','프로컨택트','프로콘택트'],['transit','트랜짓','트랜싯'],['touring','투어링'],['kenda','켄다'],['westlake','웨스트레이크'],['edge','엣지'],['advance','어드밴스'],
-  ['xtreme','익스트림','extreme'],['mileage','마일리지'],['zuperace','쥬퍼에이스','주퍼에이스'],['vezda','베즈다'],['klever','클레버'],['radial','래디알','래디얼'],['milecap','마일캡','마일켑']
+  ['xtreme','익스트림','extreme'],['mileage','마일리지'],['zuperace','쥬퍼에이스','주퍼에이스'],['vezda','베즈다'],['klever','클레버'],['radial','래디알','래디얼'],['milecap','마일캡','마일켑'],
+  /* RSZ1125 11/25 자료에 있는데 짝이 없던 낱말 */
+  ['annaite','안나이트'],['vector','벡터'],['habilead','하빌리드'],['winrun','윈런'],['zero','제로'],['grandtrek','그랜드트렉'],['roadian','rodian']
 ];
 var TG_ALIAS_CAT={'윈터':1,'올시즌':1,'사계절':1,'오프로드':1,'런플랫':1,'흡음':1,'겨울':1};
 var TG_ALIAS=null, _tgAliasIdx=null, _tgAliasCache=new Map();
@@ -27838,7 +27860,7 @@ var _gsBoot0=bootApp;
 bootApp=async function(){ var r=await _gsBoot0.apply(this,arguments); try{ gsInit(); }catch(e){} return r; };
 try{ gsInit(); }catch(e){}   // 자동 로그인이 이 줄보다 먼저 bootApp을 부르므로, 읽히는 즉시 만들어 둠
 document.addEventListener('DOMContentLoaded',function(){ try{ gsInit(); }catch(e){} });
-function gsTokens(q){ return String(q||'').trim().split(/\s+/).filter(Boolean); }
+function gsTokens(q){ return usrQ(String(q||'')).trim().split(/\s+/).filter(Boolean); }   /* USR1125 235 65 17 → 2356517 (그 사이즈만) */
 function gsPattern(t){   // 서버 정규식(대소문자 무시): 숫자만이면 숫자 사이에 다른 글자 허용(2255517·225 55 17 ↔ 225/55R17), 글자면 글자 사이 공백 허용
   var d=t.replace(/[^0-9]/g,'');
   if(d&&d===t){ if(d.length<=3)return '(^|[^0-9])'+d+'([^0-9]|$)';   // 짧은 숫자(225·55·17·8P의 8)는 통째 숫자 덩어리로만 — 재고방 규칙
@@ -27847,7 +27869,9 @@ function gsPattern(t){   // 서버 정규식(대소문자 무시): 숫자만이�
 }
 function gsOr(cols,pat){ return cols.map(function(c){ return c+'.imatch.'+JSON.stringify(pat); }).join(','); }
 function gsHi(txt){   // 맞은 글자 노랗게
-  var h=esc(String(txt==null?'':txt)); GS.tokens.forEach(function(t){ try{ var re=new RegExp(gsPattern(t),'ig'); h=h.replace(re,function(m){return m?'<mark>'+m+'</mark>':m;}); }catch(e){} }); return h;
+  var raw=String(txt==null?'':txt), mk=[];   /* USR1125 낱말마다 차례로 감싸다 앞에 넣은 표시를 다시 건드려 <mark> 글자가 보이던 것 — 자리만 모아 한 번에 칠함 */
+  (GS.tokens||[]).forEach(function(t){ try{ var d=t.replace(/[^0-9]/g,''), num=!!(d&&d===t), re=new RegExp(num?('(^|[^0-9])('+(d.length<=3?d:d.split('').join('[^0-9]*'))+')'+(d.length<=3?'(?![0-9])':'')):('()('+gsPattern(t)+')'),'ig'), m; while((m=re.exec(raw))){ var a=m.index+m[1].length, b=a+m[2].length; if(b>a)mk.push([a,b]); re.lastIndex=(b>m.index)?b:m.index+1; } }catch(e){} });
+  if(!mk.length)return esc(raw); mk.sort(function(x,y){ return x[0]-y[0]; }); var out='', p=0; mk.forEach(function(r){ if(r[1]<=p)return; var a=Math.max(r[0],p); out+=esc(raw.slice(p,a))+'<mark>'+esc(raw.slice(a,r[1]))+'</mark>'; p=r[1]; }); return out+esc(raw.slice(p));
 }
 function gsType(){ clearTimeout(GS.timer); var v=(document.getElementById('gs-q')||{}).value||''; if(!v.trim()){ gsClose(); GS.q=''; GS.res={}; return; } GS.timer=setTimeout(gsRun,600); }   // 글자가 바뀌면 0.6초 뒤 자동으로 다시 찾음 (필터처럼)
 function gsOpen(){ var p=document.getElementById('gs-panel'), b=document.getElementById('gs-bar'); if(!p)return; if(b){ var r=b.getBoundingClientRect(); p.style.top=Math.round(r.bottom)+'px'; } p.classList.add('on'); }   // 검색창은 덮지 않음 → 커서가 그대로 있고 글자를 고칠 수 있음
@@ -28106,7 +28130,7 @@ function kdRender(){
     if(_acOn&&!KD_CHIPS.acct[kdChk(r)])return false;   // 거래처 체크 칩 '또는' · 상태와는 '그리고'
     var _chOn=Object.keys(KD_CHIPS.ch||{}).length; var _cc=kdChOf(r.waybill_no); if(_chOn&&!KD_CHIPS.ch[_cc.g||'그외']&&!(_cc.s&&KD_CHIPS.ch[_cc.s]))return false;   /* (10/27) 판매처 칩 */
     var _prOn=Object.keys(KD_CHIPS.pr||{}).length; if(_prOn){ var _pr=(typeof kdPrInfo==='function')?kdPrInfo(r.waybill_no).printed:null; if(!_pr||!KD_CHIPS.pr[String(_pr.by||'').trim()||'(이름 없음)'])return false; }   /* (11/6) 출력한 사람 칩 */
-    if(!q)return true; var _pp=(typeof kdPrInfo==='function')?kdPrInfo(r.waybill_no).printed:null; var hay=[r.waybill_no,r.recv_name,r.recv_tel,r.recv_addr,r.recv_zip,r.prod_name,r.sender_name,r.sender_tel,r.memo,r.status,r.acct_name,r.send_branch,r.arrive_branch,r.pickup_driver,(_pp?'출력됨 출력 '+(_pp.by||'')+' '+(_pp.pcBy||''):'미출력'),(kdChOf(r.waybill_no).s||'')].filter(Boolean).join(' ').toLowerCase();   /* (11/5 호준님) 출력한 사람 이름·미출력·세부 판매처로도 찾기 */ hay=tgAliasHay(hay); return q.split(/\s+/).every(function(t){return hay.indexOf(t)>=0;}); });
+    if(!q)return true; var _pp=(typeof kdPrInfo==='function')?kdPrInfo(r.waybill_no).printed:null; var hay=[r.waybill_no,r.recv_name,r.recv_tel,r.recv_addr,r.recv_zip,r.prod_name,r.sender_name,r.sender_tel,r.memo,r.status,r.acct_name,r.send_branch,r.arrive_branch,r.pickup_driver,(_pp?'출력됨 출력 '+(_pp.by||'')+' '+(_pp.pcBy||''):'미출력'),(kdChOf(r.waybill_no).s||'')].filter(Boolean).join(' ').toLowerCase();   /* (11/5 호준님) 출력한 사람 이름·미출력·세부 판매처로도 찾기 */ return tgSearchHit(hay,q)/* USR1125 */; });
   if(typeof KD_PR!=='undefined'&&KD_PR.onlyNot)list=list.filter(function(r){ return !kdPrInfo(r.waybill_no).printed; });   /* (10/26) 미출력만 */
   var prBar=(typeof kdPrBar==='function')?kdPrBar(list):'';
   if(!list.length){ el.innerHTML=prBar+'<div style="text-align:center;color:#aaa;padding:24px 0;font-size:13px">'+(kdCache.length?'조건에 맞는 송장이 없습니다':'이 날짜에 송장이 없습니다')+'</div>'; return; }
@@ -30105,7 +30129,7 @@ function linkedOf(r){return lotSum(r.whLots)+lotSum(r.inbLots)+(r.dl||0)}
 function qMatch(hay,q){ hay=tgAliasHay(hay);
   var hayD=hay.replace(/[^0-9a-z가-힣]/g,'');
   var hayN=hay.replace(/[^0-9]/g,'');
-  return q.toLowerCase().split(/\s+/).every(function(t){
+  return usrQ(q)/* USR1125 */.toLowerCase().split(/\s+/).every(function(t){
     if(!t)return true;
     if(hay.indexOf(t)>=0)return true;
     var td=t.replace(/[^0-9a-z가-힣]/g,'');
@@ -35823,7 +35847,7 @@ function stkxPaint(){
   var all=stkxRowsAll(),F=all;
   if(STKX_FILTER)F=F.filter(function(r){return r._sk===STKX_FILTER});
   var q=String(STKX_Q||'').trim();
-  if(q){var toks=q.split(/\s+/).filter(Boolean);F=F.filter(function(r){return stkxHit(r,toks)});}
+  if(q){var toks=usrQ(q)/* USR1125 */.split(/\s+/).filter(Boolean);F=F.filter(function(r){return stkxHit(r,toks)});}
   STKX_VS.rows=F;
   var ch='<span class="stkxchip'+(STKX_FILTER===''?' on':'')+'" data-k="">전체 '+fmt(all.length)+'</span>';
   STKX_SRC.forEach(function(sc){var pk=STKX[sc[0]];if(!pk||!pk.rows)return;
