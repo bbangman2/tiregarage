@@ -6166,6 +6166,10 @@ function _dlvSrcAbbr1(seg){ // 출처 한 조각 → 약어(+숫자 = 그 출처
   if(!n){ var m2=seg.match(/[가-힣A-Za-z](\d+)(?!\d)(?!\s*년)/); n=m2?m2[1]:''; }
   return base+n;
 }
+/* ▼SFN1125 (11/25 호준님 "SFP가 붙고 지역명이 붙는 경우 송장 품목명의 거래처명에 지역명SFP · 한국타이어(한)는 한국물류·한국 이런 것만") 송장 품목명 맨 앞 출고지 — SFP는 '양주SFP'·'동대문SFP'처럼, 나머지는 전과 같은 줄임말. 줄임말을 비교에 쓰는 다른 자리(dlvSrcAbbr)는 그대로 */
+function dlvSfpName(seg){ var t=String(seg||''); if(!/sfp/i.test(t))return ''; var m=t.match(/([가-힣]{2,6})\s*sfp/i), r=m?m[1]:''; if(!r||/^(한타|한국|한국타이어|타이어)$/.test(r)){ var p=t.match(/sfp\s*\(\s*([가-힣]{2,6})\s*\)/i)||t.match(/sfp\s*([가-힣]{2,6})/i); r=p?p[1]:''; } return r+'SFP'; }
+function dlvSrcAbbrP(src){ src=String(src||'').trim(); if(!src)return ''; return src.replace(/(\d)\s*\/\s*(\d)/g,'$1.$2').split(/[\/,+]/).map(function(seg){ var nm=dlvSfpName(seg); if(!nm)return _dlvSrcAbbr1(seg); var q=String(seg).match(/(\d+)\s*개/)||String(seg).match(/[가-힣A-Za-z](\d+)(?!\d)(?!\s*년)/)   /* 수량 표기는 전과 같은 규칙(붙여 쓴 숫자·N개) */; return nm+(q?' '+q[1]:''); }).filter(function(x){ return x!==''; }).join(' '); }
+/* ▲SFN1125 */
 function dlvSrcAbbr(src){ // 출처 약어 (호준님 8/28 확정: 기본은 숫자 없이 '창', 숫자=출처별 출고수량, 복수 출처는 '창1 극1'식, 별표 등 기호 안 붙임)
   src=String(src||'').trim(); if(!src)return '';
   return src.replace(/(\d)\s*\/\s*(\d)/g,'$1.$2').split(/[\/,+]/).map(_dlvSrcAbbr1).filter(function(x){return x!=='';}).join(' ');
@@ -6308,7 +6312,7 @@ function dlvParcelName(c){
   var tag=/이월/.test(tire+' '+spec)?'이월':(/행사/.test(tire+' '+spec)?'행사':'');
   var _sbi=dlvSubInfo(c); if(_sbi&&!_sbi.only){ if(_sbi.code)code=_sbi.code; else { var _t2=dlvSubStrip(tire,_sbi), _s2=dlvSubStrip(spec,_sbi); code=_dlvPatCode(c,_t2,_s2)||_dlvPatName(c,_t2,_s2)||code; } if(_sbi.yy)yy=_sbi.yy; if(_sbi.ply)ply=(_sbi.ply===4?'':(_sbi.ply+'P')); tag=(tag?tag+' ':'')+'대체'; }   /* (11/4 호준님) 대체출고 → 패턴코드·연식·P수는 대체 제품 것으로, '대체' 표시 · 연식만 바뀌면 원래 패턴을 대체 문장 뺀 글로 다시 찾음 */
   var total=String(c.qty||'').trim();
-  var ab=dlvSrcAbbr(c.src);
+  var ab=dlvSrcAbbrP(c.src);   /* SFN1125 SFP 출고지는 '지역명SFP'로 */
   var pno=String(c.code||'').replace(/\s+/g,'').trim();   // 9/8 호준님: 제품번호(카드 코드 칸 — 피렐리 4013100·금호 2206152·넥센 17142NXK)는 품명 맨 끝에
   /* (10/29 호준님) EV·흡음재는 품목명에 꼭 — 상품명·규격·카드 메모(비고)에서 찾음. 'EVO'·'EVEREST' 같은 다른 말은 제외 */
   var _hay=String(c.tire||'')+' '+String(c.spec||'')+' '+String(c.note||'')+' '+String(c.brand||''); var feat=[];
@@ -25935,7 +25939,7 @@ function dlvPingName(c){
   var size=pnSize(tire,spec);
   var _pn=_dlvPlyNum(c,tire,spec); var ply=(_pn&&_pn!==4&&!/\d{1,2}\s*P(R)?\b/i.test(head))?(_pn+'P'):'';
   var bigo=String(c.ping_bigo!=null?c.ping_bigo:((String(c.note||'').match(/비고:([^·]*)/)||[])[1]||''));
-  return pnBuild(dlvSrcAbbr(c.src),pnMark(head+' '+bigo),pnBrandFix(brand,head),head,size,ply,pnYear(c,brand,tire,spec),String(c.qty||'').trim()); }
+  return pnBuild(dlvSrcAbbrP(c.src)/* SFN1125 */,pnMark(head+' '+bigo),pnBrandFix(brand,head),head,size,ply,pnYear(c,brand,tire,spec),String(c.qty||'').trim()); }
 var STORE_AD_RE=/무료\s*장착|장착\s*무료|무료\s*택배|무료|\d{0,2}년?\s*제품|제품|장착\s*현장\s*별도|현장\s*별도|오프로드|매장\s*장착|장착비\s*용?\s*별도|장착\s*별도|장착\s*포함|장착비|공임\s*별도|택배\s*전용\s*상품|택배\s*전용|전국\s*택배|당일\s*장착|출장\s*무료\s*장착|무료\s*배송|특판|이월\s*타이어|이월\s*상품|이월|행사|순정\s*출고|순정|출고|OE\s*공급용|서울\s*경기|서울|경기|남양주|의정부|장착|교체\s*발송|생산|타이어/gi;
 var STORE_BRANDS=['한국타이어','금호타이어','넥센타이어','한국','금호','넥센','미쉐린','MICHELIN','콘티넨탈','CONTINENTAL','피렐리','PIRELLI','사일룬','SAILUN','하빌리드','HABILEAD','안나이트','ANNAITE','레이다','RADAR','브리지스톤','브릿지스톤','BRIDGESTONE','굿이어','GOODYEAR','요코하마','YOKOHAMA','던롭','DUNLOP','토요','TOYO','쿠퍼','COOPER','라우펜','LAUFENN','아리선','ARISUN','캡센','KAPSEN','킨포레스트','KINFOREST','BF GOODRICH','BF 굿리치','BFGOODRICH','BFG','BF굿리치','비에프굿리치','마샬','MARSHAL','트라이앵글','TRIANGLE','링롱','LINGLONG','중국산'];
 var STORE_CARS=/^(4|그랜저\w*|소나타|쏘나타|아반떼|모하비|랭글러|카렌스|더뉴\S*|스타렉스|스타리아|팰리세이드|렉스턴|티볼리|모닝|레이|스파크|캐스퍼|코란도|싼타페|산타페|투싼|스포티지|쏘렌토|카니발|니로\w*|아이오닉\d*|코나|포터\d*|봉고\d*|1톤\S*|트럭|테슬라|모델\s*[3SXY]|BMW|벤츠|아우디|제네시스|GLC|쿠페|\d시리즈|X[1-7]|G[789]0|GV\d0|GN7|EV\d|K[3-9]|SM\d|QM\d|XM3|택시용?)$/i;
@@ -25968,7 +25972,7 @@ function dlvStoreName(c){   /* 스팜·11번가·오토하이브·전화 — 카
   var spec=String(c.spec||'').trim(), size=P.size; if(!size){ var t3=(typeof stkParseSize==='function')?stkParseSize(spec):null; if(t3&&t3[0]>=100)size=t3[0]+' '+t3[1]+' '+t3[2]; else if(spec)size=spec.replace(/[\/Rr]/g,' ').replace(/\s+/g,' ').trim(); }
   var tire=String(c.tire||''); var _pn=_dlvPlyNum(c,tire,spec); var ply=(_pn&&_pn!==4)?(_pn+'P'):'';
   var first=src.split(/\r?\n/)[0].split(/\s>|>\s*\S/)[0];   /* 표시는 상품명 첫 줄(대체 메모 제외)에서 */
-  return pnBuild(dlvSrcAbbr(c.src),pnMark(first),pnBrandFix(brand,P.pat),P.pat,size,ply,pnYear(c,brand,tire,spec),String(c.qty||'').trim()); }
+  return pnBuild(dlvSrcAbbrP(c.src)/* SFN1125 */,pnMark(first),pnBrandFix(brand,P.pat),P.pat,size,ply,pnYear(c,brand,tire,spec),String(c.qty||'').trim()); }
 function pingPno(o){ var p=String((o&&o.raw_cols||[])[3]||'').trim(); return (o&&o.platform==='핑'&&/^[0-9A-Za-z\-]{4,14}$/.test(p))?p:''; }   /* 핑 시트 제품번호 칸 */
 function pingPnoOfKey(key){ try{ var L=[].concat((typeof OM!=='undefined'&&OM.rows)||[],(typeof PM!=='undefined'&&PM.rows)||[]); for(var i=0;i<L.length;i++){ var o=L[i]; if(o&&o.platform==='핑'&&(omKey(o)===key||(typeof omKeyOld==='function'&&omKeyOld(o)===key)))return String(o.code||'').trim()||pingPno(o); } }catch(e){} return ''; }   /* 이미 직배송방에 있는 핑 카드 — 읽어 둔 주문 줄에서 */
 var PN_STORE_CH={online:1,spam:1,st11:1,tel:1};
