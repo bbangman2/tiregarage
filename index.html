@@ -5926,6 +5926,64 @@ async function dlvCaptureList(){
   try{ await sb.from('delivery_logs').insert({room_id:curRoom.id,date_str:dlvDateStr(),text:(me?me.name:'?')+'님이 '+carName+' 목록 캡처 ('+liveN+'건 · '+res+')',user_name:me?me.name:''}); }catch(e){}
   try{ logAudit(carName+' 목록 캡처', liveN+'건 · '+res); }catch(e){}
 }
+/* ▼DTX1127 (11/27 호준님 "목록 캡처는 그림이라 글자로 복사가 필요 · 하나씩 복사도 안 됨 · 코스 짠 뒤 순서대로 글자로 전달") 📝 목록 글자 복사 — 목록 캡처와 같은 줄·같은 순서·같은 번호(dlvCaptureRows)를 글자로. 전체 복사 · 한 건씩 복사 · 주소만 복사 */
+var DTX={car:0,name:'',rows:[],logged:false};
+function dtxParts(c){ var tag=dchLabelOf(c), main, sub;   /* 목록 캡처(dlvCaptureHtml)와 같은 내용 */
+  if(c.channel==='trade'){ main=(c.trade_client||c.recv||c.addr||''); sub=[((c.tire||'')+(c.spec?' '+c.spec:'')).trim(),(c.qty?c.qty+'개':''),c.src||'',c.addr||'',c.recv||'',c.tel||''].filter(Boolean).join(' · '); }
+  else { main=(c.addr||c.recv||''); sub=[(c.code?'['+c.code+']':''),c.recv||'',c.tel||'',c.tire||'',(c.qty?c.qty+'개':''),(c.src?'출고 '+c.src:'')].filter(Boolean).join(' · '); }
+  var memo=[dlvNoteShow(c.note),(c.channel==='trade'?c.trade_memo:'')].filter(function(x){return x&&String(x).trim();}).join(' · ');
+  var addr=String(c.addr||'').trim(), how='';   /* 주소 칸이 빈 카드(거래처): 지도·코스가 쓰는 주소 찾기(crsAddrOf — 이름이 글자까지 같은 주소록 줄 · 직접 넣은 주소 · 지난 카드에 한 가지뿐일 때)를 그대로 씀 */
+  if(!addr){ try{ if(typeof crsAddrOf==='function'&&typeof CRS!=='undefined'){ var f=crsAddrOf(c,CRS.hist)||{}; if(f.addr){ addr=String(f.addr).trim(); how=f.how||'주소록'; } } }catch(e){} }
+  var nz=function(t){ return String(t||'').split(' ').join(''); }, extra=(how&&addr&&nz(sub+' '+memo+' '+main).indexOf(nz(addr))<0)?addr:'';   /* 메모 등에 이미 같은 주소가 적혀 있으면 두 번 적지 않음 */
+  return {tag:tag,due:(c.due_date?String(c.due_date).slice(0,14):''),main:String(main),sub:sub,memo:memo,addr:addr,how:how,extra:extra}; }
+function dtxOne(r){ var p=dtxParts(r.c), L=[r.n+'. ['+p.tag+'] '+(p.due?'⚠️'+p.due+' ':'')+p.main]; if(p.sub)L.push(p.sub); if(p.extra)L.push('주소('+p.how+'): '+p.extra); if(p.memo)L.push('📝 '+p.memo); return L.join(String.fromCharCode(10)); }
+function dtxCount(){ return DTX.rows.filter(function(r){ return !r.divider; }).length; }
+function dtxAll(){ var L=['🚐 '+DTX.name+' · '+dlvDateStr().slice(5).replace('-','/')+' · '+dtxCount()+'건','']; DTX.rows.forEach(function(r){ if(r.divider){ L.push('— 다음 배송 묶음 —'); L.push(''); return; } L.push(dtxOne(r)); L.push(''); }); return L.join(String.fromCharCode(10)).trim(); }
+async function dtxCopy(t){ var ok=false;
+  try{ if(navigator.clipboard&&navigator.clipboard.writeText){ await navigator.clipboard.writeText(t); ok=true; } }catch(e){ ok=false; }
+  if(!ok){ try{ var ta=document.createElement('textarea'); ta.value=t; ta.style.cssText='position:fixed;left:0;top:0;width:10px;height:10px;opacity:0'; document.body.appendChild(ta); ta.focus(); ta.select(); ok=!!document.execCommand('copy'); ta.parentNode.removeChild(ta); }catch(e){ ok=false; } }
+  return ok; }
+function dtxLog(how){ if(DTX.logged)return; DTX.logged=true; var n=dtxCount();   /* 창을 한 번 열어 여러 번 복사해도 기록은 한 줄 */
+  try{ sb.from('delivery_logs').insert({room_id:curRoom.id,date_str:dlvDateStr(),text:(me?me.name:'?')+'님이 '+DTX.name+' 목록 글자 복사 ('+n+'건 · '+how+')',user_name:me?me.name:''}).then(function(){},function(){}); }catch(e){}
+  try{ logAudit(DTX.name+' 목록 글자 복사', n+'건 · '+how); }catch(e){} }
+function dtxClose(){ var ov=document.getElementById('dtx-ov'); if(ov&&ov.parentNode)ov.parentNode.removeChild(ov); }
+async function dtxClick(ev){ var ov=document.getElementById('dtx-ov'); if(!ov)return; if(ev.target===ov){ dtxClose(); return; }
+  var b=(ev.target&&ev.target.closest)?ev.target.closest('[data-dtx]'):null; if(!b)return;
+  var a=b.getAttribute('data-dtx'), msg=document.getElementById('dtx-msg'), say=function(t,bad){ if(msg){ msg.textContent=t; msg.style.color=bad?'#b91c1c':'#15803d'; msg.style.background=bad?'#fef2f2':'#f0fdf4'; msg.style.display='block'; } };
+  var FAIL='복사가 안 됐어요 — 아래 글 칸을 길게 눌러(컴퓨터는 끌어서) 직접 복사해 주세요';
+  if(a==='close'){ dtxClose(); return; }
+  if(a==='all'){ var ok=await dtxCopy(dtxAll()); if(ok){ say('📋 '+DTX.name+' '+dtxCount()+'건 전체를 복사했어요 — 카톡 창에 붙여넣기 하세요'); dtxLog('전체 복사'); } else { say(FAIL,true); var ta=document.getElementById('dtx-ta'); if(ta){ try{ ta.focus(); ta.select(); }catch(e){} } } return; }
+  if(a==='share'){ try{ await navigator.share({text:dtxAll()}); say('보내기 창으로 넘겼어요'); dtxLog('보내기'); }catch(e){ if(!(e&&e.name==='AbortError'))say('보내기가 안 됐어요: '+String(e&&e.message||e).slice(0,60)+' — [전체 복사]를 써 주세요',true); } return; }
+  var r=DTX.rows[parseInt(b.getAttribute('data-i'),10)]; if(!r||r.divider)return;
+  var t=(a==='addr')?dtxParts(r.c).addr:dtxOne(r); if(!t)return;
+  var ok2=await dtxCopy(t);
+  if(ok2){ say('📋 '+r.n+'번 '+(a==='addr'?'주소만':'한 건')+' 복사했어요'); b.style.background='#dcfce7'; b.style.borderColor='#16a34a'; dtxLog(a==='addr'?'주소 하나씩':'한 건씩'); }
+  else say('복사가 안 됐어요 — 그 줄의 글을 길게 눌러(컴퓨터는 끌어서) 직접 복사해 주세요',true); }
+function dlvTextList(){
+  var carNo=dlvTabCar(curDlvTab), carName=dlvCarName(carNo), rows=dlvCaptureRows(carNo), n=rows.filter(function(r){ return !r.divider; }).length;
+  if(!n){ alert(carName+' 남은 배송 건이 없어요'); return; }
+  DTX.car=carNo; DTX.name=carName; DTX.rows=rows; DTX.logged=false; dtxClose();
+  var BT='min-height:38px;padding:6px 12px;border-radius:9px;border:1.5px solid #94a3b8;background:#fff;color:#0f172a;font-size:14px;font-weight:800;cursor:pointer';
+  var ov=document.createElement('div'); ov.id='dtx-ov'; ov.style.cssText='position:fixed;left:0;top:0;right:0;bottom:0;z-index:100300;background:rgba(15,23,42,.55);overflow:auto;padding:10px;box-sizing:border-box;-webkit-overflow-scrolling:touch';
+  var h='<div style="background:#fff;color:#111;max-width:560px;margin:0 auto;border-radius:14px;padding:14px;box-sizing:border-box;font-size:14px;-webkit-user-select:text;user-select:text">';
+  h+='<div style="display:flex;align-items:center;gap:8px"><div style="flex:1;font-size:18px;font-weight:900">📝 '+esc(carName)+' · '+esc(dlvDateStr().slice(5).replace('-','/'))+' · '+n+'건</div><button data-dtx="close" style="'+BT+'">닫기</button></div>';
+  h+='<div style="font-size:12.5px;color:#64748b;margin-top:3px">목록 캡처와 같은 순서·같은 번호예요. 순서를 바꿨으면 닫고 다시 열어 주세요.</div>';
+  h+='<div style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 6px"><button data-dtx="all" style="'+BT+';background:#1d4ed8;color:#fff;border-color:#1d4ed8">📋 전체 복사</button>'+((typeof navigator.share==='function')?'<button data-dtx="share" style="'+BT+'">카톡 등으로 보내기</button>':'')+'</div>';
+  h+='<div id="dtx-msg" style="display:none;font-weight:800;font-size:14px;border-radius:8px;padding:6px 9px;margin-bottom:6px"></div>';
+  h+='<textarea id="dtx-ta" readonly style="width:100%;height:170px;box-sizing:border-box;border:1.5px solid #cbd5e1;border-radius:10px;padding:8px;font-size:13.5px;line-height:1.45;font-family:inherit;color:#111;background:#f8fafc;resize:vertical"></textarea>';
+  h+='<div style="font-size:15px;font-weight:900;margin:12px 0 6px">하나씩 복사</div>';
+  rows.forEach(function(r,i){ if(r.divider){ h+='<div style="text-align:center;color:#64748b;font-size:13px;font-weight:700;margin:8px 0">— 다음 배송 묶음 —</div>'; return; }
+    var p=dtxParts(r.c);
+    h+='<div style="border:1.5px solid #cbd5e1;border-radius:10px;padding:8px 10px;margin-bottom:7px"><div style="font-size:15.5px;font-weight:800;line-height:1.3;word-break:break-all"><span style="color:#1d4ed8">'+r.n+'.</span> <span style="font-size:12px;background:#e2e8f0;border-radius:5px;padding:1px 6px;margin-right:4px">'+esc(p.tag)+'</span>'+(p.due?'<span style="font-size:12px;background:#fee2e2;color:#b91c1c;border-radius:5px;padding:1px 6px;margin-right:4px">⚠️ '+esc(p.due)+'</span>':'')+esc(p.main)+'</div>'
+      +(p.sub?'<div style="font-size:13.5px;color:#334155;margin-top:3px;line-height:1.35;word-break:break-all">'+esc(p.sub)+'</div>':'')
+      +(p.extra?'<div style="font-size:13.5px;color:#0f766e;font-weight:700;margin-top:3px;word-break:break-all">주소('+esc(p.how)+'): '+esc(p.extra)+'</div>':'')
+      +(p.memo?'<div style="font-size:13px;font-weight:700;color:#9a3412;background:#fff7ed;border-radius:6px;padding:2px 7px;margin-top:4px;word-break:break-all;white-space:pre-wrap">📝 '+esc(p.memo)+'</div>':'')
+      +'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:7px"><button data-dtx="one" data-i="'+i+'" style="'+BT+'">이 건 복사</button>'+(p.addr?'<button data-dtx="addr" data-i="'+i+'" style="'+BT+'">주소만 복사</button>':'')+'</div></div>'; });
+  h+='<div style="text-align:center;margin-top:8px"><button data-dtx="close" style="'+BT+'">닫기</button></div></div>';
+  ov.innerHTML=h; ov.addEventListener('click',dtxClick); document.body.appendChild(ov);
+  var ta=document.getElementById('dtx-ta'); if(ta)ta.value=dtxAll();   /* esc()는 줄바꿈을 <br>로 바꾸므로 글 칸 값은 따로 넣음 */
+}
+/* ▲DTX1127 */
 function dlvToggleCardMode(){
   dlvCardMode=(dlvCardMode==='addr')?'split':'addr';
   try{localStorage.setItem('tg_card_mode',dlvCardMode);}catch(e){}
@@ -8450,7 +8508,7 @@ function _renderDeliveryCore(){
     const has2=deliveriesCache.some(function(c){return c.tab==='deliv'&&(c.car||1)===2;});
     const carName=dlvCarName(carNo);
     html+='<div class="dlv-guide">🚐 <b>'+carName+'</b> · 남은 '+cLive+'건. 탭하면 선택→▲▼ 순서. 완료·취소·이동·차량변경 가능.</div>';
-    html+='<div class="dlock-bar"><span class="lbl">순서 변경: <b>'+(dlvLocked?'잠김':'풀림')+'</b></span><button class="dlock-toggle '+(dlvLocked?'locked':'unlocked')+'" onclick="dlvToggleLock()">'+(dlvLocked?'🔒 풀기':'🔓 잠그기')+'</button><button class="dsmode-btn" onclick="dlvToggleCardMode()">'+(dlvCardMode==='addr'?'📋 정보 같이 보기':'📃 주소만 보기')+'</button><button class="dsmode-btn" onclick="dlvCaptureList()" title="이 차 목록 전체(남은 건)를 그림 한 장으로 — 폰은 공유, 컴퓨터는 복사+내려받기">📸 목록 캡처</button><button class="dsmode-btn" onclick="crsMapNow('+carNo+')" title="오늘 지금 배차(차마다 지금 순서)를 지도에 — 거기서 순서를 고쳐 적용할 수도 있어요" style="background:#0f766e;color:#fff;border-color:#0f766e;font-weight:900">🗺 지도로 보기</button></div>';   /* CND1126 직원에게도 */   /* (10/28 호준님) · CNC1126 */
+    html+='<div class="dlock-bar"><span class="lbl">순서 변경: <b>'+(dlvLocked?'잠김':'풀림')+'</b></span><button class="dlock-toggle '+(dlvLocked?'locked':'unlocked')+'" onclick="dlvToggleLock()">'+(dlvLocked?'🔒 풀기':'🔓 잠그기')+'</button><button class="dsmode-btn" onclick="dlvToggleCardMode()">'+(dlvCardMode==='addr'?'📋 정보 같이 보기':'📃 주소만 보기')+'</button><button class="dsmode-btn" onclick="dlvCaptureList()" title="이 차 목록 전체(남은 건)를 그림 한 장으로 — 폰은 공유, 컴퓨터는 복사+내려받기">📸 목록 캡처</button><button class="dsmode-btn" onclick="dlvTextList()" title="이 차 목록 전체(남은 건)를 순서대로 글자로 — 전체 복사 · 한 건씩 복사 · 주소만 복사">📝 목록 글자 복사</button><button class="dsmode-btn" onclick="crsMapNow('+carNo+')" title="오늘 지금 배차(차마다 지금 순서)를 지도에 — 거기서 순서를 고쳐 적용할 수도 있어요" style="background:#0f766e;color:#fff;border-color:#0f766e;font-weight:900">🗺 지도로 보기</button></div>';   /* CND1126 직원에게도 */   /* (10/28 호준님) · CNC1126 */
     if(clist.length){
       // 배송 묶음(회차)별로 나눠서 — 미완료 남은 채 새로 온 건 다음 묶음으로 띄워 표시
       var waves={}; clist.forEach(function(c){ var w=c.wave_no||0; (waves[w]=waves[w]||[]).push(c); });
@@ -28087,13 +28145,22 @@ function jsrParseQ(t){ t=String(t||'').trim(); var m=t.match(/(?:^|[^\d])(\d{3})
   var m2=t.match(/^(\d{3})\s*R?\s*(\d{2})$/i);   /* 145R13 꼴(편평비 없음) → 넥센은 14513 */
   return {send:t,nxSend:m2?(m2[1]+m2[2]):t,pat:'',key:t.toUpperCase()}; }
 /* ── 한국타이어 줄 → 화면 줄 ── */
+/* ▼HKX1127 (11/27 호준님 "밑에 선주문이나 장기재고까지 있는 항목들도 메신저에서 표시") 한국 전산 주문 등록 화면(OD1010) 아래쪽 표 8칸 — 전산 화면 코드(OD1010T grdSumStock)의 묶임 그대로:
+   선주문(관할물류)=ALLSHOP_PLANT_QTY · 선주문(전사물류)=TOTAL_ALLSHOP_PLANT_QTY · 전사물류재고(제주제외)=TOTAL_QTY · 제주물류재고=PLANT_QTY_11RB · 공장재고=FACTORY_QTY1 · 공장재고(수출용)=FACTORY_QTY2 · 금주생산계획=ERP_CWPLAN · 장기재고=OLD_QTY
+   전산 화면은 옛 패턴이 H308이면 공장재고·금주생산계획을 0으로 보여 줌(fnBottomSum) — 같게 함. 수집기가 이 칸들을 안 보내면(옛 코드) 장기재고만 보임 */
+var JSR_HKX=[['pre1','ALLSHOP_PLANT_QTY','선주문(관할)'],['pre2','TOTAL_ALLSHOP_PLANT_QTY','선주문(전사)'],['all','TOTAL_QTY','전사물류(제주 제외)'],['jeju','PLANT_QTY_11RB','제주물류'],['f1','FACTORY_QTY1','공장재고'],['f2','FACTORY_QTY2','공장(수출용)'],['cw','ERP_CWPLAN','금주생산계획'],['old','OLD_QTY','장기재고']];
+function jsrHkEx(r){ var o={}, n=0, full=false; JSR_HKX.forEach(function(d){ var v=r[d[1]]; if(v==null||v==='')return; var k=parseInt(v,10); o[d[0]]=isNaN(k)?0:k; n++; if(d[0]!=='old')full=true; }); if(!n)return null; o.full=full; if(full&&String(r.PATTERN_OLD||'')==='H308'){ o.cw=0; o.f1=0; } return o; }
+function jsrHkExLine(it){ var x=it&&it.ex; if(!x||it.src!=='hk')return ''; var one=function(d){ var v=x[d[0]]; if(v==null)v=0; return '<span style="white-space:nowrap">'+d[2]+' <b style="color:'+(v>0?'#0f172a':'#94a3b8')+'">'+Number(v).toLocaleString()+'</b></span>'; };
+  if(!x.full)return ' · '+one(JSR_HKX[7]);
+  return '<div style="margin-top:3px;line-height:1.6">'+JSR_HKX.map(one).join(' · ')+'</div>'; }
+/* ▲HKX1127 */
 function jsrItem(r){ var bEn=String(r.BRAND||'').toUpperCase(); var br=JSR_BR[bEn]||String(r.BRAND||'');
   var mn=String(r.PROD_NAME_MAIN||'').split(',').map(function(x){return x.trim();}); var add=String(r.PROD_NAME_ADD||'').split(',').map(function(x){return x.trim();}).filter(Boolean);
   var ply=parseInt(mn[1],10); var det=String(r.PROD_NAME_DET||''); var org=(det.match(/원산지:(\S+)/)||[])[1]||'';
   var tags=[]; if(add.indexOf('XL')>=0)tags.push('XL'); if(/\bEV\b/i.test(r.BRAND_NAME||'')||/^i?ON\b/i.test(r.BRAND_NAME||''))tags.push('EV'); if(/,\s*OE\b/.test(r.PROD_NAME_MAIN||''))tags.push('OE'+(r.OE_MAKER?' '+r.OE_MAKER:'')); if(org&&org!=='한국산')tags.push(org); if(ply&&ply!==4)tags.push(ply+'P');
   var sfp=r.SFP||null, u=null; if(sfp){ u={dd:+sfp['동대문']||0,bw:+sfp['북원주']||0,ca:+sfp['천안']||0,etc:0}; Object.keys(sfp).forEach(function(k){ if(JSR_SFP3.indexOf(k)<0)u.etc+=(+sfp[k]||0); }); }
   return {src:'hk',pid:String(r.PROD_ID||r.MATNR||''),matnr:String(r.MATNR||''),bEn:bEn,br:br,main2:(br==='한국'||br==='라우펜'),pat:String(r.PATTERN||''),patOld:String(r.PATTERN_OLD||''),nm:String(r.BRAND_NAME||''),size:mn[0]||'',ply:ply||4,spec:add.filter(function(x){return x!=='XL'&&!/^(HK|LF|라우펜|맥시스|굿이어|브리지스톤|컨티넨탈|피렐리|미쉐린)$/.test(x);}).join(' '),tags:tags,org:org,det:det,
-    lp:parseInt(r.LIST_PRICE,10)||0,mainQ:String(r.PLANT_QTY1==null?'':r.PLANT_QTY1).trim(),store:parseInt(r.STOCK_QTY,10)||0,week:parseInt(r.THIS_WEEK_PROD_QTY,10)||0,quick:r.QUICKYN==='Y',ship:String(r.DELIVERY_SSP||''),shipTxt:String(r.DELIVERY_TEXT||''),sfp:sfp,sfpErr:r.SFP_ERR||'',u:u,nx:null}; }
+    lp:parseInt(r.LIST_PRICE,10)||0,mainQ:String(r.PLANT_QTY1==null?'':r.PLANT_QTY1).trim(),store:parseInt(r.STOCK_QTY,10)||0,week:parseInt(r.THIS_WEEK_PROD_QTY,10)||0,ex:jsrHkEx(r),quick:r.QUICKYN==='Y',ship:String(r.DELIVERY_SSP||''),shipTxt:String(r.DELIVERY_TEXT||''),sfp:sfp,sfpErr:r.SFP_ERR||'',u:u,nx:null}; }
 /* ── 넥센 줄 → 화면 줄 (11/4 실측: 관할 = 양지 R131 = dayStock · day0Stock 입고예정 · r111 양산 · r131 양지 · r151 대전 · r211 UHP · r221 Rare · 나머지 r칸은 시흥·대구·광주·인천 중 하나(어느 것인지 미확인) → '그 외 권역'으로 합침) ── */
 var JSR_NX_SEASON={WINTER:'겨울','ALL WEATHER':'사계절',SUMMER:'여름'};
 function jsrItemNx(r){ var sz=String(r.partsShortNm||'').replace(/\s+/g,'').replace('/R','R'); var ply=parseInt(r.PLYRATE,10)||4; var oe=String(r.oeSupply||'').trim(); var full=String(r.partsFullNm||'');
@@ -28362,7 +28429,7 @@ function jsrCard(it){ var p=jsrPrices(it), e=jsrEd(it); var seeRC=(typeof stkCan
   var qh; if(isNx){ var n=it.nx; var pl=Object.keys(n.plants).map(function(k){return k+' '+n.plants[k];}).join(' · ')+' · 그 외 권역 '+n.other+(n.uhp?' · UHP '+n.uhp:'')+(n.rare?' · Rare '+n.rare:'');
       qh=jsrQ(+it.mainQ,'관할(양지)','main')+jsrQ(n.in0,'입고예정',(+n.in0>0?'soon':'n'))+jsrQ(n.d1,'D+1',(+n.d1>0?'soon':'n'))+jsrQ(n.d2,'D+2',(+n.d2>0?'soon':'n'))+jsrQ(n.other+n.plants['양산']+n.plants['대전']+n.uhp+n.rare,'타권역','n',pl); }
   else { var uq=it.u?jsrQ(it.u.dd,'동대문','u')+jsrQ(it.u.bw,'북원주','u')+jsrQ(it.u.ca,'천안','u')+jsrQ(it.u.etc,'긴급(그 외)','u'):(it.quick?'<div class="jsr-q u zero"><b>'+((JSR.res&&JSR.res.hk&&JSR.res.hk.urgBusy)?'⏳':'?')+'</b><span>'+((JSR.res&&JSR.res.hk&&JSR.res.hk.urgBusy)?'긴급 조회 중…':'긴급 수량 못 받음'+(it.sfpErr?' ⚠':''))+'</span></div>':''); qh=jsrQ(/^\d+$/.test(it.mainQ)?+it.mainQ:it.mainQ,'관할물류','main')+uq; }
-  var sm=isNx?('대리점(우리) 재고 '+it.store.toLocaleString()+(it.nx.prem?' · '+esc(it.nx.prem):'')):('매장재고 '+it.store.toLocaleString()+' · 이번 주 생산 '+it.week.toLocaleString()+(it.sfpErr?' · <span style="color:#b91c1c">긴급 조회 오류: '+esc(it.sfpErr)+'</span>':''));
+  var sm=isNx?('대리점(우리) 재고 '+it.store.toLocaleString()+(it.nx.prem?' · '+esc(it.nx.prem):'')):('매장재고 '+it.store.toLocaleString()+' · 이번 주 생산 '+it.week.toLocaleString()+(it.sfpErr?' · <span style="color:#b91c1c">긴급 조회 오류: '+esc(it.sfpErr)+'</span>':'')+jsrHkExLine(it));
   if(it.src==='sb'){ qh=jsrQ((it.mainQ===''?'':+it.mainQ),'썬베이 재고','main'); sm=esc(it.det||''); }
   if(it.src==='ap'){ qh=jsrQ((it.mainQ===''?'':+it.mainQ),'아파치 가용재고','main'); sm=esc(it.det||'')+(it.apWhy?' · <span style="color:#b45309">'+esc(it.apWhy)+'</span>':''); }
   return '<div class="jsr-card '+cls+'"><div class="jsr-r1"><span class="jsr-br">'+esc(it.br)+'</span><span class="jsr-src'+(isNx?' nx':((it.src==='sb'||it.src==='ap')?' file':''))+'">'+JSR_SRC[it.src].name+'</span>'+(it.quick?'<span class="jsr-ub" title="'+esc(it.ship+' '+it.shipTxt)+'">⚡ 긴급 가능</span>':'')+'<span class="jsr-code" title="'+(isNx?'넥센 제품코드':(it.src==='sb'?'썬베이 상품번호':(it.src==='ap'?'아파치 품목코드':'한국타이어 상품코드')))+'">'+esc(it.pid)+'</span></div>'
@@ -30064,28 +30131,39 @@ var JSR_ORD_STS={'01':'주문 접수','02':'주문 처리중','04':'준비중','
 function jsrOrdTab(t){ if(JSR.ord.busy){ stkToast('처리가 끝난 뒤에'); return; } JSR.ord.tab=t; JSR.ord.err=''; jsrOrdPaint(); if(t==='list'&&!JSR.ord.list)jsrOrdList(); if(t==='tgt')jsrOrdTgLoad(); if(t==='hist')jsrOrdHistLoad(); }
 function jsrOrdListOpen(){ if(!jsrOrdCan()){ alert('먼저 로그인하세요'); return; } JSR.ord.open=true; JSR.ord.tab='list'; JSR.ord.err=''; jsrOrdPaint(); if(!JSR.ord.list)jsrOrdList(); }
 function jsrOrdListSet(k,v){ if(JSR.ord.busy)return; JSR.ord.lq[k]=v; jsrOrdList(); }
-async function jsrOrdList(){ if(!jsrOrdCan()){ alert('먼저 로그인하세요'); return; } if(JSR.ord.busy){ stkToast('처리하는 중이에요'); return; } var qi=document.getElementById('jsr-ord-lq'); if(qi)JSR.ord.lq.q=String(qi.value||'').replace(/[^0-9A-Za-z]/g,'').slice(0,20);
+async function jsrOrdList(){ if(!jsrOrdCan()){ alert('먼저 로그인하세요'); return; } if(JSR.ord.busy){ stkToast('처리하는 중이에요'); return; } var qi=document.getElementById('jsr-ord-lq'); if(qi){ JSR.ord.lq.t=String(qi.value||'').trim().slice(0,40); JSR.ord.lq.q=jsrOrdLqNo(JSR.ord.lq.t); }   /* HKS1127 사이즈·패턴 글자는 전산에 안 보냄 */
   JSR.ord.busy='list'; JSR.ord.err=''; jsrOrdPaint();
-  try{ var L=JSR.ord.lq; var j=await jsrOrdPost({act:'orderList',q:L.q||'',days:L.days,status:L.status||''},90); if(!j.ok)JSR.ord.err='주문현황을 못 읽었어요: '+(j.error||'이유 모름')+(j.needLogin?'\n전산재고방 위쪽의 [로그인]을 먼저 눌러 주세요.':''); else { JSR.ord.list={at:Date.now(),rows:j.rows||[],v:j.v||1,from:j.from||'',to:j.to||'',inb:null}; JSR.ord.lsel={}; try{ JSR.ord.list.inb=jsrOrdInbKeys(await jsrOrdInbLoad()); }catch(e9){ JSR.ord.err='입고방 줄을 못 읽어 "등록됨" 표시를 못 해요: '+((e9&&e9.message)||e9); } } }
+  try{ var L=JSR.ord.lq; var j=await jsrOrdPost({act:'orderList',q:L.q||'',days:L.days,status:L.status||''},90); if(!j.ok)JSR.ord.err='주문현황을 못 읽었어요: '+(j.error||'이유 모름')+(j.needLogin?'\n전산재고방 위쪽의 [로그인]을 먼저 눌러 주세요.':''); else { JSR.ord.list={q:(L.q||''),at:Date.now(),rows:j.rows||[],v:j.v||1,from:j.from||'',to:j.to||'',inb:null}; JSR.ord.lsel={}; try{ JSR.ord.list.inb=jsrOrdInbKeys(await jsrOrdInbLoad()); }catch(e9){ JSR.ord.err='입고방 줄을 못 읽어 "등록됨" 표시를 못 해요: '+((e9&&e9.message)||e9); } } }
   catch(e){ JSR.ord.err='주문현황을 못 읽었어요: '+((e&&e.message)||e); } finally{ JSR.ord.busy=''; jsrOrdPaint(); } }
+/* ▼HKS1127 주문현황 검색: 주문번호·사이즈·패턴·상품코드 — 읽어 온 목록에서 공통 검색 규칙으로. 전산에는 주문번호(숫자 9자리 이상)만 보냄 */
+function jsrOrdLqNo(t){ var d=String(t||'').replace(/[ -]/g,''); return /^[0-9]{9,12}$/.test(d)?d:''; }
+function jsrOrdRowHay(x){ var p=jsrOrdPlyOfName(x.ARKTX)||jsrOrdPlyOfName(x.ZPRODUCT), sz=String(x.ARKTX||'').split(',')[0].replace(/[A-Za-z]+/g,' ').replace(/ +/g,' ').trim();   /* 전산 이름 265/60R18H XL · 195R15C 는 사이즈에 속도·용도 글자가 붙어 있어 글자를 뗀 사이즈(265/60 18 · 195 15)를 같이 둠. 앞뒤 '규격'은 뒤의 주문번호 숫자와 붙어 읽히지 않게 하는 칸막이(195 15 = 195 80 15 로 찾으려면 숫자가 딱 둘이어야 함) */
+  return [(sz?'규격 '+sz+' 규격':''),x.VBELN,x.MATNR,x.ARKTX,x.ZPRODUCT,(p?p+'P':''),x.ORDER_SOURCE,(JSR_ORD_STS[String(x.OUTSTS||'')]||''),x.INVOICENO,x.TKNUM,x.SHIPTONAME,x.VSTELNM,x.BIGO,jsrOrdYmd(x.ORDERDATE)].filter(Boolean).join(' '); }
+var _jsrOrdLqT=null;
+function jsrOrdLqApply(){ var el=document.getElementById('jsr-ord-lres'); if(el&&!JSR.ord.busy)el.innerHTML=jsrOrdListRes(); }
+function jsrOrdLqLive(v){ JSR.ord.lq.t=String(v||'').trim().slice(0,40); clearTimeout(_jsrOrdLqT); _jsrOrdLqT=setTimeout(jsrOrdLqApply,200); }   /* 적는 대로 — 표만 다시 그려 적던 칸은 그대로 */
+function jsrOrdLqEnter(){ var qi=document.getElementById('jsr-ord-lq'), t=String((qi&&qi.value)||'').trim().slice(0,40); if(JSR.ord.list&&!JSR.ord.list.q&&!jsrOrdLqNo(t)){ JSR.ord.lq.t=t; clearTimeout(_jsrOrdLqT); jsrOrdLqApply(); return; } jsrOrdList(); }   /* 읽어 온 목록이 있고 주문번호가 아니면 전산을 다시 부르지 않음 */
+/* ▲HKS1127 */
 function jsrOrdYmd(s){ s=String(s||''); return /^\d{8}$/.test(s)&&s!=='00000000'?(s.slice(0,4)+'-'+s.slice(4,6)+'-'+s.slice(6)):''; }
 function jsrOrdListHtml(){ var O=JSR.ord, L=O.lq, busy=!!O.busy; var dBtn=function(d,l){ return '<button class="jsr-btn" style="height:30px'+(L.days===d?';background:#1d4ed8;color:#fff;border-color:#1d4ed8':'')+'" '+(busy?'disabled ':'')+'onclick="jsrOrdListSet(\'days\','+d+')">'+l+'</button>'; };
   var h='<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:10px"><b style="font-size:12px;color:#475569">주문일자</b>'+dBtn(0,'당일')+dBtn(7,'1주')+dBtn(30,'1개월')+dBtn(90,'3개월')+dBtn(180,'6개월')
     +'<b style="font-size:12px;color:#475569;margin-left:8px">출하상태</b><select '+(busy?'disabled ':'')+'onchange="jsrOrdListSet(\'status\',this.value)" style="height:30px;border:1px solid #cbd5e1;border-radius:8px;font-size:12.5px">'+[['','전체'],['08','미출현황'],['01','주문 접수'],['02','주문 처리중'],['04','준비중'],['06','부분출하'],['07','출하완료']].map(function(o){ return '<option value="'+o[0]+'"'+(L.status===o[0]?' selected':'')+'>'+o[1]+'</option>'; }).join('')+'</select>'
-    +'<input id="jsr-ord-lq" placeholder="주문번호" value="'+esc(L.q||'')+'" '+(busy?'disabled ':'')+'onkeydown="if(event.key===\'Enter\')jsrOrdList()" style="width:120px;height:30px;border:1px solid #cbd5e1;border-radius:8px;padding:0 8px;font-size:12.5px"><button class="jsr-btn pri" style="height:30px" '+(busy?'disabled ':'')+'onclick="jsrOrdList()">'+(O.busy==='list'?'⏳ 읽는 중…':'조회')+'</button></div>';
+    +'<input id="jsr-ord-lq" placeholder="주문번호·사이즈·패턴" title="주문번호 · 사이즈(255 60 18, 2556018) · 패턴(AT771, winter) · 상품코드 — 읽어 온 목록에서 바로 찾아요. 주문번호를 다 적고 [조회]하면 전산에서 그 주문을 읽어요" value="'+esc(L.t||L.q||'')+'" oninput="jsrOrdLqLive(this.value)" '+(busy?'disabled ':'')+'onkeydown="if(event.key===\'Enter\')jsrOrdLqEnter()" style="width:190px;height:30px;border:1px solid #cbd5e1;border-radius:8px;padding:0 8px;font-size:12.5px"><button class="jsr-btn pri" style="height:30px" '+(busy?'disabled ':'')+'onclick="jsrOrdList()">'+(O.busy==='list'?'⏳ 읽는 중…':'조회')+'</button></div>';
+  return h+'<div id="jsr-ord-lres">'+jsrOrdListRes()+'</div>'; }
+function jsrOrdListRes(){ var O=JSR.ord, L=O.lq, busy=!!O.busy, h='';   /* HKS1127 */
   if(!O.list)return h+'<div style="padding:16px 4px;color:#64748b">'+(busy?'전산에서 읽어 오는 중…':'[조회]를 누르면 전산 주문현황을 읽어 옵니다.')+'</div>';
-  var R=O.list.rows, N=function(v){ var n=Number(v); return (v==null||v===''||isNaN(n))?'':n.toLocaleString(); }, sum=function(k){ var t=0; R.forEach(function(x){ t+=(Number(x[k])||0); }); return t; };
-  h+='<div style="font-size:11.5px;color:#64748b;margin-top:6px">총 건수 <b style="color:#0f172a">'+R.length+'</b> · '+esc(jsrOrdYmd(O.list.from))+' ~ '+esc(jsrOrdYmd(O.list.to))+' · '+new Date(O.list.at).toLocaleTimeString()+'에 읽음 · 전산은 3분 간격으로 최신 정보를 반영합니다'+(O.list.v<2?' · <span class="note blk">수집기의 주문 코드가 옛 것이라 일부 칸이 비어 있어요(새 코드로 바꿔 새 버전 배포)</span>':'')+'</div>';
-  if(!R.length)return h+'<div style="padding:16px 4px;color:#64748b">이 조건의 주문이 없어요.</div>';
+  var R0=O.list.rows, FT=String(L.t||'').trim(), R=FT?R0.filter(function(x){ return tgSearchHit(jsrOrdRowHay(x),FT); }):R0, N=function(v){ var n=Number(v); return (v==null||v===''||isNaN(n))?'':n.toLocaleString(); }, sum=function(k){ var t=0; R.forEach(function(x){ t+=(Number(x[k])||0); }); return t; };
+  h+='<div style="font-size:11.5px;color:#64748b;margin-top:6px">총 건수 <b style="color:#0f172a">'+R0.length+'</b>'+(FT?' · <b style="color:#1d4ed8">검색 「'+esc(FT)+'」 '+R.length+'줄</b>':'')+' · '+esc(jsrOrdYmd(O.list.from))+' ~ '+esc(jsrOrdYmd(O.list.to))+' · '+new Date(O.list.at).toLocaleTimeString()+'에 읽음 · 전산은 3분 간격으로 최신 정보를 반영합니다'+(O.list.v<2?' · <span class="note blk">수집기의 주문 코드가 옛 것이라 일부 칸이 비어 있어요(새 코드로 바꿔 새 버전 배포)</span>':'')+'</div>';
+  if(!R.length)return h+'<div style="padding:16px 4px;color:#64748b">'+((FT&&R0.length)?('읽어 온 '+R0.length+'줄 중에 「'+esc(FT)+'」에 맞는 주문이 없어요. 기간을 넓혀 [조회]하거나 검색어를 고쳐 보세요.'):'이 조건의 주문이 없어요.')+'</div>';
   var H=['입고방','출하불가','주문일','주문번호','주문구분','상품구분','상품코드','상품명','상품정보','List Price','주문수량','주문잔량','주문확정','출하대기','출하수량','주간생산계획','송장번호','Shipment No','출하상태','출하일자','출하지','도착지명','비고'], NUM={9:1,10:1,11:1,12:1,13:1,14:1,15:1};
-  var pd='', pv='', IK=O.list.inb, SEL=O.lsel||{}, nSel=Object.keys(SEL).filter(function(k){ return SEL[k]; }).length;
-  h+='<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px"><button class="jsr-btn" style="height:30px;border-color:#10b981;color:#047857" '+((busy||!nSel||!IK)?'disabled ':'')+'onclick="jsrOrdListToInb()">'+(O.busy==='inb'?'⏳ 등록하는 중…':'📥 고른 '+nSel+'줄을 입고방에 재고용으로 등록')+'</button><span style="font-size:11.5px;color:#64748b">전산에서 직접 넣은 주문을 재고표에 넣으려면: 줄을 체크 → 등록 → 물건이 오면 입고방에서 [재고로 편입]. 손님 주문 때문에 산 것은 체크하지 마세요.</span></div>';
+  var pd='', pv='', IK=O.list.inb, SEL=O.lsel||{}, nSel=Object.keys(SEL).filter(function(k){ return SEL[k]; }).length; var VIS={}; R.forEach(function(x){ VIS[String(x.VBELN||'')+'|'+String(x.MATNR||'')]=1; }); var nHid=Object.keys(SEL).filter(function(k){ return SEL[k]&&!VIS[k]; }).length;
+  h+='<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px"><button class="jsr-btn" style="height:30px;border-color:#10b981;color:#047857" '+((busy||!nSel||!IK)?'disabled ':'')+'onclick="jsrOrdListToInb()">'+(O.busy==='inb'?'⏳ 등록하는 중…':'📥 고른 '+nSel+'줄'+(nHid?'(검색에 가려진 '+nHid+'줄 포함)':'')+'을 입고방에 재고용으로 등록')+'</button><span style="font-size:11.5px;color:#64748b">전산에서 직접 넣은 주문을 재고표에 넣으려면: 줄을 체크 → 등록 → 물건이 오면 입고방에서 [재고로 편입]. 손님 주문 때문에 산 것은 체크하지 마세요.</span></div>';
   h+='<div style="overflow:auto;max-height:62vh;margin-top:6px;border:1px solid #e2e8f0;border-radius:8px"><table class="jsr-ordlist" style="margin-top:0;font-size:12px;white-space:nowrap"><tr>'+H.map(function(x,i){ return '<th'+(NUM[i]?' class="n"':'')+' style="position:sticky;top:0;z-index:1">'+x+'</th>'; }).join('')+'</tr>'
     +R.map(function(x){ var od=jsrOrdYmd(x.ORDERDATE), vb=String(x.VBELN||''); var showD=(od!==pd), showV=(vb!==pv||showD); pd=od; pv=vb; var st=String(x.OUTSTS||''), stN=JSR_ORD_STS[st]||st; var stC=(st==='07')?'#15803d':((st==='01'||st==='02')?'#b45309':'#1d4ed8');
       var ik=vb+'|'+String(x.MATNR||''), reg=IK?IK[ik]:null, can=(!!IK&&/^\d{6,}$/.test(vb)&&/^[A-Za-z0-9]{5,12}$/.test(String(x.MATNR||''))&&(parseInt(x.ORDERQTY,10)||0)>0);
       var ic=!IK?'<span style="color:#94a3b8">?</span>':(reg?'<span style="color:#0f766e;font-weight:800" title="입고방에 이미 등록된 줄(남은 '+reg.rem+'개)">📥 등록됨</span>':(can?'<input type="checkbox" '+(SEL[ik]?'checked ':'')+(busy?'disabled ':'')+'onchange="jsrOrdListSel(\''+esc(ik)+'\',this.checked)" style="width:16px;height:16px">':''));
       return '<tr'+(showV?' style="border-top:1.5px solid #cbd5e1"':'')+'><td style="text-align:center">'+ic+'</td><td>'+esc(x.BLOCK||'')+'</td><td>'+(showD?esc(od):'')+'</td><td><b>'+(showV?esc(vb):'')+'</b></td><td>'+esc(x.ORDER_SOURCE||'')+'</td><td>'+esc(JSR_ORD_LV1[x.PRODLV1]||x.PRODLV1||'')+'</td><td>'+esc(x.MATNR||'')+'</td><td>'+esc(x.ARKTX||'')+jsrOrdPlyB(jsrOrdPlyOfName(x.ARKTX)||jsrOrdPlyOfName(x.ZPRODUCT))+'</td><td>'+esc(x.ZPRODUCT||'')+'</td><td class="n">'+N(x.KZWI1)+'</td><td class="n"><b>'+N(x.ORDERQTY)+'</b></td><td class="n"'+((Number(x.NOTOUT)||0)>0?' style="color:#b91c1c;font-weight:800"':'')+'>'+N(x.NOTOUT)+'</td><td class="n">'+N(x.BMENG)+'</td><td class="n">'+N(x.LFIMG)+'</td><td class="n">'+N(x.OUTQTY)+'</td><td class="n">'+N(x.ERP_CWPLAN)+'</td><td>'+esc(x.INVOICENO||'')+'</td><td>'+esc(x.TKNUM||'')+'</td><td style="font-weight:800;color:'+stC+'">'+esc(stN)+'</td><td>'+esc(jsrOrdYmd(x.WADAT_IST))+'</td><td>'+esc(x.VSTELNM||x.WERKS||'')+'</td><td>'+esc(x.SHIPTONAME||'')+'</td><td>'+esc(x.BIGO||'')+'</td></tr>'; }).join('')
-    +'<tr style="background:#fef2f2;font-weight:800"><td colspan="9" style="text-align:center">합계</td><td class="n"></td><td class="n">'+N(sum('ORDERQTY'))+'</td><td class="n">'+N(sum('NOTOUT'))+'</td><td class="n">'+N(sum('BMENG'))+'</td><td class="n">'+N(sum('LFIMG'))+'</td><td class="n">'+N(sum('OUTQTY'))+'</td><td class="n">'+N(sum('ERP_CWPLAN'))+'</td><td colspan="7"></td></tr></table></div>'
+    +'<tr style="background:#fef2f2;font-weight:800"><td colspan="9" style="text-align:center">'+(FT?'합계 (검색된 '+R.length+'줄)':'합계')+'</td><td class="n"></td><td class="n">'+N(sum('ORDERQTY'))+'</td><td class="n">'+N(sum('NOTOUT'))+'</td><td class="n">'+N(sum('BMENG'))+'</td><td class="n">'+N(sum('LFIMG'))+'</td><td class="n">'+N(sum('OUTQTY'))+'</td><td class="n">'+N(sum('ERP_CWPLAN'))+'</td><td colspan="7"></td></tr></table></div>'
     +'<div style="font-size:11.5px;color:#64748b;margin-top:4px">읽기만 합니다. 주문 수정·취소·배송조회는 한국타이어 전산 화면에서 하세요.</div>';
   return h; }
 /* ── 🎯 목표 부족분 (11/12 호준님 "목표수량 잡아 놓은 것들은 부족한 수량만큼 바로 주문") ──
