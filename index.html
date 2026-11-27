@@ -4026,6 +4026,8 @@ async function tradeRenderLog(){
   h+='</tbody></table></div>';
   el.innerHTML=h;
 }
+var tradeImpStat={done:0,pend:0};   /* TDO1126 */
+function tradeImpGroupIds(ids){ var og={}, out={}; (ids||[]).forEach(function(id){ out[id]=1; var d=(tradeImportCache||[]).find(function(x){ return x.id===id; }); if(d)og[d.origin_id||d.id]=1; }); (tradeImportCache||[]).forEach(function(d){ if(og[d.origin_id||d.id])out[d.id]=1; }); return Object.keys(out); }   /* TDO1126 같은 건(이월 복사본)의 카드 번호 전부 */
 var tradeImpChip='all';
 var tradeImpHidden={};  // 거래처종합방에서 숨긴 직배송 항목 id (직배송 원본 안 건드림)
 function tradeImpSetChip(v){ tradeImpChip=(tradeImpChip===v&&v!=='all')?'all':v; tradeRenderImport(); }
@@ -4038,7 +4040,7 @@ async function tradeImportDelSel(){
   var ids=Array.prototype.map.call(document.querySelectorAll('.timp-chk:checked'),function(c){return c.value;});
   if(!ids.length){alert('삭제할 항목을 선택하세요');return;}
   if(!confirm(ids.length+'건을 가져오기 목록에서 숨길까요?\n(거래처종합방에서만 안 보이게 됩니다. 직배송방 원본은 그대로예요.)'))return;
-  ids.forEach(function(id){ tradeImpHidden[id]=true; });
+  tradeImpGroupIds(ids).forEach(function(id){ tradeImpHidden[id]=true; });   /* TDO1126 그 건의 이월 복사본도 같이 숨김(다른 복사본이 대신 올라오지 않게) */
   await tradeSaveImpHidden();
   try{ await sb.from('trade_logs').insert(ids.map(function(id){return {row_id:null,field:'(가져오기숨김)',before_val:id,after_val:'',who:me?me.name:'?'};})); }catch(e){}
   tradeRenderImport();
@@ -4053,7 +4055,7 @@ function tradeMapFromDeliv(d){
   var sp=tradeSplitPly(d.spec||'');
   var pattern=((d.tire||'')+(sp.ply?' '+sp.ply:'')).replace(/\s+/g,' ').trim();
   var deliv=d.done_at?String(d.done_at).slice(0,10):'';
-  return {out_src:d.src||'',client:d.trade_client||'',in_date:d.date_str||'',pattern:pattern,spec:sp.pure,deliv_date:deliv,
+  return {out_src:d.src||'',client:d.trade_client||'',in_date:d.first_date||d.date_str||'',pattern:pattern,spec:sp.pure,deliv_date:deliv,
     out_qty:(d.qty!==''&&d.qty!=null?parseFloat(d.qty):null),out_price:(d.unit_price!==''&&d.unit_price!=null?parseFloat(d.unit_price):null),
     memo:d.trade_memo||'',src_deliv_id:(d.origin_id||d.id)};
 }
@@ -4076,19 +4078,18 @@ async function tradeRenderImport(){
   // 이미 보낸 것(뿌리 기준)
   var sentIds={}; (tradeSettleCache||[]).forEach(function(r){ if(r.src_deliv_id)sentIds[r.src_deliv_id]=true; });
   var q=(document.getElementById('trade-search-input')&&document.getElementById('trade-search-input').value||'').trim().toLowerCase();
+  tradeImpStat={done:0,pend:0};   /* TDO1126 */
   // 렌더용 행 목록 만들기 (그룹 순서대로, 각 그룹 내부 순서대로)
   var flat=[];
   orgKeys.forEach(function(org){
-    var g=groups[org].filter(function(d){return !hidden[d.id];});
-    if(!g.length)return;
-    var isDup=(g.length>1);
-    if(tradeImpChip==='dup'&&!isDup)return;
-    g.forEach(function(d,idx){
-      // 중복없이: 중복 그룹은 기준(처음 등록분=idx 0)만 보이기
-      if(tradeImpChip==='nodup'&&isDup&&idx>0)return;
+    var all=groups[org], vis=all.filter(function(d){return !hidden[d.id];}), dn=vis.filter(function(d){ return d.done&&!d.cancelled&&d.tab==='deliv'; });   /* TDO1126 직배송 탭에서 완료한 것만 · 이월 복사본은 가장 나중에 완료한 카드 한 줄로 */
+    if(!dn.length){ if(vis.some(function(d){ return !d.done&&!d.cancelled; }))tradeImpStat.pend++; return; }
+    dn.sort(function(a,b){ return String(b.done_at||'').localeCompare(String(a.done_at||''))||String(b.date_str||'').localeCompare(String(a.date_str||'')); });
+    var g=[dn[0]], isDup=false; tradeImpStat.done++;
+    g.forEach(function(d,idx){ d._first=d.first_date||all[0].date_str||d.date_str;
       if(q){ var hit=['src','trade_client','tire','spec','trade_memo'].some(function(k){return String(d[k]||'').toLowerCase().indexOf(q)>=0;}); if(!hit)return; }
       if(!tradeDatePass(d.date_str))return;
-      flat.push({d:d,dup:isDup,base:(idx===0),org:org,gsize:g.length});
+      flat.push({d:d,dup:false,base:true,org:org,gsize:1});
     });
   });
   var dupCount=orgKeys.filter(function(org){return groups[org].filter(function(d){return !hidden[d.id];}).length>1;}).length;
@@ -4099,9 +4100,7 @@ async function tradeRenderImport(){
   h+='</div>';
   // 칩: 전체 / 중복만
   h+='<div class="jh-flt" style="margin-bottom:8px;gap:6px">';
-  h+='<span class="jh-chip'+(tradeImpChip==='all'?' on':'')+'" onclick="tradeImpSetChip(\'all\')">전체 '+tradeImportCache.length+'</span>';
-  h+='<span class="jh-chip'+(tradeImpChip==='nodup'?' on':'')+'" onclick="tradeImpSetChip(\'nodup\')">✨ 중복없이(기준만)</span>';
-  h+='<span class="jh-chip'+(tradeImpChip==='dup'?' on':'')+'" onclick="tradeImpSetChip(\'dup\')" style="'+(dupCount?'':'opacity:.5')+'">⚠ 중복만 '+dupCount+'그룹</span>';
+  h+='<span class="jh-chip on">✅ 배송 완료된 건 '+tradeImpStat.done+'</span><span style="font-size:12px;color:#64748b;align-self:center">'+(tradeImpStat.pend?'완료 전 '+tradeImpStat.pend+'건은 직배송방에 있어요 — 완료하면 여기로 들어옵니다 · ':'')+'이월로 복사된 카드는 한 줄로 합쳐 보여요</span>';   /* TDO1126 */
   h+='</div>';
   var _cwI=tgColW('tg_tradeimp_colw',TRADE_IMP_COLS.map(function(c){return [c[0],c[2]];}));
   var _hasWI=!!tgLsGet('tg_tradeimp_colw');
@@ -4120,7 +4119,7 @@ async function tradeRenderImport(){
     h+='<td style="padding:4px 6px;text-align:center;border:1px solid #e2e8f0"><input type="checkbox" class="timp-chk" value="'+d.id+'"></td>';
     var stat=sent?'<span style="color:#16a34a;font-weight:800;font-size:11px">보냄</span>':(row.dup?('<span style="color:#b45309;font-weight:800;font-size:11px">⚠중복'+(row.base?'(기준)':'')+'</span>'):'');
     h+=tgTdClip('stat',stat,'center');
-    h+=tgTdClip('indate',tradeEsc((d.date_str||'').slice(5)),'');
+    h+=tgTdClip('indate',tradeEsc(String(d._first||d.date_str||'').slice(5)),'');
     h+=tgTdClip('outsrc',tradeEsc(d.src||''),'');
     h+=tgTdClip('client',tradeEsc(d.trade_client||''),'');
     h+=tgTdClip('pattern',tradeEsc(d.tire||''),'');
@@ -4131,9 +4130,9 @@ async function tradeRenderImport(){
     h+='</tr>';
   });
   h+='</tbody></table></div>';
-  h+='<div style="font-size:11px;color:#888;margin-top:6px">⚠중복 = 같은 뿌리(복사 근간)에서 이월된 것끼리 묶음. 노란 굵은 선이 그룹 시작. "(기준)"이 처음 등록분. 확인 후 필요없는 건 선택삭제(직배송방엔 영향 없음).</div>';
+  h+='<div style="font-size:11px;color:#888;margin-top:6px">직배송방에서 「완료」한 거래처 양식 카드만 보여요(이월로 복사된 카드는 한 줄). 입력일 = 처음 넣은 날 · 배송완료 = 완료를 누른 날. 필요 없는 건 선택삭제(직배송방엔 영향 없음).</div>';
   // 숨긴(삭제) 목록 — 접기 + 되돌리기
-  var hiddenRows=tradeImportCache.filter(function(d){return hidden[d.id];});
+  var _hs={}, hiddenRows=tradeImportCache.filter(function(d){ if(!hidden[d.id])return false; var o=d.origin_id||d.id; if(_hs[o])return false; _hs[o]=1; return true; });   /* TDO1126 건마다 한 줄 */
   if(hiddenRows.length){
     h+='<div style="margin-top:10px"><button onclick="tradeImpToggleHidden()" style="padding:6px 12px;border:1px solid #cbd5e1;background:#f8fafc;color:#64748b;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">'+(tradeImpShowHidden?'▲ 삭제(숨김)목록 '+hiddenRows.length+'건 접기':'▼ 삭제(숨김)목록 '+hiddenRows.length+'건 보기')+'</button>';
     if(tradeImpShowHidden){
@@ -4152,7 +4151,8 @@ async function tradeRenderImport(){
 }
 var tradeImpShowHidden=false;
 function tradeImpToggleHidden(){ tradeImpShowHidden=!tradeImpShowHidden; tradeRenderImport(); }
-async function tradeImpRestore(id){
+async function tradeImpRestore(id){ return tradeImpRestoreMany([id]); }   /* TDO1126 */
+async function tradeImpRestoreOne_(id){
   delete tradeImpHidden[id];
   await tradeSaveImpHidden();
   try{ await sb.from('trade_logs').insert({row_id:null,field:'(가져오기숨김복원)',before_val:'',after_val:id,who:me?me.name:'?'}); }catch(e){}
@@ -4160,7 +4160,7 @@ async function tradeImpRestore(id){
 }
 async function tradeImpRestoreMany(ids){
   if(!ids.length)return;
-  ids.forEach(function(id){ delete tradeImpHidden[id]; });
+  tradeImpGroupIds(ids).forEach(function(id){ delete tradeImpHidden[id]; });
   await tradeSaveImpHidden();
   try{ await sb.from('trade_logs').insert(ids.map(function(id){return {row_id:null,field:'(가져오기숨김복원)',before_val:'',after_val:id,who:me?me.name:'?'};})); }catch(e){}
   tradeRenderImport();
@@ -5869,6 +5869,38 @@ function dlvCaptureHtml(carName,rows,liveN){
   h+='<div style="font-size:11px;color:#94a3b8;margin-top:6px">타이어게러지 메신저 · '+esc(new Date().toLocaleString('ko-KR'))+'</div></div>';
   return h;
 }
+/* ▼CNE1126 (11/26 호준님 "캡처에 지도도 들어가게") 목록 캡처 아래에 붙일 동선 지도 — 오픈스트리트맵 바탕 + 순서 번호 점 + 직선 */
+async function dlvCaptureMap(carNo,carName,rows,W){
+  if(typeof CRS==='undefined'||typeof crsAddrOf!=='function')return null;
+  if(!CRS.cfg)await crsCfgLoad(); if(!CRS.geo)await crsGeoLoad(); if(!CRS.addrFix)await crsAddrFixLoad(); if(!CRS.hist)await crsHistLoad();
+  var H=CRS.hist, wave=1, list=[], miss=[];
+  rows.forEach(function(r){ if(r.divider){ wave++; return; } var a=crsAddrOf(r.c,H).addr; list.push({c:r.c,n:r.n,w:wave,addr:a}); });
+  try{ var need=list.map(function(x){ return x.addr; }).filter(function(a){ return a&&!(CRS.geo||{})[crsGeoKey(a)]; }); if(need.length&&String((CRS.cfg||{}).key||'').trim())await crsGeoFill([(CRS.cfg||{}).depot].concat(need)); }catch(e){ console.warn('목록 캡처 지도: 새 주소 좌표를 못 받음',e); }   /* 아직 좌표가 없는 주소는 한 번 받아 봄 — 못 받아도 있는 것으로 그림 */
+  var pts=[]; list.forEach(function(x){ var g=x.addr?(CRS.geo||{})[crsGeoKey(x.addr)]:null, lab=(x.w>1?x.w+'-':'')+x.n; if(g)pts.push({xy:g,lab:lab,w:x.w}); else miss.push(lab+'. '+(String(x.c.trade_client||x.c.shop_name||x.c.recv||'').trim()||'(이름 없음)')); });
+  if(!pts.length)return null;
+  var dep=crsDepot(), k=W/960, MW=W, MH=Math.round(W*0.9), pad=90*k, S=2*k;   /* S = 지도 조각을 키워 그리는 배수(글자가 읽히게) */
+  var mx=function(lon){ return (lon+180)/360; }, my=function(lat){ var r=lat*Math.PI/180; return (1-Math.log(Math.tan(r)+1/Math.cos(r))/Math.PI)/2; };
+  var all=pts.map(function(p){ return p.xy; }).concat(dep?[dep]:[]), xs=all.map(function(q){ return mx(q[0]); }), ys=all.map(function(q){ return my(q[1]); });
+  var x0=Math.min.apply(null,xs), x1=Math.max.apply(null,xs), y0=Math.min.apply(null,ys), y1=Math.max.apply(null,ys), z=16;
+  for(;z>6;z--){ var sc=256*Math.pow(2,z)*S; if((x1-x0)*sc<=MW-2*pad&&(y1-y0)*sc<=MH-2*pad)break; }
+  var scale=256*Math.pow(2,z)*S, ox=((x0+x1)/2)*scale-MW/2, oy=((y0+y1)/2)*scale-MH/2, T=256*S, n=Math.pow(2,z);
+  var lineH=Math.round(30*k), missLines=[]; if(miss.length){ var cur='지도에 없는 곳(주소 없음·못 찾음): '; miss.forEach(function(m,i){ var add=m+(i<miss.length-1?' · ':''); if((cur+add).length>46){ missLines.push(cur); cur=add; } else cur+=add; }); if(cur)missLines.push(cur); }
+  var cv=document.createElement('canvas'); cv.width=MW; cv.height=MH+(missLines.length?missLines.length*lineH+Math.round(24*k):0); var g=cv.getContext('2d'); g.fillStyle='#e5e7eb'; g.fillRect(0,0,cv.width,cv.height);
+  var tiles=[], okN=0; for(var tx=Math.floor(ox/T);tx<=Math.floor((ox+MW)/T);tx++)for(var ty=Math.floor(oy/T);ty<=Math.floor((oy+MH)/T);ty++){ if(ty<0||ty>=n)continue; tiles.push({x:tx,y:ty}); }
+  await Promise.all(tiles.map(function(t){ return new Promise(function(ok){ var im=new Image(); im.crossOrigin='anonymous'; var tm=setTimeout(function(){ ok(); },9000); im.onload=function(){ clearTimeout(tm); try{ g.drawImage(im,Math.round(t.x*T-ox),Math.round(t.y*T-oy),Math.ceil(T),Math.ceil(T)); okN++; }catch(e){} ok(); }; im.onerror=function(){ clearTimeout(tm); ok(); }; im.src='https://tile.openstreetmap.org/'+z+'/'+(((t.x%n)+n)%n)+'/'+t.y+'.png'; }); }));
+  if(!okN)throw new Error('지도 바탕을 받지 못했어요');
+  try{ g.getImageData(0,0,1,1); }catch(e){ throw new Error('지도 바탕을 그림으로 꺼낼 수 없어요'); }
+  var P=function(xy){ return [mx(xy[0])*scale-ox, my(xy[1])*scale-oy]; }, col=(typeof crsMapCol==='function')?crsMapCol(carNo):'#2563eb';
+  var waves={}; pts.forEach(function(p){ (waves[p.w]=waves[p.w]||[]).push(p); });
+  Object.keys(waves).map(Number).sort(function(a,b){ return a-b; }).forEach(function(w){ var L=waves[w]; g.beginPath(); var st=dep?P(dep):P(L[0].xy); g.moveTo(st[0],st[1]); L.forEach(function(p){ var q=P(p.xy); g.lineTo(q[0],q[1]); }); g.lineWidth=7*k; g.strokeStyle=col; g.globalAlpha=0.85; g.lineJoin='round'; g.setLineDash(w>1?[18*k,12*k]:[]); g.stroke(); g.setLineDash([]); g.globalAlpha=1; });
+  var seen={}; pts.forEach(function(p){ var q=P(p.xy), key=Math.round(q[0])+','+Math.round(q[1]), dup=seen[key]||0; seen[key]=dup+1; var cx=q[0]+dup*30*k, cy=q[1], r=20*k; g.font='900 '+Math.round(22*k)+'px sans-serif'; var tw=g.measureText(p.lab).width, hw=Math.max(r,tw/2+9*k);
+    g.beginPath(); if(g.roundRect)g.roundRect(cx-hw,cy-r,hw*2,r*2,r); else g.arc(cx,cy,r,0,Math.PI*2); g.fillStyle=col; g.fill(); g.lineWidth=4*k; g.strokeStyle='#fff'; g.stroke(); g.fillStyle='#fff'; g.textAlign='center'; g.textBaseline='middle'; g.fillText(p.lab,cx,cy+1*k); });
+  if(dep){ var d=P(dep); g.font='900 '+Math.round(22*k)+'px sans-serif'; var dw=g.measureText('출발').width/2+14*k, dh=20*k; g.beginPath(); if(g.roundRect)g.roundRect(d[0]-dw,d[1]-dh,dw*2,dh*2,dh); else g.rect(d[0]-dw,d[1]-dh,dw*2,dh*2); g.fillStyle='#0f172a'; g.fill(); g.lineWidth=4*k; g.strokeStyle='#fff'; g.stroke(); g.fillStyle='#fff'; g.textAlign='center'; g.textBaseline='middle'; g.fillText('출발',d[0],d[1]+1*k); }
+  g.textAlign='left'; g.textBaseline='middle'; g.font='900 '+Math.round(30*k)+'px sans-serif'; var title='🗺 '+carName+' 동선 · '+dlvDateStr().slice(5).replace('-','/')+' · '+pts.length+'곳', tw2=g.measureText(title).width; g.fillStyle='rgba(255,255,255,.93)'; g.fillRect(12*k,12*k,tw2+28*k,78*k); g.fillStyle='#0f172a'; g.fillText(title,26*k,38*k); g.font='700 '+Math.round(20*k)+'px sans-serif'; g.fillStyle='#475569'; g.fillText('번호 순서대로 이은 직선이에요 (실제 도로 아님)',26*k,70*k);
+  g.font='600 '+Math.round(16*k)+'px sans-serif'; var at='© OpenStreetMap contributors', aw=g.measureText(at).width; g.fillStyle='rgba(255,255,255,.85)'; g.fillRect(MW-aw-18*k,MH-28*k,aw+18*k,28*k); g.fillStyle='#334155'; g.fillText(at,MW-aw-9*k,MH-14*k);
+  if(missLines.length){ g.fillStyle='#fff7ed'; g.fillRect(0,MH,MW,cv.height-MH); g.fillStyle='#9a3412'; g.font='700 '+Math.round(22*k)+'px sans-serif'; missLines.forEach(function(t,i){ g.fillText(t,18*k,MH+Math.round(12*k)+lineH*i+lineH/2); }); }
+  return cv; }
+/* ▲CNE1126 */
 async function dlvCaptureList(){
   var carNo=dlvTabCar(curDlvTab), carName=dlvCarName(carNo);
   var rows=dlvCaptureRows(carNo); var liveN=rows.filter(function(r){return !r.divider;}).length;
@@ -5880,6 +5912,7 @@ async function dlvCaptureList(){
   try{ await dlvLoadH2C(); canvas=await window.html2canvas(wrap.firstChild,{scale:2,backgroundColor:'#ffffff',useCORS:true,logging:false,scrollX:0,scrollY:0,windowWidth:Math.max(document.documentElement.clientWidth,560)}); }
   catch(e){ try{wrap.remove();}catch(_x){} alert('캡처 실패: '+(e&&e.message||e)); return; }
   try{wrap.remove();}catch(_x2){}
+  var mapNote=''; try{ var mc=await dlvCaptureMap(carNo,carName,rows,canvas.width); if(mc){ var cc=document.createElement('canvas'); cc.width=canvas.width; cc.height=canvas.height+mc.height; var cx2=cc.getContext('2d'); cx2.fillStyle='#fff'; cx2.fillRect(0,0,cc.width,cc.height); cx2.drawImage(canvas,0,0); cx2.drawImage(mc,0,canvas.height); canvas=cc; mapNote=' · 🗺 지도 포함'; } else mapNote=' · 지도는 못 붙임(좌표를 받은 곳이 없음)'; }catch(e){ mapNote=' · 지도는 못 붙임: '+String(e&&e.message||e).slice(0,50); console.error('목록 캡처 지도',e); }   /* CNE1126 목록 아래에 동선 지도 — 못 만들면 목록만 */
   var blob=await new Promise(function(r){ try{ canvas.toBlob(r,'image/png'); }catch(e){ r(null); } }); if(!blob){ alert('그림 만들기 실패'); return; }
   var fname=carName+'_배송목록_'+dlvDateStr()+'.png'; var file=null; try{ file=new File([blob],fname,{type:'image/png'}); }catch(e){}
   var how=[];
@@ -5889,7 +5922,7 @@ async function dlvCaptureList(){
     try{ var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=fname; document.body.appendChild(a); a.click(); setTimeout(function(){ try{URL.revokeObjectURL(a.href);a.remove();}catch(_e){} },3000); how.push('내려받기'); }catch(e){}
   }
   var res=how.join('+')||'저장 못 함';
-  toastf('📸 '+carName+' 목록 '+liveN+'건 캡처 — '+res+(res.indexOf('클립보드')>=0?' (카톡 창에 붙여넣기)':''));
+  toastf('📸 '+carName+' 목록 '+liveN+'건 캡처 — '+res+(res.indexOf('클립보드')>=0?' (카톡 창에 붙여넣기)':'')+mapNote);
   try{ await sb.from('delivery_logs').insert({room_id:curRoom.id,date_str:dlvDateStr(),text:(me?me.name:'?')+'님이 '+carName+' 목록 캡처 ('+liveN+'건 · '+res+')',user_name:me?me.name:''}); }catch(e){}
   try{ logAudit(carName+' 목록 캡처', liveN+'건 · '+res); }catch(e){}
 }
@@ -5935,8 +5968,9 @@ function crsHistLoad(){ if(CRS.histLoading)return CRS.histLoading; if(CRS.hist&&
     CRS.histAt=Date.now(); CRS.histLoading=null; return CRS.hist; })(); return CRS.histLoading; }
 function crsSim(H,a,b){ if(a===b)return 1; var c=H.co[a<b?a+'|'+b:b+'|'+a]||0; return c?c/Math.sqrt((H.cnt[a]||1)*(H.cnt[b]||1)):0; }
 function crsPos(H,a){ var v=H.pos[a]; return (v&&v.length)?v.reduce(function(x,y){ return x+y; },0)/v.length:0.5; }
-function crsK(H,n){ var f=parseInt(CRS.k,10)||0; if(f)return Math.max(1,Math.min(3,f));   /* 사람이 차 대수를 고르면 그대로 */ var m={}, best=0, bk=0; H.ncar.forEach(function(x){ if(Math.abs(x[0]-n)<=5)m[x[1]]=(m[x[1]]||0)+1; }); Object.keys(m).forEach(function(k){ if(m[k]>best){ best=m[k]; bk=+k; } }); if(!bk)bk=(n>=14?2:1); return Math.max(1,Math.min(3,bk)); }   /* 카드 수가 비슷했던 날(±5)에 차를 몇 대로 나눴는지 가장 흔한 값 · 많아야 3 */
-function crsCards(){ var ds=dlvDateStr(); return (deliveriesCache||[]).filter(function(c){ return c.tab==='deliv'&&!c.done&&!c.cancelled&&c.date_str===ds&&(CRS.scope==='all'||dlvCarNorm(c.car)===1); }); }
+function crsK(H,n){ return Math.max(1,Math.min(crsK0(H,n),crsUseList().length)); }   /* CNF1126 켠 차 수를 넘지 않게 */
+function crsK0(H,n){ var f=parseInt(CRS.k,10)||0; if(f)return Math.max(1,Math.min(3,f));   /* 사람이 차 대수를 고르면 그대로 */ var m={}, best=0, bk=0; H.ncar.forEach(function(x){ if(Math.abs(x[0]-n)<=5)m[x[1]]=(m[x[1]]||0)+1; }); Object.keys(m).forEach(function(k){ if(m[k]>best){ best=m[k]; bk=+k; } }); if(!bk)bk=(n>=14?2:1); return Math.max(1,Math.min(3,bk)); }   /* 카드 수가 비슷했던 날(±5)에 차를 몇 대로 나눴는지 가장 흔한 값 · 많아야 3 */
+function crsCards(){ if(CRS.poolIds){ var _pi=CRS.poolIds; return crsCardsDay().filter(function(c){ return !c.done&&_pi[c.id]; }); }   /* CNI1126 지도 창의 추천: 지도에서 지금 '안 넣은' 카드 기준 */ var ds=dlvDateStr(); return (deliveriesCache||[]).filter(function(c){ return c.tab==='deliv'&&!c.done&&!c.cancelled&&c.date_str===ds&&(CRS.scope==='all'?(dlvCarNorm(c.car)===1||crsUseOn(dlvCarNorm(c.car))):dlvCarNorm(c.car)===1); }); }   /* CNF1126 전부 다시 짜기라도 끈 차의 카드는 안 건드림 */
 function crsItem(c,H){ var a=crsAddrOf(c,H), d=Math.max(0,dlvDaysOld(c)-1); return {c:c,id:c.id,addr:a.addr,how:a.how,node:crsNode(c,H),wait:d,old:d>=3}; }   /* old = 3일 넘게 지난 카드 → [최대한 많이]에서는 안 빼고, 그 밖에는 '더 미루지 말라'는 안내를 붙임 */
 function crsPlanHist(items,lvl,H){ var unk=items.filter(function(x){ return x.node==='주소 모름'; }), kn=items.filter(function(x){ return x.node!=='주소 모름'; }), G={}, out=[];   /* 목업(11/24 course_learn.py recommend)과 같은 방법 */
   kn.forEach(function(x){ (G[x.node]=G[x.node]||[]).push(x); }); var nodes=Object.keys(G), K=crsK(H,kn.length), cl=nodes.map(function(n){ return [n]; }), N=function(n){ return G[n].length; };
@@ -5997,7 +6031,7 @@ async function crsGeoFill(addrs){ var need=[]; addrs.forEach(function(a){ var k=
   return n; }
 function crsDepot(){ var d=crsGeoKey((CRS.cfg||{}).depot); return (d&&CRS.geo&&CRS.geo[d])||null; }
 async function crsMapPrep(){ if(CRS.geoBusy)return; var cfg=CRS.cfg||{}; if(!String(cfg.key||'').trim()||!String(cfg.depot||'').trim()||!CRS.hist||!CRS.geo)return; CRS.geoBusy=true; CRS.geoMsg='주소를 지도 좌표로 바꾸는 중…'; crsPaint();
-  try{ var H=CRS.hist, addrs=[cfg.depot].concat(crsCards().map(function(c){ return crsAddrOf(c,H).addr; }).filter(Boolean)); await crsGeoFill(addrs); CRS.geoMsg=''; }catch(e){ CRS.geoMsg='⚠ '+String(e&&e.message||e); }
+  try{ var H=CRS.hist, addrs=[cfg.depot].concat(crsCardsDay().map(function(c){ return crsAddrOf(c,H).addr; }).filter(Boolean)); await crsGeoFill(addrs); CRS.geoMsg=''; }catch(e){ CRS.geoMsg='⚠ '+String(e&&e.message||e); }
   CRS.geoBusy=false; crsPaint(); }
 async function crsCfgSave(){ if(!dlvIsBoss()){ alert('지도 열쇠는 대표만 넣을 수 있어요'); return; } var k=String((document.getElementById('crs-key')||{}).value||'').trim(), d=String((document.getElementById('crs-depot')||{}).value||'').trim(), old=CRS.cfg||{};
   var v={key:k||String(old.key||''),depot:d}; if(!v.key){ alert('카카오 「JavaScript 키」를 넣어 주세요'); return; } if(!v.depot){ alert('출발지(창고) 주소를 넣어 주세요'); return; }
@@ -6010,27 +6044,236 @@ function crsCompute(){ var H=CRS.hist; if(!H)return null; var items=crsCards().m
   try{ var dep2=crsDepot(); if(dep2){ Q.courses.forEach(function(co){ var A=[], B=[]; co.stops.forEach(function(x){ var g=x.addr?(CRS.geo||{})[crsGeoKey(x.addr)]:null; if(g){ x.xy=g; A.push(x); } else B.push(x); }); if(A.length){ var r=crsRoute(dep2,A); co.stops=r.path.concat(B); co.km=B.length?null:r.km; co.ordMap=true; co.noXY=B.length; } }); Q.ordMap=Q.courses.some(function(c){ return c.ordMap; }); } }catch(e){ console.error('코스 추천: 지도 순서',e); }   /* CMR1126 묶음은 과거 기록 · 순서는 지도 직선거리(좌표 없는 카드는 그 코스 맨 뒤) */
   return Q; }
 function crsCss(){ if(CRS.css)return; CRS.css=true; var st=document.createElement('style'); st.id='crs-css'; st.textContent='#crs-ov{position:fixed;left:0;top:0;right:0;bottom:0;z-index:100000;background:rgba(15,23,42,.55);display:flex;justify-content:center;align-items:stretch}#crs-box{background:#f8fafc;width:min(780px,100vw);display:flex;flex-direction:column;overflow:hidden;font-size:14px;color:#0f172a}#crs-hd{flex:none;background:#312e81;color:#fff;padding:10px 12px}#crs-hd .t{display:flex;align-items:center;gap:8px;font-size:16px;font-weight:900}#crs-hd .t span{flex:1}#crs-hd button.x{border:0;background:#4338ca;color:#fff;border-radius:8px;padding:6px 12px;font-weight:900;font-size:14px;cursor:pointer}.crs-tabs{display:flex;gap:6px;margin-top:8px}.crs-tabs button{flex:1;border:0;border-radius:8px;padding:8px 4px;font-weight:900;font-size:14px;background:#4338ca;color:#c7d2fe;cursor:pointer}.crs-tabs button.on{background:#fff;color:#312e81}.crs-chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;align-items:center}.crs-chips button{border:1px solid #6366f1;border-radius:999px;padding:4px 11px;font-weight:800;font-size:12.5px;background:transparent;color:#e0e7ff;cursor:pointer}.crs-chips button.on{background:#fde047;color:#422006;border-color:#fde047}.crs-chips i{font-style:normal;font-size:12px;color:#a5b4fc;margin-left:4px}#crs-body{flex:1;overflow:auto;padding:10px 12px 20px;min-height:0}.crs-note{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:9px 11px;margin:0 0 10px;font-size:13px;line-height:1.55;color:#334155}.crs-note.bad{background:#fef2f2;border-color:#fca5a5;color:#991b1b;font-weight:800}.crs-note.ok{background:#f0fdf4;border-color:#86efac;color:#166534;font-weight:800}.crs-note.warn{background:#fffbeb;border-color:#fcd34d;color:#92400e}.crs-c{background:#fff;border:1px solid #c7d2fe;border-radius:12px;margin:0 0 12px;overflow:hidden}.crs-ch{display:flex;align-items:center;gap:8px;padding:9px 11px;background:#eef2ff;font-weight:900;font-size:15px;color:#312e81}.crs-ch small{font-weight:800;color:#6366f1;font-size:12.5px}.crs-ch.out{background:#fff7ed;color:#9a3412}.crs-ch.unk{background:#f1f5f9;color:#475569}.crs-s{display:flex;gap:9px;padding:8px 11px;border-top:1px solid #eef2f7;align-items:flex-start}.crs-s .n{flex:none;width:26px;height:26px;border-radius:50%;background:#4f46e5;color:#fff;font-size:13px;font-weight:900;display:flex;align-items:center;justify-content:center}.crs-s .n.g{background:#94a3b8}.crs-s .m{flex:1;min-width:0}.crs-s .t{font-weight:900;font-size:14.5px}.crs-s .old{display:inline-block;background:#fee2e2;color:#b91c1c;border-radius:5px;padding:0 6px;font-size:12px;font-weight:900;margin-left:4px}.crs-s .a{font-size:12.5px;color:#475569;line-height:1.4;word-break:keep-all}.crs-s .a i{color:#7c3aed;font-style:normal}.crs-s .k{font-size:12.5px;color:#64748b}.crs-s .w{font-size:12.5px;color:#9a3412;font-weight:800;margin-top:2px}.crs-s .b{display:flex;gap:5px;flex-wrap:wrap;margin-top:5px}.crs-s .b button{border:1px solid #cbd5e1;background:#fff;border-radius:7px;padding:4px 9px;font-size:12.5px;font-weight:800;cursor:pointer;color:#334155}#crs-ft{flex:none;display:flex;gap:8px;padding:10px 12px;background:#fff;border-top:1px solid #e2e8f0;align-items:center;flex-wrap:wrap}#crs-ft button{border:0;border-radius:9px;padding:10px 14px;font-weight:900;font-size:14px;cursor:pointer}#crs-ft .go{background:#4f46e5;color:#fff;flex:1}#crs-ft .go:disabled{background:#cbd5e1;cursor:default}#crs-ft .un{background:#fef3c7;color:#92400e}#crs-ft .cl{background:#e2e8f0;color:#334155}.crs-f{display:grid;gap:6px;margin-top:8px}.crs-f input{border:1px solid #cbd5e1;border-radius:8px;padding:8px 10px;font-size:14px;width:100%;box-sizing:border-box}.crs-f button{border:0;border-radius:8px;padding:8px 12px;font-weight:900;background:#4f46e5;color:#fff;cursor:pointer;justify-self:start}'; document.head.appendChild(st); }
-function crsOpen(){ crsCss(); CRS.force={}; CRS.msg=''; CRS.rev=null; CRS.cfgOpen=false; if(CRS.histErr)CRS.histAt=0; var ov=document.getElementById('crs-ov'); if(!ov){ ov=document.createElement('div'); ov.id='crs-ov'; ov.innerHTML='<div id="crs-box"></div>'; document.body.appendChild(ov); }
-  ov.style.display='flex'; crsPaint(); var fin=function(){ crsPaint(); crsMapPrep(); }; Promise.all([crsHistLoad(),crsCfgLoad(),crsGeoLoad(),crsUndoLoad(),crsAddrFixLoad()]).then(fin,fin); }
+function crsOpen(){ crsCss(); CRS.force={}; CRS.msg=''; CRS.rev=null; try{ crsUseDefault(); }catch(eu){} CRS.cfgOpen=false; if(CRS.histErr)CRS.histAt=0; var ov=document.getElementById('crs-ov'); if(!ov){ ov=document.createElement('div'); ov.id='crs-ov'; ov.innerHTML='<div id="crs-box"></div>'; document.body.appendChild(ov); }
+  ov.style.display='flex'; crsPaint(); var fin=function(){ crsTabDefault(); crsPaint(); crsMapPrep(); }; Promise.all([crsHistLoad(),crsCfgLoad(),crsGeoLoad(),crsUndoLoad(),crsAddrFixLoad()]).then(fin,fin); }
 /* ▼CMV1126 (11/26 호준님 "지도로 동선을 한눈에 · 포인트에 마우스 올리면 도착지 내용 · 과거 기록 기준으로도") + CME1126 ("지도를 보고 순서를 정해 코스로 적용 · 처음부터 직접/추천 고치기 둘 다 · 마우스를 올린 채로 선택") */
 var CRS_MAPCOL={3:'#2563eb',2:'#dc2626',4:'#16a34a'};   /* 1호차 파랑 · 2호차 빨강 · 0호차 초록 */
 var CRS_ED=null;
 function crsMapCol(car){ return CRS_MAPCOL[car]||'#7c3aed'; }
 function crsMapClose(keep){ var ov=document.getElementById('crs-mapov'); if(ov)ov.style.display='none'; if(!keep&&CRS_ED&&CRS_ED.fromTab){ CRS_ED.fromTab=false; try{ crsClose(); }catch(e){} } }   /* CNC1126 호차 탭에서 연 지도는 닫으면 그 탭으로 */
-async function crsMapNow(car){ if(CRS.mapBusy)return;   /* CNC1126 호차 탭 [🗺 지도로 보기] — 오늘 지금 배차 그대로 */
-  CRS.scope='all'; CRS.manual=null; CRS.rev=null; crsOpen();   /* 밑에 코스짜기 창을 깔아 둠 — 적용 결과·[되돌리기]는 거기서 */
+async function crsMapNow(car,plan){ if(CRS.mapBusy||(Date.now()-(CRS.nowAt||0))<1500)return; CRS.nowAt=Date.now();   /* CNC1126 호차 탭 [🗺 지도로 보기] — 오늘 지금 배차 그대로 */
+  CRS.scope='all'; CRS.use=null; CRS.manual=null; CRS.rev=null; CRS.nowStale=false; try{ await loadDeliveries(); }catch(el){ CRS.nowStale=true; console.error('지도로 보기: 직배송 다시 읽기',el); } crsOpen();   /* CNF1126 완료·차 위치가 지금 것이게 */   /* 밑에 코스짜기 창을 깔아 둠 — 적용 결과·[되돌리기]는 거기서 */
   var t0=Date.now(); while((!CRS.hist||!CRS.cfg||!CRS.geo)&&Date.now()-t0<15000){ await new Promise(function(z){ setTimeout(z,150); }); }
   if(!CRS.hist){ crsClose(); alert('직배송 기록을 읽지 못했어요 — 잠시 뒤 다시 눌러 주세요'); return; }
+  crsTabDefault(); if(plan){ var _cf=CRS.cfg||{}; if(!String(_cf.key||'').trim()||!String(_cf.depot||'').trim()){ crsPaint(); return; } }   /* CNG1126 지도 열쇠가 없으면 예전 창 그대로 */
   var items=crsEdItems(), courses=[], used={};
   CRS_CARS.forEach(function(k){ var L=items.filter(function(x){ return dlvCarNorm(x.c.car)===k; }).sort(function(p,q){ return ((p.c.wave_no||0)-(q.c.wave_no||0))||((p.c.sort_order||0)-(q.c.sort_order||0)); }); if(L.length){ courses.push({car:k,stops:L,km:crsEdKm(L)}); L.forEach(function(x){ used[x.id]=1; }); } });
   await crsMapOpen({rec:{how:'now',courses:courses,out:[],unk:items.filter(function(x){ return !used[x.id]; }),n:items.length},active:car,fromTab:true,now:true});
+  if(CRS_ED&&CRS_ED.now&&CRS_ED.fromTab){ crsEdNowState(); crsEdHead(); crsEdDraw(); }   /* CNG1126 */
   var ov=document.getElementById('crs-mapov'); if(!CRS_ED||!CRS_ED.fromTab||!ov||ov.style.display==='none'){ try{ crsClose(); }catch(e){} } }   /* 지도가 안 열렸으면(열쇠 없음 등) 밑에 깐 창도 닫음 */
 function crsEdItems(){ var H=CRS.hist; return crsCards().map(function(c){ var x=crsItem(c,H); x.xy=x.addr?((CRS.geo||{})[crsGeoKey(x.addr)]||null):null; return x; }); }
+/* ▼CNF1126 (11/26 호준님 "지금 목업 준 것도 괜찮은데 · 코스 짜는 건 컴퓨터로 · 핸드폰으로는 명단 보고 코스를 지도로 보고 · 완료를 눌렀을 때 지도에도 표시 · 각 호차별로 마지막에 누른 완료를 토대로 위치") 쓸 차 고르기 · 넣기·빼기/순서 바꾸기 전환 · 완료한 곳과 차 위치 · 좁은 화면은 보기 전용 · 한 단계 되돌리기 */
+var CRS_EDH={now:false,view:false};
+function crsUseOn(k){ return !(CRS.use&&CRS.use[k]===false); }
+function crsUseList(){ var L=CRS_CARS.filter(function(k){ return crsUseOn(k); }); return L.length?L:CRS_CARS.slice(); }
+function crsCardsDay(){ var ds=dlvDateStr(); return (deliveriesCache||[]).filter(function(c){ return c.tab==='deliv'&&!c.cancelled&&c.date_str===ds; }); }
+function crsCarLeft(k){ return crsCardsDay().filter(function(c){ return !c.done&&dlvCarNorm(c.car)===k; }).length; }
+function crsUseDefault(){ var u={}; CRS_CARS.forEach(function(k){ u[k]=true; });   /* 대기 카드만: 이미 카드가 있는 차는 꺼 둠(빈 차가 없거나 전부 비었으면 다 켬) */
+  if(CRS.scope==='wait'){ var free=CRS_CARS.filter(function(k){ return !crsCarLeft(k); }); if(free.length&&free.length<CRS_CARS.length)CRS_CARS.forEach(function(k){ u[k]=free.indexOf(k)>=0; }); }
+  CRS.use=u; }
+function crsEdShown(){ var ov=document.getElementById('crs-mapov'); return !!(ov&&ov.style.display!=='none'&&CRS_ED&&CRS_ED.map); }
+function crsUse(k){ if(CRS.busy)return; k=+k; var u={}; CRS_CARS.forEach(function(c){ u[c]=crsUseOn(c); }); u[k]=!u[k];
+  if(!CRS_CARS.some(function(c){ return u[c]; })){ alert('쓸 차를 하나는 남겨 두어야 해요'); return; }
+  CRS.use=u; CRS.msg=''; CRS.manual=null; CRS.rev=null; if(crsEdShown())crsEdRe(); else crsPaint(); }
+function crsUseChips(dark){ var h='<span style="font-size:12px;font-weight:800;color:'+(dark?'#c7d2fe':'#475569')+'">쓸 차</span>';
+  CRS_CARS.forEach(function(k){ var on=crsUseOn(k), n=crsCarLeft(k), col=crsMapCol(k);
+    h+='<button onclick="crsUse('+k+')" title="'+(on?'켜짐 — 이 차에 나눠요 (누르면 끔)':'꺼짐 — 이 차의 카드는 손대지 않아요 (누르면 켬)')+'" style="border:2px solid '+col+';background:'+(on?col:(dark?'transparent':'#fff'))+';color:'+(on?'#fff':(dark?'#c7d2fe':'#64748b'))+';border-radius:999px;padding:2px 10px;font-weight:900;font-size:12.5px;cursor:pointer">'+(on?'☑ ':'☐ ')+esc(dlvCarName(k))+(n?' <span style="font-weight:700;font-size:11px">· 지금 '+n+'곳</span>':'')+'</button>'; });
+  return h; }
+function crsUseNote(){ if(CRS.manual)return ''; var e=esc, nm=function(k){ return e(dlvCarName(k)); }, off=CRS_CARS.filter(function(k){ return !crsUseOn(k); }), U=crsUseList(), t='';
+  if(CRS.scope==='wait')t='<b>대기 카드만</b> 짜서 켠 차('+U.map(nm).join('·')+')의 <b>지금 코스 뒤에</b> 붙여요 — 이미 차에 들어 있는 카드는 순서도 그대로예요.';
+  else if(off.length)t='<b>'+U.map(nm).join('·')+'</b>의 카드와 대기 카드만 다시 짜요.';
+  if(off.length)t+=' 끈 차: '+off.map(function(k){ var n=crsCarLeft(k); return nm(k)+(n?'(지금 '+n+'곳 그대로)':'(비어 있음)'); }).join(' · ')+'.';
+  if((parseInt(CRS.k,10)||0)>U.length)t+=' 차 대수는 켠 차 수('+U.length+'대)까지만 나눠요.';
+  if(CRS._moved&&CRS._moved.length)t+=(t?' ':'')+'이미 움직이는 차('+CRS._moved.map(nm).join('·')+')는 <b>마지막 완료 지점(또는 지금 코스의 끝)에서 이어서</b> 순서를 짰어요.';
+  return t?'<div class="crs-note warn">🚚 '+t+'</div>':''; }
+function crsHM(iso){ var d=new Date(iso); if(!iso||isNaN(d.getTime()))return ''; var h=d.getHours(), m=d.getMinutes(); return (h<10?'0':'')+h+':'+(m<10?'0':'')+m; }
+function crsEdXY(c){ if(!CRS.hist)return null; var a=crsAddrOf(c,CRS.hist).addr; return a?((CRS.geo||{})[crsGeoKey(a)]||null):null; }
+function crsCtxBuild(inPool){ var ctx={}; CRS_CARS.forEach(function(k){ ctx[k]={done:[],fix:[],truck:null,late:0,start:null}; });   /* 차마다: 오늘 완료한 곳 · 이번에 손대지 않는 남은 카드 · 마지막 완료 위치 · 새 코스가 이어질 자리 */
+  crsCardsDay().forEach(function(c){ var t=ctx[dlvCarNorm(c.car)]; if(!t)return;
+    if(c.done)t.done.push({c:c,id:c.id,xy:crsEdXY(c),at:String(c.done_at||''),ms:(+new Date(c.done_at))||0}); else if(!inPool[c.id])t.fix.push({c:c,id:c.id,xy:crsEdXY(c)}); });
+  CRS_CARS.forEach(function(k){ var t=ctx[k]; t.done.sort(function(a,b){ return a.ms-b.ms; }); t.fix.sort(function(p,q){ return ((p.c.wave_no||0)-(q.c.wave_no||0))||((p.c.sort_order||0)-(q.c.sort_order||0)); });
+    for(var i=t.done.length-1;i>=0;i--){ if(t.done[i].xy&&t.done[i].ms){ t.truck=t.done[i]; t.late=t.done.length-1-i; break; } }
+    var st=null; for(var j=t.fix.length-1;j>=0;j--){ if(t.fix[j].xy){ st=t.fix[j].xy; break; } } t.start=st||(t.truck?t.truck.xy:null); });
+  return ctx; }
+function crsUseRemap(P){ CRS._moved=[]; if(CRS.noRemap)return; if(!P||!P.courses||!P.courses.length||P.how==='manual')return;   /* 추천 코스를 켠 차에만 붙이고, 이미 움직이는 차는 그 자리에서 이어서 순서를 다시 잡음 */
+  var U=crsUseList(), pool={}; crsCards().forEach(function(c){ pool[c.id]=1; }); var ctx=crsCtxBuild(pool), dep=crsDepot(), moved=U.filter(function(k){ return !!ctx[k].start; });
+  if(U.length===CRS_CARS.length&&!moved.length)return;   /* 끈 차 없음 + 아직 아무 차도 안 움직임 = 예전 그대로 */
+  if(P.how==='map'){ var free=U.slice(); P.courses.forEach(function(co){ if(!free.length){ co.car=U[U.length-1]; return; } var best=0, bd=1e18;
+      free.forEach(function(k,i){ var st=ctx[k].start||dep, d=1e17; if(st)co.stops.forEach(function(x){ if(x.xy){ var q=crsKm(st,x.xy); if(q<d)d=q; } }); if(d<bd-1e-9){ bd=d; best=i; } }); co.car=free.splice(best,1)[0]; }); }
+  else { var taken={}; P.courses.forEach(function(co){ co._k=(U.indexOf(co.car)>=0&&!taken[co.car]); if(co._k)taken[co.car]=1; });
+    P.courses.forEach(function(co){ if(!co._k){ var f=U.filter(function(c){ return !taken[c]; })[0]; if(f==null)f=U[U.length-1]; taken[f]=1; co.car=f; } delete co._k; }); }
+  var mv={}; P.courses.forEach(function(co){ var st=ctx[co.car]&&ctx[co.car].start; if(!st)return; var A=co.stops.filter(function(x){ return !!x.xy; }), B=co.stops.filter(function(x){ return !x.xy; }); if(!A.length)return; var r=crsRoute(st,A); co.stops=r.path.concat(B); co.km=B.length?null:r.km; mv[co.car]=1; });
+  CRS._moved=CRS_CARS.filter(function(k){ return mv[k]; });
+  P.courses.sort(function(a,b){ return CRS_CARS.indexOf(a.car)-CRS_CARS.indexOf(b.car); }); }
+function crsEdCtx(){ var E=CRS_ED; if(!E)return; var inEd={}; E.items.forEach(function(x){ inEd[x.id]=1; }); E.ctx=crsCtxBuild(inEd); }
+function crsEdStart(k){ var E=CRS_ED, t=E&&E.ctx&&E.ctx[k]; return (t&&t.start)||crsDepot(); }
+function crsEdOff(k){ var E=CRS_ED, t=E&&E.ctx&&E.ctx[k]; return t?t.fix.length:0; }
+function crsEdRe(){ var E=CRS_ED; if(!E)return; try{ crsPaint(); }catch(e){ console.error('코스짜기: 다시 짜기',e); }
+  var P=CRS.plan||{courses:[]}; E.items=crsEdItems(); E.rec=P; E.cars=crsEdCarsOf(P); E.ins='auto'; E.hold=null; E.note=''; E.undo=[]; E.last=null; E.scope=CRS.scope; E.nowAll=false; E.applied=''; crsEdCtx(); if(!crsUseOn(E.active))E.active=crsUseList()[0]; crsEdDraw(); crsEdFit(); crsEdTop(); }
+function crsEdTipTap(el){ var cv=document.getElementById('crs-mapcv'); if(!cv)return; var L=cv.querySelectorAll('.crs-tip'); for(var i=0;i<L.length;i++)L[i].style.display='none'; if(el){ var t=el.querySelector('.crs-tip'); if(t)t.style.display='block'; } }
+function crsEdCtxMk(xy,dotHtml,tipHtml,z,up,ya,fid){ var E=CRS_ED, el=document.createElement('div'); el.className='crs-mk'; el.style.cssText='position:relative;cursor:default';
+  el.innerHTML=dotHtml+'<div class="crs-tip" style="display:none;position:absolute;left:50%;bottom:'+(up||26)+'px;transform:translateX(-50%);background:#fff;color:#0f172a;border:2px solid #64748b;border-radius:10px;padding:7px 10px;font-size:12.5px;line-height:1.5;width:max-content;max-width:270px;box-shadow:0 6px 18px rgba(0,0,0,.3);text-align:left;white-space:normal;pointer-events:none;font-weight:500">'+tipHtml+'</div>';
+  var ovl=new kakao.maps.CustomOverlay({map:E.map,position:new kakao.maps.LatLng(xy[1],xy[0]),content:el,yAnchor:(ya||0.5),xAnchor:0.5,zIndex:z,clickable:true}), tip=el.querySelector('.crs-tip');
+  el.addEventListener('mouseenter',function(){ tip.style.display='block'; try{ ovl.setZIndex(998); }catch(x){} }); el.addEventListener('mouseleave',function(){ tip.style.display='none'; try{ ovl.setZIndex(z); }catch(x){} });
+  el.addEventListener('mousedown',function(){ E.lastMk=Date.now(); }); el.addEventListener('touchstart',function(){ E.lastMk=Date.now(); },{passive:true});
+  el.addEventListener('click',function(ev){ ev.stopPropagation(); E.lastMk=Date.now(); if(fid&&E.mode==='parcel'&&!E.view){ crsEdParcelAsk([fid]); return; } crsEdTipTap(el); try{ ovl.setZIndex(998); }catch(x){} });
+  if(fid){ E.fx=E.fx||{}; E.fx[fid]={el:el,ovl:ovl}; } E.objs.push(ovl); return ovl; }
+function crsEdDrawCtx(){ var E=CRS_ED; if(!E||!E.ctx)return; var e=esc, dep=crsDepot(), LL=function(xy){ return new kakao.maps.LatLng(xy[1],xy[0]); }, nameOf=function(c){ return String(c.trade_client||c.shop_name||c.recv||'').trim()||'(이름 없음)'; }, tireOf=function(c){ return e((String(c.tire||'')+' '+String(c.spec||'')).trim())+(c.qty?' · '+e(String(c.qty)):''); };
+  CRS_CARS.forEach(function(k){ var t=E.ctx[k], col=crsMapCol(k), nm=e(dlvCarName(k));
+    if(E.showDone!==false){ var dp=[LL(dep)]; t.done.forEach(function(d){ if(!d.xy)return; dp.push(LL(d.xy));
+        crsEdCtxMk(d.xy,'<div style="width:20px;height:20px;box-sizing:border-box;border-radius:50%;background:#fff;color:'+col+';border:2px solid '+col+';opacity:.85;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900">✓</div>','<b style="color:'+col+'">'+nm+' ✓ 완료'+(d.at?' '+crsHM(d.at):'')+'</b> <b>'+e(nameOf(d.c))+'</b><br>'+tireOf(d.c)+(d.c.done_by?'<div style="color:#64748b">완료 누른 사람: '+e(String(d.c.done_by))+'</div>':''),0,24); });
+      if(dp.length>1)E.objs.push(new kakao.maps.Polyline({map:E.map,path:dp,strokeWeight:2,strokeColor:col,strokeOpacity:0.4,strokeStyle:'shortdash'})); }
+    var fp=[LL((t.truck&&t.truck.xy)||dep)]; t.fix.forEach(function(f,i){ if(!f.xy)return; fp.push(LL(f.xy));
+      crsEdCtxMk(f.xy,'<div style="min-width:22px;height:22px;padding:0 4px;box-sizing:border-box;border-radius:11px;background:#fff;color:'+col+';border:2px solid '+col+';display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900">'+(i+1)+'</div>','<b style="color:'+col+'">'+nm+' '+(i+1)+'번째 (지금 그대로)</b> <b>'+e(nameOf(f.c))+'</b><br>'+tireOf(f.c)+'<div style="color:#64748b">'+(crsEdUseOn(k)?'이미 이 차에 들어 있는 카드 — 새 카드는 그 뒤에 붙어요':'이번에 안 쓰는 차 — 손대지 않아요')+'</div>',1,28,0,f.id); });
+    if(fp.length>1)E.objs.push(new kakao.maps.Polyline({map:E.map,path:fp,strokeWeight:3,strokeColor:col,strokeOpacity:0.45,strokeStyle:'solid'}));
+    if(t.truck){ var left=t.fix.length+((E.cars[k]||[]).length);
+      crsEdCtxMk(t.truck.xy,'<div style="background:#0f172a;color:#fff;border:3px solid '+col+';border-radius:14px;padding:3px 9px;font-size:13px;font-weight:900;white-space:nowrap;box-shadow:0 3px 10px rgba(0,0,0,.5)">🚚 '+nm+' '+crsHM(t.truck.at)+'</div>','<b style="color:'+col+'">🚚 '+nm+'</b> — 마지막 완료 <b>'+crsHM(t.truck.at)+'</b><br><b>'+e(nameOf(t.truck.c))+'</b>'+(t.truck.c.done_by?' <span style="color:#64748b">('+e(String(t.truck.c.done_by))+')</span>':'')+'<br>오늘 완료 '+t.done.length+'곳 · 남은 '+left+'곳'+(t.late?'<div style="color:#b45309">그 뒤에 완료한 '+t.late+'곳은 주소가 없어 지도에 못 찍었어요</div>':'')+'<div style="color:#64748b;margin-top:3px">위성 위치가 아니라 <b>마지막으로 완료를 누른 곳</b>이에요</div>',6,36,1.75); } }); }
+function crsEdMode(m){ var E=CRS_ED; if(!E)return; E.mode=(m==='order'||m==='parcel'||m==='hold')?m:'inout'; E.hold=null; E.note=''; crsEdDraw(); }
+function crsEdSnap(){ var E=CRS_ED; if(!E)return; var s=JSON.stringify(E.cars); if(E.last&&E.last!==s){ E.applied=''; crsEdEtaKick(); E.undo=E.undo||[]; E.undo.push(E.last); if(E.undo.length>40)E.undo.shift(); } E.last=s; }
+function crsEdUndo(){ var E=CRS_ED; if(!E)return; if(!E.undo||!E.undo.length){ E.note='되돌릴 것이 없어요 (지도에서 고친 것만 한 단계씩 되돌립니다)'; crsEdDraw(); return; } var s=E.undo.pop(); E.cars=JSON.parse(s); E.last=s; E.hold=null; E.note=''; E.applied=''; crsEdEtaKick(); crsEdDraw(); }
+function crsEdView(on){ var E=CRS_ED; CRS_EDH.view=!!on; if(E){ E.view=!!on; E.hold=null; E.note=''; if(!on)E.showUn=true; } crsEdHead(); if(E)crsEdDraw(); }
+function crsEdUnN(){ var E=CRS_ED; return (E&&E.items)?E.items.filter(function(x){ return x.xy&&!crsEdCarOf(x.id); }).length:0; }
+function crsEdUnTog(){ var E=CRS_ED; if(!E)return; E.showUn=(E.showUn===false); crsEdHead(); crsEdDraw(); }   /* 노란 ＋(아직 차에 안 넣은 곳) 숨기기·보이기 */
+function crsEdFocus(id){ var E=CRS_ED; if(!E)return; var x=E.items.filter(function(t){ return t.id===id; })[0], m=E.mk&&E.mk[id]; if(!x||!x.xy||!m)return; try{ E.map.panTo(new kakao.maps.LatLng(x.xy[1],x.xy[0])); }catch(e){} crsEdTipTap(m.el); try{ m.ovl.setZIndex(999); }catch(e){} }
+function crsEdDoneTog(){ var E=CRS_ED; if(!E)return; E.showDone=(E.showDone===false); crsEdDraw(); }
+function crsEdReload(){ var E=CRS_ED; if(!E)return; if(!E.view&&E.undo&&E.undo.length&&!confirm('지도에서 고친 순서가 사라져요. 지금 배차를 새로 읽을까요?'))return; crsMapNow(E.active); }
+function crsEdHead(){ var hd=document.getElementById('crs-maphd'); if(!hd)return; var V=CRS_EDH||{}, bt=function(fn,txt,bg,tt){ return '<button onclick="'+fn+'" title="'+(tt||'')+'" style="border:0;background:'+bg+';color:#fff;border-radius:8px;padding:5px 10px;font-weight:900;font-size:12.5px;cursor:pointer;white-space:nowrap">'+txt+'</button>'; };   /* CNH1126 · CNI1126 위쪽 3줄: 제목·단추 / 점을 누르면+안내 / 추천 */
+  if(!document.getElementById('crs-edcss')){ var st=document.createElement('style'); st.id='crs-edcss'; st.textContent='#crs-edpn .crs-act{display:none;gap:3px;flex:none;align-items:center}#crs-edpn [data-row]:hover .crs-act{display:flex}#crs-edpn [data-row]:hover .crs-eta{display:none}@media(hover:none){#crs-edpn .crs-act{display:flex;flex-wrap:wrap;justify-content:flex-end;max-width:150px}}#crs-edmore{position:relative;display:inline-block}#crs-edmore .dd{display:none;position:absolute;right:0;top:31px;background:#fff;border:1px solid #cbd5e1;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.3);z-index:60;min-width:250px;overflow:hidden}#crs-edmore.open .dd{display:block}#crs-edmore .dd button{display:block;width:100%;text-align:left;border:0;background:#fff;padding:9px 12px;font-size:13px;font-weight:700;cursor:pointer;color:#0f172a}#crs-edmore .dd button:hover{background:#f1f5f9}'; document.head.appendChild(st); }
+  var cp=document.getElementById('crs-edchips'); if(cp)cp.style.display=V.view?'none':'flex';
+  var mr=document.getElementById('crs-edmode'); if(!mr){ mr=document.createElement('div'); mr.id='crs-edmode'; mr.style.cssText='flex:none;background:#3730a3;padding:5px 12px;display:flex;gap:8px;align-items:center;border-bottom:1px solid #4338ca'; mr.innerHTML='<span id="crs-edins" style="display:inline-flex;align-items:center;gap:5px;flex:none"></span><span id="crs-edhint" style="flex:1;min-width:0;font-size:12px;color:#e0e7ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></span>'; hd.parentNode.insertBefore(mr,hd.nextSibling); }
+  mr.style.display=V.view?'none':'flex'; hd.style.padding='6px 12px';
+  var more='<span id="crs-edmore"><button onclick="crsEdMore()" style="border:0;background:#475569;color:#fff;border-radius:8px;padding:5px 10px;font-weight:900;font-size:12.5px;cursor:pointer;white-space:nowrap">⋯ 더보기</button><span class="dd"><button onclick="crsEdClearAll()">모든 차에서 전부 빼기 <span style="font-weight:500;color:#64748b">(전부 「안 넣은 카드」로)</span></button><button onclick="crsEdOldGo()">예전 목록 창으로 보기</button>'+(dlvIsBoss()?'<button onclick="crsEdCfgGo()">지도 열쇠·출발지 바꾸기 <span style="font-weight:500;color:#64748b">(대표)</span></button><button onclick="crsRouteCfg()">🕐 도착 예상 시간 연결 <span style="font-weight:500;color:#64748b">(대표)</span></button>':'')+'</span></span>';
+  hd.innerHTML='<b style="font-size:15.5px;white-space:nowrap">🗺 코스짜기 · '+esc(rtrMD(dlvDateStr()))+'</b><span id="crs-edsum" style="font-size:12.5px;color:#c7d2fe"></span>'
+    +(V.view?('<span style="flex:1"></span>'+(V.now?bt('crsEdReload()','🔄 새로 읽기','#0f766e'):'')+((CRS_ED&&crsEdUnN())?bt('crsEdUnTog()',(CRS_ED.showUn===false?'＋ 안 넣은 곳 '+crsEdUnN()+' 보기':'＋ 안 넣은 곳 숨기기'),'#a16207'):'')+bt('crsEdView(false)','고치기','#4338ca')+bt('crsMapClose()','닫기','#475569'))
+            :('<span style="flex:1"></span>'+((CRS.undoInfo&&CRS.undoInfo.rows&&CRS.undoInfo.rows.length)?bt('crsEdApplyUndo()','⏪ 적용 전으로','#b91c1c','방금(오늘) 적용한 것을 적용 전 배차로 되돌려요'):'')+bt('crsEdUndo()','↩ 한 단계 되돌리기','#4338ca','지도에서 방금 고친 것을 하나씩 되돌려요')+bt('crsEdReload()','🔄 처음 상태로','#4338ca','지도에서 고친 것을 버리고, 지금 실제 배차를 다시 읽어요')+bt('crsEdApply()','✔ 이대로 적용','#b45309','지도에 보이는 그대로 호차와 순서를 저장해요')+more+bt('crsMapClose()','닫기','#475569')));
+  crsEdFloat(); }
+function crsEdHint(){ var E=CRS_ED; if(!E)return ''; var a=dlvCarName(E.active), tk=CRS_CARS.some(function(k){ return E.ctx&&E.ctx[k]&&E.ctx[k].truck; }), nx=E.items.filter(function(x){ return !x.xy; }).length;
+  var tail=((nx&&!E.view)?' · 주소가 없어 지도에 없는 카드 '+nx+'장은 오른쪽 명단의 [📍 주소 넣기]':'')+(E.stale?' · ⚠ 최신 배차를 다시 읽지 못해 조금 전 화면 기준이에요':'');
+  if(E.view)return '보기 전용 — 점이나 명단 줄을 누르면 내용이 떠요 · ✓ = 완료한 곳'+(E.showUn===false?'':' · 노란 ＋ = 아직 차에 안 넣은 곳')+(tk?' · 🚚 = 마지막으로 완료를 누른 곳(위성 위치 아님)':'')+' · 선은 직선(실제 도로 아님)'+tail;
+  if(E.mode==='hold')return '점을 누르면(번호든 노란 ＋든) 그 카드를 미출고 탭으로 보내요 — 한 번 물어본 뒤 바로 옮깁니다'+tail;
+  if(E.mode==='parcel')return '점을 누르면(번호든 노란 ＋든) 그 카드를 택배전환 탭으로 보내요 — 한 번 물어본 뒤 바로 옮깁니다'+tail;
+  if(E.mode==='order')return '번호 점을 누르면 잡혀요 → 넣을 자리 바로 앞의 점을 누르면 그 뒤로 옮겨요 (맨 앞은 「출발」)'+tail;
+  return '노란 ＋ → '+a+'에 추가 ('+(E.ins==='auto'?'최적: 가장 덜 도는 자리':'강제: 맨 뒤')+') · '+a+'의 번호 → 빼기 · 다른 차의 번호 → '+a+'(으)로 옮김 · 넣을 차는 오른쪽 명단에서 고름'+tail; }
+/* ▲CNF1126 */
+/* ▼CNG1126 (11/26 호준님 "지도 화면으로 보는 게 제일 중요 · 코스짜기 누른 순간 바로 동선 지도 · 지도 위 점을 눌러 바로 택배전환 · 배정 안 된 것 잘 보이게 · 미리 짜 둔 코스 반영 · 차 2대 누르면 2대분") */
+function crsTabDefault(){ if(CRS.tabPicked)return; var c=CRS.cfg||{}; if(String(c.key||'').trim()&&String(c.depot||'').trim())CRS.tab='map'; }   /* 지도 열쇠가 있으면 기본은 지도 거리 기준 — 과거 기록 기준은 차 대수가 거의 안 먹음(11/26 정본 자료: 2대·3대 눌러도 코스 1개) */
+function crsUseFit(){ var f=parseInt(CRS.k,10)||0; if(!f)return; var on=CRS_CARS.filter(function(c){ return crsUseOn(c); }); if(on.length>=f)return; var u={}; CRS_CARS.forEach(function(c){ u[c]=crsUseOn(c); });   /* 차 대수를 직접 고르면 그만큼 차를 켬 — 빈 차부터, 그다음 카드가 적은 차 */
+  CRS_CARS.filter(function(c){ return !u[c]; }).sort(function(x,y){ return crsCarLeft(x)-crsCarLeft(y); }).slice(0,f-on.length).forEach(function(c){ u[c]=true; }); CRS.use=u; }
+function crsStart(){ return crsMapNow(0,true); }   /* [🧭 코스짜기] = 바로 동선 지도(지금 배차 + 아직 차에 안 넣은 카드) */
+function crsEdUseOn(k){ var E=CRS_ED; return (E&&E.nowAll)?true:crsUseOn(k); }
+function crsNowRec(items){ var courses=[], used={}; CRS_CARS.forEach(function(k){ var L=items.filter(function(x){ return dlvCarNorm(x.c.car)===k; }).sort(function(p,q){ return ((p.c.wave_no||0)-(q.c.wave_no||0))||((p.c.sort_order||0)-(q.c.sort_order||0)); }); if(L.length){ courses.push({car:k,stops:L,km:crsEdKm(L)}); L.forEach(function(x){ used[x.id]=1; }); } }); return {how:'now',courses:courses,out:[],unk:items.filter(function(x){ return !used[x.id]; }),n:items.length}; }
+function crsEdNowState(){ var E=CRS_ED; if(!E)return; E.scope='all'; E.nowAll=true; CRS.scope='all'; CRS.use=null;   /* CNI1126 지도에는 오늘 카드 전부 — 추천 설정은 지도 창 안에서 따로(E.rec…) */
+  if(!E.recScope)E.recScope='rest'; if(!E.recUse){ E.recUse={}; CRS_CARS.forEach(function(k){ E.recUse[k]=true; }); } E.sent=E.sent||[]; E.farEx=E.farEx||{}; }
+function crsEdNowFill(){ var E=CRS_ED; if(!E)return; CRS.scope='all'; CRS.use=null; CRS.manual=null; CRS.rev=null; E.items=crsEdItems(); var rec=crsNowRec(E.items); E.rec=rec; E.cars=crsEdCarsOf(rec); E.hold=null; E.note=''; E.undo=[]; E.last=null; E.pundo=null; crsEdCtx(); crsEdNowState(); if(!E.cars[E.active])E.active=CRS_CARS[0]; crsEdHead(); crsEdDraw(); crsEdFit(); crsEdTop(); crsEdEtaKick(300); }
+function crsEdRecGo(){ var E=CRS_ED; if(!E||CRS.busy)return; var U=CRS_CARS.filter(function(k){ return !(E.recUse&&E.recUse[k]===false); }), nm=U.map(function(k){ return dlvCarName(k); }).join('·');   /* CNI1126 추천 = 지도 위에 채워 넣기 */
+  if(!U.length){ E.note='나눌 차를 하나는 켜 주세요'; crsEdDraw(); return; }
+  var all=(E.recScope==='all'), pool={}, n=0; E.items.forEach(function(x){ var c=crsEdCarOf(x.id); if(!c||(all&&U.indexOf(c)>=0)){ pool[x.id]=1; n++; } });
+  if(!n){ E.note='나눌 카드가 없어요 — 차에 안 넣은 카드가 0장입니다'+(all?'':' ([전부 다시 짜기]를 고르면 켠 차의 카드까지 다시 짭니다)'); crsEdDraw(); return; }
+  var sv={scope:CRS.scope,use:CRS.use,k:CRS.k,lvl:CRS.lvl,manual:CRS.manual,rev:CRS.rev,force:CRS.force}, P=null, err='';
+  try{ CRS.poolIds=pool; CRS.noRemap=true; CRS.scope='all'; var u={}; CRS_CARS.forEach(function(k){ u[k]=U.indexOf(k)>=0; }); CRS.use=u; CRS.k=String(U.length); CRS.lvl=E.recFar?'rec':'max'; CRS.manual=null; CRS.rev=null; CRS.force={}; P=crsCompute(); }catch(e){ err=String(e&&e.message||e); }
+  CRS.poolIds=null; CRS.noRemap=false; CRS.scope=sv.scope; CRS.use=sv.use; CRS.k=sv.k; CRS.lvl=sv.lvl; CRS.manual=sv.manual; CRS.rev=sv.rev; CRS.force=sv.force;
+  if(err||!P){ E.note='추천을 짜지 못했어요 — '+(err||'지난 기록을 아직 못 읽었어요(잠시 뒤 다시)'); crsEdDraw(); return; }
+  if(P.need){ E.note='출발지 주소를 지도에서 못 찾아 추천을 못 짰어요 — [⋯ 더보기 › 지도 열쇠·출발지 바꾸기]에서 확인해 주세요'; crsEdDraw(); return; }
+  var s0=E.last, by={}; E.items.forEach(function(x){ by[x.id]=x; }); if(all)U.forEach(function(k){ E.cars[k]=[]; });
+  var dep=crsDepot(), anchor=function(k){ var L=E.cars[k]||[]; for(var i=L.length-1;i>=0;i--){ var y=by[L[i]]; if(y&&y.xy)return y.xy; } var t=E.ctx&&E.ctx[k]; return (t&&t.truck)?t.truck.xy:dep; };   /* 그 차의 지금 코스 끝 → 마지막 완료한 곳 → 출발지 */
+  var cs=(P.courses||[]).slice().sort(function(a,b){ return b.stops.length-a.stops.length; }), free=U.slice(), put=0;
+  cs.forEach(function(co){ var ids=co.stops.map(function(s){ return s.id; }).filter(function(id){ return pool[id]&&by[id]; }); if(!ids.length)return; var k;
+    if(P.how==='hist'&&free.indexOf(co.car)>=0){ k=co.car; free.splice(free.indexOf(k),1); }
+    else if(free.length){ var bi=0, bd=1e18; free.forEach(function(c,i){ var a=anchor(c), d=1e17; if(a)ids.forEach(function(id){ if(by[id].xy){ var q=crsKm(a,by[id].xy); if(q<d)d=q; } }); if(d<bd-1e-9){ bd=d; bi=i; } }); k=free.splice(bi,1)[0]; }
+    else k=U[U.length-1];
+    var A=ids.filter(function(id){ return !!by[id].xy; }).map(function(id){ return by[id]; }), B=ids.filter(function(id){ return !by[id].xy; }), a0=anchor(k), r=(a0&&A.length)?crsRoute(a0,A).path.map(function(x){ return x.id; }):A.map(function(x){ return x.id; });
+    E.cars[k]=(E.cars[k]||[]).concat(r,B); put+=ids.length; });
+  E.farEx={}; (P.out||[]).forEach(function(o){ if(o&&o.x)E.farEx[o.x.id]=String(o.why||''); });
+  if(s0){ E.undo=E.undo||[]; E.undo.push(s0); } E.last=JSON.stringify(E.cars); E.hold=null; E.note='';
+  E.applied='✨ '+(all?('켠 차('+nm+')를 전부 다시 짰어요 — '+put+'장'):('안 넣은 카드 '+put+'장을 '+nm+'에 나눠 붙였어요 — 이미 넣어 둔 순서는 그대로'))+((n-put)?' · '+(n-put)+'장은 못 넣어 노란 ＋로 남김(멀리 돌거나 주소 없음)':'')+' · 아직 적용 전이에요';
+  crsEdEtaKick(); crsEdDraw(); crsEdFit(); }
+async function crsEdApplyUndo(){ var E=CRS_ED; if(!E||CRS.busy)return; CRS.msg=''; await crsUndo(); var m=String(CRS.msg||''); if(!m)return; crsEdNowFill(); if(CRS_ED)CRS_ED.applied=m; crsEdHead(); crsEdDraw(); }
+function crsEdParcelAsk(ids,to){ var E=CRS_ED; if(!E||E.view||CRS.busy)return; to=(to==='hold')?'hold':'parcel'; var tn=(to==='hold')?'미출고':'택배전환', NL=String.fromCharCode(10);   /* CNG1126 · CNI1126 미출고도 */
+  ids=(ids||[]).filter(function(id){ return !!crsEdCardOf(id); }); if(!ids.length)return;
+  if(ids.length>1){ E.note='이 점에는 카드 '+ids.length+'장이 겹쳐 있어요 — 오른쪽 명단에서 보낼 카드에 마우스를 올려 ['+(to==='hold'?'미출고':'택배')+']를 눌러 주세요'; crsEdDraw(); crsEdFocus(ids[0]); return; }
+  var c=crsEdCardOf(ids[0]), nm=String(c.trade_client||c.shop_name||c.recv||'').trim()||'(이름 없음)', car=dlvCarNorm(c.car);
+  if(!confirm('「'+nm+'」을(를) '+tn+' 탭으로 보낼까요?'+NL+NL+(String(c.tire||'')+' '+String(c.spec||'')).trim()+(c.qty?' · '+c.qty:'')+NL+'지금 자리: '+(car===1?'대기':dlvCarName(car))+NL+NL+'· 바로 옮겨집니다 ([이대로 적용]을 안 눌러도)'+NL+'· 보낸 뒤 오른쪽 명단 아래 「보낸 것」에서 다시 가져올 수 있어요'))return;
+  crsEdToParcel(c.id,nm,car,to); }
+async function crsEdToParcel(id,nm,car,to){ var E=CRS_ED; if(!E||CRS.busy)return; to=(to==='hold')?'hold':'parcel'; var tn=(to==='hold')?'미출고':'택배전환'; CRS.busy=true; var ok=false, why='';
+  try{ await dlvMoveTab(id,to); var r=await sb.from('deliveries').select('id,tab').eq('id',id).maybeSingle(); if(r.error)throw r.error; ok=!!(r.data&&r.data.tab===to); if(!ok)why=r.data?('옮겨지지 않았어요 (지금 탭: '+r.data.tab+')'):'옮긴 뒤 카드를 다시 찾지 못했어요'; }catch(e){ why=String(e&&e.message||e); }   /* 옮긴 뒤 DB를 다시 읽어 확인 */
+  CRS.busy=false;
+  if(ok){ var ec=crsEdCarOf(id); crsEdCut([id]); E.items=E.items.filter(function(x){ return x.id!==id; }); E.hold=null; E.last=JSON.stringify(E.cars); E.sent=E.sent||[]; E.sent.push({id:id,nm:nm,car:car,ecar:ec,to:to}); E.note=''; E.applied=(to==='hold'?'⏸ ':'📦 ')+'「'+nm+'」 '+tn+' 탭으로 보냈어요 — 오른쪽 명단 아래 「보낸 것」에서 다시 가져올 수 있어요'; crsEdCtx(); crsEdEtaKick(); }
+  else E.note='「'+nm+'」을(를) '+tn+'(으)로 못 보냈어요 — '+why;
+  crsEdDraw(); }
+async function crsEdParcelUndo(i){ var E=CRS_ED, U=E&&E.sent&&E.sent[+i]; if(!U||CRS.busy)return; CRS.busy=true; var ok=false, why='', back=(CRS_CARS.indexOf(U.car)>=0?U.car:1);
+  try{ await dlvMoveTab(U.id,'deliv',back); var r=await sb.from('deliveries').select('id,tab,car').eq('id',U.id).maybeSingle(); if(r.error)throw r.error; ok=!!(r.data&&r.data.tab==='deliv'); if(!ok)why='다시 가져오지 못했어요'; }catch(e){ why=String(e&&e.message||e); }
+  CRS.busy=false;
+  if(ok){ E.sent.splice(+i,1); var keep=JSON.parse(JSON.stringify(E.cars)), sc=CRS.scope, us=CRS.use; CRS.scope=E.scope||'all'; if(E.nowAll)CRS.use=null; E.items=crsEdItems(); CRS.scope=sc; CRS.use=us; E.cars=keep;
+    var put=(U.ecar&&E.cars[U.ecar]&&E.items.some(function(x){ return x.id===U.id; })&&!crsEdCarOf(U.id)); if(put)E.cars[U.ecar].push(U.id); E.last=JSON.stringify(E.cars); crsEdCtx(); E.note=''; E.applied='「'+U.nm+'」을(를) 다시 가져왔어요 — '+(put?(dlvCarName(U.ecar)+' 맨 뒤'):'차에 안 넣은 카드로'); crsEdEtaKick(); }
+  else E.note='되돌리지 못했어요 — '+why+' ('+(U.to==='hold'?'미출고':'택배전환')+' 탭에서 직접 옮겨 주세요)';
+  crsEdDraw(); }
+/* ▲CNG1126 */
+/* ▼CNH1126 (11/26 호준님 화면 "왜 목록이 제대로 안 보이는 거지 · 상단 버튼들이 이렇게 된 건가") 위쪽을 3줄로 정리 · 이미 차에 든 카드도 명단에 줄로 · 명단 폭 넓힘 · 지도 화면 맞추기 */
+function crsEdTop(){ var pn=document.getElementById('crs-edpn'); if(pn)pn.scrollTop=0; }
+function crsEdCardOf(id){ var E=CRS_ED; if(!E)return null; var x=E.items.filter(function(t){ return t.id===id; })[0]; if(x)return x.c; var r=null; CRS_CARS.forEach(function(k){ var t=E.ctx&&E.ctx[k]; if(t)t.fix.forEach(function(f){ if(f.id===id)r=f.c; }); }); return r; }
+function crsEdFixFocus(id){ var E=CRS_ED, m=E&&E.fx&&E.fx[id]; if(!m)return; try{ E.map.panTo(m.ovl.getPosition()); }catch(e){} crsEdTipTap(m.el); try{ m.ovl.setZIndex(998); }catch(e){} }
+function crsEdFit(){ var E=CRS_ED; if(!E||!E.map)return;   /* 지금 보이는 점이 다 들어오게 */
+  try{ var LL=function(xy){ return new kakao.maps.LatLng(xy[1],xy[0]); }, b=new kakao.maps.LatLngBounds(), dep=crsDepot(), n=0; if(dep){ b.extend(LL(dep)); n++; }
+    E.items.forEach(function(x){ if(x.xy&&(E.showUn!==false||crsEdCarOf(x.id))){ b.extend(LL(x.xy)); n++; } });
+    CRS_CARS.forEach(function(k){ var t=E.ctx&&E.ctx[k]; if(!t)return; t.fix.concat(E.showDone===false?[]:t.done).forEach(function(d){ if(d.xy){ b.extend(LL(d.xy)); n++; } }); });
+    if(n>1)E.map.setBounds(b); }catch(e){ console.error('동선 지도: 화면 맞추기',e); } }
+function crsEdFloat(){ var cv=document.getElementById('crs-mapcv'); if(!cv||!cv.parentNode)return; var f=document.getElementById('crs-edfloat');   /* 지도 왼쪽 아래: 숨기기·화면 맞추기·점 읽는 법 */
+  if(!f){ f=document.createElement('div'); f.id='crs-edfloat'; f.style.cssText='position:absolute;left:10px;bottom:44px;z-index:30;display:flex;gap:5px;flex-wrap:wrap'; cv.parentNode.appendChild(f); }
+  var E=CRS_ED, V=CRS_EDH||{}; if(!E||V.view){ f.style.display='none'; return; } f.style.display='flex';
+  var fb=function(fn,t){ return '<button onclick="'+fn+'" style="border:1px solid #94a3b8;background:rgba(255,255,255,.96);color:#0f172a;border-radius:999px;padding:4px 11px;font-weight:800;font-size:12px;cursor:pointer;box-shadow:0 1px 5px rgba(0,0,0,.25)">'+t+'</button>'; }, dot=function(st){ return '<i style="display:inline-block;width:11px;height:11px;border-radius:50%;box-sizing:border-box;vertical-align:-1px;margin-right:3px;'+st+'"></i>'; };
+  var anyFix=CRS_CARS.some(function(k){ return E.ctx&&E.ctx[k]&&E.ctx[k].fix.length; }), anyDone=CRS_CARS.some(function(k){ return E.ctx&&E.ctx[k]&&E.ctx[k].done.length; });
+  f.innerHTML=fb('crsEdUnTog()',E.showUn===false?'＋ 안 넣은 곳 보이기':'＋ 안 넣은 곳 숨기기')+(anyDone?fb('crsEdDoneTog()',E.showDone===false?'✓ 완료한 곳 보이기':'✓ 완료한 곳 숨기기'):'')+fb('crsEdFit()','🔍 전체가 보이게')
+    +'<span style="background:rgba(255,255,255,.96);border:1px solid #94a3b8;border-radius:999px;padding:4px 11px;font-size:12px;font-weight:700;color:#0f172a;box-shadow:0 1px 5px rgba(0,0,0,.25);white-space:nowrap">'+dot('background:#2563eb')+'번호 = 차에 넣은 곳'+(anyFix?' &nbsp;'+dot('background:#fff;border:2px solid #2563eb')+'빈 번호 = 그대로 두는 카드':'')+' &nbsp;'+dot('background:#facc15;border:2px solid #111')+'노란 ＋ = 아직 안 넣은 곳'+(anyDone?' &nbsp;✓ = 완료 &nbsp;🚚 = 마지막 완료한 곳':'')+'</span>'; }
+/* ▲CNH1126 */
+/* ▼CNI1126 (11/26 호준님 "지금 좋다 바로 정본에 적용해보자" — 정리안 목업대로) 지도에는 늘 오늘 카드 전부·전부 직접 만짐 · 추천은 [✨ 추천 코스 받기]를 눌러야 · 추가/빼기[최적|강제]·순서 바꾸기·택배전환·미출고 · 나눌 차 = 코스 수 · 차에서 뺀 카드는 적용하면 대기로 · 도착 예상 시간(카카오 길찾기 — 구글 웹 앱 경유) */
+var CRS_RT={cfg:null,cache:{},n:0,tm:null,busy:false,err:''};
+function crsEdMore(close){ var m=document.getElementById('crs-edmore'); if(!m)return; if(close)m.classList.remove('open'); else m.classList.toggle('open'); }
+function crsEdClearAll(){ var E=CRS_ED; if(!E)return; crsEdMore(1); var s0=E.last; E.cars=crsEdCarsOf(null); E.hold=null; if(s0){ E.undo=E.undo||[]; E.undo.push(s0); } E.last=JSON.stringify(E.cars); E.note=''; E.applied='모든 차에서 전부 뺐어요 — [✔ 이대로 적용]을 누르면 전부 대기로 돌아갑니다 (되돌리려면 ↩ 한 단계 되돌리기)'; crsEdEtaKick(); crsEdDraw(); }
+function crsEdCfgGo(){ crsEdMore(1); crsEdToList(); CRS.tab='map'; CRS.tabPicked=true; CRS.cfgOpen=true; crsPaint(); }
+function crsEdOldGo(){ crsEdMore(1); crsEdToList(); }
+function crsEdRec(k,v){ var E=CRS_ED; if(!E)return; if(k==='tab'){ CRS.tab=(v==='hist')?'hist':'map'; CRS.tabPicked=true; } else if(k==='scope')E.recScope=(v==='all')?'all':'rest'; crsEdDraw(); }
+function crsEdRecFar(on){ var E=CRS_ED; if(E){ E.recFar=!!on; crsEdDraw(); } }
+function crsEdRecUse(k){ var E=CRS_ED; if(!E)return; k=+k; var u={}; CRS_CARS.forEach(function(c){ u[c]=!(E.recUse&&E.recUse[c]===false); }); u[k]=!u[k]; if(!CRS_CARS.some(function(c){ return u[c]; })){ E.note='나눌 차를 하나는 켜 두어야 해요'; crsEdDraw(); return; } E.recUse=u; E.note=''; crsEdDraw(); }
+function crsEdAddTo(id,car){ var E=CRS_ED; if(!E||E.view||!E.cars[car])return; E.active=car; crsEdAdd([id]); E.hold=null; E.note=''; crsEdDraw(); }
+async function crsMapPlan(){ var P0=CRS.plan, sc=CRS.scope; if(!P0||!P0.courses||!P0.courses.length){ crsStart(); return; }   /* 예전 목록 창의 추천 코스를 같은 지도 창에 올림 */
+  var cs=P0.courses.map(function(co){ return {car:co.car,ids:co.stops.map(function(x){ return x.id; })}; }); CRS.nowAt=0; await crsMapNow(0,true); var E=CRS_ED; if(!E||!E.nowAll||!crsEdShown())return; var s0=E.last;
+  cs.forEach(function(co){ var ids=co.ids.filter(function(id){ return E.items.some(function(x){ return x.id===id; }); }); if(!ids.length||!E.cars[co.car])return; crsEdCut(ids); E.cars[co.car]=(sc==='all'?[]:E.cars[co.car]).concat(ids); });
+  if(s0){ E.undo=E.undo||[]; E.undo.push(s0); } E.last=JSON.stringify(E.cars); E.applied='목록 창의 추천 코스를 지도에 올렸어요 — 아직 적용 전입니다'; crsEdEtaKick(); crsEdDraw(); crsEdFit(); }
+/* ── 도착 예상 시간: 좌표만 구글 웹 앱으로 보내고(이름·주소 글자는 안 보냄) 거기서 카카오 길찾기를 물어 구간별 시간을 받음 ── */
+async function crsRouteCfgLoad(){ try{ var r=await sb.from('settings').select('value').eq('key','crs_route').maybeSingle(); if(r.error)throw r.error; CRS_RT.cfg=(r.data&&r.data.value&&typeof r.data.value==='object')?r.data.value:{}; CRS_RT.err=''; }catch(e){ CRS_RT.cfg=CRS_RT.cfg||{}; CRS_RT.err=String(e&&e.message||e); } }
+async function crsRouteCfg(){ crsEdMore(1); if(!dlvIsBoss()){ alert('도착 예상 시간 연결은 대표만 할 수 있어요'); return; } await crsRouteCfgLoad(); var has=!!String((CRS_RT.cfg||{}).url||'').trim(), NL=String.fromCharCode(10);
+  var u=prompt('길찾기용 구글 웹 앱 주소를 붙여 넣어 주세요.'+NL+'(배포한 주소 끝에 ?k=정한열쇠 를 붙인 것 — https://script.google.com/…/exec?k=…)'+NL+NL+(has?'지금 주소가 들어 있어요. 바꾸지 않으려면 [취소].':'아직 주소가 없어요.'),''); if(u==null)return; u=String(u).trim(); if(!u)return;
+  if(u.indexOf('https://script.google.com/')!==0||u.indexOf('/exec')<0){ alert('구글 웹 앱 주소가 아니에요 — https://script.google.com/ 으로 시작하고 /exec 가 들어 있어야 합니다'); return; }
+  try{ var w=await sb.from('settings').upsert({key:'crs_route',value:{url:u},updated_at:new Date().toISOString()},{onConflict:'key'}); if(w&&w.error)throw w.error; var r=await sb.from('settings').select('value').eq('key','crs_route').maybeSingle(); if(r.error||!(r.data&&r.data.value&&r.data.value.url===u))throw new Error('저장 뒤 다시 읽은 값이 달라요'); }catch(e){ alert('저장하지 못했어요: '+String(e&&e.message||e)); return; }
+  CRS_RT.cfg={url:u}; CRS_RT.cache={}; alert('저장했어요. 지도 창에서 「🕐 도착 예상 시간」을 켜면 계산합니다.'); if(CRS_ED&&CRS_ED.eta)crsEdEtaKick(0); }
+function crsEdEtaTog(on){ var E=CRS_ED; if(!E)return; E.eta=!!on; if(on)crsEdEtaKick(0); crsEdDraw(); }
+function crsEdEtaKick(ms){ var E=CRS_ED; if(!E||!E.eta||E.view)return; clearTimeout(CRS_RT.tm); CRS_RT.tm=setTimeout(crsEdEtaRun,(ms==null?1500:ms)); }   /* 고친 뒤 1.5초 쉬었다가 한 번만 물음 · 같은 순서는 다시 안 물음 */
+function crsEdEtaMake(L,legs){ var t=Date.now(), at={}, sec=0, m=0; L.forEach(function(id,i){ sec+=(+legs[i][0]||0); m+=(+legs[i][1]||0); at[id]=t+sec*1000+i*300000; }); return {at:at,sec:sec,m:m,n:L.length,from:t,total:sec+L.length*300}; }   /* 도착 = 출발 + 그때까지 달린 시간 + 앞에서 머문 5분씩 */
+async function crsEdEtaRun(){ var E=CRS_ED; if(!E||!E.eta)return; if(CRS_RT.busy){ crsEdEtaKick(800); return; }
+  if(!CRS_RT.cfg)await crsRouteCfgLoad(); var url=String((CRS_RT.cfg||{}).url||'').trim(); E.etaRes=E.etaRes||{}; E.etaSt=E.etaSt||{};
+  if(!url){ CRS_CARS.forEach(function(k){ delete E.etaRes[k]; E.etaSt[k]=CRS_RT.err?('⚠ 연결 설정을 못 읽었어요 — '+CRS_RT.err):'도착 예상 시간은 아직 연결 전이에요 — 대표가 [⋯ 더보기 › 도착 예상 시간 연결]에서 주소를 넣어야 합니다'; }); crsEdDraw(); return; }
+  var by={}; E.items.forEach(function(x){ by[x.id]=x; }); var jobs=[];
+  CRS_CARS.forEach(function(k){ var L=(E.cars[k]||[]).filter(function(id){ return by[id]&&by[id].xy; }), st=crsEdStart(k); if(!L.length||!st){ delete E.etaRes[k]; E.etaSt[k]=''; return; }
+    var pts=[st].concat(L.map(function(id){ return by[id].xy; })), sig=pts.map(function(p){ return (+p[0]).toFixed(5)+','+(+p[1]).toFixed(5); }).join('|');
+    if(CRS_RT.cache[sig]){ E.etaRes[k]=crsEdEtaMake(L,CRS_RT.cache[sig]); E.etaSt[k]=''; return; }
+    jobs.push({k:k,L:L,pts:pts,sig:sig}); delete E.etaRes[k]; E.etaSt[k]='도로 시간 계산 중…'; });
+  crsEdDraw(); if(!jobs.length)return; CRS_RT.busy=true;
+  try{ var routes=[]; jobs.forEach(function(j){ for(var a=0;a<j.pts.length-1;a+=31)routes.push({job:j,pts:j.pts.slice(a,a+32)}); });   /* 카카오 한 번에 출발 1 + 경유 30 + 도착 1 */
+    var body=JSON.stringify({act:'route',routes:routes.map(function(r){ return r.pts.map(function(p){ return [+(+p[0]).toFixed(6),+(+p[1]).toFixed(6)]; }); })});
+    var ctl=new AbortController(), tm=setTimeout(function(){ ctl.abort(); },40000), res=await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:body,redirect:'follow',signal:ctl.signal}); clearTimeout(tm);
+    var txt=await res.text(), J=null; try{ J=JSON.parse(txt); }catch(e0){ throw new Error('길찾기 웹 앱의 답을 읽지 못했어요 ('+String(txt).replace(/<[^>]+>/g,' ').slice(0,70)+')'); }
+    if(!J||!J.ok)throw new Error(String((J&&J.error)||'길찾기 웹 앱이 거절했어요'));
+    CRS_RT.n+=routes.length; if(J.used!=null)CRS_RT.used=J.used;
+    jobs.forEach(function(j){ var legs=[], bad=''; routes.forEach(function(r,i){ if(r.job!==j)return; var o=(J.routes||[])[i]||{}; if(!o.ok){ bad=String(o.msg||'길찾기 실패'); return; } (o.legs||[]).forEach(function(l){ legs.push(l); }); });
+      if(bad||legs.length!==j.pts.length-1){ delete E.etaRes[j.k]; E.etaSt[j.k]='⚠ 도로 시간을 못 받았어요 — '+(bad||'구간 수가 안 맞아요'); return; } CRS_RT.cache[j.sig]=legs; E.etaRes[j.k]=crsEdEtaMake(j.L,legs); E.etaSt[j.k]=''; });
+  }catch(e){ jobs.forEach(function(j){ delete E.etaRes[j.k]; E.etaSt[j.k]='⚠ 도로 시간을 못 받았어요 — '+((e&&e.name==='AbortError')?'40초 넘김':String(e&&e.message||e)); }); }
+  CRS_RT.busy=false; if(CRS_ED===E)crsEdDraw(); }
+/* ▲CNI1126 */
 function crsEdCarsOf(P){ var cars={}; CRS_CARS.forEach(function(k){ cars[k]=[]; }); ((P&&P.courses)||[]).forEach(function(co){ if(!cars[co.car])cars[co.car]=[]; co.stops.forEach(function(x){ cars[co.car].push(x.id); }); }); return cars; }
 function crsEdCarOf(id){ var E=CRS_ED, r=0; Object.keys(E.cars).forEach(function(k){ if(E.cars[k].indexOf(id)>=0)r=+k; }); return r; }
 /* (CMS1126) 넣기·빼기·잡기·옮기기 */
 function crsEdCut(ids){ var E=CRS_ED; Object.keys(E.cars).forEach(function(k){ E.cars[k]=E.cars[k].filter(function(id){ return ids.indexOf(id)<0; }); }); }
-function crsEdBestPos(car,ids){ var E=CRS_ED, L=E.cars[car]||[], by={}; E.items.forEach(function(x){ by[x.id]=x; }); var x=by[ids[0]], dep=crsDepot(); if(!x||!x.xy||!dep)return L.length;   /* 좌표가 없으면 맨 뒤 */
+function crsEdBestPos(car,ids){ var E=CRS_ED, L=E.cars[car]||[], by={}; E.items.forEach(function(x){ by[x.id]=x; }); var x=by[ids[0]], dep=crsEdStart(car); if(!x||!x.xy||!dep)return L.length;   /* 좌표가 없으면 맨 뒤 */
   var pts=[dep]; L.forEach(function(id){ var y=by[id]; pts.push(y&&y.xy?y.xy:null); }); var best=L.length, bd=1e18;
   for(var i=0;i<=L.length;i++){ var p1=null, p2=null; for(var p=i;p>=0;p--){ if(pts[p]){ p1=pts[p]; break; } } for(var q=i+1;q<pts.length;q++){ if(pts[q]){ p2=pts[q]; break; } } if(!p1)continue; var d=crsKm(p1,x.xy)+(p2?(crsKm(x.xy,p2)-crsKm(p1,p2)):0); if(d<bd-1e-9){ bd=d; best=i; } }
   return best; }   /* 그 차의 코스에서 가장 덜 돌아가게 되는 자리 */
@@ -6047,22 +6290,27 @@ function crsEdHoldOut(){ var E=CRS_ED; if(!E||!E.hold)return; crsEdCut(E.hold); 
 function crsEdHoldTo(){ var E=CRS_ED; if(!E||!E.hold)return; crsEdAdd(E.hold); E.hold=null; crsEdDraw(); }
 function crsEdInsEnd(){ if(CRS_ED){ CRS_ED.ins='end'; crsEdDraw(); } }
 function crsEdInsAuto(){ if(CRS_ED){ CRS_ED.ins='auto'; crsEdDraw(); } }
-function crsEdPoint(ids,isDepot){ var E=CRS_ED; if(!E)return; if(isDepot){ if(E.hold)crsEdMoveAfter('depot'); return; }
+function crsEdPoint(ids,isDepot){ var E=CRS_ED; if(!E||E.view)return; if(isDepot){ if(E.hold)crsEdMoveAfter('depot'); else if(E.mode==='order'){ E.note='먼저 옮길 점을 눌러 잡은 뒤에 「출발」을 누르면 맨 앞으로 가요'; crsEdDraw(); } return; }
+  if(E.mode==='parcel'||E.mode==='hold'){ crsEdParcelAsk(ids,E.mode); return; }   /* CNG1126 · CNI1126 */
+  if(E.mode!=='order'){ var a0=crsEdCarOf(ids[0]), g0=ids.filter(function(id){ return crsEdCarOf(id)===a0; }); E.hold=null; E.note=''; if(!a0)crsEdAdd(ids); else if(a0===E.active)crsEdCut(g0); else crsEdAdd(g0); crsEdDraw(); return; }   /* CNF1126 넣기·빼기: 노란 점=넣기 · 고른 차의 점=빼기 · 다른 차의 점=고른 차로 */
   var c0=crsEdCarOf(ids[0]), grp=ids.filter(function(id){ return crsEdCarOf(id)===c0; });
   if(E.hold){ if(grp.some(function(id){ return E.hold.indexOf(id)>=0; })){ crsEdDrop(); return; } crsEdMoveAfter(grp[grp.length-1]); return; }   /* 잡은 것이 있으면: 누른 점 뒤로 옮김 */
-  if(!c0){ crsEdAdd(ids); E.note=''; crsEdDraw(); return; }   /* 안 넣은 점: 고른 차에 넣기 */
+  if(!c0){ E.note='노란 ＋ 점은 위의 [➕ 추가/빼기]로 바꾸면 눌러서 넣을 수 있어요'; crsEdDraw(); return; }   /* CNF1126 순서 바꾸기에서는 넣지 않음 */
   crsEdHold(grp); }   /* 코스에 있는 점: 잡기 */
 function crsEdHi(id,on){ var E=CRS_ED, m=E&&E.mk&&E.mk[id]; if(!m)return; try{ var dot=m.el.firstChild, tip=m.el.querySelector('.crs-tip'); dot.style.transform=on?'scale(1.45)':(m.held?'scale(1.25)':''); tip.style.display=on?'block':'none'; m.ovl.setZIndex(on?999:m.z); }catch(e){} }
 function crsEdMove(id,d){ var E=CRS_ED, car=crsEdCarOf(id); if(!car)return; var L=E.cars[car], i=L.indexOf(id), j=i+d; if(j<0||j>=L.length)return; var t=L[i]; L[i]=L[j]; L[j]=t; crsEdDraw(); }
 function crsEdReset(kind){ var E=CRS_ED; if(!E)return; E.cars=(kind==='rec')?crsEdCarsOf(E.rec):crsEdCarsOf(null); E.ins=(kind==='rec')?'auto':'end'; E.hold=null; E.note=''; crsEdDraw(); }   /* CMS1126 비우고 시작하면 누른 순서대로 · 추천에서 시작하면 끼워 넣기 */
-function crsEdKm(list){ var dep=crsDepot(); if(!dep||!list.length)return null; var t=0, c=dep; for(var i=0;i<list.length;i++){ if(!list[i].xy)return null; t+=crsKm(c,list[i].xy); c=list[i].xy; } return t; }
+function crsEdKm(list,from){ var dep=from||crsDepot(); if(!dep||!list.length)return null; var t=0, c=dep; for(var i=0;i<list.length;i++){ if(!list[i].xy)return null; t+=crsKm(c,list[i].xy); c=list[i].xy; } return t; }
 function crsManualPlan(items,cars){ var by={}; items.forEach(function(x){ by[x.id]=x; }); var used={}, courses=[];
   CRS_CARS.concat(Object.keys(cars).map(Number).filter(function(k){ return CRS_CARS.indexOf(k)<0; })).forEach(function(car){ var L=(cars[car]||[]).map(function(id){ return by[id]; }).filter(Boolean); L.forEach(function(x){ used[x.id]=1; }); if(L.length)courses.push({car:car,stops:L,km:crsEdKm(L)}); });
   return {how:'manual',courses:courses,out:[],unk:items.filter(function(x){ return !used[x.id]; }),n:items.length}; }
 function crsManualClear(){ CRS.manual=null; CRS.msg=''; crsPaint(); }
-function crsEdKeep(){ var E=CRS_ED; if(!E)return false; var P=crsManualPlan(E.items,E.cars); if(!P.courses.length){ alert('코스에 넣은 카드가 없어요 — 오른쪽에서 차를 고르고 점을 눌러 주세요'); return false; } CRS.manual={date:dlvDateStr(),cars:JSON.parse(JSON.stringify(E.cars))}; CRS.msg=''; return true; }
-function crsEdToList(){ if(!crsEdKeep())return; crsMapClose(true); crsPaint(); }
-async function crsEdApply(){ if(!crsEdKeep())return; crsMapClose(true); crsPaint(); await crsApply(); if(/^✅/.test(String(CRS.msg||''))){ CRS.manual=null; crsPaint(); } }
+function crsEdKeep(){ var E=CRS_ED; if(!E)return false; if(E.scope){ CRS.scope=E.scope; if(E.nowAll)CRS.use=null; }   /* CNG1126 적용은 지도에 보이는 카드 범위대로 */ var P=crsManualPlan(E.items,E.cars); var _wn=E.nowAll?E.items.filter(function(x){ return !crsEdCarOf(x.id)&&CRS_CARS.indexOf(dlvCarNorm(x.c.car))>=0; }).length:0; if(!P.courses.length&&!_wn){ alert('바꿀 것이 없어요 — 차에 넣은 카드도, 차에서 뺀 카드도 없습니다'); return false; } CRS.manual={date:dlvDateStr(),cars:JSON.parse(JSON.stringify(E.cars)),toWait:!!E.nowAll,waitN:_wn};   /* CNI1126 차에서 뺀 카드는 적용하면 대기로 */ CRS.msg=''; return true; }
+function crsEdToList(){ var E=CRS_ED; if(!E)return; var P=crsManualPlan(E.items,E.cars); if(P.courses.length&&(!E.nowAll||(E.undo&&E.undo.length))){ if(!crsEdKeep())return; } else { CRS.manual=null; CRS.msg=''; } E.fromTab=false; crsMapClose(true); crsPaint(); }
+async function crsEdApply(){ var E=CRS_ED; if(!E||CRS.busy)return; if(!crsEdKeep())return; try{ crsPaint(); }catch(e0){} CRS.msg=''; await crsApply(); var m=String(CRS.msg||''); CRS.manual=null;   /* CNG1126 적용 뒤에도 지도에 그대로 */
+  if(/^✅|^⚠/.test(m)){ crsEdNowFill(); if(CRS_ED)CRS_ED.applied=m; crsEdHead(); crsEdDraw(); }
+  else { if(E.nowAll)crsEdNowState(); if(m)E.applied=m; crsEdDraw(); }
+  try{ crsPaint(); }catch(e1){} }
 /* (CME1126) 주소가 없어 지도에 없는 카드 — 주소를 직접 적거나 검색해서 넣음. 카드·주소록은 안 바꾸고 settings 'crs_addr'(거래처 이름 → 주소)에만 둠: 같은 거래처는 다음에도 이 주소로 */
 async function crsAddrFixLoad(){ try{ var r=await sb.from('settings').select('value').eq('key','crs_addr').maybeSingle(); if(r.error)throw r.error; CRS.addrFix=(r.data&&r.data.value&&typeof r.data.value==='object')?r.data.value:{}; CRS.addrFixErr=''; }catch(e){ CRS.addrFix=CRS.addrFix||{}; CRS.addrFixErr=String(e&&e.message||e); console.error('코스 추천: 직접 넣은 주소 읽기',e); } }
 function crsAddrFixKey(c){ var k=dlvShopNz(String(c.trade_client||c.shop_name||'').trim()); return k||('id:'+c.id); }
@@ -6132,10 +6380,11 @@ function crsEdAddrBox(){ var E=CRS_ED, A=E&&E.addr; if(!A)return ''; var e=esc, 
   h+='<div id="crs-admsg" style="font-size:12.5px;font-weight:800;color:#92400e;margin-top:5px;'+(A.msg?'':'display:none')+'">'+e(A.msg||'')+'</div>';
   (A.res||[]).forEach(function(o,i){ h+='<div style="display:flex;gap:6px;align-items:center;padding:5px 0;border-top:1px solid #fde68a;margin-top:5px;font-size:12.5px"><div style="flex:1;min-width:0"><b>'+e(o.t)+'</b>'+(o.sub?'<div style="color:#78716c">'+e(o.sub)+'</div>':'')+'</div><button data-act="adpick" data-i="'+i+'" style="border:0;background:#0f766e;color:#fff;border-radius:6px;padding:4px 9px;font-weight:800;cursor:pointer;white-space:nowrap">이 주소로</button></div>'; });
   h+='<div style="font-size:11.5px;color:#78716c;margin-top:5px">코스짜기가 이 주소를 기억해서 같은 거래처는 다음에도 이 주소로 잡힙니다(카드는 안 바뀜).</div></div>'; return h; }
-function crsEdSet(k,v){ var E=CRS_ED; if(!E||CRS.busy)return; CRS[k]=v; CRS.manual=null; CRS.rev=null; CRS.msg=''; try{ crsPaint(); }catch(e){ console.error('코스 추천: 기준 바꾸기',e); } var P=CRS.plan||{courses:[]}; E.items=crsEdItems(); E.rec=P; E.cars=crsEdCarsOf(P); E.ins='auto'; E.hold=null; E.note=''; crsEdDraw(); }   /* CMT1126 지도 창에서 기준·차 대수를 바꾸면 추천을 다시 짜서 바로 그림 */
+function crsEdSet(k,v){ var E=CRS_ED; if(!E||CRS.busy)return; CRS[k]=v; CRS.manual=null; CRS.rev=null; CRS.msg=''; if(k==='scope')crsUseDefault(); if(k==='tab')CRS.tabPicked=true; if(k==='k')crsUseFit(); crsEdRe(); }   /* CMT1126 지도 창에서 기준·차 대수를 바꾸면 추천을 다시 짜서 바로 그림 */
 function crsEdDraw(){ var E=CRS_ED; if(!E||!E.map)return; var map=E.map, LL=function(xy){ return new kakao.maps.LatLng(xy[1],xy[0]); }, e=esc;
-  (E.objs||[]).forEach(function(o){ try{ o.setMap(null); }catch(x){} }); E.objs=[]; E.mk={};
-  var by={}; E.items.forEach(function(x){ by[x.id]=x; }); var pos={}, carOf={}; Object.keys(E.cars).forEach(function(k){ E.cars[k]=E.cars[k].filter(function(id){ return !!by[id]; }); E.cars[k].forEach(function(id,i){ pos[id]=i+1; carOf[id]=+k; }); });
+  (E.objs||[]).forEach(function(o){ try{ o.setMap(null); }catch(x){} }); E.objs=[]; E.mk={}; E.fx={};
+  var by={}; E.items.forEach(function(x){ by[x.id]=x; }); var pos={}, carOf={}; Object.keys(E.cars).forEach(function(k){ E.cars[k]=E.cars[k].filter(function(id){ return !!by[id]; }); E.cars[k].forEach(function(id,i){ pos[id]=i+1+crsEdOff(+k); carOf[id]=+k; }); });
+  crsEdSnap();
   if(E.hold){ E.hold=E.hold.filter(function(id){ return !!by[id]; }); if(!E.hold.length)E.hold=null; }
   var H=E.hold||[], holding=H.length>0, isHeld=function(id){ return H.indexOf(id)>=0; };
   var nameOf=function(c){ return String(c.trade_client||c.shop_name||c.recv||'').trim()||'(이름 없음)'; }, tireOf=function(c){ return e((String(c.tire||'')+' '+String(c.spec||'')).trim())+(c.qty?' · '+e(String(c.qty)):''); };
@@ -6149,41 +6398,70 @@ function crsEdDraw(){ var E=CRS_ED; if(!E||!E.map)return; var map=E.map, LL=func
     el.addEventListener('mouseenter',function(){ tip.style.display='block'; try{ ovl.setZIndex(999); }catch(x){} if(ids&&ids[0]){ var row=document.querySelector('#crs-edpn [data-row="'+ids[0]+'"]'); if(row)row.style.outline='3px solid #f59e0b'; } });
     el.addEventListener('mouseleave',function(){ tip.style.display='none'; try{ ovl.setZIndex(zz); }catch(x){} if(ids&&ids[0]){ var row=document.querySelector('#crs-edpn [data-row="'+ids[0]+'"]'); if(row)row.style.outline=''; } });
     el.addEventListener('mousedown',function(){ E.lastMk=Date.now(); }); el.addEventListener('touchstart',function(){ E.lastMk=Date.now(); },{passive:true});
-    el.addEventListener('click',function(ev){ ev.stopPropagation(); E.lastMk=Date.now(); crsEdPoint(ids||[],!ids); });   /* 마우스를 올려 내용을 본 채로 누르면 선택 */
+    el.addEventListener('click',function(ev){ ev.stopPropagation(); E.lastMk=Date.now(); if(E.view){ crsEdTipTap(el); return; } crsEdPoint(ids||[],!ids); });   /* 마우스를 올려 내용을 본 채로 누르면 선택 · 보기 전용이면 내용만 */
     E.objs.push(ovl); (ids||[]).forEach(function(id){ E.mk[id]={el:el,ovl:ovl,z:zz,held:!!o.held}; }); return ovl; };
   var dep=crsDepot(); mk(dep,'출발','#0f172a','<b>출발지(창고)</b><br>'+e(String((CRS.cfg||{}).depot||''))+(holding?'<div style="margin-top:4px;font-weight:900;color:#b45309">👆 누르면 「'+e(heldName)+'」을(를) 맨 앞으로</div>':''),5,null);
-  Object.keys(E.cars).forEach(function(k){ var path=[LL(dep)]; E.cars[k].forEach(function(id){ var x=by[id]; if(x&&x.xy)path.push(LL(x.xy)); }); if(path.length>1)E.objs.push(new kakao.maps.Polyline({map:map,path:path,strokeWeight:(+k===E.active?5:3),strokeColor:crsMapCol(+k),strokeOpacity:(+k===E.active?0.95:0.6),strokeStyle:'solid'})); });
+  try{ crsEdDrawCtx(); }catch(ec){ console.error('동선 지도: 완료·차 위치',ec); }
+  Object.keys(E.cars).forEach(function(k){ var path=[LL(crsEdStart(+k)||dep)]; E.cars[k].forEach(function(id){ var x=by[id]; if(x&&x.xy)path.push(LL(x.xy)); }); if(path.length>1)E.objs.push(new kakao.maps.Polyline({map:map,path:path,strokeWeight:(+k===E.active?5:3),strokeColor:crsMapCol(+k),strokeOpacity:(+k===E.active?0.95:0.6),strokeStyle:'solid'})); });
   var G={}, GL=[]; E.items.forEach(function(x){ if(!x.xy)return; var key=x.xy[0]+','+x.xy[1]; if(!G[key]){ G[key]={xy:x.xy,list:[]}; GL.push(G[key]); } G[key].list.push(x); });
-  GL.forEach(function(g){ g.list.sort(function(p,q){ return ((carOf[p.id]||99)-(carOf[q.id]||99))||((pos[p.id]||999)-(pos[q.id]||999)); }); var first=g.list[0], car=carOf[first.id]||0, col=car?crsMapCol(car):'#111';
+  GL.forEach(function(g){ g.list.sort(function(p,q){ return ((carOf[p.id]||99)-(carOf[q.id]||99))||((pos[p.id]||999)-(pos[q.id]||999)); }); var first=g.list[0], car=carOf[first.id]||0, col=car?crsMapCol(car):'#111'; if(!car&&E.showUn===false)return;
     var nos=g.list.filter(function(x){ return carOf[x.id]===car&&car; }).map(function(x){ return pos[x.id]; }), seq=nos.every(function(n,i){ return !i||n===nos[i-1]+1; }), label=!car?(g.list.length>1?'＋'+g.list.length:'＋'):((nos.length===1)?String(nos[0]):(seq?(nos[0]+'~'+nos[nos.length-1]):(nos.slice(0,3).join('·')+(nos.length>3?'…':''))));
     var ids=g.list.map(function(x){ return x.id; }), held=ids.some(isHeld);
     var hint=holding?(held?'👆 다시 누르면 놓기':(car?'👆 누르면 「'+e(heldName)+'」을(를) 이 점 바로 뒤로':'번호가 있는 점을 눌러야 그 뒤로 옮길 수 있어요')):(car?'👆 누르면 잡기 — 잡은 뒤 다른 점을 누르면 그 뒤로 옮겨요':'👆 누르면 '+e(actName)+'에 넣기 ('+(E.ins==='auto'?'순서 자동 — 가장 덜 돌아가는 자리':'순서 직접 — 맨 뒤')+')');
+    if(E.view)hint=''; else if(!holding&&E.mode!=='order'){ if(car)hint=(car===E.active)?'👆 누르면 코스에서 빼기':('👆 누르면 '+e(actName)+'(으)로 옮겨 오기'); } else if(!holding&&!car)hint='위의 [➕ 추가/빼기]로 바꾸면 눌러서 넣을 수 있어요';   /* CNF1126 */
+    if(!E.view&&E.mode==='parcel')hint='👆 누르면 택배전환 탭으로 보내기 (한 번 물어봐요)';   /* CNG1126 */ if(!E.view&&E.mode==='hold')hint='👆 누르면 미출고 탭으로 보내기 (한 번 물어봐요)';
     var tip=g.list.map(function(x){ var c=x.c, cr=carOf[x.id]; return '<div><b style="color:'+(cr?crsMapCol(cr):'#b45309')+'">'+(cr?(e(dlvCarName(cr))+' '+pos[x.id]+'번째'):'⚠ 코스에 안 넣음')+'</b> <b>'+e(nameOf(c))+'</b>'+(x.old?' <span style="color:#b91c1c;font-weight:800">⏰ '+x.wait+'일 지남</span>':'')+'<br>'+tireOf(c)+'</div>'; }).join('<hr style="border:0;border-top:1px solid #e2e8f0;margin:4px 0">')+'<div style="color:#64748b;margin-top:3px">'+e(first.addr||'')+'</div><div style="margin-top:4px;font-weight:900;color:'+(holding?'#b45309':(car?'#334155':actCol))+'">'+hint+'</div>';
     mk(g.xy,label,col,tip,car?2:3,ids,{un:!car,held:held}); });
+  E.hint=crsEdHint();
   /* 안내 줄 */
   var mg=document.getElementById('crs-mapmsg'); if(mg){ var bs='border:0;border-radius:7px;padding:4px 10px;font-weight:900;font-size:12.5px;cursor:pointer;margin-left:6px;color:#fff;';
     if(holding){ var hc=carOf[H[0]]||0; mg.style.display=''; mg.style.background='#fff7ed'; mg.style.color='#9a3412';
       mg.innerHTML='✋ <b>「'+e(heldName)+'」</b> 잡음 ('+(hc?(e(dlvCarName(hc))+' '+pos[H[0]]+'번째'):'코스에 없음')+') — 넣을 자리 <b>바로 앞의 점</b>을 지도나 오른쪽 명단에서 누르면 그 뒤로 옮겨요 · 맨 앞은 「출발」'+(hc!==E.active?'<button onclick="crsEdHoldTo()" style="'+bs+'background:'+actCol+'">'+e(actName)+'에 넣기</button>':'')+(hc?'<button onclick="crsEdHoldOut()" style="'+bs+'background:#b91c1c">코스에서 빼기</button>':'')+'<button onclick="crsEdDrop()" style="'+bs+'background:#475569">놓기</button>'+(E.note?'<div style="color:#b91c1c;margin-top:3px">⚠ '+e(E.note)+'</div>':''); }
     else { mg.style.display=''; mg.style.background='#fffbeb'; mg.style.color='#92400e'; mg.innerHTML=e(E.hint||'')+(E.note?'<div style="color:#b91c1c;margin-top:3px">⚠ '+e(E.note)+'</div>':''); } }
-  var cp=document.getElementById('crs-edchips'); if(cp){ var cb=function(k,v,t){ var on=String(CRS[k])===String(v); return '<button data-k="'+k+'" data-v="'+v+'" style="border:1px solid '+(on?'#fde047':'#6366f1')+';background:'+(on?'#fde047':'transparent')+';color:'+(on?'#422006':'#e0e7ff')+';border-radius:999px;padding:3px 10px;font-weight:800;font-size:12px;cursor:pointer">'+t+'</button>'; }, sp='<i style="font-style:normal;color:#a5b4fc;font-size:12px;margin:0 2px">|</i>';
-    cp.innerHTML='<span style="font-size:12px;color:#c7d2fe;font-weight:800">추천 다시 짜기</span>'+cb('tab','hist','과거 기록 묶음')+cb('tab','map','지도 거리')+sp+cb('lvl','rec','추천')+cb('lvl','max','최대한 많이')+cb('lvl','clean','동선 가장 깔끔하게')+sp+'<span style="font-size:12px;color:#c7d2fe">차</span>'+cb('k','0','자동')+cb('k','1','1대')+cb('k','2','2대')+cb('k','3','3대')+'<span style="font-size:11.5px;color:#a5b4fc;margin-left:4px">누르면 그 기준으로 추천을 다시 짜요 (직접 고친 순서는 사라짐)</span>'; }   /* CMT1126 */
+  var hh=document.getElementById('crs-edhint'); if(hh&&!E.view){ hh.textContent=E.hint||''; hh.title=E.hint||''; if(mg&&!holding){ if(E.note){ mg.style.display=''; mg.style.background='#fffbeb'; mg.innerHTML='<div style="color:#b91c1c">⚠ '+e(E.note)+'</div>'; } else { mg.innerHTML=''; mg.style.display='none'; } } }   /* CNH1126 안내 글은 「점을 누르면」 줄 옆으로 — 아래 띠는 알릴 것이 있을 때만 */
+  crsEdFloat();
+  if(mg&&!E.view&&E.applied){ var badA=/^❌|^⚠/.test(E.applied), fh='<div style="background:'+(badA?'#fee2e2':'#dcfce7')+';color:'+(badA?'#991b1b':'#166534')+';border-radius:8px;padding:5px 10px;margin-bottom:'+(mg.innerHTML?'4px':'0')+'">'+e(E.applied)+((CRS.undoInfo&&CRS.undoInfo.rows&&CRS.undoInfo.rows.length&&/적용했어요/.test(E.applied))?'<button onclick="crsEdApplyUndo()" style="border:0;border-radius:7px;padding:3px 10px;font-weight:900;font-size:12.5px;cursor:pointer;margin-left:8px;color:#fff;background:#b91c1c">⏪ 적용 전으로 되돌리기</button>':'')+'</div>';   /* CNG1126 · CNI1126 방금 한 일을 지도 창에서 바로 */
+    mg.style.display=''; mg.style.background='#fffbeb'; mg.insertAdjacentHTML('afterbegin',fh); }
+  var cp=document.getElementById('crs-edchips'); if(cp){ var cw=function(inner){ return '<span style="display:inline-flex;border:1px solid #6366f1;border-radius:999px;overflow:hidden;flex:none">'+inner+'</span>'; }, cb=function(fn,on,t,tt){ return '<button onclick="'+fn+'" title="'+(tt||'')+'" style="border:0;background:'+(on?'#fde047':'transparent')+';color:'+(on?'#422006':'#e0e7ff')+';padding:3px 11px;font-weight:800;font-size:12px;cursor:pointer;white-space:nowrap">'+t+'</button>'; }, lb='font-size:12.5px;color:#e0e7ff;font-weight:800;display:inline-flex;gap:4px;align-items:center;cursor:pointer;white-space:nowrap';   /* CNI1126 추천 줄 — 고르기만 하고 [추천 코스 받기]를 눌러야 짬 */
+    cp.innerHTML='<button onclick="crsEdRecGo()" title="아래 기준으로 지도 위에 코스를 채워 넣어요 (적용 전에는 저장 안 됨)" style="border:0;background:#fde047;color:#422006;border-radius:999px;padding:5px 14px;font-weight:900;font-size:13.5px;cursor:pointer;white-space:nowrap">✨ 추천 코스 받기</button>'
+      +cw(cb("crsEdRec('tab','map')",CRS.tab==='map','지도 거리 기준','가까이 모인 곳끼리 묶고, 가까운 곳부터 직선거리로 순서를 정해요')+cb("crsEdRec('tab','hist')",CRS.tab!=='map','과거 기록 기준','지난 45일 동안 같은 차에 같이 실린 지역끼리 묶어요 (순서는 지도 거리)'))
+      +cw(cb("crsEdRec('scope','rest')",E.recScope!=='all','안 넣은 카드만 나누기','이미 차에 넣은 순서는 그대로 두고, 노란 ＋만 켠 차에 나눠 붙여요')+cb("crsEdRec('scope','all')",E.recScope==='all','전부 다시 짜기','켠 차의 카드까지 전부 다시 짜요 (끈 차는 그대로)'))
+      +'<span style="font-size:12px;color:#c7d2fe;font-weight:800;white-space:nowrap">나눌 차</span>'+CRS_CARS.map(function(k){ var on=!(E.recUse&&E.recUse[k]===false), col=crsMapCol(k), n=(E.cars[k]||[]).length; return '<button onclick="crsEdRecUse('+k+')" title="'+(on?'켜짐 — 추천을 이 차에 나눠요 (켠 차 수 = 코스 수)':'꺼짐 — 추천이 이 차는 건드리지 않아요')+'" style="border:2px solid '+col+';background:'+(on?col:'transparent')+';color:'+(on?'#fff':'#c7d2fe')+';border-radius:999px;padding:2px 10px;font-weight:900;font-size:12.5px;cursor:pointer;white-space:nowrap">'+(on?'☑ ':'☐ ')+e(dlvCarName(k))+(n?' <span style="font-weight:700;font-size:11px">· '+n+'곳</span>':'')+'</button>'; }).join('')
+      +'<label style="'+lb+'" title="한 곳 때문에 30km 넘게(그리고 그 코스의 30% 넘게) 더 돌면 그곳은 빼서 노란 ＋로 남겨요"><input type="checkbox" onchange="crsEdRecFar(this.checked)"'+(E.recFar?' checked':'')+'> 혼자 멀리 도는 곳은 빼고</label>'
+      +'<label style="'+lb+'" title="카카오 길찾기로 도로 시간을 받아, 한 곳에 5분씩 머문다고 보고 곳마다 도착 예상 시각을 보여 줘요"><input type="checkbox" onchange="crsEdEtaTog(this.checked)"'+(E.eta?' checked':'')+'> 🕐 도착 예상 시간</label>'; }   /* CMT1126 */
   var nb=document.getElementById('crs-ednoad'); if(nb){ var bad=[]; Object.keys(E.cars).map(Number).sort(function(p,q){ return CRS_CARS.indexOf(p)-CRS_CARS.indexOf(q); }).forEach(function(k){ E.cars[k].forEach(function(id,i){ var x=by[id]; if(x&&!x.xy)bad.push({x:x,car:k,no:i+1}); }); });
     if(!bad.length){ nb.style.display='none'; nb.innerHTML=''; }
     else { var nbs='border:0;border-radius:7px;padding:4px 10px;font-weight:900;font-size:12.5px;cursor:pointer;white-space:nowrap;'; nb.style.display='';
       nb.innerHTML='<div style="background:#b91c1c;color:#fff;border:3px solid #fff;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.5);padding:10px 12px"><div style="font-weight:900;font-size:16px">⚠ 주소 없는 카드 '+bad.length+'장이 코스에 들어 있어요</div><div style="font-size:12.5px;margin:2px 0 4px">지도에 표시할 수 없고 거리로 순서를 정할 수 없습니다 — 주소를 넣거나 코스에서 빼 주세요.</div>'
         +bad.slice(0,6).map(function(o){ return '<div style="display:flex;gap:6px;align-items:center;background:rgba(255,255,255,.16);border-radius:8px;padding:4px 8px;margin-top:4px;font-size:13px"><b style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+e(dlvCarName(o.car))+' '+o.no+'번째 · '+e(nameOf(o.x.c))+(o.x.addr?' (지도에서 못 찾은 주소)':' (주소 없음)')+'</b><button data-act="addr" data-id="'+e(o.x.id)+'" style="'+nbs+'background:#fde047;color:#422006">📍 주소 넣기</button><button data-act="rm" data-id="'+e(o.x.id)+'" style="'+nbs+'background:#fff;color:#b91c1c">코스에서 빼기</button></div>'; }).join('')
         +(bad.length>6?'<div style="font-size:12.5px;margin-top:5px">… 그 밖에 '+(bad.length-6)+'장 — 오른쪽 명단에서 「(지도에 없음)」 줄을 봐 주세요</div>':'')+'</div>'; } }
-  var isp=document.getElementById('crs-edins'); if(isp){ var ib=function(fn,on,t){ return '<button onclick="'+fn+'" style="border:1px solid '+(on?'#fde047':'#6366f1')+';background:'+(on?'#fde047':'transparent')+';color:'+(on?'#422006':'#e0e7ff')+';border-radius:999px;padding:3px 10px;font-weight:800;font-size:12px;cursor:pointer">'+t+'</button>'; }; isp.innerHTML='<span style="font-size:12px;color:#c7d2fe;margin-right:4px">＋ 넣을 때</span>'+ib('crsEdInsEnd()',E.ins!=='auto','순서 직접')+' '+ib('crsEdInsAuto()',E.ins==='auto','순서 자동')+'<span style="font-size:11.5px;color:#a5b4fc;margin-left:4px">'+(E.ins==='auto'?'가장 덜 돌아가는 자리에 알아서 끼워 넣음':'누른 순서대로 맨 뒤에 붙음')+'</span>'; }
-  /* 오른쪽 명단 */
-  var pn=document.getElementById('crs-edpn'); if(pn){ var h=crsEdAddrBox(), used={}, rowSt=function(id){ return 'display:flex;gap:6px;align-items:center;padding:5px 8px;border-top:1px solid #f1f5f9;font-size:12.5px;cursor:pointer;'+(isHeld(id)?'background:#ffedd5;box-shadow:inset 4px 0 0 #f59e0b;':''); };
-    h+='<div style="font-size:11.5px;color:#64748b;margin:0 2px 6px;line-height:1.45">명단 줄에 마우스를 올리면 지도에서 그 점이 커져요 · 줄을 누르면 잡혀요(지도에 주황 테) → 넣을 자리 바로 앞 줄이나 점을 누르면 그 뒤로 옮겨요</div>';
-    Object.keys(E.cars).map(Number).sort(function(p,q){ return CRS_CARS.indexOf(p)-CRS_CARS.indexOf(q); }).forEach(function(k){ var L=E.cars[k].map(function(id){ return by[id]; }), col=crsMapCol(k), on=(k===E.active), km=crsEdKm(L); L.forEach(function(x){ used[x.id]=1; });
-      h+='<div style="border:2px solid '+(on?col:'#e2e8f0')+';border-radius:10px;margin:0 0 8px;overflow:hidden;background:#fff"><button data-act="car" data-car="'+k+'" style="display:flex;width:100%;align-items:center;gap:6px;border:0;background:'+(on?col:'#f1f5f9')+';color:'+(on?'#fff':'#0f172a')+';padding:8px 10px;font-weight:900;font-size:14px;cursor:pointer;text-align:left"><i style="width:12px;height:12px;border-radius:50%;background:'+col+';border:2px solid #fff;display:inline-block"></i><span style="flex:1">'+e(dlvCarName(k))+' · '+L.length+'곳'+(km!=null&&L.length?' · 약 '+Math.round(km)+'km':'')+'</span><span style="font-size:12px">'+(on?'✔ 고르는 중':'이 차 고르기')+'</span></button>'+(L.length>1?'<div style="padding:4px 8px;border-top:1px solid #f1f5f9;text-align:right"><button data-act="rev" data-car="'+k+'" style="border:1px solid #cbd5e1;background:#fff;border-radius:6px;padding:2px 9px;font-weight:800;font-size:12px;cursor:pointer">🔃 이 차 역순으로</button></div>':'')
-        +L.map(function(x,i){ return '<div data-row="'+e(x.id)+'" style="'+rowSt(x.id)+'"><b style="flex:none;min-width:20px;color:'+col+'">'+(i+1)+'</b><div style="flex:1;min-width:0"><b>'+e(nameOf(x.c))+'</b>'+(x.xy?'':' <span style="color:#b45309">(지도에 없음)</span> <button data-act="addr" data-id="'+e(x.id)+'" style="border:1px solid #f59e0b;background:#fffbeb;color:#92400e;border-radius:6px;padding:1px 7px;font-weight:800;cursor:pointer">📍 주소 넣기</button>')+'<div style="color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+tireOf(x.c)+'</div></div><button data-act="up" data-id="'+e(x.id)+'" title="앞으로" style="border:1px solid #cbd5e1;background:#fff;border-radius:6px;padding:2px 7px;cursor:pointer">▲</button><button data-act="dn" data-id="'+e(x.id)+'" title="뒤로" style="border:1px solid #cbd5e1;background:#fff;border-radius:6px;padding:2px 7px;cursor:pointer">▼</button><button data-act="rm" data-id="'+e(x.id)+'" title="코스에서 빼기" style="border:1px solid #fca5a5;background:#fff;color:#b91c1c;border-radius:6px;padding:2px 7px;cursor:pointer">✕</button></div>'; }).join('')+(L.length?'':'<div style="padding:7px 10px;font-size:12.5px;color:#94a3b8;border-top:1px solid #f1f5f9">아직 없음 — 이 차를 고르고 지도에서 노란 ＋ 점을 눌러 주세요</div>')+'</div>'; });
-    var rest=E.items.filter(function(x){ return !used[x.id]; });
-    h+='<div style="border:2px solid #111;border-radius:10px;overflow:hidden;background:#fff"><div style="background:#facc15;padding:8px 10px;font-weight:900;font-size:13.5px;color:#111">＋ 코스에 안 넣은 카드 '+rest.length+'장 <span style="font-weight:700;font-size:12px">· 적용해도 지금 호차 그대로</span></div>'+rest.map(function(x){ return '<div data-row="'+e(x.id)+'" style="'+rowSt(x.id)+'"><div style="flex:1;min-width:0"><b>'+e(nameOf(x.c))+'</b>'+(x.old?' <span style="color:#b91c1c;font-weight:800">⏰ '+x.wait+'일</span>':'')+(x.xy?'':' <span style="color:#b45309">(지도에 없음)</span> <button data-act="addr" data-id="'+e(x.id)+'" style="border:1px solid #f59e0b;background:#fffbeb;color:#92400e;border-radius:6px;padding:1px 7px;font-weight:800;cursor:pointer">📍 주소 넣기</button>')+'<div style="color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+tireOf(x.c)+'</div></div><button data-act="add" data-id="'+e(x.id)+'" style="border:0;background:'+actCol+';color:#fff;border-radius:6px;padding:3px 9px;font-weight:800;cursor:pointer">'+e(actName)+'에 넣기</button></div>'; }).join('')+'</div>';
-    var keepY=pn.scrollTop; pn.innerHTML=h; pn.scrollTop=keepY; }
-  var sm=document.getElementById('crs-edsum'); if(sm){ var tot=0; Object.keys(E.cars).forEach(function(k){ tot+=E.cars[k].length; }); sm.textContent='코스에 넣은 카드 '+tot+' / 전체 '+E.items.length+(E.items.length-tot?' · 안 넣은 것 '+(E.items.length-tot):''); } }
+  var isp=document.getElementById('crs-edins'); if(isp){ var md=(E.mode==='order'||E.mode==='parcel'||E.mode==='hold')?E.mode:'inout', sgw=function(inner,col){ return '<span style="display:inline-flex;border:2px solid '+(col||'#6366f1')+';border-radius:999px;overflow:hidden;flex:none">'+inner+'</span>'; }, sgb=function(fn,on,t,big,tt){ return '<button onclick="'+fn+'" title="'+(tt||'')+'" style="border:0;background:'+(on?'#fde047':'transparent')+';color:'+(on?'#422006':'#e0e7ff')+';padding:'+(big?'4px 12px':'3px 10px')+';font-weight:900;font-size:'+(big?'13px':'12px')+';cursor:pointer;white-space:nowrap">'+t+'</button>'; };   /* CNI1126 점을 누르면: 추가/빼기[최적|강제] · 순서 바꾸기 · 택배전환 · 미출고 */
+    isp.innerHTML='<span style="font-size:12.5px;color:#c7d2fe;font-weight:800;white-space:nowrap">점을 누르면</span>'+sgw(sgb("crsEdMode('inout')",md==='inout','➕ 추가/빼기',1)+sgb("crsEdMode('order')",md==='order','↕ 순서 바꾸기',1)+sgb("crsEdMode('parcel')",md==='parcel','📦 택배전환',1)+sgb("crsEdMode('hold')",md==='hold','⏸ 미출고',1))
+      +(md==='inout'?sgw(sgb('crsEdInsAuto()',E.ins==='auto','최적',0,'가장 덜 돌아가는 자리에 알아서 끼워 넣어요')+sgb('crsEdInsEnd()',E.ins!=='auto','강제',0,'누른 순서대로 그 차 맨 뒤에 붙여요'),'#fde047'):''); }
+  /* 오른쪽 명단 — CNI1126: 안 넣은 카드(맨 위) · 차마다 · 보낸 것 · 단추는 마우스를 올릴 때만 */
+  var nb2=document.getElementById('crs-ednoad'); if(nb2&&E.view)nb2.style.display='none';
+  var pn=document.getElementById('crs-edpn'); if(pn){ var V=!!E.view, h=V?'<div style="font-size:11.5px;color:#64748b;margin:0 2px 6px;line-height:1.45">줄을 누르면 지도에서 그곳을 보여 줘요 · 지도의 점을 누르면 내용이 떠요</div>':crsEdAddrBox(), used={}, hc='', etaOn=(!!E.eta&&!V),
+      rowSt=function(id){ return 'display:flex;gap:6px;align-items:center;padding:5px 8px;border-top:1px solid #f1f5f9;font-size:12.5px;cursor:pointer;'+(isHeld(id)?'background:#ffedd5;box-shadow:inset 4px 0 0 #f59e0b;':''); },
+      mb='border:1px solid #cbd5e1;background:#fff;border-radius:6px;padding:1px 6px;font-size:11.5px;font-weight:800;cursor:pointer;white-space:nowrap;',
+      noad=function(x){ return x.xy?'':(' <span style="color:#b45309">(지도에 없음)</span>'+(V?'':' <button data-act="addr" data-id="'+e(x.id)+'" style="border:1px solid #f59e0b;background:#fffbeb;color:#92400e;border-radius:6px;padding:1px 7px;font-weight:800;cursor:pointer">📍 주소 넣기</button>')); },
+      send=function(id){ return '<button data-act="parcel" data-id="'+e(id)+'" title="택배전환 탭으로 보내기" style="'+mb+'color:#075985">택배</button><button data-act="hold" data-id="'+e(id)+'" title="미출고 탭으로 보내기" style="'+mb+'color:#7c2d12">미출고</button>'; };
+    Object.keys(E.cars).map(Number).sort(function(p,q){ if(V&&p!==q){ if(p===E.active)return -1; if(q===E.active)return 1; } return CRS_CARS.indexOf(p)-CRS_CARS.indexOf(q); }).forEach(function(k){ var L=E.cars[k].map(function(id){ return by[id]; }), col=crsMapCol(k), on=(k===E.active), t=(E.ctx&&E.ctx[k])||{done:[],fix:[],truck:null,start:null}, off=t.fix.length, km=crsEdKm(L,crsEdStart(k)), R=(etaOn&&E.etaRes&&E.etaRes[k])||null, st=(etaOn&&E.etaSt&&E.etaSt[k])||''; L.forEach(function(x){ used[x.id]=1; });
+      var dot='<i style="width:12px;height:12px;border-radius:50%;background:'+col+';border:2px solid #fff;display:inline-block;flex:none"></i>', info='';
+      if(t.done.length)info+='<div style="padding:4px 10px;border-top:1px solid #f1f5f9;font-size:12px;color:#475569">✓ 오늘 완료 <b>'+t.done.length+'곳</b>'+(t.truck?' · 🚚 마지막 <b>'+crsHM(t.truck.at)+'</b> '+e(nameOf(t.truck.c)):'')+'</div>';
+      if(off)info+='<div style="padding:4px 10px;border-top:1px solid #f1f5f9;font-size:12px;color:#475569;background:#f8fafc">이미 들어 있는 <b>'+off+'곳</b>은 그대로 — 새 카드는 그 뒤('+(off+1)+'번째부터)</div>'+t.fix.map(function(f,i){ return '<div data-act="fixgo" data-id="'+e(f.id)+'" style="display:flex;gap:6px;align-items:center;padding:4px 8px;border-top:1px solid #f1f5f9;font-size:12.5px;cursor:pointer;background:#f8fafc;color:#475569"><b style="flex:none;min-width:20px;color:'+col+';opacity:.75">'+(i+1)+'</b><div style="flex:1;min-width:0"><b>'+e(nameOf(f.c))+'</b><div style="color:#94a3b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+tireOf(f.c)+'</div></div><span style="flex:none;font-size:11px;color:#94a3b8">그대로</span></div>'; }).join('');
+      if(etaOn&&(R||st))info+='<div style="padding:4px 10px;border-top:1px solid #f1f5f9;font-size:12px;color:'+(/^⚠/.test(st)?'#b91c1c':'#0369a1')+'">'+(R?('🕐 도로 약 '+Math.round(R.m/1000)+'km · '+crsHM(R.from)+' 출발로 계산 · 한 곳 5분씩 머무름 포함'+(R.n<L.length?' · 주소 없는 '+(L.length-R.n)+'곳은 빼고 계산':'')):e(st))+'</div>';
+      var _th=R?Math.floor(R.total/3600):0, _tm=R?Math.round((R.total%3600)/60):0, totT=R?(' · 🕐 '+(_th?_th+'시간 ':'')+_tm+'분'):'', kmT=R?(' · 도로 약 '+Math.round(R.m/1000)+'km'):((km!=null&&L.length)?(' · '+(t.start?'지금 위치에서 ':'')+'약 '+Math.round(km)+'km'):'');
+      hc+='<div style="border:2px solid '+(on?col:'#e2e8f0')+';border-radius:10px;margin:0 0 8px;overflow:hidden;background:#fff"><button data-act="car" data-car="'+k+'" style="display:flex;width:100%;align-items:center;gap:6px;border:0;background:'+(on?col:'#f1f5f9')+';color:'+(on?'#fff':'#0f172a')+';padding:8px 10px;font-weight:900;font-size:14px;cursor:pointer;text-align:left">'+dot+'<span style="flex:1">'+e(dlvCarName(k))+' · '+(off?('이미 '+off+' + '):'')+L.length+'곳'+kmT+totT+'</span><span style="font-size:12px;flex:none">'+(V?(on?'✔ 굵게 보는 중':'굵게 보기'):(on?'✔ 이 차에 넣는 중':'이 차 고르기'))+'</span></button>'+info
+        +L.map(function(x,i){ var ar=(R&&R.at[x.id])?crsHM(R.at[x.id]):''; return '<div data-row="'+e(x.id)+'" style="'+rowSt(x.id)+'"><b style="flex:none;min-width:20px;color:'+col+'">'+(i+1+off)+'</b><div style="flex:1;min-width:0"><b>'+e(nameOf(x.c))+'</b>'+noad(x)+'<div style="color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+tireOf(x.c)+'</div></div>'+(ar?'<span class="crs-eta" style="flex:none;font-size:11.5px;color:#0369a1;font-weight:800">도착 '+ar+'</span>':'')+(V?'':('<span class="crs-act"><button data-act="up" data-id="'+e(x.id)+'" title="앞으로" style="'+mb+'">▲</button><button data-act="dn" data-id="'+e(x.id)+'" title="뒤로" style="'+mb+'">▼</button><button data-act="rm" data-id="'+e(x.id)+'" title="이 차에서 빼기 (적용하면 대기로)" style="'+mb+'color:#b91c1c">빼기</button>'+send(x.id)+'</span>'))+'</div>'; }).join('')
+        +(L.length?'':'<div style="padding:7px 10px;font-size:12.5px;color:#94a3b8;border-top:1px solid #f1f5f9">'+(V?'남은 곳 없음':'아직 없음 — 이 차를 고르고 지도에서 노란 ＋를 누르세요')+'</div>')
+        +((L.length>1&&!V)?'<div style="padding:3px 8px;border-top:1px solid #f1f5f9;text-align:right"><button data-act="rev" data-car="'+k+'" style="border:0;background:transparent;color:#64748b;font-weight:800;font-size:11.5px;cursor:pointer;text-decoration:underline">이 차 순서 거꾸로</button></div>':'')+'</div>'; });
+    var rest=E.items.filter(function(x){ return !used[x.id]; }), hr='';
+    if(rest.length||!V)hr='<div style="border:3px solid #111;border-radius:10px;overflow:hidden;background:#fff;margin:0 0 8px"><div style="background:#facc15;padding:8px 10px;font-weight:900;font-size:14.5px;color:#111">'+(rest.length?'＋ ':'✓ ')+'차에 안 넣은 카드 '+rest.length+'장'+((V||!rest.length)?'':' <span style="font-weight:700;font-size:12px">· 적용하면 대기로</span>')+'</div><div id="crs-edrest" style="'+(V?'':'max-height:236px;overflow:auto')+'">'
+      +rest.map(function(x){ var fx=(E.farEx&&E.farEx[x.id])||''; return '<div data-row="'+e(x.id)+'" style="'+rowSt(x.id)+'"><div style="flex:1;min-width:0"><b>'+e(nameOf(x.c))+'</b>'+(x.old?' <span style="color:#b91c1c;font-weight:800">⏰ '+x.wait+'일</span>':'')+(fx?' <span title="'+e(fx)+'" style="color:#b45309;font-weight:800">멀리 돎</span>':'')+noad(x)+'<div style="color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+tireOf(x.c)+'</div></div>'+(V?'':('<span class="crs-act">'+CRS_CARS.map(function(k){ return '<button data-act="addto" data-car="'+k+'" data-id="'+e(x.id)+'" title="'+e(dlvCarName(k))+'에 넣기" style="border:0;background:'+crsMapCol(k)+';color:#fff;border-radius:6px;padding:2px 8px;font-size:11.5px;font-weight:900;cursor:pointer">'+e(String(dlvCarName(k)).replace('호차',''))+'</button>'; }).join('')+send(x.id)+'</span>'))+'</div>'; }).join('')+(rest.length?'':'<div style="padding:6px 10px;font-size:12.5px;color:#64748b">전부 차에 넣었어요</div>')+'</div></div>';
+    h+=V?(hc+hr):(hr+hc);
+    if(!V&&E.sent&&E.sent.length)h+='<div style="border:2px solid #e2e8f0;border-radius:10px;overflow:hidden;background:#fff;margin:0 0 8px"><div style="background:#f1f5f9;padding:7px 10px;font-weight:900;font-size:13.5px">보낸 것 '+E.sent.length+'장</div>'+E.sent.map(function(s,i){ return '<div style="display:flex;gap:6px;align-items:center;padding:5px 8px;border-top:1px solid #f1f5f9;font-size:12.5px"><div style="flex:1;min-width:0"><b>'+e(s.nm)+'</b><div style="color:#64748b">'+(s.to==='hold'?'⏸ 미출고':'📦 택배전환')+' 탭으로 보냄</div></div><button data-act="back" data-i="'+i+'" style="'+mb+'">다시 가져오기</button></div>'; }).join('')+'</div>';
+    var _rb=document.getElementById('crs-edrest'), _ry=_rb?_rb.scrollTop:0, keepY=pn.scrollTop; pn.innerHTML=h; pn.scrollTop=keepY; _rb=document.getElementById('crs-edrest'); if(_rb)_rb.scrollTop=_ry; }
+  var sm=document.getElementById('crs-edsum'); if(sm){ var tot=0; Object.keys(E.cars).forEach(function(k){ tot+=E.cars[k].length; }); sm.textContent='코스에 넣은 카드 '+tot+' / 전체 '+E.items.length+(E.items.length-tot?' · 안 넣은 것 '+(E.items.length-tot):''); if(E.view)sm.textContent='차에 실린 남은 곳 '+tot+(E.items.length-tot?' · 아직 차에 안 넣은 카드 '+(E.items.length-tot):''); else if(E.items.length-tot)sm.innerHTML='코스에 넣은 카드 '+tot+' / 전체 '+E.items.length+' <b style="background:#facc15;color:#111;border-radius:999px;padding:1px 9px;margin-left:4px">차에 안 넣은 카드 '+(E.items.length-tot)+'장</b>'; } }
 async function crsMapOpen(opt){ opt=opt||{}; var P=opt.rec||CRS.plan; if(!CRS.hist){ alert('지난 기록을 읽는 중이에요 — 잠시 뒤 다시'); return; }
   var cfg=CRS.cfg||{}; if(!String(cfg.key||'').trim()||!String(cfg.depot||'').trim()){ alert('지도 열쇠와 출발지 주소가 있어야 지도로 볼 수 있어요 — [지도 거리 기준] 탭의 [🔑 지도 열쇠 넣기]'); return; }
   if(CRS.mapBusy)return; CRS.mapBusy=true;
@@ -6192,10 +6470,11 @@ async function crsMapOpen(opt){ opt=opt||{}; var P=opt.rec||CRS.plan; if(!CRS.hi
     var _pn=document.getElementById('crs-edpn');
     _pn.addEventListener('click',function(ev){ if(!CRS_ED)return; var b=ev.target.closest?ev.target.closest('[data-act]'):null;
       if(b){ var act=b.getAttribute('data-act'), id=b.getAttribute('data-id');
-        if(act==='car'){ CRS_ED.active=+b.getAttribute('data-car'); crsEdDraw(); } else if(act==='rev'){ var rc=+b.getAttribute('data-car'); CRS_ED.cars[rc]=(CRS_ED.cars[rc]||[]).slice().reverse(); crsEdDraw(); } else if(act==='up')crsEdMove(id,-1); else if(act==='dn')crsEdMove(id,1); else if(act==='rm'){ crsEdCut([id]); if(CRS_ED.hold&&CRS_ED.hold.indexOf(id)>=0)CRS_ED.hold=null; crsEdDraw(); } else if(act==='add'){ crsEdAdd([id]); if(CRS_ED.hold&&CRS_ED.hold.indexOf(id)>=0)CRS_ED.hold=null; crsEdDraw(); } else if(act==='addr')crsEdAddrOpen(id); else if(act==='adfind')crsEdAddrFind(); else if(act==='adclose')crsEdAddrClose(); else if(act==='adpick')crsEdAddrPick(+b.getAttribute('data-i')); else if(act==='admap')crsEdAddrMapPick(); else if(act==='adkmap')crsEdAddrKakao();
+        if(act==='car'){ CRS_ED.active=+b.getAttribute('data-car'); crsEdDraw(); } else if(act==='rev'){ var rc=+b.getAttribute('data-car'); CRS_ED.cars[rc]=(CRS_ED.cars[rc]||[]).slice().reverse(); crsEdDraw(); } else if(act==='up')crsEdMove(id,-1); else if(act==='dn')crsEdMove(id,1); else if(act==='rm'){ crsEdCut([id]); if(CRS_ED.hold&&CRS_ED.hold.indexOf(id)>=0)CRS_ED.hold=null; crsEdDraw(); } else if(act==='add'){ crsEdAdd([id]); if(CRS_ED.hold&&CRS_ED.hold.indexOf(id)>=0)CRS_ED.hold=null; crsEdDraw(); } else if(act==='fixgo')crsEdFixFocus(id); else if(act==='parcel')crsEdParcelAsk([id]); else if(act==='hold')crsEdParcelAsk([id],'hold'); else if(act==='addto')crsEdAddTo(id,+b.getAttribute('data-car')); else if(act==='back')crsEdParcelUndo(+b.getAttribute('data-i')); else if(act==='addr')crsEdAddrOpen(id); else if(act==='adfind')crsEdAddrFind(); else if(act==='adclose')crsEdAddrClose(); else if(act==='adpick')crsEdAddrPick(+b.getAttribute('data-i')); else if(act==='admap')crsEdAddrMapPick(); else if(act==='adkmap')crsEdAddrKakao();
         return; }
       if(ev.target.closest&&ev.target.closest('input'))return;
       var row=ev.target.closest?ev.target.closest('[data-row]'):null; if(!row)return; var rid=row.getAttribute('data-row'), H=CRS_ED.hold;   /* 명단 줄을 누르면: 잡은 것이 있고 그 줄이 코스에 있으면 그 뒤로 옮김 · 아니면 그 줄을 잡음 */
+      if(CRS_ED.view||CRS_ED.mode!=='order'){ crsEdFocus(rid); return; }   /* CNF1126 넣기·빼기·보기 전용: 줄을 누르면 지도에서 그곳을 보여 줌 */
       if(H&&H.indexOf(rid)<0&&crsEdCarOf(rid)){ crsEdMoveAfter(rid); return; } crsEdHold([rid]); });
     _pn.addEventListener('keydown',function(ev){ if((ev.key==='Enter'||ev.code==='Enter'||ev.code==='NumpadEnter')&&ev.target&&ev.target.id==='crs-adq'){ ev.preventDefault(); setTimeout(crsEdAddrFind,(ev.isComposing||ev.keyCode===229)?150:0); } });   /* CMW1126 한글 조합이 끝난 뒤에 찾기 */
     _pn.addEventListener('change',function(ev){ if(ev.target&&ev.target.id==='crs-adbook'&&CRS_ED&&CRS_ED.addr)CRS_ED.addr.toBook=!!ev.target.checked; });   /* CNB1126 체크를 끄면 다시 그려도 꺼진 채로 */
@@ -6204,29 +6483,29 @@ async function crsMapOpen(opt){ opt=opt||{}; var P=opt.rec||CRS.plan; if(!CRS.hi
     document.getElementById('crs-edchips').addEventListener('click',function(ev){ var b=ev.target.closest?ev.target.closest('[data-k]'):null; if(b)crsEdSet(b.getAttribute('data-k'),b.getAttribute('data-v')); });   /* CMT1126 */
     document.getElementById('crs-ednoad').addEventListener('click',function(ev){ var b=ev.target.closest?ev.target.closest('[data-act]'):null; if(!b||!CRS_ED)return; var id=b.getAttribute('data-id'); if(b.getAttribute('data-act')==='addr')crsEdAddrOpen(id); else { crsEdCut([id]); if(CRS_ED.hold&&CRS_ED.hold.indexOf(id)>=0)CRS_ED.hold=null; crsEdDraw(); } }); }
   ov.style.display='flex'; var hd=document.getElementById('crs-maphd'), msg=document.getElementById('crs-mapmsg'), cv=document.getElementById('crs-mapcv'), body=document.getElementById('crs-edbody'), pn=document.getElementById('crs-edpn');
-  var narrow=window.innerWidth<760; body.style.flexDirection=narrow?'column':'row'; pn.style.width=narrow?'100%':'330px'; pn.style.height=narrow?'42%':'auto'; pn.innerHTML='';
+  var narrow=window.innerWidth<760; body.style.flexDirection=narrow?'column':'row'; pn.style.width=narrow?'100%':(Math.max(330,Math.min(430,Math.round(window.innerWidth*0.25)))+'px'); pn.style.height=narrow?'42%':'auto'; pn.innerHTML='';
   var say=function(t,bad){ msg.style.display=t?'':'none'; msg.textContent=t||''; msg.style.background=bad?'#fef2f2':'#fffbeb'; msg.style.color=bad?'#991b1b':'#92400e'; };
   var bt=function(fn,txt,bg){ return '<button onclick="'+fn+'" style="border:0;background:'+bg+';color:#fff;border-radius:8px;padding:6px 11px;font-weight:900;font-size:13px;cursor:pointer">'+txt+'</button>'; };
-  hd.innerHTML='<b style="font-size:16px">🗺 동선 지도 · '+esc(rtrMD(dlvDateStr()))+(opt.now?' · 지금 배차':'')+'</b><span id="crs-edsum" style="font-size:12.5px;color:#c7d2fe"></span><span id="crs-edins" style="display:inline-flex;align-items:center;gap:4px;flex-wrap:wrap;margin-left:6px"></span><span style="flex:1"></span>'+bt("crsEdReset('rec')",'처음대로 다시','#4338ca')+bt("crsEdReset('none')",'전부 비우고 시작','#4338ca')+bt('crsEdToList()','목록으로 보기','#0f766e')+bt('crsEdApply()','이 순서로 적용','#b45309')+bt('crsMapClose()','닫기','#475569');
+  CRS_EDH={now:!!opt.now,view:narrow}; crsEdHead();   /* CNF1126 좁은 화면은 보기 전용으로 */
   cv.innerHTML=''; say('주소를 지도 좌표로 바꾸는 중…');
-  try{ await crsAddrFixLoad(); var H=CRS.hist, addrs=crsCards().map(function(c){ return crsAddrOf(c,H).addr; }).filter(Boolean);
+  try{ await crsAddrFixLoad(); var H=CRS.hist, addrs=crsCardsDay().map(function(c){ return crsAddrOf(c,H).addr; }).filter(Boolean);
     await crsGeoFill([cfg.depot].concat(addrs)); await crsSdk();   /* 이미 받은 좌표는 다시 안 물음 */
     var dep=crsDepot(); if(!dep){ say('⚠ 출발지 주소를 지도에서 못 찾았어요 — [지도 거리 기준] 탭에서 출발지 주소를 확인해 주세요',true); return; }
     var LL=function(xy){ return new kakao.maps.LatLng(xy[1],xy[0]); }; var map=new kakao.maps.Map(cv,{center:LL(dep),level:9}); try{ map.addControl(new kakao.maps.ZoomControl(),kakao.maps.ControlPosition.RIGHT); }catch(e){}
-    var items=crsEdItems(), rec=P||{courses:[]}; CRS_ED={map:map,items:items,rec:rec,cars:crsEdCarsOf(rec),active:(opt.active||CRS_CARS[0]),objs:[],mk:{},hold:null,note:'',ins:(((rec.courses||[]).length)?'auto':'end'),hint:'',fromTab:!!opt.fromTab,now:!!opt.now};   /* CMS1126 · CNC1126 */
-    var bounds=new kakao.maps.LatLngBounds(); bounds.extend(LL(dep)); var noXY=0; items.forEach(function(x){ if(x.xy)bounds.extend(LL(x.xy)); else noXY++; });
+    var items=crsEdItems(), rec=P||{courses:[]}; CRS_ED={map:map,items:items,rec:rec,cars:crsEdCarsOf(rec),active:(opt.active||CRS_CARS[0]),objs:[],mk:{},hold:null,note:'',ins:(((rec.courses||[]).length)?'auto':'end'),hint:'',fromTab:!!opt.fromTab,now:!!opt.now}; CRS_ED.view=!!CRS_EDH.view; CRS_ED.mode='inout'; CRS_ED.undo=[]; CRS_ED.last=null; CRS_ED.showDone=true; CRS_ED.stale=!!(opt.now&&CRS.nowStale); CRS_ED.showUn=!CRS_ED.view; CRS_ED.scope=CRS.scope; crsEdCtx(); crsEdHead(); if(!crsUseOn(CRS_ED.active))CRS_ED.active=crsUseList()[0];   /* CNF1126 */   /* CMS1126 · CNC1126 */
+    var bounds=new kakao.maps.LatLngBounds(); bounds.extend(LL(dep)); var noXY=0; items.forEach(function(x){ if(x.xy){ if(!(CRS_ED.view&&!crsEdCarOf(x.id)))bounds.extend(LL(x.xy)); } else noXY++; });   /* CNF1126 보기 전용은 차에 실린 곳 기준으로 화면을 맞춤 */ CRS_CARS.forEach(function(k){ var t=CRS_ED.ctx[k]; t.done.concat(t.fix).forEach(function(d){ if(d.xy)bounds.extend(LL(d.xy)); }); });
     crsEdDraw(); map.setBounds(bounds); setTimeout(function(){ try{ map.relayout(); map.setBounds(bounds); }catch(e){} },250);
     CRS_ED.hint='노란 ＋ 점 = 아직 코스에 안 넣은 곳: 누르면 고른 차에 들어가요 · 번호 점을 누르면 잡혀요 → 넣을 자리 바로 앞의 점을 누르면 그 뒤로 옮겨요 · 선은 직선(실제 도로 아님)'+(noXY?' · 주소가 없어 지도에 없는 카드 '+noXY+'장은 오른쪽 명단의 [📍 주소 넣기]':''); crsEdDraw();
-    try{ kakao.maps.event.addListener(map,'click',function(me2){ if(!CRS_ED||(Date.now()-(CRS_ED.lastMk||0))<=600)return; if(crsEdAddrMapHit(me2&&me2.latLng))return; if(CRS_ED.hold)crsEdDrop(); }); }catch(e){}   /* CMW1126 위치 찍기 중이면 그 자리로 */   /* 빈 지도를 누르면 놓기 — 점을 누른 직후의 지도 클릭은 무시(CMT1126) */
+    try{ kakao.maps.event.addListener(map,'click',function(me2){ if(!CRS_ED||(Date.now()-(CRS_ED.lastMk||0))<=600)return; if(crsEdAddrMapHit(me2&&me2.latLng))return; crsEdTipTap(null); if(CRS_ED.hold)crsEdDrop(); }); }catch(e){}   /* CMW1126 위치 찍기 중이면 그 자리로 */   /* 빈 지도를 누르면 놓기 — 점을 누른 직후의 지도 클릭은 무시(CMT1126) */
   }catch(e){ say('⚠ 지도를 못 그렸어요: '+String(e&&e.message||e),true); console.error('동선 지도',e); }
   finally{ CRS.mapBusy=false; } }
 /* ▲CMV1126 */
 /* ▼CMR1126 (11/26 호준님 "역순 버튼 누르면 거꾸로 순서로") 코스의 순서 뒤집기 — 추천 코스는 표시만 뒤집고(방해 건 목록 그대로), 지도에서 직접 정한 코스는 그 순서를 뒤집음 */
 function crsRev(car){ if(CRS.busy)return; if(CRS.manual&&CRS.manual.cars&&CRS.manual.cars[car]){ CRS.manual.cars[car]=CRS.manual.cars[car].slice().reverse(); } else { CRS.rev=CRS.rev||{}; CRS.rev[car]=!CRS.rev[car]; } CRS.msg=''; crsPaint(); }
-(function(){ if(window._crsRevWrapped)return; window._crsRevWrapped=true; var _c=crsCompute; crsCompute=function(){ var P=_c.apply(this,arguments); try{ if(P&&P.courses&&CRS.rev&&P.how!=='manual'){ P.courses.forEach(function(co){ if(CRS.rev[co.car]&&co.stops.length>1){ co.stops=co.stops.slice().reverse(); co.rev=true; if(co.km!=null){ var k2=crsEdKm(co.stops); co.km=(k2==null?co.km:k2); } } }); } }catch(e){ console.error('코스 추천: 역순',e); } return P; }; })();
+(function(){ if(window._crsRevWrapped)return; window._crsRevWrapped=true; var _c=crsCompute; crsCompute=function(){ var P=_c.apply(this,arguments); try{ crsUseRemap(P); }catch(eu){ console.error('코스짜기: 쓸 차 나누기',eu); } try{ if(P&&P.courses&&CRS.rev&&P.how!=='manual'){ P.courses.forEach(function(co){ if(CRS.rev[co.car]&&co.stops.length>1){ co.stops=co.stops.slice().reverse(); co.rev=true; if(co.km!=null){ var k2=crsEdKm(co.stops); co.km=(k2==null?co.km:k2); } } }); } }catch(e){ console.error('코스 추천: 역순',e); } return P; }; })();
 /* ▲CMR1126 */
 function crsClose(){ var ov=document.getElementById('crs-ov'); if(ov)ov.style.display='none'; }
-function crsSet(k,v){ if(CRS.busy)return; CRS[k]=v; CRS.msg=''; CRS.manual=null;   /* CME1126 탭·기준을 바꾸면 추천으로 돌아감 */ CRS.rev=null; crsPaint(); if(k==='tab')crsMapPrep(); }   /* CMR1126 */
+function crsSet(k,v){ if(CRS.busy)return; CRS[k]=v; CRS.msg=''; CRS.manual=null; if(k==='scope')crsUseDefault(); if(k==='tab')CRS.tabPicked=true; if(k==='k')crsUseFit();   /* CME1126 탭·기준을 바꾸면 추천으로 돌아감 */ CRS.rev=null; crsPaint(); if(k==='tab')crsMapPrep(); }   /* CMR1126 */
 function crsForce(id){ CRS.force[id]=1; crsPaint(); }
 async function crsOut(id,to){ if(CRS.busy)return; CRS.busy=true; try{ await dlvMoveTab(id,to); }catch(e){ alert('옮기지 못했어요: '+String(e&&e.message||e)); } CRS.busy=false; crsPaint(); }   /* 택배전환·미출고는 사람이 누를 때만 — 기존 옮기기 함수 그대로 */
 function crsCarNow(c){ var n=dlvCarNorm(c.car); return n===1?'대기':dlvCarName(n); }
@@ -6236,9 +6515,10 @@ function crsStop(x,i,o){ var c=x.c, e=esc, nm=String(c.trade_client||c.shop_name
 function crsPaint(){ var box=document.getElementById('crs-box'); if(!box)return; var e=esc, bd0=document.getElementById('crs-body'), keepY=bd0?bd0.scrollTop:0, P=null; try{ P=crsCompute(); }catch(err){ console.error('코스 추천 계산',err); CRS.msg='❌ 계산 중 오류: '+String(err&&err.message||err); } CRS.plan=P;
   var chip=function(k,v,t){ return '<button class="'+(String(CRS[k])===String(v)?'on':'')+'" onclick="crsSet(\''+k+'\',\''+v+'\')">'+t+'</button>'; }, cfg=CRS.cfg||{}, hasKey=!!String(cfg.key||'').trim(), H=CRS.hist;
   var h='<div id="crs-hd"><div class="t"><span>🧭 코스짜기 · '+e(rtrMD(dlvDateStr()))+'</span><button class="x" onclick="crsClose()">닫기</button></div><div class="crs-tabs"><button class="'+(CRS.tab==='hist'?'on':'')+'" onclick="crsSet(\'tab\',\'hist\')">과거 기록 기준</button><button class="'+(CRS.tab==='map'?'on':'')+'" onclick="crsSet(\'tab\',\'map\')">지도 거리 기준'+(hasKey?'':' 🔒')+'</button></div>'
-    +'<div class="crs-chips">'+chip('lvl','rec','추천')+chip('lvl','max','최대한 많이')+chip('lvl','clean','동선 가장 깔끔하게')+'<i>|</i>'+chip('scope','all','전부 다시 짜기')+chip('scope','wait','대기 카드만')+'<i>| 차</i>'+chip('k','0','자동')+chip('k','1','1대')+chip('k','2','2대')+chip('k','3','3대')+'</div></div><div id="crs-body">';
+    +'<div class="crs-chips">'+chip('lvl','rec','추천')+chip('lvl','max','최대한 많이')+chip('lvl','clean','동선 가장 깔끔하게')+'<i>|</i>'+chip('scope','all','전부 다시 짜기')+chip('scope','wait','대기 카드만')+'<i>| 차</i>'+chip('k','0','자동')+chip('k','1','1대')+chip('k','2','2대')+chip('k','3','3대')+'<i>|</i>'+crsUseChips(0)+'</div></div><div id="crs-body">';
   if(CRS.msg)h+='<div class="crs-note '+(/^❌|⚠/.test(CRS.msg)?'bad':'ok')+'">'+e(CRS.msg)+'</div>';
-  if(P)h+='<div class="crs-note" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button onclick="crsMapOpen()" style="border:0;background:#0f766e;color:#fff;border-radius:9px;padding:8px 14px;font-weight:900;font-size:14px;cursor:pointer">🗺 지도로 보기 · 순서 직접 정하기</button><span style="font-size:12.5px;color:#64748b">'+(hasKey?'지도에서 동선을 보고, 점을 눌러 차와 순서를 직접 정해 적용할 수 있어요':'지도 열쇠가 있어야 볼 수 있어요 ([지도 거리 기준] 탭의 🔑)')+'</span></div>';   /* CMV1126 */
+  try{ h+=crsUseNote(); }catch(eu){ console.error('코스짜기: 쓸 차 안내',eu); }   /* CNF1126 */
+  if(P)h+='<div class="crs-note" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button onclick="crsMapPlan()" style="border:0;background:#0f766e;color:#fff;border-radius:9px;padding:8px 14px;font-weight:900;font-size:14px;cursor:pointer">🗺 지도로 보기 · 순서 직접 정하기</button><span style="font-size:12.5px;color:#64748b">'+(hasKey?'지도에서 동선을 보고, 점을 눌러 차와 순서를 직접 정해 적용할 수 있어요':'지도 열쇠가 있어야 볼 수 있어요 ([지도 거리 기준] 탭의 🔑)')+'</span></div>';   /* CMV1126 */
   if(CRS.manual)h+='<div class="crs-note warn">🖐 <b>지도에서 직접 정한 코스</b>를 보고 있어요 — 아래 [이대로 적용]을 누르면 이 순서로 들어갑니다. <button onclick="crsManualClear()" style="margin-left:6px">추천으로 돌아가기</button></div>';   /* CME1126 */
   if(P&&P.courses){ var _na=[]; P.courses.forEach(function(co){ co.stops.forEach(function(x,j){ if(!x.addr)_na.push(dlvCarName(co.car)+' '+(j+1)+'번째 '+(String(x.c.trade_client||x.c.shop_name||x.c.recv||'').trim()||'(이름 없음)')); }); });
     if(_na.length)h+='<div class="crs-note bad" style="border-width:2px">⚠ 주소 없는 카드 '+_na.length+'장이 코스에 들어 있어요 — '+e(_na.slice(0,5).join(' · '))+(_na.length>5?' 외 '+(_na.length-5)+'장':'')+'<br><span style="font-weight:600">거래처 주소록에 그 거래처 주소를 넣거나, [지도로 보기]에서 [📍 주소 넣기]를 눌러 주세요. 주소가 없으면 거리로 순서를 정할 수 없어 그 코스 맨 뒤에 둡니다.</span></div>'; }   /* CMT1126 */
@@ -6264,12 +6544,14 @@ function crsPaint(){ var box=document.getElementById('crs-box'); if(!box)return;
   var U=CRS.undoInfo, can=!!(P&&P.courses&&P.courses.length&&!CRS.busy&&dlvEditable());
   h+='</div><div id="crs-ft"><button class="go" onclick="crsApply()"'+(can?'':' disabled')+'>'+(dlvEditable()?'이대로 적용 (호차·순서만 바뀜)':'지난 날짜 — 보기만')+'</button>'+(U?'<button class="un" onclick="crsUndo()" title="'+e(String(U.by||''))+' 적용 전으로">↩ 되돌리기 ('+e(String(U.by||''))+' '+e(typeof rtrHm==='function'?rtrHm(U.at):'')+' 적용)</button>':'')+'<button class="cl" onclick="crsClose()">닫기</button></div>';
   box.innerHTML=h; var bd=document.getElementById('crs-body'); if(bd)bd.scrollTop=keepY; }
-async function crsApply(){ if(CRS.busy)return; var P=CRS.plan; if(!P||!P.courses||!P.courses.length){ alert('적용할 코스가 없어요'); return; } if(!dlvGuardEdit())return;
-  var sum=P.courses.map(function(c){ return dlvCarName(c.car)+' '+c.stops.length+'곳'; }).join(' · ');
-  if(!confirm('짠 코스를 적용할까요?\n\n'+sum+'\n\n· 카드의 호차와 순서만 바뀝니다 (택배전환·미출고는 안 바뀜)\n· 적용 뒤 [되돌리기]로 지금 상태로 돌아올 수 있어요'))return;
+async function crsApply(){ if(CRS.busy)return; var P=CRS.plan, _tw=!!(CRS.manual&&CRS.manual.toWait&&P&&P.how==='manual'); if(!P||!P.courses||(!P.courses.length&&!(_tw&&CRS.manual.waitN))){ alert('적용할 코스가 없어요'); return; } if(!dlvGuardEdit())return;
+  var sum=P.courses.map(function(c){ return dlvCarName(c.car)+' '+c.stops.length+'곳'; }).join(' · ')||'차에 넣은 카드 없음';
+  if(!confirm('짠 코스를 적용할까요?\n\n'+sum+'\n\n· 카드의 호차와 순서만 바뀝니다 (택배전환·미출고는 안 바뀜)\n· 적용 뒤 [되돌리기]로 지금 상태로 돌아올 수 있어요'+((_tw&&CRS.manual.waitN)?String.fromCharCode(10)+'· 차에서 뺀 '+CRS.manual.waitN+'장은 대기로 돌아갑니다':'')))return;
   CRS.busy=true; CRS.msg='적용 중…'; crsPaint();
   try{ var want=[]; P.courses.forEach(function(co){ var base=0; if(CRS.scope!=='all')deliveriesCache.forEach(function(c){ if(c.tab==='deliv'&&dlvCarNorm(c.car)===co.car&&(c.sort_order||0)>base)base=c.sort_order||0; }); co.stops.forEach(function(x,j){ want.push({id:x.id,car1:co.car,so1:base+j+1}); }); });
-    var restN=0; if(CRS.scope==='all'){ var inPlan={}; want.forEach(function(w){ inPlan[w.id]=1; }); var ds0=dlvDateStr();   /* CMU1126 그 차에 남는(코스에 안 넣은) 카드는 코스 카드 뒤 번호로 — 번호가 겹쳐 섞이지 않게 · 되돌리기 기록에도 같이 */
+    var restN=0, waitN=0; if(CRS.scope==='all'&&_tw){ var _ip={}; want.forEach(function(w){ _ip[w.id]=1; }); var _d0=dlvDateStr(), _mx=0; (deliveriesCache||[]).forEach(function(c){ if(c.tab==='deliv'&&c.date_str===_d0&&dlvCarNorm(c.car)===1&&(c.sort_order||0)>_mx)_mx=c.sort_order||0; });   /* CNI1126 지도에서 차에서 뺀 카드 = 대기로(대기 맨 뒤 번호) · 되돌리기 기록에도 같이 */
+      (deliveriesCache||[]).filter(function(c){ return c.tab==='deliv'&&!c.done&&!c.cancelled&&c.date_str===_d0&&CRS_CARS.indexOf(dlvCarNorm(c.car))>=0&&!_ip[c.id]; }).sort(function(a,b){ return ((a.sort_order||0)-(b.sort_order||0))||String(a.id).localeCompare(String(b.id)); }).forEach(function(c,j){ want.push({id:c.id,car1:1,so1:_mx+j+1}); waitN++; }); }
+    else if(CRS.scope==='all'){ var inPlan={}; want.forEach(function(w){ inPlan[w.id]=1; }); var ds0=dlvDateStr();   /* CMU1126 그 차에 남는(코스에 안 넣은) 카드는 코스 카드 뒤 번호로 — 번호가 겹쳐 섞이지 않게 · 되돌리기 기록에도 같이 */
       P.courses.forEach(function(co){ var rest=(deliveriesCache||[]).filter(function(c){ return c.tab==='deliv'&&!c.done&&!c.cancelled&&c.date_str===ds0&&dlvCarNorm(c.car)===co.car&&!inPlan[c.id]; }).sort(function(a,b){ return ((a.sort_order||0)-(b.sort_order||0))||String(a.id).localeCompare(String(b.id)); }); rest.forEach(function(c,j){ want.push({id:c.id,car1:co.car,so1:co.stops.length+j+1}); restN++; }); }); }
     var cur={}; for(var i=0;i<want.length;i+=80){ var q=await sb.from('deliveries').select('id,tab,car,sort_order,done,cancelled').in('id',want.slice(i,i+80).map(function(w){ return w.id; })); if(q.error)throw q.error; (q.data||[]).forEach(function(r){ cur[r.id]=r; }); }   /* 지금 DB 값을 다시 읽어 그것을 '적용 전'으로 남김 */
     var rows=[], skip=0; want.forEach(function(w){ var r=cur[w.id]; if(!r||r.tab!=='deliv'||r.done||r.cancelled){ skip++; return; } rows.push({id:w.id,car0:(r.car==null?null:r.car),so0:(r.sort_order==null?null:r.sort_order),car1:w.car1,so1:w.so1}); });
@@ -6278,7 +6560,7 @@ async function crsApply(){ if(CRS.busy)return; var P=CRS.plan; if(!P||!P.courses
     var u=await sb.from('settings').upsert({key:'crs_undo:'+dlvDateStr(),value:rec,updated_at:rec.at},{onConflict:'key'}); if(u&&u.error)throw new Error('되돌리기 기록을 못 남겨서 적용하지 않았어요: '+(u.error.message||u.error));
     var fails=0; for(var k=0;k<rows.length;k++){ var w=rows[k], r2=await sb.from('deliveries').update({car:w.car1,sort_order:w.so1}).eq('id',w.id).eq('tab','deliv').select('id'); if(!r2||r2.error||!(r2.data&&r2.data.length))fails++; }
     await dlvLog('코스짜기 적용('+(P.how==='manual'?'지도에서 직접 정함':((P.how==='map'?'지도 거리':'과거 기록')+' 기준'))+' · '+sum+')'); try{ logAudit('코스 추천 적용',sum); }catch(e2){}
-    CRS.undoInfo=rec; CRS.msg=(fails?'⚠ ':'✅ ')+'적용했어요 — '+sum+(restN?' · 코스에 안 넣고 그 차에 남아 있던 '+restN+'장은 뒤 순서로':'')+(skip?' · 그 사이 바뀐 카드 '+skip+'장은 건너뜀':'')+(fails?' · 저장 안 된 카드 '+fails+'장 — 직배송방에서 직접 확인해 주세요':'');
+    CRS.undoInfo=rec; CRS.msg=(fails?'⚠ ':'✅ ')+'적용했어요 — '+sum+(restN?' · 코스에 안 넣고 그 차에 남아 있던 '+restN+'장은 뒤 순서로':'')+(waitN?' · 차에서 뺀 '+waitN+'장은 대기로':'')+(skip?' · 그 사이 바뀐 카드 '+skip+'장은 건너뜀':'')+(fails?' · 저장 안 된 카드 '+fails+'장 — 직배송방에서 직접 확인해 주세요':'');
   }catch(e){ CRS.msg='❌ 적용 실패: '+String(e&&e.message||e); }
   CRS.busy=false; try{ await loadDeliveries(); }catch(e3){} crsPaint(); }
 async function crsUndo(){ if(CRS.busy)return; var U=CRS.undoInfo; if(!U||!U.rows||!U.rows.length){ alert('되돌릴 기록이 없어요'); return; } if(!dlvGuardEdit())return;
@@ -8154,7 +8436,7 @@ function _renderDeliveryCore(){
   if(dlvSearchQuery)list=list.filter(dlvMatchSearch);
   if(typeof DLV_CH!=='undefined'&&DLV_CH!=='all')list=list.filter(dlvChipPass);
   let html=dutyBarHtml(dlvDateStr());
-  if(curDlvTab==='deliv')html+='<div style="margin:2px 0 8px;display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button onclick="crsOpen()" style="display:inline-flex;align-items:center;gap:6px;border:0;background:#4f46e5;color:#fff;border-radius:11px;padding:11px 22px;font-size:16px;font-weight:900;cursor:pointer;box-shadow:0 3px 10px rgba(79,70,229,.45)" title="오늘 직배송 카드의 호차와 순서를 짭니다 — 미리보기·지도에서 확인한 뒤 적용">🧭 코스짜기</button><span style="font-size:12.5px;color:#64748b">호차·순서를 짜고 지도로 확인 → 적용 (호차 탭의 [🗺 지도로 보기]는 지금 배차를 지도에)</span></div>';   /* CRS1124 · CNC1126 이름·크기·자리(직배송=대기 탭만 — 'summary' 탭은 1호차라 호차 탭)·대표에게만 */
+  if(curDlvTab==='deliv')html+='<div style="margin:2px 0 8px;display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button onclick="crsStart()" style="display:inline-flex;align-items:center;gap:6px;border:0;background:#4f46e5;color:#fff;border-radius:11px;padding:11px 22px;font-size:16px;font-weight:900;cursor:pointer;box-shadow:0 3px 10px rgba(79,70,229,.45)" title="오늘 직배송 카드의 호차와 순서를 짭니다 — 미리보기·지도에서 확인한 뒤 적용">🧭 코스짜기</button><span style="font-size:12.5px;color:#64748b">호차·순서를 짜고 지도로 확인 → 적용 (호차 탭의 [🗺 지도로 보기]는 지금 배차를 지도에)</span></div>';   /* CRS1124 · CNC1126 이름·크기·자리(직배송=대기 탭만 — 'summary' 탭은 1호차라 호차 탭)·대표에게만 */
   if(dlvIsBoss())html+='<div style="text-align:right;margin:0 0 4px"><button class="item-add-btn ghost" onclick="dlvTrashOpen()" title="🗑 삭제로 지운 카드 — 최근 60일, 복구 가능">🗑 지운 카드(휴지통)</button></div>';   /* (10/23) */
   if(!_editable)html+=dlvPastAdmin()?'<div class="dlv-viewonly" style="background:#fef3c7;color:#92400e;border-color:#fcd34d">👁 과거 날짜 — 대표는 취소·확인·완료·발송예정 조작 가능 (모든 조작이 \'지난 날짜 대표 조작\'으로 기록됨)</div>':'<div class="dlv-viewonly">👁 과거 날짜 — 보기 전용 (복사 버튼만 가능)</div>';
   if(curDlvTab==='parcel')html+='<div style="margin:2px 0 8px;display:flex;align-items:center;gap:6px;flex-wrap:wrap"><span style="flex:1"></span>'+((typeof stkIsAdmin==='function'&&stkIsAdmin())?'<button class="item-add-btn ghost" onclick="dlvEditModeToggle()" style="'+(dlvEditModeOn()?'background:#fef3c7;border-color:#f59e0b;color:#92400e':'')+'" title="확인 되돌리기 등 되돌리기성 조작은 수정모드에서만 (비밀번호)">'+(dlvEditModeOn()?'🔧 수정모드 ON · 끄기':'🔧 수정모드')+'</button>':'')+'<button class="item-add-btn ghost" onclick="dlvParcelXlsx()">📥 택배 엑셀 다운로드</button><button class="item-add-btn" onclick="kdRcptDlv()" style="background:#1d4ed8;color:#fff;border-color:#1d4ed8" title="택배전환 탭 카드를 경동에 바로 엑셀등록 → 미리보기 → 접수 → 송장 → 출력">📮 경동 접수</button>'+((typeof kdRcptIsBoss==='function'&&kdRcptIsBoss())?'<button class="item-add-btn ghost" onclick="kdRcptSetup()" title="경동 접수 보내는분·운임구분 설정(대표)">⚙</button>':'')+'</div>';
